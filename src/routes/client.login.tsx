@@ -67,31 +67,49 @@ function ClientLogin() {
             textAlign: "center",
           }}
         >
-          Enter your access code
+          Sign in to Buddy
         </h1>
 
-        <form onSubmit={onSubmit} style={{ width: "100%", marginTop: 32 }}>
+        <form onSubmit={onSubmit} style={{ width: "100%", marginTop: 32, display: "flex", flexDirection: "column", gap: 14 }}>
           <input
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            autoComplete="one-time-code"
-            maxLength={6}
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ""))}
-            placeholder="••••"
-            aria-label="Access code"
+            type="email"
+            autoComplete="email"
+            inputMode="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            aria-label="Email"
+            required
             style={{
               width: "100%",
-              height: 64,
+              height: 52,
               borderRadius: 8,
               background: "var(--navy-card)",
               border: "1px solid var(--navy-border)",
               color: "var(--white)",
-              fontFamily: "var(--font-data)",
-              fontSize: 28,
-              textAlign: "center",
-              letterSpacing: "0.5em",
+              fontFamily: "var(--font-ui)",
+              fontSize: 16,
+              padding: "0 16px",
+              outline: "none",
+            }}
+          />
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            aria-label="Password"
+            required
+            style={{
+              width: "100%",
+              height: 52,
+              borderRadius: 8,
+              background: "var(--navy-card)",
+              border: "1px solid var(--navy-border)",
+              color: "var(--white)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 16,
               padding: "0 16px",
               outline: "none",
             }}
@@ -102,7 +120,7 @@ function ClientLogin() {
               role="alert"
               style={{
                 color: "var(--red)",
-                marginTop: 16,
+                marginTop: 4,
                 textAlign: "center",
                 fontSize: 14,
               }}
@@ -113,9 +131,9 @@ function ClientLogin() {
 
           <button
             type="submit"
-            disabled={loading || code.length === 0}
+            disabled={loading || !email || !password}
             style={{
-              marginTop: 24,
+              marginTop: 10,
               width: "100%",
               minHeight: 48,
               borderRadius: 8,
@@ -125,10 +143,10 @@ function ClientLogin() {
               fontFamily: "var(--font-ui)",
               fontWeight: 600,
               fontSize: 16,
-              opacity: loading || code.length === 0 ? 0.6 : 1,
+              opacity: loading || !email || !password ? 0.6 : 1,
             }}
           >
-            {loading ? "Checking…" : "Log in"}
+            {loading ? "Signing in…" : "Log in"}
           </button>
         </form>
 
