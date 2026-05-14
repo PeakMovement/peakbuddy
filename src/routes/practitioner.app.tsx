@@ -22,12 +22,26 @@ function PractitionerAppLayout() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (!data.user) {
+          navigate({ to: "/practitioner/login" });
+          return;
+        }
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", data.user.id)
+          .maybeSingle();
+        if (!prof || prof.role !== "practitioner") {
+          await supabase.auth.signOut();
+          navigate({ to: "/practitioner/login" });
+          return;
+        }
+        setUserId(data.user.id);
+      } catch {
         navigate({ to: "/practitioner/login" });
-        return;
       }
-      setUserId(data.user.id);
     })();
   }, [navigate]);
 
