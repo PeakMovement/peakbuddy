@@ -43,23 +43,32 @@ function Alerts() {
   const [clients, setClients] = useState<Record<string, Client>>({});
   const [filter, setFilter] = useState<Filter>("all");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
-    const { data: u } = await supabase.auth.getUser();
-    if (!u.user) return;
-    const [{ data: a }, { data: c }] = await Promise.all([
-      supabase
-        .from("alerts")
-        .select("*")
-        .eq("practitioner_id", u.user.id)
-        .order("created_at", { ascending: false }),
-      supabase.from("clients").select("*").eq("practitioner_id", u.user.id),
-    ]);
-    setAlerts((a as Alert[]) ?? []);
-    const map: Record<string, Client> = {};
-    ((c as Client[]) ?? []).forEach((cl) => (map[cl.id] = cl));
-    setClients(map);
-    setLoading(false);
+    setError(null);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
+      const [{ data: a, error: aErr }, { data: c, error: cErr }] = await Promise.all([
+        supabase
+          .from("alerts")
+          .select("*")
+          .eq("practitioner_id", u.user.id)
+          .order("created_at", { ascending: false }),
+        supabase.from("clients").select("*").eq("practitioner_id", u.user.id),
+      ]);
+      if (aErr || cErr) throw aErr || cErr;
+      setAlerts((a as Alert[]) ?? []);
+      const map: Record<string, Client> = {};
+      ((c as Client[]) ?? []).forEach((cl) => (map[cl.id] = cl));
+      setClients(map);
+    } catch (e) {
+      console.error(e);
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
