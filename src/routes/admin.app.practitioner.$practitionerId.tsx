@@ -99,7 +99,7 @@ function PractitionerDetail() {
             <button
               key={c.id}
               type="button"
-              onClick={() => navigate({ to: "/admin/app/client/$clientId", params: { clientId: c.id } })}
+              onClick={() => navigate({ to: "/admin/app/client-detail/$clientId", params: { clientId: c.id } })}
               style={{
                 textAlign: "left",
                 background: "var(--navy-card)",

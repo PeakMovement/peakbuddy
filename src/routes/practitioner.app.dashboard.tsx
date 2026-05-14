@@ -197,7 +197,7 @@ function Dashboard() {
             <button
               key={r.id}
               type="button"
-              onClick={() => navigate({ to: "/practitioner/app/client/$clientId", params: { clientId: r.id } })}
+              onClick={() => navigate({ to: "/practitioner/app/client-detail/$clientId", params: { clientId: r.id } })}
               style={{
                 textAlign: "left",
                 background: "var(--navy-card)",

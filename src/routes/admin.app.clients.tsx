@@ -132,7 +132,7 @@ function AllClients() {
             <button
               key={r.id}
               type="button"
-              onClick={() => navigate({ to: "/admin/app/client/$clientId", params: { clientId: r.id } })}
+              onClick={() => navigate({ to: "/admin/app/client-detail/$clientId", params: { clientId: r.id } })}
               style={{
                 textAlign: "left",
                 background: "var(--navy-card)",

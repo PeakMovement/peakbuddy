@@ -30,9 +30,9 @@ import { Route as AdminAppPractitionersRouteImport } from './routes/admin.app.pr
 import { Route as AdminAppDashboardRouteImport } from './routes/admin.app.dashboard'
 import { Route as AdminAppClientsRouteImport } from './routes/admin.app.clients'
 import { Route as AdminAppAlertsRouteImport } from './routes/admin.app.alerts'
-import { Route as PractitionerAppClientClientIdRouteImport } from './routes/practitioner.app.client.$clientId'
+import { Route as PractitionerAppClientDetailClientIdRouteImport } from './routes/practitioner.app.client-detail.$clientId'
 import { Route as AdminAppPractitionerPractitionerIdRouteImport } from './routes/admin.app.practitioner.$practitionerId'
-import { Route as AdminAppClientClientIdRouteImport } from './routes/admin.app.client.$clientId'
+import { Route as AdminAppClientDetailClientIdRouteImport } from './routes/admin.app.client-detail.$clientId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -141,10 +141,10 @@ const AdminAppAlertsRoute = AdminAppAlertsRouteImport.update({
   path: '/alerts',
   getParentRoute: () => AdminAppRoute,
 } as any)
-const PractitionerAppClientClientIdRoute =
-  PractitionerAppClientClientIdRouteImport.update({
-    id: '/client/$clientId',
-    path: '/client/$clientId',
+const PractitionerAppClientDetailClientIdRoute =
+  PractitionerAppClientDetailClientIdRouteImport.update({
+    id: '/client-detail/$clientId',
+    path: '/client-detail/$clientId',
     getParentRoute: () => PractitionerAppRoute,
   } as any)
 const AdminAppPractitionerPractitionerIdRoute =
@@ -153,11 +153,12 @@ const AdminAppPractitionerPractitionerIdRoute =
     path: '/practitioner/$practitionerId',
     getParentRoute: () => AdminAppRoute,
   } as any)
-const AdminAppClientClientIdRoute = AdminAppClientClientIdRouteImport.update({
-  id: '/client/$clientId',
-  path: '/client/$clientId',
-  getParentRoute: () => AdminAppRoute,
-} as any)
+const AdminAppClientDetailClientIdRoute =
+  AdminAppClientDetailClientIdRouteImport.update({
+    id: '/client-detail/$clientId',
+    path: '/client-detail/$clientId',
+    getParentRoute: () => AdminAppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -181,9 +182,9 @@ export interface FileRoutesByFullPath {
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
   '/practitioner/app/settings': typeof PractitionerAppSettingsRoute
   '/client/app/': typeof ClientAppIndexRoute
-  '/admin/app/client/$clientId': typeof AdminAppClientClientIdRoute
+  '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
-  '/practitioner/app/client/$clientId': typeof PractitionerAppClientClientIdRoute
+  '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -206,9 +207,9 @@ export interface FileRoutesByTo {
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
   '/practitioner/app/settings': typeof PractitionerAppSettingsRoute
   '/client/app': typeof ClientAppIndexRoute
-  '/admin/app/client/$clientId': typeof AdminAppClientClientIdRoute
+  '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
-  '/practitioner/app/client/$clientId': typeof PractitionerAppClientClientIdRoute
+  '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -233,9 +234,9 @@ export interface FileRoutesById {
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
   '/practitioner/app/settings': typeof PractitionerAppSettingsRoute
   '/client/app/': typeof ClientAppIndexRoute
-  '/admin/app/client/$clientId': typeof AdminAppClientClientIdRoute
+  '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
-  '/practitioner/app/client/$clientId': typeof PractitionerAppClientClientIdRoute
+  '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -261,9 +262,9 @@ export interface FileRouteTypes {
     | '/practitioner/app/dashboard'
     | '/practitioner/app/settings'
     | '/client/app/'
-    | '/admin/app/client/$clientId'
+    | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
-    | '/practitioner/app/client/$clientId'
+    | '/practitioner/app/client-detail/$clientId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -286,9 +287,9 @@ export interface FileRouteTypes {
     | '/practitioner/app/dashboard'
     | '/practitioner/app/settings'
     | '/client/app'
-    | '/admin/app/client/$clientId'
+    | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
-    | '/practitioner/app/client/$clientId'
+    | '/practitioner/app/client-detail/$clientId'
   id:
     | '__root__'
     | '/'
@@ -312,9 +313,9 @@ export interface FileRouteTypes {
     | '/practitioner/app/dashboard'
     | '/practitioner/app/settings'
     | '/client/app/'
-    | '/admin/app/client/$clientId'
+    | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
-    | '/practitioner/app/client/$clientId'
+    | '/practitioner/app/client-detail/$clientId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -477,11 +478,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppAlertsRouteImport
       parentRoute: typeof AdminAppRoute
     }
-    '/practitioner/app/client/$clientId': {
-      id: '/practitioner/app/client/$clientId'
-      path: '/client/$clientId'
-      fullPath: '/practitioner/app/client/$clientId'
-      preLoaderRoute: typeof PractitionerAppClientClientIdRouteImport
+    '/practitioner/app/client-detail/$clientId': {
+      id: '/practitioner/app/client-detail/$clientId'
+      path: '/client-detail/$clientId'
+      fullPath: '/practitioner/app/client-detail/$clientId'
+      preLoaderRoute: typeof PractitionerAppClientDetailClientIdRouteImport
       parentRoute: typeof PractitionerAppRoute
     }
     '/admin/app/practitioner/$practitionerId': {
@@ -491,11 +492,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppPractitionerPractitionerIdRouteImport
       parentRoute: typeof AdminAppRoute
     }
-    '/admin/app/client/$clientId': {
-      id: '/admin/app/client/$clientId'
-      path: '/client/$clientId'
-      fullPath: '/admin/app/client/$clientId'
-      preLoaderRoute: typeof AdminAppClientClientIdRouteImport
+    '/admin/app/client-detail/$clientId': {
+      id: '/admin/app/client-detail/$clientId'
+      path: '/client-detail/$clientId'
+      fullPath: '/admin/app/client-detail/$clientId'
+      preLoaderRoute: typeof AdminAppClientDetailClientIdRouteImport
       parentRoute: typeof AdminAppRoute
     }
   }
@@ -506,7 +507,7 @@ interface AdminAppRouteChildren {
   AdminAppClientsRoute: typeof AdminAppClientsRoute
   AdminAppDashboardRoute: typeof AdminAppDashboardRoute
   AdminAppPractitionersRoute: typeof AdminAppPractitionersRoute
-  AdminAppClientClientIdRoute: typeof AdminAppClientClientIdRoute
+  AdminAppClientDetailClientIdRoute: typeof AdminAppClientDetailClientIdRoute
   AdminAppPractitionerPractitionerIdRoute: typeof AdminAppPractitionerPractitionerIdRoute
 }
 
@@ -515,7 +516,7 @@ const AdminAppRouteChildren: AdminAppRouteChildren = {
   AdminAppClientsRoute: AdminAppClientsRoute,
   AdminAppDashboardRoute: AdminAppDashboardRoute,
   AdminAppPractitionersRoute: AdminAppPractitionersRoute,
-  AdminAppClientClientIdRoute: AdminAppClientClientIdRoute,
+  AdminAppClientDetailClientIdRoute: AdminAppClientDetailClientIdRoute,
   AdminAppPractitionerPractitionerIdRoute:
     AdminAppPractitionerPractitionerIdRoute,
 }
@@ -549,7 +550,7 @@ interface PractitionerAppRouteChildren {
   PractitionerAppAlertsRoute: typeof PractitionerAppAlertsRoute
   PractitionerAppDashboardRoute: typeof PractitionerAppDashboardRoute
   PractitionerAppSettingsRoute: typeof PractitionerAppSettingsRoute
-  PractitionerAppClientClientIdRoute: typeof PractitionerAppClientClientIdRoute
+  PractitionerAppClientDetailClientIdRoute: typeof PractitionerAppClientDetailClientIdRoute
 }
 
 const PractitionerAppRouteChildren: PractitionerAppRouteChildren = {
@@ -557,7 +558,8 @@ const PractitionerAppRouteChildren: PractitionerAppRouteChildren = {
   PractitionerAppAlertsRoute: PractitionerAppAlertsRoute,
   PractitionerAppDashboardRoute: PractitionerAppDashboardRoute,
   PractitionerAppSettingsRoute: PractitionerAppSettingsRoute,
-  PractitionerAppClientClientIdRoute: PractitionerAppClientClientIdRoute,
+  PractitionerAppClientDetailClientIdRoute:
+    PractitionerAppClientDetailClientIdRoute,
 }
 
 const PractitionerAppRouteWithChildren = PractitionerAppRoute._addFileChildren(
@@ -577,3 +579,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
