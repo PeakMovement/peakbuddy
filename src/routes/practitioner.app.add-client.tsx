@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { useState } from "react";
+import { RefreshCw, Copy, Check } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { createClientAccount } from "@/lib/clients.functions";
 
 export const Route = createFileRoute("/practitioner/app/add-client")({
   head: () => ({ meta: [{ title: "Add Client — Buddy" }] }),
@@ -15,17 +16,13 @@ const FREQUENCIES: { value: string; label: string }[] = [
   { value: "weekly", label: "Weekly" },
 ];
 
-function genCode() {
-  return String(Math.floor(1000 + Math.random() * 9000));
-}
-
-async function generateUniqueCode(): Promise<string> {
-  for (let i = 0; i < 10; i++) {
-    const code = genCode();
-    const { data } = await supabase.from("clients").select("id").eq("login_code", code).maybeSingle();
-    if (!data) return code;
-  }
-  return genCode();
+function generatePassword() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  let out = "";
+  const arr = new Uint32Array(12);
+  crypto.getRandomValues(arr);
+  for (let i = 0; i < 12; i++) out += chars[arr[i] % chars.length];
+  return out;
 }
 
 function AddClient() {
@@ -33,26 +30,22 @@ function AddClient() {
   const [email, setEmail] = useState("");
   const [complaint, setComplaint] = useState("");
   const [notes, setNotes] = useState("");
-  const [freq, setFreq] = useState("daily");
-  const [code, setCode] = useState("");
+  const [freq, setFreq] = useState<"daily" | "every_2_days" | "every_3_days" | "weekly">("daily");
+  const [password, setPassword] = useState(() => generatePassword());
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ email: string; password: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    generateUniqueCode().then(setCode);
-  }, []);
-
-  const refreshCode = async () => {
-    setCode("");
-    setCode(await generateUniqueCode());
-  };
+  const [copied, setCopied] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!fullName.trim() || !complaint.trim()) {
-      setError("Full name and primary complaint are required.");
+    if (!fullName.trim() || !complaint.trim() || !email.trim()) {
+      setError("Full name, email, and primary complaint are required.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
     setSubmitting(true);
@@ -62,29 +55,37 @@ function AddClient() {
       setSubmitting(false);
       return;
     }
-    const { error: insErr } = await supabase.from("clients").insert({
-      practitioner_id: u.user.id,
-      full_name: fullName.trim(),
-      email: email.trim(),
-      primary_complaint: complaint.trim(),
-      notes: notes.trim(),
-      check_in_frequency: freq,
-      login_code: code,
-      popia_accepted: false,
+    const result = await createClientAccount({
+      data: {
+        practitionerId: u.user.id,
+        fullName: fullName.trim(),
+        email: email.trim(),
+        password,
+        primaryComplaint: complaint.trim(),
+        notes: notes.trim(),
+        checkInFrequency: freq,
+      },
     });
-    if (insErr) {
-      setError(insErr.message);
+    if (!result.ok) {
+      setError(result.error);
       setSubmitting(false);
       return;
     }
-    setSuccess(`Client added. Their login code is ${code}. Share this with them to get started.`);
+    setSuccess({ email: email.trim(), password });
     setFullName("");
     setEmail("");
     setComplaint("");
     setNotes("");
     setFreq("daily");
-    setCode(await generateUniqueCode());
+    setPassword(generatePassword());
     setSubmitting(false);
+  };
+
+  const copyCreds = async () => {
+    if (!success) return;
+    await navigator.clipboard.writeText(`Email: ${success.email}\nPassword: ${success.password}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
   };
 
   const inputStyle: React.CSSProperties = {
@@ -127,7 +128,31 @@ function AddClient() {
             fontSize: 14,
           }}
         >
-          {success}
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>Client account created.</div>
+          <div style={{ fontFamily: "var(--font-data)", fontSize: 13, lineHeight: 1.6 }}>
+            <div>Email: {success.email}</div>
+            <div>Password: {success.password}</div>
+          </div>
+          <button
+            type="button"
+            onClick={copyCreds}
+            style={{
+              marginTop: 10,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              background: "transparent",
+              border: "1px solid var(--green)",
+              borderRadius: 6,
+              padding: "6px 10px",
+              color: "var(--white)",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+            {copied ? "Copied" : "Copy credentials"}
+          </button>
         </div>
       )}
 
@@ -137,13 +162,14 @@ function AddClient() {
           <input style={inputStyle} value={fullName} onChange={(e) => setFullName(e.target.value)} required />
         </div>
         <div>
-          <label style={labelStyle}>Email</label>
+          <label style={labelStyle}>Email *</label>
           <input
             type="email"
             style={inputStyle}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             inputMode="email"
+            required
           />
         </div>
         <div>
@@ -165,7 +191,7 @@ function AddClient() {
               <button
                 key={f.value}
                 type="button"
-                onClick={() => setFreq(f.value)}
+                onClick={() => setFreq(f.value as typeof freq)}
                 style={{
                   minHeight: 44,
                   borderRadius: 8,
@@ -184,30 +210,20 @@ function AddClient() {
           </div>
         </div>
         <div>
-          <label style={labelStyle}>Login Code</label>
+          <label style={labelStyle}>Initial Password *</label>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <div
-              style={{
-                flex: 1,
-                background: "var(--navy-card)",
-                border: "1px solid var(--navy-border)",
-                borderRadius: 8,
-                padding: "12px 14px",
-                fontFamily: "var(--font-data)",
-                fontSize: 24,
-                fontWeight: 700,
-                color: "var(--white)",
-                textAlign: "center",
-                letterSpacing: "0.3em",
-                minHeight: 48,
-              }}
-            >
-              {code || "…"}
-            </div>
+            <input
+              type="text"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{ ...inputStyle, fontFamily: "var(--font-data)", letterSpacing: "0.05em" }}
+              minLength={8}
+              required
+            />
             <button
               type="button"
-              onClick={refreshCode}
-              aria-label="Regenerate code"
+              onClick={() => setPassword(generatePassword())}
+              aria-label="Generate new password"
               style={{
                 width: 48,
                 height: 48,
@@ -219,10 +235,14 @@ function AddClient() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                flexShrink: 0,
               }}
             >
               <RefreshCw size={18} />
             </button>
+          </div>
+          <div style={{ marginTop: 6, fontSize: 12, color: "var(--white-muted)" }}>
+            Share this password with your client. They sign in with their email and this password.
           </div>
         </div>
 
