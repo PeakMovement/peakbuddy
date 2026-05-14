@@ -7,12 +7,13 @@ export const Route = createFileRoute("/practitioner/app")({
   component: PractitionerAppLayout,
 });
 
-const tabs = [
+type Tab = { to: string; label: string; Icon: typeof LayoutGrid; badge?: boolean };
+const tabs: Tab[] = [
   { to: "/practitioner/app/dashboard", label: "Dashboard", Icon: LayoutGrid },
   { to: "/practitioner/app/alerts", label: "Alerts", Icon: Bell, badge: true },
   { to: "/practitioner/app/add-client", label: "Add", Icon: UserPlus },
   { to: "/practitioner/app/settings", label: "Settings", Icon: SettingsIcon },
-] as const;
+];
 
 function PractitionerAppLayout() {
   const navigate = useNavigate();
