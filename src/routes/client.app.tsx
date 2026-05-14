@@ -43,7 +43,7 @@ function ClientAppLayout() {
           bottom: 0,
           background: "var(--navy-card)",
           borderTop: "1px solid var(--navy-border)",
-          paddingBottom: "env(safe-area-inset-bottom)",
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)",
           display: "flex",
           zIndex: 50,
         }}

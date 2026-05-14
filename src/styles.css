@@ -22,7 +22,11 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body { overflow-x: hidden; }
+html, body {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
 
 body {
   background: var(--navy);
@@ -32,7 +36,28 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+button, a, input, select, textarea {
+  touch-action: manipulation;
+  font-family: inherit;
+}
+
+button { cursor: pointer; }
+
+* { transition-duration: 200ms !important; animation-duration: 400ms; }
+
 .safe-area {
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+@keyframes buddy-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+.skeleton {
+  background: var(--navy-card);
+  border: 1px solid var(--navy-border);
+  border-radius: 12px;
+  animation: buddy-pulse 1.4s ease-in-out infinite;
+}
+

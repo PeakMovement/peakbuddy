@@ -1,8 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
+import { Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Profile, Client, CheckIn } from "@/lib/types";
 import { CircularRing, ringColor } from "@/components/CircularRing";
+import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 
 export const Route = createFileRoute("/practitioner/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Buddy" }] }),
@@ -38,63 +40,73 @@ function Dashboard() {
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const { data: u } = await supabase.auth.getUser();
-    if (!u.user) return;
+    setError(null);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
 
-    const [{ data: prof }, { data: clients }, { count: unreadCount }] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
-      supabase.from("clients").select("*").eq("practitioner_id", u.user.id).order("created_at", { ascending: false }),
-      supabase.from("alerts").select("*", { count: "exact", head: true }).eq("practitioner_id", u.user.id).eq("is_read", false),
-    ]);
+      const [{ data: prof }, { data: clients, error: cErr }, { count: unreadCount, error: aErr }] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
+        supabase.from("clients").select("*").eq("practitioner_id", u.user.id).order("created_at", { ascending: false }),
+        supabase.from("alerts").select("*", { count: "exact", head: true }).eq("practitioner_id", u.user.id).eq("is_read", false),
+      ]);
+      if (cErr || aErr) throw cErr || aErr;
 
-    setProfile(prof as Profile | null);
-    setUnread(unreadCount ?? 0);
+      setProfile(prof as Profile | null);
+      setUnread(unreadCount ?? 0);
 
-    const list = (clients as Client[]) ?? [];
-    if (list.length === 0) {
-      setRows([]);
+      const list = (clients as Client[]) ?? [];
+      if (list.length === 0) {
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+      const ids = list.map((c) => c.id);
+      const { data: checkIns, error: ciErr } = await supabase
+        .from("check_ins")
+        .select("*")
+        .in("client_id", ids)
+        .order("created_at", { ascending: false });
+      if (ciErr) throw ciErr;
+
+      const today = new Date();
+      const byClient = new Map<string, CheckIn[]>();
+      ((checkIns as CheckIn[]) ?? []).forEach((ci) => {
+        const arr = byClient.get(ci.client_id) ?? [];
+        arr.push(ci);
+        byClient.set(ci.client_id, arr);
+      });
+
+      const enriched: ClientRow[] = list.map((c) => {
+        const ci = byClient.get(c.id) ?? [];
+        const last = ci[0]?.created_at ?? null;
+        const weeks = c.tracking_duration_weeks ?? 8;
+        const start = new Date(c.created_at).getTime();
+        const elapsed = Math.max(1, Math.ceil((Date.now() - start) / (1000 * 60 * 60 * 24)));
+        const expectedSoFar =
+          c.check_in_frequency === "daily"
+            ? Math.min(elapsed, weeks * 7)
+            : c.check_in_frequency === "weekly"
+              ? Math.min(Math.ceil(elapsed / 7), weeks)
+              : Math.min(Math.ceil(elapsed / (c.check_in_frequency === "every_3_days" ? 3 : 2)), weeks * 4);
+        const compliance = Math.min(100, Math.round((ci.length / Math.max(1, expectedSoFar)) * 100));
+        return {
+          ...c,
+          _lastCheckIn: last,
+          _compliance: compliance,
+          _activeToday: !!last && isSameDay(last, today),
+        };
+      });
+      setRows(enriched);
+    } catch (e) {
+      console.error(e);
+      setError("Something went wrong. Please try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-    const ids = list.map((c) => c.id);
-    const { data: checkIns } = await supabase
-      .from("check_ins")
-      .select("*")
-      .in("client_id", ids)
-      .order("created_at", { ascending: false });
-
-    const today = new Date();
-    const byClient = new Map<string, CheckIn[]>();
-    ((checkIns as CheckIn[]) ?? []).forEach((ci) => {
-      const arr = byClient.get(ci.client_id) ?? [];
-      arr.push(ci);
-      byClient.set(ci.client_id, arr);
-    });
-
-    const enriched: ClientRow[] = list.map((c) => {
-      const ci = byClient.get(c.id) ?? [];
-      const last = ci[0]?.created_at ?? null;
-      const weeks = c.tracking_duration_weeks ?? 8;
-      const start = new Date(c.created_at).getTime();
-      const elapsed = Math.max(1, Math.ceil((Date.now() - start) / (1000 * 60 * 60 * 24)));
-      const expectedSoFar =
-        c.check_in_frequency === "daily"
-          ? Math.min(elapsed, weeks * 7)
-          : c.check_in_frequency === "weekly"
-            ? Math.min(Math.ceil(elapsed / 7), weeks)
-            : Math.min(Math.ceil(elapsed / (c.check_in_frequency === "every_3_days" ? 3 : 2)), weeks * 4);
-      const compliance = Math.min(100, Math.round((ci.length / Math.max(1, expectedSoFar)) * 100));
-      return {
-        ...c,
-        _lastCheckIn: last,
-        _compliance: compliance,
-        _activeToday: !!last && isSameDay(last, today),
-      };
-    });
-    setRows(enriched);
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -164,20 +176,20 @@ function Dashboard() {
       </div>
 
       {loading ? (
-        <div style={{ marginTop: 16, color: "var(--white-muted)" }}>Loading…</div>
+        <div style={{ marginTop: 16 }}>
+          <SkeletonList count={3} height={84} />
+        </div>
+      ) : error ? (
+        <div style={{ marginTop: 16 }}>
+          <ErrorCard message={error} onRetry={load} />
+        </div>
       ) : rows.length === 0 ? (
-        <div
-          style={{
-            marginTop: 16,
-            padding: 24,
-            background: "var(--navy-card)",
-            border: "1px solid var(--navy-border)",
-            borderRadius: 12,
-            color: "var(--white-muted)",
-            textAlign: "center",
-          }}
-        >
-          No clients yet. Add your first client to get started.
+        <div style={{ marginTop: 16 }}>
+          <EmptyState
+            Icon={Users}
+            title="No clients yet"
+            subtitle="Add your first client to get started."
+          />
         </div>
       ) : (
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>

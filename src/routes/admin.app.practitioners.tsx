@@ -1,7 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Practice, Profile, Client } from "@/lib/types";
+import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 
 export const Route = createFileRoute("/admin/app/practitioners")({
   head: () => ({ meta: [{ title: "Practitioners — Buddy Admin" }] }),
@@ -21,14 +23,18 @@ function PractitionersList() {
   const navigate = useNavigate();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      const [{ data: profs }, { data: pracs }, { data: clients }] = await Promise.all([
+  const load = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const [{ data: profs, error: e1 }, { data: pracs, error: e2 }, { data: clients, error: e3 }] = await Promise.all([
         supabase.from("profiles").select("*").eq("role", "practitioner"),
         supabase.from("practices").select("*"),
         supabase.from("clients").select("id,practitioner_id"),
       ]);
+      if (e1 || e2 || e3) throw e1 || e2 || e3;
       const profileMap = new Map<string, Profile>();
       ((profs as Profile[]) ?? []).forEach((p) => profileMap.set(p.id, p));
       const counts = new Map<string, number>();
@@ -46,7 +52,6 @@ function PractitionersList() {
           client_count: counts.get(pr.practitioner_id) ?? 0,
         };
       });
-      // Include practitioners with no practices row
       ((profs as Profile[]) ?? []).forEach((p) => {
         if (!out.find((r) => r.practitioner_id === p.id)) {
           out.push({
@@ -60,8 +65,16 @@ function PractitionersList() {
         }
       });
       setRows(out);
+    } catch (e) {
+      console.error(e);
+      setError("Something went wrong. Please try again.");
+    } finally {
       setLoading(false);
-    })();
+    }
+  };
+
+  useEffect(() => {
+    load();
   }, []);
 
   return (
@@ -71,9 +84,17 @@ function PractitionersList() {
       </h1>
 
       {loading ? (
-        <div style={{ marginTop: 16, color: "var(--white-muted)" }}>Loading…</div>
+        <div style={{ marginTop: 16 }}>
+          <SkeletonList count={3} height={84} />
+        </div>
+      ) : error ? (
+        <div style={{ marginTop: 16 }}>
+          <ErrorCard message={error} onRetry={load} />
+        </div>
       ) : rows.length === 0 ? (
-        <div style={{ marginTop: 16, color: "var(--white-muted)" }}>No practitioners yet.</div>
+        <div style={{ marginTop: 16 }}>
+          <EmptyState Icon={Users} title="No practitioners yet" subtitle="Practitioners will appear here once they sign up." />
+        </div>
       ) : (
         <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
           {rows.map((r) => (
