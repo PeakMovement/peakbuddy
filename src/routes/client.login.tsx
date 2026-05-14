@@ -20,8 +20,10 @@ function ClientLogin() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    const trimmedEmail = email.trim();
+    // Verify credentials via Supabase auth
     const { error: signInErr } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: trimmedEmail,
       password,
     });
     if (signInErr) {
@@ -29,11 +31,14 @@ function ClientLogin() {
       setError("Invalid email or password.");
       return;
     }
+    // Look up the client row, then sign out so downstream pages
+    // continue running under the anon role they were built against.
     const { data: client, error: lookupErr } = await supabase
       .from("clients")
       .select("id")
-      .eq("email", email.trim())
+      .eq("email", trimmedEmail)
       .maybeSingle();
+    await supabase.auth.signOut();
     setLoading(false);
     if (lookupErr || !client) {
       setError("No client record found for this account. Contact your practitioner.");
