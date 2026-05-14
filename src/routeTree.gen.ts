@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PractitionerLoginRouteImport } from './routes/practitioner.login'
 import { Route as ClientLoginRouteImport } from './routes/client.login'
 import { Route as ClientAppRouteImport } from './routes/client.app'
 import { Route as ClientAppIndexRouteImport } from './routes/client.app.index'
@@ -21,6 +22,11 @@ import { Route as ClientAppCheckinRouteImport } from './routes/client.app.checki
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PractitionerLoginRoute = PractitionerLoginRouteImport.update({
+  id: '/practitioner/login',
+  path: '/practitioner/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientLoginRoute = ClientLoginRouteImport.update({
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/client/app': typeof ClientAppRouteWithChildren
   '/client/login': typeof ClientLoginRoute
+  '/practitioner/login': typeof PractitionerLoginRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
@@ -72,6 +79,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/client/login': typeof ClientLoginRoute
+  '/practitioner/login': typeof PractitionerLoginRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/client/app': typeof ClientAppRouteWithChildren
   '/client/login': typeof ClientLoginRoute
+  '/practitioner/login': typeof PractitionerLoginRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
@@ -95,6 +104,7 @@ export interface FileRouteTypes {
     | '/'
     | '/client/app'
     | '/client/login'
+    | '/practitioner/login'
     | '/client/app/checkin'
     | '/client/app/progress'
     | '/client/app/timeline'
@@ -104,6 +114,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/client/login'
+    | '/practitioner/login'
     | '/client/app/checkin'
     | '/client/app/progress'
     | '/client/app/timeline'
@@ -114,6 +125,7 @@ export interface FileRouteTypes {
     | '/'
     | '/client/app'
     | '/client/login'
+    | '/practitioner/login'
     | '/client/app/checkin'
     | '/client/app/progress'
     | '/client/app/timeline'
@@ -125,6 +137,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ClientAppRoute: typeof ClientAppRouteWithChildren
   ClientLoginRoute: typeof ClientLoginRoute
+  PractitionerLoginRoute: typeof PractitionerLoginRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -134,6 +147,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/practitioner/login': {
+      id: '/practitioner/login'
+      path: '/practitioner/login'
+      fullPath: '/practitioner/login'
+      preLoaderRoute: typeof PractitionerLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/client/login': {
@@ -212,6 +232,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ClientAppRoute: ClientAppRouteWithChildren,
   ClientLoginRoute: ClientLoginRoute,
+  PractitionerLoginRoute: PractitionerLoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
