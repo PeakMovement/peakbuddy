@@ -1,68 +1,85 @@
-// Database types for Buddy
+// Database types — match the Supabase schema for Buddy
+
+export type Role = "super_admin" | "practitioner" | "client";
+export type Urgency = "emergency" | "urgent" | "soon" | "monitor" | "routine";
 
 export interface Profile {
   id: string;
-  user_id: string;
-  full_name: string | null;
-  email: string | null;
-  role: "client" | "practitioner" | "admin";
-  avatar_url: string | null;
+  role: Role;
+  full_name: string;
+  profession: string | null;
   created_at: string;
-  updated_at: string;
 }
 
 export interface Practice {
   id: string;
-  name: string;
-  owner_id: string;
-  description: string | null;
-  logo_url: string | null;
+  practitioner_id: string;
+  practice_name: string;
+  profession: string | null;
+  popia_agreed: boolean;
+  popia_agreed_at: string | null;
+  data_processing_agreed: boolean;
+  data_processing_agreed_at: string | null;
+  webhook_url: string;
+  webhook_enabled: boolean;
+  contact_webhook_url: string;
+  contact_webhook_enabled: boolean;
+  onboarding_complete: boolean;
   created_at: string;
-  updated_at: string;
 }
 
 export interface Client {
   id: string;
-  profile_id: string;
-  practice_id: string | null;
-  practitioner_id: string | null;
-  date_of_birth: string | null;
-  notes: string | null;
-  status: "active" | "paused" | "archived";
+  practitioner_id: string;
+  full_name: string;
+  email: string;
+  primary_complaint: string;
+  notes: string;
+  check_in_frequency: string;
+  next_appointment: string | null;
+  tracking_duration_weeks: number;
+  login_code: string;
+  popia_accepted: boolean;
   created_at: string;
-  updated_at: string;
 }
 
 export interface CheckIn {
   id: string;
   client_id: string;
-  mood: number | null;
-  energy: number | null;
-  sleep_hours: number | null;
+  practitioner_id: string;
   pain_level: number | null;
-  notes: string | null;
-  symptoms: string[] | null;
+  sleep_quality: number | null;
+  stress_level: number | null;
+  energy_level: number | null;
+  mood: number | null;
+  notes: string;
+  medication_taken: boolean;
+  flagged: boolean;
   created_at: string;
 }
 
 export interface SymptomQuery {
   id: string;
   client_id: string;
-  query: string;
-  response: string | null;
-  resolved: boolean;
+  practitioner_id: string;
+  query_text: string;
+  urgency: Urgency;
+  red_flag_detected: boolean;
+  suggested_next_step: string;
+  ai_rationale: string;
+  severity: number;
+  source: string;
   created_at: string;
-  updated_at: string;
 }
 
 export interface Alert {
   id: string;
+  practitioner_id: string;
   client_id: string;
-  practitioner_id: string | null;
-  type: "warning" | "critical" | "info";
-  title: string;
+  alert_type: string;
   message: string;
-  acknowledged: boolean;
-  acknowledged_at: string | null;
+  urgency: Urgency | string;
+  is_read: boolean;
+  webhook_fired: boolean;
   created_at: string;
 }
