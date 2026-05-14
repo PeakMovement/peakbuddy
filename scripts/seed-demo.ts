@@ -74,19 +74,19 @@ async function ensureClient(practitionerId: string) {
   const { data: existing } = await sb
     .from("clients")
     .select("id, practitioner_id")
-    .eq("login_code", CLIENT_CODE)
+    .eq("email", CLIENT_EMAIL)
     .maybeSingle();
   let clientId: string;
   if (existing) {
     clientId = existing.id;
-    console.log(`✓ client exists: ${CLIENT_CODE} (${clientId})`);
+    console.log(`✓ client exists: ${CLIENT_EMAIL} (${clientId})`);
   } else {
     const { data, error } = await sb
       .from("clients")
       .insert({
         practitioner_id: practitionerId,
         full_name: "Demo Client",
-        email: "client@demo.com",
+        email: CLIENT_EMAIL,
         primary_complaint: "Lower back pain after long sitting hours",
         notes: "Office worker, started yoga 2 weeks ago.",
         check_in_frequency: "daily",
