@@ -115,9 +115,17 @@ function AllClients() {
       </select>
 
       {loading ? (
-        <div style={{ marginTop: 16, color: "var(--white-muted)" }}>Loading…</div>
+        <div style={{ marginTop: 16 }}>
+          <SkeletonList count={3} height={92} />
+        </div>
+      ) : error ? (
+        <div style={{ marginTop: 16 }}>
+          <ErrorCard message={error} onRetry={load} />
+        </div>
       ) : filtered.length === 0 ? (
-        <div style={{ marginTop: 16, color: "var(--white-muted)" }}>No clients.</div>
+        <div style={{ marginTop: 16 }}>
+          <EmptyState Icon={User} title="No clients" subtitle="No clients match this filter." />
+        </div>
       ) : (
         <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
           {filtered.map((r) => (
