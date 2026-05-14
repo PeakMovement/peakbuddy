@@ -14,8 +14,9 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, {
 
 const ADMIN_EMAIL = "admin@demo.com";
 const PRAC_EMAIL = "practitioner@demo.com";
+const CLIENT_EMAIL = "client@demo.com";
 const PASSWORD = "Demo1234!";
-const CLIENT_CODE = "DEMO123";
+const CLIENT_CODE = "1234";
 
 async function ensureUser(email: string, password: string) {
   // Try to find existing user
@@ -73,19 +74,19 @@ async function ensureClient(practitionerId: string) {
   const { data: existing } = await sb
     .from("clients")
     .select("id, practitioner_id")
-    .eq("login_code", CLIENT_CODE)
+    .eq("email", CLIENT_EMAIL)
     .maybeSingle();
   let clientId: string;
   if (existing) {
     clientId = existing.id;
-    console.log(`✓ client exists: ${CLIENT_CODE} (${clientId})`);
+    console.log(`✓ client exists: ${CLIENT_EMAIL} (${clientId})`);
   } else {
     const { data, error } = await sb
       .from("clients")
       .insert({
         practitioner_id: practitionerId,
         full_name: "Demo Client",
-        email: "client@demo.com",
+        email: CLIENT_EMAIL,
         primary_complaint: "Lower back pain after long sitting hours",
         notes: "Office worker, started yoga 2 weeks ago.",
         check_in_frequency: "daily",
@@ -135,10 +136,14 @@ async function main() {
   await ensurePractice(pracId);
   await ensureClient(pracId);
 
+  // Auth user for client login (email/password)
+  const clientAuthId = await ensureUser(CLIENT_EMAIL, PASSWORD);
+  await upsertProfile(clientAuthId, "client", "Demo Client");
+
   console.log("\n✅ Done. Demo logins:");
   console.log(`   /admin/login         → ${ADMIN_EMAIL} / ${PASSWORD}`);
   console.log(`   /practitioner/login  → ${PRAC_EMAIL} / ${PASSWORD}`);
-  console.log(`   /client/login        → code ${CLIENT_CODE}`);
+  console.log(`   /client/login        → ${CLIENT_EMAIL} / ${PASSWORD}`);
 }
 
 main().catch((e) => {

@@ -11,7 +11,8 @@ export const Route = createFileRoute("/client/login")({
 
 function ClientLogin() {
   const navigate = useNavigate();
-  const [code, setCode] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -19,17 +20,26 @@ function ClientLogin() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { data, error: err } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("login_code", code.trim())
-      .maybeSingle();
-    setLoading(false);
-    if (err || !data) {
-      setError("Code not recognised. Check with your practitioner.");
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    if (signInErr) {
+      setLoading(false);
+      setError("Invalid email or password.");
       return;
     }
-    setClientId(data.id);
+    const { data: client, error: lookupErr } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("email", email.trim())
+      .maybeSingle();
+    setLoading(false);
+    if (lookupErr || !client) {
+      setError("No client record found for this account. Contact your practitioner.");
+      return;
+    }
+    setClientId(client.id);
     navigate({ to: "/client/app/checkin" });
   };
 
@@ -57,31 +67,49 @@ function ClientLogin() {
             textAlign: "center",
           }}
         >
-          Enter your access code
+          Sign in to Buddy
         </h1>
 
-        <form onSubmit={onSubmit} style={{ width: "100%", marginTop: 32 }}>
+        <form onSubmit={onSubmit} style={{ width: "100%", marginTop: 32, display: "flex", flexDirection: "column", gap: 14 }}>
           <input
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            autoComplete="one-time-code"
-            maxLength={6}
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ""))}
-            placeholder="••••"
-            aria-label="Access code"
+            type="email"
+            autoComplete="email"
+            inputMode="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            aria-label="Email"
+            required
             style={{
               width: "100%",
-              height: 64,
+              height: 52,
               borderRadius: 8,
               background: "var(--navy-card)",
               border: "1px solid var(--navy-border)",
               color: "var(--white)",
-              fontFamily: "var(--font-data)",
-              fontSize: 28,
-              textAlign: "center",
-              letterSpacing: "0.5em",
+              fontFamily: "var(--font-ui)",
+              fontSize: 16,
+              padding: "0 16px",
+              outline: "none",
+            }}
+          />
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            aria-label="Password"
+            required
+            style={{
+              width: "100%",
+              height: 52,
+              borderRadius: 8,
+              background: "var(--navy-card)",
+              border: "1px solid var(--navy-border)",
+              color: "var(--white)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 16,
               padding: "0 16px",
               outline: "none",
             }}
@@ -92,7 +120,7 @@ function ClientLogin() {
               role="alert"
               style={{
                 color: "var(--red)",
-                marginTop: 16,
+                marginTop: 4,
                 textAlign: "center",
                 fontSize: 14,
               }}
@@ -103,9 +131,9 @@ function ClientLogin() {
 
           <button
             type="submit"
-            disabled={loading || code.length === 0}
+            disabled={loading || !email || !password}
             style={{
-              marginTop: 24,
+              marginTop: 10,
               width: "100%",
               minHeight: 48,
               borderRadius: 8,
@@ -115,10 +143,10 @@ function ClientLogin() {
               fontFamily: "var(--font-ui)",
               fontWeight: 600,
               fontSize: 16,
-              opacity: loading || code.length === 0 ? 0.6 : 1,
+              opacity: loading || !email || !password ? 0.6 : 1,
             }}
           >
-            {loading ? "Checking…" : "Log in"}
+            {loading ? "Signing in…" : "Log in"}
           </button>
         </form>
 
