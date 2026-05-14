@@ -11,7 +11,8 @@ export const Route = createFileRoute("/client/login")({
 
 function ClientLogin() {
   const navigate = useNavigate();
-  const [code, setCode] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -19,17 +20,26 @@ function ClientLogin() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { data, error: err } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("login_code", code.trim())
-      .maybeSingle();
-    setLoading(false);
-    if (err || !data) {
-      setError("Code not recognised. Check with your practitioner.");
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    if (signInErr) {
+      setLoading(false);
+      setError("Invalid email or password.");
       return;
     }
-    setClientId(data.id);
+    const { data: client, error: lookupErr } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("email", email.trim())
+      .maybeSingle();
+    setLoading(false);
+    if (lookupErr || !client) {
+      setError("No client record found for this account. Contact your practitioner.");
+      return;
+    }
+    setClientId(client.id);
     navigate({ to: "/client/app/checkin" });
   };
 
