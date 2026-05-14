@@ -23,13 +23,18 @@ function AllClients() {
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      const [{ data: clients }, { data: profs }, { data: checkIns }] = await Promise.all([
+  const [error, setError] = useState<string | null>(null);
+
+  const load = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const [{ data: clients, error: e1 }, { data: profs, error: e2 }, { data: checkIns, error: e3 }] = await Promise.all([
         supabase.from("clients").select("*").order("created_at", { ascending: false }),
         supabase.from("profiles").select("*").eq("role", "practitioner"),
         supabase.from("check_ins").select("*").order("created_at", { ascending: false }),
       ]);
+      if (e1 || e2 || e3) throw e1 || e2 || e3;
       const profileMap = new Map<string, Profile>();
       ((profs as Profile[]) ?? []).forEach((p) => profileMap.set(p.id, p));
       const ciMap = new Map<string, CheckIn[]>();
@@ -62,8 +67,16 @@ function AllClients() {
 
       setPracts((profs as Profile[]) ?? []);
       setRows(out);
+    } catch (e) {
+      console.error(e);
+      setError("Something went wrong. Please try again.");
+    } finally {
       setLoading(false);
-    })();
+    }
+  };
+
+  useEffect(() => {
+    load();
   }, []);
 
   const filtered = useMemo(
