@@ -69,6 +69,8 @@ export const createClientAccount = createServerFn({ method: "POST" })
         notes: data.notes ?? "",
         check_in_frequency: data.checkInFrequency,
         popia_accepted: false,
+        // login_code retained for legacy schema compatibility; not used for login.
+        login_code: String(Math.floor(1000 + Math.random() * 9000)),
       })
       .select("id")
       .single();
