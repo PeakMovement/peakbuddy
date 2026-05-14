@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { CheckIn, Client, Profile } from "@/lib/types";
 
-export const Route = createFileRoute("/admin/app/client/$clientId")({
+export const Route = createFileRoute("/admin/app/client-detail/$clientId")({
   head: () => ({ meta: [{ title: "Client — Buddy Admin" }] }),
   component: ClientDetailAdmin,
 });

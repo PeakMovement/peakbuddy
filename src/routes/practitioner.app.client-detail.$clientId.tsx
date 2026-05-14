@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import type { CheckIn, Client } from "@/lib/types";
 import { CircularRing, ringColor } from "@/components/CircularRing";
 
-export const Route = createFileRoute("/practitioner/app/client/$clientId")({
+export const Route = createFileRoute("/practitioner/app/client-detail/$clientId")({
   head: () => ({ meta: [{ title: "Client — Buddy" }] }),
   component: ClientDetail,
 });
