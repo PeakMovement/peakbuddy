@@ -1,8 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
+import { Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Profile, Client, CheckIn } from "@/lib/types";
 import { CircularRing, ringColor } from "@/components/CircularRing";
+import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 
 export const Route = createFileRoute("/practitioner/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Buddy" }] }),
