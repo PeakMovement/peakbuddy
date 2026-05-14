@@ -1,8 +1,7 @@
 @import "tailwindcss" source(none);
-@source "../src";
 @import "tw-animate-css";
-
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Rajdhani:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+@source "../src";
 
 :root {
   --navy: #0a0e1a;
