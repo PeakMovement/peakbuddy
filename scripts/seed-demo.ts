@@ -14,8 +14,9 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, {
 
 const ADMIN_EMAIL = "admin@demo.com";
 const PRAC_EMAIL = "practitioner@demo.com";
+const CLIENT_EMAIL = "client@demo.com";
 const PASSWORD = "Demo1234!";
-const CLIENT_CODE = "DEMO123";
+const CLIENT_CODE = "1234";
 
 async function ensureUser(email: string, password: string) {
   // Try to find existing user
