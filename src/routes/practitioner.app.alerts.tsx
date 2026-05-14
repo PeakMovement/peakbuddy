@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { BellOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Alert, Client } from "@/lib/types";
+import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 
 export const Route = createFileRoute("/practitioner/app/alerts")({
   head: () => ({ meta: [{ title: "Alerts — Buddy" }] }),
