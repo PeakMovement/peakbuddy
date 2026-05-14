@@ -17,6 +17,7 @@ import { Route as ClientLoginRouteImport } from './routes/client.login'
 import { Route as ClientAppRouteImport } from './routes/client.app'
 import { Route as ClientAppIndexRouteImport } from './routes/client.app.index'
 import { Route as PractitionerAppDashboardRouteImport } from './routes/practitioner.app.dashboard'
+import { Route as PractitionerAppAlertsRouteImport } from './routes/practitioner.app.alerts'
 import { Route as ClientAppYvesRouteImport } from './routes/client.app.yves'
 import { Route as ClientAppTimelineRouteImport } from './routes/client.app.timeline'
 import { Route as ClientAppProgressRouteImport } from './routes/client.app.progress'
@@ -63,6 +64,11 @@ const PractitionerAppDashboardRoute =
     path: '/dashboard',
     getParentRoute: () => PractitionerAppRoute,
   } as any)
+const PractitionerAppAlertsRoute = PractitionerAppAlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
+  getParentRoute: () => PractitionerAppRoute,
+} as any)
 const ClientAppYvesRoute = ClientAppYvesRouteImport.update({
   id: '/yves',
   path: '/yves',
@@ -95,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
+  '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
   '/client/app/': typeof ClientAppIndexRoute
 }
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
+  '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
   '/client/app': typeof ClientAppIndexRoute
 }
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
+  '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
   '/client/app/': typeof ClientAppIndexRoute
 }
@@ -139,6 +148,7 @@ export interface FileRouteTypes {
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
+    | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
     | '/client/app/'
   fileRoutesByTo: FileRoutesByTo
@@ -152,6 +162,7 @@ export interface FileRouteTypes {
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
+    | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
     | '/client/app'
   id:
@@ -166,6 +177,7 @@ export interface FileRouteTypes {
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
+    | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
     | '/client/app/'
   fileRoutesById: FileRoutesById
@@ -237,6 +249,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PractitionerAppDashboardRouteImport
       parentRoute: typeof PractitionerAppRoute
     }
+    '/practitioner/app/alerts': {
+      id: '/practitioner/app/alerts'
+      path: '/alerts'
+      fullPath: '/practitioner/app/alerts'
+      preLoaderRoute: typeof PractitionerAppAlertsRouteImport
+      parentRoute: typeof PractitionerAppRoute
+    }
     '/client/app/yves': {
       id: '/client/app/yves'
       path: '/yves'
@@ -289,10 +308,12 @@ const ClientAppRouteWithChildren = ClientAppRoute._addFileChildren(
 )
 
 interface PractitionerAppRouteChildren {
+  PractitionerAppAlertsRoute: typeof PractitionerAppAlertsRoute
   PractitionerAppDashboardRoute: typeof PractitionerAppDashboardRoute
 }
 
 const PractitionerAppRouteChildren: PractitionerAppRouteChildren = {
+  PractitionerAppAlertsRoute: PractitionerAppAlertsRoute,
   PractitionerAppDashboardRoute: PractitionerAppDashboardRoute,
 }
 
@@ -311,3 +332,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
