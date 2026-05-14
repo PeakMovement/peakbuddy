@@ -10,33 +10,61 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ClientLoginRouteImport } from './routes/client.login'
+import { Route as ClientAppRouteImport } from './routes/client.app'
+import { Route as ClientAppIndexRouteImport } from './routes/client.app.index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientLoginRoute = ClientLoginRouteImport.update({
+  id: '/client/login',
+  path: '/client/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientAppRoute = ClientAppRouteImport.update({
+  id: '/client/app',
+  path: '/client/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientAppIndexRoute = ClientAppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ClientAppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/client/app': typeof ClientAppRouteWithChildren
+  '/client/login': typeof ClientLoginRoute
+  '/client/app/': typeof ClientAppIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/client/login': typeof ClientLoginRoute
+  '/client/app': typeof ClientAppIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/client/app': typeof ClientAppRouteWithChildren
+  '/client/login': typeof ClientLoginRoute
+  '/client/app/': typeof ClientAppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/client/app' | '/client/login' | '/client/app/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/client/login' | '/client/app'
+  id: '__root__' | '/' | '/client/app' | '/client/login' | '/client/app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ClientAppRoute: typeof ClientAppRouteWithChildren
+  ClientLoginRoute: typeof ClientLoginRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,12 +76,57 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/client/login': {
+      id: '/client/login'
+      path: '/client/login'
+      fullPath: '/client/login'
+      preLoaderRoute: typeof ClientLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/client/app': {
+      id: '/client/app'
+      path: '/client/app'
+      fullPath: '/client/app'
+      preLoaderRoute: typeof ClientAppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/client/app/': {
+      id: '/client/app/'
+      path: '/'
+      fullPath: '/client/app/'
+      preLoaderRoute: typeof ClientAppIndexRouteImport
+      parentRoute: typeof ClientAppRoute
+    }
   }
 }
 
+interface ClientAppRouteChildren {
+  ClientAppIndexRoute: typeof ClientAppIndexRoute
+}
+
+const ClientAppRouteChildren: ClientAppRouteChildren = {
+  ClientAppIndexRoute: ClientAppIndexRoute,
+}
+
+const ClientAppRouteWithChildren = ClientAppRoute._addFileChildren(
+  ClientAppRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ClientAppRoute: ClientAppRouteWithChildren,
+  ClientLoginRoute: ClientLoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
