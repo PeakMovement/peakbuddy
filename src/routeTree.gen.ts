@@ -13,6 +13,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClientLoginRouteImport } from './routes/client.login'
 import { Route as ClientAppRouteImport } from './routes/client.app'
 import { Route as ClientAppIndexRouteImport } from './routes/client.app.index'
+import { Route as ClientAppYvesRouteImport } from './routes/client.app.yves'
+import { Route as ClientAppTimelineRouteImport } from './routes/client.app.timeline'
+import { Route as ClientAppProgressRouteImport } from './routes/client.app.progress'
+import { Route as ClientAppCheckinRouteImport } from './routes/client.app.checkin'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,16 +38,44 @@ const ClientAppIndexRoute = ClientAppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ClientAppRoute,
 } as any)
+const ClientAppYvesRoute = ClientAppYvesRouteImport.update({
+  id: '/yves',
+  path: '/yves',
+  getParentRoute: () => ClientAppRoute,
+} as any)
+const ClientAppTimelineRoute = ClientAppTimelineRouteImport.update({
+  id: '/timeline',
+  path: '/timeline',
+  getParentRoute: () => ClientAppRoute,
+} as any)
+const ClientAppProgressRoute = ClientAppProgressRouteImport.update({
+  id: '/progress',
+  path: '/progress',
+  getParentRoute: () => ClientAppRoute,
+} as any)
+const ClientAppCheckinRoute = ClientAppCheckinRouteImport.update({
+  id: '/checkin',
+  path: '/checkin',
+  getParentRoute: () => ClientAppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/client/app': typeof ClientAppRouteWithChildren
   '/client/login': typeof ClientLoginRoute
+  '/client/app/checkin': typeof ClientAppCheckinRoute
+  '/client/app/progress': typeof ClientAppProgressRoute
+  '/client/app/timeline': typeof ClientAppTimelineRoute
+  '/client/app/yves': typeof ClientAppYvesRoute
   '/client/app/': typeof ClientAppIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/client/login': typeof ClientLoginRoute
+  '/client/app/checkin': typeof ClientAppCheckinRoute
+  '/client/app/progress': typeof ClientAppProgressRoute
+  '/client/app/timeline': typeof ClientAppTimelineRoute
+  '/client/app/yves': typeof ClientAppYvesRoute
   '/client/app': typeof ClientAppIndexRoute
 }
 export interface FileRoutesById {
@@ -51,14 +83,42 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/client/app': typeof ClientAppRouteWithChildren
   '/client/login': typeof ClientLoginRoute
+  '/client/app/checkin': typeof ClientAppCheckinRoute
+  '/client/app/progress': typeof ClientAppProgressRoute
+  '/client/app/timeline': typeof ClientAppTimelineRoute
+  '/client/app/yves': typeof ClientAppYvesRoute
   '/client/app/': typeof ClientAppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/client/app' | '/client/login' | '/client/app/'
+  fullPaths:
+    | '/'
+    | '/client/app'
+    | '/client/login'
+    | '/client/app/checkin'
+    | '/client/app/progress'
+    | '/client/app/timeline'
+    | '/client/app/yves'
+    | '/client/app/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/client/login' | '/client/app'
-  id: '__root__' | '/' | '/client/app' | '/client/login' | '/client/app/'
+  to:
+    | '/'
+    | '/client/login'
+    | '/client/app/checkin'
+    | '/client/app/progress'
+    | '/client/app/timeline'
+    | '/client/app/yves'
+    | '/client/app'
+  id:
+    | '__root__'
+    | '/'
+    | '/client/app'
+    | '/client/login'
+    | '/client/app/checkin'
+    | '/client/app/progress'
+    | '/client/app/timeline'
+    | '/client/app/yves'
+    | '/client/app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -97,14 +157,50 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientAppIndexRouteImport
       parentRoute: typeof ClientAppRoute
     }
+    '/client/app/yves': {
+      id: '/client/app/yves'
+      path: '/yves'
+      fullPath: '/client/app/yves'
+      preLoaderRoute: typeof ClientAppYvesRouteImport
+      parentRoute: typeof ClientAppRoute
+    }
+    '/client/app/timeline': {
+      id: '/client/app/timeline'
+      path: '/timeline'
+      fullPath: '/client/app/timeline'
+      preLoaderRoute: typeof ClientAppTimelineRouteImport
+      parentRoute: typeof ClientAppRoute
+    }
+    '/client/app/progress': {
+      id: '/client/app/progress'
+      path: '/progress'
+      fullPath: '/client/app/progress'
+      preLoaderRoute: typeof ClientAppProgressRouteImport
+      parentRoute: typeof ClientAppRoute
+    }
+    '/client/app/checkin': {
+      id: '/client/app/checkin'
+      path: '/checkin'
+      fullPath: '/client/app/checkin'
+      preLoaderRoute: typeof ClientAppCheckinRouteImport
+      parentRoute: typeof ClientAppRoute
+    }
   }
 }
 
 interface ClientAppRouteChildren {
+  ClientAppCheckinRoute: typeof ClientAppCheckinRoute
+  ClientAppProgressRoute: typeof ClientAppProgressRoute
+  ClientAppTimelineRoute: typeof ClientAppTimelineRoute
+  ClientAppYvesRoute: typeof ClientAppYvesRoute
   ClientAppIndexRoute: typeof ClientAppIndexRoute
 }
 
 const ClientAppRouteChildren: ClientAppRouteChildren = {
+  ClientAppCheckinRoute: ClientAppCheckinRoute,
+  ClientAppProgressRoute: ClientAppProgressRoute,
+  ClientAppTimelineRoute: ClientAppTimelineRoute,
+  ClientAppYvesRoute: ClientAppYvesRoute,
   ClientAppIndexRoute: ClientAppIndexRoute,
 }
 
