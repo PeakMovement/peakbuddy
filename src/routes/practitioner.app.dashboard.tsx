@@ -40,63 +40,73 @@ function Dashboard() {
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const { data: u } = await supabase.auth.getUser();
-    if (!u.user) return;
+    setError(null);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
 
-    const [{ data: prof }, { data: clients }, { count: unreadCount }] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
-      supabase.from("clients").select("*").eq("practitioner_id", u.user.id).order("created_at", { ascending: false }),
-      supabase.from("alerts").select("*", { count: "exact", head: true }).eq("practitioner_id", u.user.id).eq("is_read", false),
-    ]);
+      const [{ data: prof }, { data: clients, error: cErr }, { count: unreadCount, error: aErr }] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
+        supabase.from("clients").select("*").eq("practitioner_id", u.user.id).order("created_at", { ascending: false }),
+        supabase.from("alerts").select("*", { count: "exact", head: true }).eq("practitioner_id", u.user.id).eq("is_read", false),
+      ]);
+      if (cErr || aErr) throw cErr || aErr;
 
-    setProfile(prof as Profile | null);
-    setUnread(unreadCount ?? 0);
+      setProfile(prof as Profile | null);
+      setUnread(unreadCount ?? 0);
 
-    const list = (clients as Client[]) ?? [];
-    if (list.length === 0) {
-      setRows([]);
+      const list = (clients as Client[]) ?? [];
+      if (list.length === 0) {
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+      const ids = list.map((c) => c.id);
+      const { data: checkIns, error: ciErr } = await supabase
+        .from("check_ins")
+        .select("*")
+        .in("client_id", ids)
+        .order("created_at", { ascending: false });
+      if (ciErr) throw ciErr;
+
+      const today = new Date();
+      const byClient = new Map<string, CheckIn[]>();
+      ((checkIns as CheckIn[]) ?? []).forEach((ci) => {
+        const arr = byClient.get(ci.client_id) ?? [];
+        arr.push(ci);
+        byClient.set(ci.client_id, arr);
+      });
+
+      const enriched: ClientRow[] = list.map((c) => {
+        const ci = byClient.get(c.id) ?? [];
+        const last = ci[0]?.created_at ?? null;
+        const weeks = c.tracking_duration_weeks ?? 8;
+        const start = new Date(c.created_at).getTime();
+        const elapsed = Math.max(1, Math.ceil((Date.now() - start) / (1000 * 60 * 60 * 24)));
+        const expectedSoFar =
+          c.check_in_frequency === "daily"
+            ? Math.min(elapsed, weeks * 7)
+            : c.check_in_frequency === "weekly"
+              ? Math.min(Math.ceil(elapsed / 7), weeks)
+              : Math.min(Math.ceil(elapsed / (c.check_in_frequency === "every_3_days" ? 3 : 2)), weeks * 4);
+        const compliance = Math.min(100, Math.round((ci.length / Math.max(1, expectedSoFar)) * 100));
+        return {
+          ...c,
+          _lastCheckIn: last,
+          _compliance: compliance,
+          _activeToday: !!last && isSameDay(last, today),
+        };
+      });
+      setRows(enriched);
+    } catch (e) {
+      console.error(e);
+      setError("Something went wrong. Please try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-    const ids = list.map((c) => c.id);
-    const { data: checkIns } = await supabase
-      .from("check_ins")
-      .select("*")
-      .in("client_id", ids)
-      .order("created_at", { ascending: false });
-
-    const today = new Date();
-    const byClient = new Map<string, CheckIn[]>();
-    ((checkIns as CheckIn[]) ?? []).forEach((ci) => {
-      const arr = byClient.get(ci.client_id) ?? [];
-      arr.push(ci);
-      byClient.set(ci.client_id, arr);
-    });
-
-    const enriched: ClientRow[] = list.map((c) => {
-      const ci = byClient.get(c.id) ?? [];
-      const last = ci[0]?.created_at ?? null;
-      const weeks = c.tracking_duration_weeks ?? 8;
-      const start = new Date(c.created_at).getTime();
-      const elapsed = Math.max(1, Math.ceil((Date.now() - start) / (1000 * 60 * 60 * 24)));
-      const expectedSoFar =
-        c.check_in_frequency === "daily"
-          ? Math.min(elapsed, weeks * 7)
-          : c.check_in_frequency === "weekly"
-            ? Math.min(Math.ceil(elapsed / 7), weeks)
-            : Math.min(Math.ceil(elapsed / (c.check_in_frequency === "every_3_days" ? 3 : 2)), weeks * 4);
-      const compliance = Math.min(100, Math.round((ci.length / Math.max(1, expectedSoFar)) * 100));
-      return {
-        ...c,
-        _lastCheckIn: last,
-        _compliance: compliance,
-        _activeToday: !!last && isSameDay(last, today),
-      };
-    });
-    setRows(enriched);
-    setLoading(false);
   }, []);
 
   useEffect(() => {
