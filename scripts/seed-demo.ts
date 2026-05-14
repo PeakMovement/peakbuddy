@@ -136,10 +136,14 @@ async function main() {
   await ensurePractice(pracId);
   await ensureClient(pracId);
 
+  // Auth user for client login (email/password)
+  const clientAuthId = await ensureUser(CLIENT_EMAIL, PASSWORD);
+  await upsertProfile(clientAuthId, "client", "Demo Client");
+
   console.log("\n✅ Done. Demo logins:");
   console.log(`   /admin/login         → ${ADMIN_EMAIL} / ${PASSWORD}`);
   console.log(`   /practitioner/login  → ${PRAC_EMAIL} / ${PASSWORD}`);
-  console.log(`   /client/login        → code ${CLIENT_CODE}`);
+  console.log(`   /client/login        → ${CLIENT_EMAIL} / ${PASSWORD}`);
 }
 
 main().catch((e) => {
