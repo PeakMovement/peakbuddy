@@ -113,7 +113,16 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <div
+        style={{
+          minHeight: "100vh",
+          background: "var(--navy)",
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+      >
+        <Outlet />
+      </div>
     </QueryClientProvider>
   );
 }
