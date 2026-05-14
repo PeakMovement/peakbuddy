@@ -31,14 +31,14 @@ function ClientLogin() {
       setError("Invalid email or password.");
       return;
     }
-    // Look up the client row, then sign out so downstream pages
-    // continue running under the anon role they were built against.
+    // Sign out immediately after credential verification so the client lookup
+    // runs under the anon role that the client-facing pages are built against.
+    await supabase.auth.signOut();
     const { data: client, error: lookupErr } = await supabase
       .from("clients")
       .select("id")
       .eq("email", trimmedEmail)
       .maybeSingle();
-    await supabase.auth.signOut();
     setLoading(false);
     if (lookupErr || !client) {
       setError("No client record found for this account. Contact your practitioner.");
