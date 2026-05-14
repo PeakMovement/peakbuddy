@@ -176,20 +176,20 @@ function Dashboard() {
       </div>
 
       {loading ? (
-        <div style={{ marginTop: 16, color: "var(--white-muted)" }}>Loading…</div>
+        <div style={{ marginTop: 16 }}>
+          <SkeletonList count={3} height={84} />
+        </div>
+      ) : error ? (
+        <div style={{ marginTop: 16 }}>
+          <ErrorCard message={error} onRetry={load} />
+        </div>
       ) : rows.length === 0 ? (
-        <div
-          style={{
-            marginTop: 16,
-            padding: 24,
-            background: "var(--navy-card)",
-            border: "1px solid var(--navy-border)",
-            borderRadius: 12,
-            color: "var(--white-muted)",
-            textAlign: "center",
-          }}
-        >
-          No clients yet. Add your first client to get started.
+        <div style={{ marginTop: 16 }}>
+          <EmptyState
+            Icon={Users}
+            title="No clients yet"
+            subtitle="Add your first client to get started."
+          />
         </div>
       ) : (
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
