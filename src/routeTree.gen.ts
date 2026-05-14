@@ -18,6 +18,7 @@ import { Route as ClientAppRouteImport } from './routes/client.app'
 import { Route as ClientAppIndexRouteImport } from './routes/client.app.index'
 import { Route as PractitionerAppDashboardRouteImport } from './routes/practitioner.app.dashboard'
 import { Route as PractitionerAppAlertsRouteImport } from './routes/practitioner.app.alerts'
+import { Route as PractitionerAppAddClientRouteImport } from './routes/practitioner.app.add-client'
 import { Route as ClientAppYvesRouteImport } from './routes/client.app.yves'
 import { Route as ClientAppTimelineRouteImport } from './routes/client.app.timeline'
 import { Route as ClientAppProgressRouteImport } from './routes/client.app.progress'
@@ -69,6 +70,12 @@ const PractitionerAppAlertsRoute = PractitionerAppAlertsRouteImport.update({
   path: '/alerts',
   getParentRoute: () => PractitionerAppRoute,
 } as any)
+const PractitionerAppAddClientRoute =
+  PractitionerAppAddClientRouteImport.update({
+    id: '/add-client',
+    path: '/add-client',
+    getParentRoute: () => PractitionerAppRoute,
+  } as any)
 const ClientAppYvesRoute = ClientAppYvesRouteImport.update({
   id: '/yves',
   path: '/yves',
@@ -101,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
+  '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
   '/client/app/': typeof ClientAppIndexRoute
@@ -115,6 +123,7 @@ export interface FileRoutesByTo {
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
+  '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
   '/client/app': typeof ClientAppIndexRoute
@@ -131,6 +140,7 @@ export interface FileRoutesById {
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
+  '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
   '/client/app/': typeof ClientAppIndexRoute
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
+    | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
     | '/client/app/'
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
+    | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
     | '/client/app'
@@ -177,6 +189,7 @@ export interface FileRouteTypes {
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
+    | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
     | '/client/app/'
@@ -256,6 +269,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PractitionerAppAlertsRouteImport
       parentRoute: typeof PractitionerAppRoute
     }
+    '/practitioner/app/add-client': {
+      id: '/practitioner/app/add-client'
+      path: '/add-client'
+      fullPath: '/practitioner/app/add-client'
+      preLoaderRoute: typeof PractitionerAppAddClientRouteImport
+      parentRoute: typeof PractitionerAppRoute
+    }
     '/client/app/yves': {
       id: '/client/app/yves'
       path: '/yves'
@@ -308,11 +328,13 @@ const ClientAppRouteWithChildren = ClientAppRoute._addFileChildren(
 )
 
 interface PractitionerAppRouteChildren {
+  PractitionerAppAddClientRoute: typeof PractitionerAppAddClientRoute
   PractitionerAppAlertsRoute: typeof PractitionerAppAlertsRoute
   PractitionerAppDashboardRoute: typeof PractitionerAppDashboardRoute
 }
 
 const PractitionerAppRouteChildren: PractitionerAppRouteChildren = {
+  PractitionerAppAddClientRoute: PractitionerAppAddClientRoute,
   PractitionerAppAlertsRoute: PractitionerAppAlertsRoute,
   PractitionerAppDashboardRoute: PractitionerAppDashboardRoute,
 }
