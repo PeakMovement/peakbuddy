@@ -10,10 +10,13 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PractitionerOnboardingRouteImport } from './routes/practitioner.onboarding'
 import { Route as PractitionerLoginRouteImport } from './routes/practitioner.login'
+import { Route as PractitionerAppRouteImport } from './routes/practitioner.app'
 import { Route as ClientLoginRouteImport } from './routes/client.login'
 import { Route as ClientAppRouteImport } from './routes/client.app'
 import { Route as ClientAppIndexRouteImport } from './routes/client.app.index'
+import { Route as PractitionerAppDashboardRouteImport } from './routes/practitioner.app.dashboard'
 import { Route as ClientAppYvesRouteImport } from './routes/client.app.yves'
 import { Route as ClientAppTimelineRouteImport } from './routes/client.app.timeline'
 import { Route as ClientAppProgressRouteImport } from './routes/client.app.progress'
@@ -24,9 +27,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PractitionerOnboardingRoute = PractitionerOnboardingRouteImport.update({
+  id: '/practitioner/onboarding',
+  path: '/practitioner/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PractitionerLoginRoute = PractitionerLoginRouteImport.update({
   id: '/practitioner/login',
   path: '/practitioner/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PractitionerAppRoute = PractitionerAppRouteImport.update({
+  id: '/practitioner/app',
+  path: '/practitioner/app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientLoginRoute = ClientLoginRouteImport.update({
@@ -44,6 +57,12 @@ const ClientAppIndexRoute = ClientAppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ClientAppRoute,
 } as any)
+const PractitionerAppDashboardRoute =
+  PractitionerAppDashboardRouteImport.update({
+    id: '/dashboard',
+    path: '/dashboard',
+    getParentRoute: () => PractitionerAppRoute,
+  } as any)
 const ClientAppYvesRoute = ClientAppYvesRouteImport.update({
   id: '/yves',
   path: '/yves',
@@ -69,21 +88,27 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/client/app': typeof ClientAppRouteWithChildren
   '/client/login': typeof ClientLoginRoute
+  '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
+  '/practitioner/onboarding': typeof PractitionerOnboardingRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
+  '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
   '/client/app/': typeof ClientAppIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/client/login': typeof ClientLoginRoute
+  '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
+  '/practitioner/onboarding': typeof PractitionerOnboardingRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
+  '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
   '/client/app': typeof ClientAppIndexRoute
 }
 export interface FileRoutesById {
@@ -91,11 +116,14 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/client/app': typeof ClientAppRouteWithChildren
   '/client/login': typeof ClientLoginRoute
+  '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
+  '/practitioner/onboarding': typeof PractitionerOnboardingRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
+  '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
   '/client/app/': typeof ClientAppIndexRoute
 }
 export interface FileRouteTypes {
@@ -104,32 +132,41 @@ export interface FileRouteTypes {
     | '/'
     | '/client/app'
     | '/client/login'
+    | '/practitioner/app'
     | '/practitioner/login'
+    | '/practitioner/onboarding'
     | '/client/app/checkin'
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
+    | '/practitioner/app/dashboard'
     | '/client/app/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/client/login'
+    | '/practitioner/app'
     | '/practitioner/login'
+    | '/practitioner/onboarding'
     | '/client/app/checkin'
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
+    | '/practitioner/app/dashboard'
     | '/client/app'
   id:
     | '__root__'
     | '/'
     | '/client/app'
     | '/client/login'
+    | '/practitioner/app'
     | '/practitioner/login'
+    | '/practitioner/onboarding'
     | '/client/app/checkin'
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
+    | '/practitioner/app/dashboard'
     | '/client/app/'
   fileRoutesById: FileRoutesById
 }
@@ -137,7 +174,9 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ClientAppRoute: typeof ClientAppRouteWithChildren
   ClientLoginRoute: typeof ClientLoginRoute
+  PractitionerAppRoute: typeof PractitionerAppRouteWithChildren
   PractitionerLoginRoute: typeof PractitionerLoginRoute
+  PractitionerOnboardingRoute: typeof PractitionerOnboardingRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -149,11 +188,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/practitioner/onboarding': {
+      id: '/practitioner/onboarding'
+      path: '/practitioner/onboarding'
+      fullPath: '/practitioner/onboarding'
+      preLoaderRoute: typeof PractitionerOnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/practitioner/login': {
       id: '/practitioner/login'
       path: '/practitioner/login'
       fullPath: '/practitioner/login'
       preLoaderRoute: typeof PractitionerLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/practitioner/app': {
+      id: '/practitioner/app'
+      path: '/practitioner/app'
+      fullPath: '/practitioner/app'
+      preLoaderRoute: typeof PractitionerAppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/client/login': {
@@ -176,6 +229,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/client/app/'
       preLoaderRoute: typeof ClientAppIndexRouteImport
       parentRoute: typeof ClientAppRoute
+    }
+    '/practitioner/app/dashboard': {
+      id: '/practitioner/app/dashboard'
+      path: '/dashboard'
+      fullPath: '/practitioner/app/dashboard'
+      preLoaderRoute: typeof PractitionerAppDashboardRouteImport
+      parentRoute: typeof PractitionerAppRoute
     }
     '/client/app/yves': {
       id: '/client/app/yves'
@@ -228,12 +288,36 @@ const ClientAppRouteWithChildren = ClientAppRoute._addFileChildren(
   ClientAppRouteChildren,
 )
 
+interface PractitionerAppRouteChildren {
+  PractitionerAppDashboardRoute: typeof PractitionerAppDashboardRoute
+}
+
+const PractitionerAppRouteChildren: PractitionerAppRouteChildren = {
+  PractitionerAppDashboardRoute: PractitionerAppDashboardRoute,
+}
+
+const PractitionerAppRouteWithChildren = PractitionerAppRoute._addFileChildren(
+  PractitionerAppRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ClientAppRoute: ClientAppRouteWithChildren,
   ClientLoginRoute: ClientLoginRoute,
+  PractitionerAppRoute: PractitionerAppRouteWithChildren,
   PractitionerLoginRoute: PractitionerLoginRoute,
+  PractitionerOnboardingRoute: PractitionerOnboardingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
