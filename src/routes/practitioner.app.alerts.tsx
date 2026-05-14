@@ -120,20 +120,16 @@ function Alerts() {
       </div>
 
       {loading ? (
-        <div style={{ marginTop: 24, color: "var(--white-muted)" }}>Loading…</div>
+        <div style={{ marginTop: 24 }}>
+          <SkeletonList count={3} height={96} />
+        </div>
+      ) : error ? (
+        <div style={{ marginTop: 24 }}>
+          <ErrorCard message={error} onRetry={load} />
+        </div>
       ) : filtered.length === 0 ? (
-        <div
-          style={{
-            marginTop: 24,
-            padding: 24,
-            background: "var(--navy-card)",
-            border: "1px solid var(--navy-border)",
-            borderRadius: 12,
-            color: "var(--white-muted)",
-            textAlign: "center",
-          }}
-        >
-          No alerts. Your clients are all clear.
+        <div style={{ marginTop: 24 }}>
+          <EmptyState Icon={BellOff} title="No alerts" subtitle="Your clients are all clear." />
         </div>
       ) : (
         <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
