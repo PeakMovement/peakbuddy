@@ -165,17 +165,28 @@ function YvesScreen() {
     const existingAlert = await findRecentOpenAlert(client.id, "yves_red_flag");
     if (existingAlert) return;
 
-    const { data: alertRow } = await supabase
-      .from("alerts")
-      .insert({
-        practitioner_id: client.practitioner_id,
-        client_id: client.id,
-        alert_type: "yves_red_flag",
-        urgency: triage.urgency === "emergency" ? "emergency" : "urgent",
-        message: `Red flag in symptom query: "${queryText.slice(0, 200)}"`,
-      })
-      .select("id")
-      .maybeSingle();
+    let alertRowId: string | null = null;
+    try {
+      const { data: alertRow, error: alertErr } = await supabase
+        .from("alerts")
+        .insert({
+          practitioner_id: client.practitioner_id,
+          client_id: client.id,
+          alert_type: "yves_red_flag",
+          urgency: triage.urgency === "emergency" ? "emergency" : "urgent",
+          message: `Red flag in symptom query: "${queryText.slice(0, 200)}"`,
+        })
+        .select("id")
+        .maybeSingle();
+      if (alertErr) throw alertErr;
+      alertRowId = (alertRow as { id: string } | null)?.id ?? null;
+    } catch (e) {
+      if (isRlsError(e)) {
+        console.warn("Alert insert blocked by RLS — firing webhook only");
+      } else {
+        console.error(e);
+      }
+    }
 
     const fired = await fireAlertWebhook({
       practitionerId: client.practitioner_id,
@@ -186,11 +197,15 @@ function YvesScreen() {
       redFlagDetected: true,
     });
 
-    if (fired.fired && alertRow?.id) {
-      await supabase
-        .from("alerts")
-        .update({ webhook_fired: true })
-        .eq("id", (alertRow as { id: string }).id);
+    if (fired.fired && alertRowId) {
+      try {
+        await supabase
+          .from("alerts")
+          .update({ webhook_fired: true })
+          .eq("id", alertRowId);
+      } catch (e) {
+        console.warn("Alert webhook_fired update failed:", e);
+      }
     }
   };
 
