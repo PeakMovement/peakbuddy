@@ -405,7 +405,7 @@ function YvesScreen() {
               Yves is temporarily unavailable. Your symptoms have been noted and keyword analysis is being used.
             </p>
           )}
-
+          {import.meta.env.DEV && (
             <div
               style={{
                 marginTop: 12,
