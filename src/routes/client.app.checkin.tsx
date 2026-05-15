@@ -2,12 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import {
-  getClientId,
-  startOfTodayISO,
-  RED_FLAG_TERMS_CHECKIN,
-  containsRedFlag,
-} from "@/lib/client-session";
+import { getClientId, startOfTodayISO } from "@/lib/client-session";
+import { analyzeRealTime } from "@/lib/yves";
 import { fireAlertWebhook, findRecentOpenAlert } from "@/lib/webhooks";
 import type { CheckIn, Client } from "@/lib/types";
 
@@ -76,8 +72,9 @@ function CheckInScreen() {
     setSubmitError(null);
     setSubmitting(true);
 
-    const flagged =
-      pain >= 7 || containsRedFlag(notes, RED_FLAG_TERMS_CHECKIN);
+    const rt = analyzeRealTime(notes);
+    const notesFlagged = rt.detected && rt.severity >= 6;
+    const flagged = pain >= 7 || notesFlagged;
 
     const { data: inserted, error: insErr } = await supabase
       .from("check_ins")
