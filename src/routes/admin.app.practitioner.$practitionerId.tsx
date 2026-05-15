@@ -9,6 +9,11 @@ export const Route = createFileRoute("/admin/app/practitioner/$practitionerId")(
   component: PractitionerDetail,
 });
 
+function maskUrl(url: string | null | undefined): string {
+  if (!url) return "—";
+  return url.length > 20 ? `${url.slice(0, 20)}…` : url;
+}
+
 function PractitionerDetail() {
   const { practitionerId } = Route.useParams();
   const navigate = useNavigate();
