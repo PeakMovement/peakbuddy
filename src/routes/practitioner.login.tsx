@@ -73,14 +73,14 @@ function PractitionerLogin() {
       }}
     >
       <div style={{ width: "100%", maxWidth: 360, display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <CrosshairLogo size={56} />
+        <BuddyLogo />
         <h1
           style={{
             fontFamily: "var(--font-hero)",
             fontWeight: 400,
-            fontSize: 30,
+            fontSize: 24,
             color: "var(--white)",
-            marginTop: 24,
+            marginTop: 36,
             textAlign: "center",
           }}
         >
