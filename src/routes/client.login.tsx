@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { setClientId } from "@/lib/client-session";
-import { CrosshairLogo } from "@/components/CrosshairLogo";
+import { BuddyLogo } from "@/components/CrosshairLogo";
 
 export const Route = createFileRoute("/client/login")({
   head: () => ({ meta: [{ title: "Client Login — Buddy" }] }),
@@ -61,18 +61,18 @@ function ClientLogin() {
       }}
     >
       <div style={{ width: "100%", maxWidth: 360, display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <CrosshairLogo size={56} />
+        <BuddyLogo />
         <h1
           style={{
             fontFamily: "var(--font-hero)",
             fontWeight: 400,
-            fontSize: 32,
+            fontSize: 24,
             color: "var(--white)",
-            marginTop: 28,
+            marginTop: 36,
             textAlign: "center",
           }}
         >
-          Sign in to Buddy
+          Sign in
         </h1>
 
         <form onSubmit={onSubmit} style={{ width: "100%", marginTop: 32, display: "flex", flexDirection: "column", gap: 14 }}>

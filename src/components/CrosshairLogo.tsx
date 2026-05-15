@@ -1,20 +1,79 @@
-export function CrosshairLogo({ size = 56 }: { size?: number }) {
+/**
+ * Buddy logo mark — precision monitoring reticle.
+ * Two concentric circles + four cardinal tick marks. No crosshair lines.
+ *
+ * Default size 40px (per design spec). Internals are scaled from a 40-unit
+ * viewBox so passing a different `size` keeps proportions exact.
+ */
+export function CrosshairLogo({ size = 40 }: { size?: number }) {
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 72 72"
+      viewBox="0 0 40 40"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <circle cx="36" cy="36" r="30" stroke="var(--blue-cold)" strokeWidth="1.5" />
-      <circle cx="36" cy="36" r="18" stroke="var(--blue-cold)" strokeWidth="1" opacity="0.6" />
-      <circle cx="36" cy="36" r="2.5" fill="var(--blue-cold)" />
-      <line x1="36" y1="0" x2="36" y2="14" stroke="var(--blue-cold)" strokeWidth="1.5" />
-      <line x1="36" y1="58" x2="36" y2="72" stroke="var(--blue-cold)" strokeWidth="1.5" />
-      <line x1="0" y1="36" x2="14" y2="36" stroke="var(--blue-cold)" strokeWidth="1.5" />
-      <line x1="58" y1="36" x2="72" y2="36" stroke="var(--blue-cold)" strokeWidth="1.5" />
+      {/* Outer ring — thin stroke, 40px diameter (r=19.25 leaves room for stroke) */}
+      <circle cx="20" cy="20" r="19.25" stroke="var(--blue-cold)" strokeWidth="1.5" />
+
+      {/* Cardinal tick marks — 4px long, 1.5px stroke, just inside the ring */}
+      {/* 12 o'clock */}
+      <line x1="20" y1="3" x2="20" y2="7" stroke="var(--blue-cold)" strokeWidth="1.5" strokeLinecap="round" />
+      {/* 3 o'clock */}
+      <line x1="33" y1="20" x2="37" y2="20" stroke="var(--blue-cold)" strokeWidth="1.5" strokeLinecap="round" />
+      {/* 6 o'clock */}
+      <line x1="20" y1="33" x2="20" y2="37" stroke="var(--blue-cold)" strokeWidth="1.5" strokeLinecap="round" />
+      {/* 9 o'clock */}
+      <line x1="3" y1="20" x2="7" y2="20" stroke="var(--blue-cold)" strokeWidth="1.5" strokeLinecap="round" />
+
+      {/* Inner dot — filled, 8px diameter (r=4) */}
+      <circle cx="20" cy="20" r="4" fill="var(--blue-accent)" />
     </svg>
+  );
+}
+
+/**
+ * Full Buddy lockup: mark + wordmark + tagline.
+ * Use anywhere the brand should appear as a centered block.
+ */
+export function BuddyLogo({ markSize = 40 }: { markSize?: number }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+      }}
+    >
+      <CrosshairLogo size={markSize} />
+      <div
+        style={{
+          marginTop: 16,
+          fontFamily: "'Cormorant Garamond', Georgia, serif",
+          fontWeight: 600,
+          fontSize: 32,
+          lineHeight: 1,
+          color: "var(--white)",
+          letterSpacing: "0.05em",
+        }}
+      >
+        Buddy
+      </div>
+      <div
+        style={{
+          marginTop: 10,
+          fontFamily: "'Rajdhani', sans-serif",
+          fontWeight: 400,
+          fontSize: 13,
+          color: "var(--white-muted)",
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+        }}
+      >
+        Health monitored daily.
+      </div>
+    </div>
   );
 }
