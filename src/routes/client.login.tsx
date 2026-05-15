@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { setClientId } from "@/lib/client-session";
-import { CrosshairLogo } from "@/components/CrosshairLogo";
+import { BuddyLogo } from "@/components/CrosshairLogo";
 
 export const Route = createFileRoute("/client/login")({
   head: () => ({ meta: [{ title: "Client Login — Buddy" }] }),
