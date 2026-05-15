@@ -1,4 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Rajdhani:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+@import "@fontsource/cormorant-garamond/400.css";
+@import "@fontsource/cormorant-garamond/600.css";
+@import "@fontsource/rajdhani/400.css";
+@import "@fontsource/rajdhani/600.css";
+@import "@fontsource/space-mono/400.css";
+@import "@fontsource/space-mono/700.css";
 @import "tailwindcss" source(none);
 @import "tw-animate-css";
 @source "../src";
@@ -42,7 +47,7 @@ button, a, input, select, textarea {
 
 button { cursor: pointer; }
 
-* { transition-duration: 200ms !important; animation-duration: 400ms; }
+/* per-component transitions only — global !important here was a perf killer */
 
 .safe-area {
   padding-top: env(safe-area-inset-top);
