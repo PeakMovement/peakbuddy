@@ -7,6 +7,7 @@ import {
   RED_FLAG_TERMS_YVES,
   containsRedFlag,
 } from "@/lib/client-session";
+import { fireAlertWebhook, fireContactWebhook, findRecentOpenAlert } from "@/lib/webhooks";
 import type { Client, SymptomQuery, Urgency } from "@/lib/types";
 
 export const Route = createFileRoute("/client/app/yves")({
