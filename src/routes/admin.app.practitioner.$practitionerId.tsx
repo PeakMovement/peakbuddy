@@ -82,10 +82,17 @@ function PractitionerDetail() {
 
       <div style={sectionTitle}>Webhooks (admin view)</div>
       <Card>
-        <Row label="Alert URL" value={practice?.webhook_url || "—"} mono />
-        <Row label="Alert Enabled" value={practice?.webhook_enabled ? "On" : "Off"} />
-        <Row label="Contact URL" value={practice?.contact_webhook_url || "—"} mono />
-        <Row label="Contact Enabled" value={practice?.contact_webhook_enabled ? "On" : "Off"} />
+        <Row label="Alert URL" value={maskUrl(practice?.webhook_url)} mono />
+        <Row label="Alert Enabled" value={practice?.webhook_enabled ? "Yes" : "No"} badge={practice?.webhook_enabled ? "on" : "off"} />
+        <Row label="Contact URL" value={maskUrl(practice?.contact_webhook_url)} mono />
+        <Row label="Contact Enabled" value={practice?.contact_webhook_enabled ? "Yes" : "No"} badge={practice?.contact_webhook_enabled ? "on" : "off"} />
+        <Row
+          label="Last Webhook Fired"
+          value={(() => {
+            const last = alerts.find((a) => a.webhook_fired);
+            return last ? new Date(last.created_at).toLocaleString() : "—";
+          })()}
+        />
       </Card>
 
       <div style={sectionTitle}>Clients ({clients.length})</div>
