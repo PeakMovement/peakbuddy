@@ -187,6 +187,8 @@ function Settings() {
           inputStyle={inputStyle}
           labelStyle={labelStyle}
           sectionTitle={sectionTitle}
+          testKind="alert"
+          practitionerId={userId}
         />
 
         <WebhookSection
@@ -199,6 +201,8 @@ function Settings() {
           inputStyle={inputStyle}
           labelStyle={labelStyle}
           sectionTitle={sectionTitle}
+          testKind="contact"
+          practitionerId={userId}
         />
 
         {error && <div style={{ color: "var(--red)", fontSize: 13, marginTop: 16 }}>{error}</div>}
