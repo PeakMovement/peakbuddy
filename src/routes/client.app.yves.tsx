@@ -3,10 +3,10 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   getClientId,
-  startOfTodayISO,
   RED_FLAG_TERMS_YVES,
   containsRedFlag,
 } from "@/lib/client-session";
+import { fireAlertWebhook, fireContactWebhook, findRecentOpenAlert } from "@/lib/webhooks";
 import type { Client, SymptomQuery, Urgency } from "@/lib/types";
 
 export const Route = createFileRoute("/client/app/yves")({
@@ -27,6 +27,8 @@ function YvesScreen() {
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<SymptomQuery | null>(null);
+  const [contacting, setContacting] = useState(false);
+  const [contacted, setContacted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -80,31 +82,60 @@ function YvesScreen() {
     }
 
     if (redFlag) {
-      const { data: existing } = await supabase
-        .from("alerts")
-        .select("id")
-        .eq("client_id", client.id)
-        .eq("alert_type", "yves_red_flag")
-        .gte("created_at", startOfTodayISO())
-        .maybeSingle();
+      const existing = await findRecentOpenAlert(client.id, "yves_red_flag");
 
       if (!existing) {
-        await supabase.from("alerts").insert({
-          practitioner_id: client.practitioner_id,
-          client_id: client.id,
-          alert_type: "yves_red_flag",
-          urgency: "urgent",
-          message: `Red flag in symptom query: "${text.trim().slice(0, 200)}"`,
+        const { data: alertRow } = await supabase
+          .from("alerts")
+          .insert({
+            practitioner_id: client.practitioner_id,
+            client_id: client.id,
+            alert_type: "yves_red_flag",
+            urgency: "urgent",
+            message: `Red flag in symptom query: "${text.trim().slice(0, 200)}"`,
+          })
+          .select("id")
+          .maybeSingle();
+
+        const result = await fireAlertWebhook({
+          practitionerId: client.practitioner_id,
+          clientName: client.full_name,
+          clientId: client.id,
+          alertMessage: `Red flag in symptom query: "${text.trim().slice(0, 200)}"`,
+          urgency,
+          redFlagDetected: true,
         });
+
+        if (result.fired && alertRow?.id) {
+          await supabase
+            .from("alerts")
+            .update({ webhook_fired: true })
+            .eq("id", (alertRow as { id: string }).id);
+        }
+      } else {
+        console.log("[Buddy] Duplicate alert suppressed for client:", client.id);
       }
-      // eslint-disable-next-line no-console
-      console.log("[webhook] would fire red-flag webhook for client", client.id);
     }
 
     setResult(inserted as SymptomQuery);
+    setContacted(false);
     setHistory((h) => [inserted as SymptomQuery, ...h]);
     setText("");
     setSubmitting(false);
+  };
+
+  const contactPractitioner = async () => {
+    if (!client || !result || contacting || contacted) return;
+    setContacting(true);
+    await fireContactWebhook({
+      practitionerId: client.practitioner_id,
+      clientName: client.full_name,
+      clientId: client.id,
+      symptomDescription: result.query_text,
+      symptomScore: result.severity ?? 0,
+    });
+    setContacting(false);
+    setContacted(true);
   };
 
   return (
@@ -176,6 +207,33 @@ function YvesScreen() {
             {result.suggested_next_step}
           </p>
         </div>
+      )}
+
+      {result && (
+        <button
+          type="button"
+          onClick={contactPractitioner}
+          disabled={contacting || contacted}
+          style={{
+            marginTop: 12,
+            width: "100%",
+            minHeight: 48,
+            borderRadius: 8,
+            background: contacted ? "var(--navy-card)" : "var(--blue-cold)",
+            color: contacted ? "var(--white-muted)" : "var(--navy)",
+            border: "1px solid var(--navy-border)",
+            fontFamily: "var(--font-ui)",
+            fontWeight: 600,
+            fontSize: 15,
+            opacity: contacting ? 0.6 : 1,
+          }}
+        >
+          {contacted
+            ? "Your practitioner has been notified."
+            : contacting
+              ? "Notifying…"
+              : "Contact my practitioner"}
+        </button>
       )}
 
       {history.length > 0 && (
