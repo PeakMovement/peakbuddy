@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { BuddyLogo } from "@/components/CrosshairLogo";
 
 export const Route = createFileRoute("/")({
   head: () => ({
