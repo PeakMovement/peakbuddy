@@ -215,11 +215,20 @@ function YvesScreen() {
     setStage("loading");
     const queryText = text.trim();
 
+    let triage: TriageResult;
     try {
-      const triage = await analyzeSymptom(queryText, undefined, pName);
+      triage = await analyzeSymptom(queryText, undefined, pName);
+    } catch (e) {
+      console.error(e);
+      setError("Could not analyse. Please try again.");
+      setStage("input");
+      return;
+    }
 
-      // Persist
-      const { data: inserted, error: insErr } = await supabase
+    // Persist — RLS may block client-session inserts; treat as non-fatal
+    let inserted: SymptomQuery | null = null;
+    try {
+      const { data, error: insErr } = await supabase
         .from("symptom_queries")
         .insert({
           client_id: client.id,
@@ -234,30 +243,37 @@ function YvesScreen() {
         })
         .select("*")
         .maybeSingle();
-
       if (insErr) throw insErr;
+      inserted = data as SymptomQuery | null;
+    } catch (e) {
+      if (isRlsError(e)) {
+        setError(CLIENT_INSERT_FRIENDLY);
+      } else {
+        console.error(e);
+        setError(CLIENT_INSERT_FRIENDLY);
+      }
+    }
 
-      // Duplicate prevention BEFORE alert
-      if (triage.red_flag_detected) {
+    // Duplicate prevention BEFORE alert
+    if (triage.red_flag_detected) {
+      try {
         const dup = await checkRecentRedFlagQuery();
         if (!dup) {
           await fireAlertForResult(triage, queryText);
         }
+      } catch (e) {
+        console.warn("Alert flow failed:", e);
       }
-
-      setResult(triage);
-      setResultText(queryText);
-      setContacted(false);
-      if (inserted) setHistory((h) => [inserted as SymptomQuery, ...h].slice(0, 5));
-      setText("");
-      setRealTime(null);
-      setStage("result");
-      if (triage.urgency === "emergency") setShowEmergencyModal(true);
-    } catch (e) {
-      console.error(e);
-      setError("Could not analyse. Please try again.");
-      setStage("input");
     }
+
+    setResult(triage);
+    setResultText(queryText);
+    setContacted(false);
+    if (inserted) setHistory((h) => [inserted as SymptomQuery, ...h].slice(0, 5));
+    setText("");
+    setRealTime(null);
+    setStage("result");
+    if (triage.urgency === "emergency") setShowEmergencyModal(true);
   };
 
   const contactPractitioner = async (fromModal = false) => {
