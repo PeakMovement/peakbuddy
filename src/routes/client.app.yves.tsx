@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   getClientId,
-  startOfTodayISO,
   RED_FLAG_TERMS_YVES,
   containsRedFlag,
 } from "@/lib/client-session";
