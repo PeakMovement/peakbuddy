@@ -27,6 +27,8 @@ function YvesScreen() {
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<SymptomQuery | null>(null);
+  const [contacting, setContacting] = useState(false);
+  const [contacted, setContacted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
