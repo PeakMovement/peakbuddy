@@ -81,25 +81,39 @@ function YvesScreen() {
     }
 
     if (redFlag) {
-      const { data: existing } = await supabase
-        .from("alerts")
-        .select("id")
-        .eq("client_id", client.id)
-        .eq("alert_type", "yves_red_flag")
-        .gte("created_at", startOfTodayISO())
-        .maybeSingle();
+      const existing = await findRecentOpenAlert(client.id, "yves_red_flag");
 
       if (!existing) {
-        await supabase.from("alerts").insert({
-          practitioner_id: client.practitioner_id,
-          client_id: client.id,
-          alert_type: "yves_red_flag",
-          urgency: "urgent",
-          message: `Red flag in symptom query: "${text.trim().slice(0, 200)}"`,
+        const { data: alertRow } = await supabase
+          .from("alerts")
+          .insert({
+            practitioner_id: client.practitioner_id,
+            client_id: client.id,
+            alert_type: "yves_red_flag",
+            urgency: "urgent",
+            message: `Red flag in symptom query: "${text.trim().slice(0, 200)}"`,
+          })
+          .select("id")
+          .maybeSingle();
+
+        const result = await fireAlertWebhook({
+          practitionerId: client.practitioner_id,
+          clientName: client.full_name,
+          clientId: client.id,
+          alertMessage: `Red flag in symptom query: "${text.trim().slice(0, 200)}"`,
+          urgency,
+          redFlagDetected: true,
         });
+
+        if (result.fired && alertRow?.id) {
+          await supabase
+            .from("alerts")
+            .update({ webhook_fired: true })
+            .eq("id", (alertRow as { id: string }).id);
+        }
+      } else {
+        console.log("[Buddy] Duplicate alert suppressed for client:", client.id);
       }
-      // eslint-disable-next-line no-console
-      console.log("[webhook] would fire red-flag webhook for client", client.id);
     }
 
     setResult(inserted as SymptomQuery);
