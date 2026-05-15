@@ -187,6 +187,8 @@ function Settings() {
           inputStyle={inputStyle}
           labelStyle={labelStyle}
           sectionTitle={sectionTitle}
+          testKind="alert"
+          practitionerId={userId}
         />
 
         <WebhookSection
@@ -199,6 +201,8 @@ function Settings() {
           inputStyle={inputStyle}
           labelStyle={labelStyle}
           sectionTitle={sectionTitle}
+          testKind="contact"
+          practitionerId={userId}
         />
 
         {error && <div style={{ color: "var(--red)", fontSize: 13, marginTop: 16 }}>{error}</div>}
@@ -264,6 +268,8 @@ function WebhookSection({
   inputStyle,
   labelStyle,
   sectionTitle,
+  testKind,
+  practitionerId,
 }: {
   title: string;
   help: string;
@@ -274,7 +280,58 @@ function WebhookSection({
   inputStyle: React.CSSProperties;
   labelStyle: React.CSSProperties;
   sectionTitle: React.CSSProperties;
+  testKind: "alert" | "contact";
+  practitionerId: string | null;
 }) {
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const runTest = async () => {
+    if (!url.trim() || !practitionerId) return;
+    setTesting(true);
+    setTestResult(null);
+    const now = new Date().toISOString();
+    const body =
+      testKind === "alert"
+        ? {
+            event: "buddy_test",
+            message: "This is a test alert from Buddy Health.",
+            practitioner_id: practitionerId,
+            client_name: "Test Client",
+            urgency: "monitor",
+            red_flag_detected: false,
+            timestamp: now,
+          }
+        : {
+            event: "buddy_test",
+            message: "This is a test contact notification from Buddy Health.",
+            practitioner_id: practitionerId,
+            client_name: "Test Client",
+            symptom_description: "Test symptom description",
+            symptom_score: 3,
+            timestamp: now,
+          };
+
+    try {
+      const res = await fetch(url.trim(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        mode: "cors",
+      });
+      if (res.ok) {
+        setTestResult({ ok: true, msg: "Webhook received successfully" });
+      } else {
+        setTestResult({ ok: false, msg: `Webhook failed — status ${res.status}` });
+      }
+    } catch {
+      setTestResult({ ok: false, msg: "Webhook failed — check your URL" });
+    }
+    setTesting(false);
+  };
+
+  const canTest = url.trim().length > 0 && enabled;
+
   return (
     <>
       <div style={{ ...sectionTitle, display: "flex", alignItems: "center", gap: 8 }}>
@@ -314,6 +371,41 @@ function WebhookSection({
             style={{ width: 22, height: 22, accentColor: "var(--blue-accent)" }}
           />
         </label>
+        {canTest && (
+          <div>
+            <button
+              type="button"
+              onClick={runTest}
+              disabled={testing}
+              style={{
+                minHeight: 44,
+                width: "100%",
+                background: "transparent",
+                color: "var(--white)",
+                border: "1px solid var(--blue-accent)",
+                borderRadius: 8,
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: "pointer",
+                opacity: testing ? 0.6 : 1,
+              }}
+            >
+              {testing ? "Testing…" : `Test ${testKind === "alert" ? "Alert" : "Contact"} Webhook`}
+            </button>
+            {testResult && (
+              <div
+                style={{
+                  marginTop: 8,
+                  fontSize: 13,
+                  color: testResult.ok ? "var(--green)" : "var(--red)",
+                }}
+              >
+                {testResult.msg}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </>
   );

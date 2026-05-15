@@ -9,6 +9,11 @@ export const Route = createFileRoute("/admin/app/practitioner/$practitionerId")(
   component: PractitionerDetail,
 });
 
+function maskUrl(url: string | null | undefined): string {
+  if (!url) return "—";
+  return url.length > 20 ? `${url.slice(0, 20)}…` : url;
+}
+
 function PractitionerDetail() {
   const { practitionerId } = Route.useParams();
   const navigate = useNavigate();
@@ -82,10 +87,17 @@ function PractitionerDetail() {
 
       <div style={sectionTitle}>Webhooks (admin view)</div>
       <Card>
-        <Row label="Alert URL" value={practice?.webhook_url || "—"} mono />
-        <Row label="Alert Enabled" value={practice?.webhook_enabled ? "On" : "Off"} />
-        <Row label="Contact URL" value={practice?.contact_webhook_url || "—"} mono />
-        <Row label="Contact Enabled" value={practice?.contact_webhook_enabled ? "On" : "Off"} />
+        <Row label="Alert URL" value={maskUrl(practice?.webhook_url)} mono />
+        <Row label="Alert Enabled" value={practice?.webhook_enabled ? "Yes" : "No"} />
+        <Row label="Contact URL" value={maskUrl(practice?.contact_webhook_url)} mono />
+        <Row label="Contact Enabled" value={practice?.contact_webhook_enabled ? "Yes" : "No"} />
+        <Row
+          label="Last Webhook Fired"
+          value={(() => {
+            const last = alerts.find((a) => a.webhook_fired);
+            return last ? new Date(last.created_at).toLocaleString() : "—";
+          })()}
+        />
       </Card>
 
       <div style={sectionTitle}>Clients ({clients.length})</div>
