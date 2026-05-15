@@ -118,9 +118,24 @@ function YvesScreen() {
     }
 
     setResult(inserted as SymptomQuery);
+    setContacted(false);
     setHistory((h) => [inserted as SymptomQuery, ...h]);
     setText("");
     setSubmitting(false);
+  };
+
+  const contactPractitioner = async () => {
+    if (!client || !result || contacting || contacted) return;
+    setContacting(true);
+    await fireContactWebhook({
+      practitionerId: client.practitioner_id,
+      clientName: client.full_name,
+      clientId: client.id,
+      symptomDescription: result.query_text,
+      symptomScore: result.severity ?? 0,
+    });
+    setContacting(false);
+    setContacted(true);
   };
 
   return (
