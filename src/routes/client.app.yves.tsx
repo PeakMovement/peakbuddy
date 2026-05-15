@@ -55,6 +55,17 @@ const REALTIME_THEME: Record<UrgencyTier, { bg: string; border: string; text: st
 
 type Stage = "input" | "loading" | "result";
 
+const CLIENT_INSERT_FRIENDLY =
+  "Unable to save your query right now. Your symptoms have been noted. Please contact your practitioner directly if urgent.";
+
+function isRlsError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { code?: string; message?: string };
+  if (e.code === "42501") return true;
+  const msg = (e.message ?? "").toLowerCase();
+  return msg.includes("row-level security") || msg.includes("row level security");
+}
+
 function YvesScreen() {
   const [client, setClient] = useState<Client | null>(null);
   const [practitionerName, setPractitionerName] = useState<string | null>(null);
@@ -154,17 +165,28 @@ function YvesScreen() {
     const existingAlert = await findRecentOpenAlert(client.id, "yves_red_flag");
     if (existingAlert) return;
 
-    const { data: alertRow } = await supabase
-      .from("alerts")
-      .insert({
-        practitioner_id: client.practitioner_id,
-        client_id: client.id,
-        alert_type: "yves_red_flag",
-        urgency: triage.urgency === "emergency" ? "emergency" : "urgent",
-        message: `Red flag in symptom query: "${queryText.slice(0, 200)}"`,
-      })
-      .select("id")
-      .maybeSingle();
+    let alertRowId: string | null = null;
+    try {
+      const { data: alertRow, error: alertErr } = await supabase
+        .from("alerts")
+        .insert({
+          practitioner_id: client.practitioner_id,
+          client_id: client.id,
+          alert_type: "yves_red_flag",
+          urgency: triage.urgency === "emergency" ? "emergency" : "urgent",
+          message: `Red flag in symptom query: "${queryText.slice(0, 200)}"`,
+        })
+        .select("id")
+        .maybeSingle();
+      if (alertErr) throw alertErr;
+      alertRowId = (alertRow as { id: string } | null)?.id ?? null;
+    } catch (e) {
+      if (isRlsError(e)) {
+        console.warn("Alert insert blocked by RLS — firing webhook only");
+      } else {
+        console.error(e);
+      }
+    }
 
     const fired = await fireAlertWebhook({
       practitionerId: client.practitioner_id,
@@ -175,11 +197,15 @@ function YvesScreen() {
       redFlagDetected: true,
     });
 
-    if (fired.fired && alertRow?.id) {
-      await supabase
-        .from("alerts")
-        .update({ webhook_fired: true })
-        .eq("id", (alertRow as { id: string }).id);
+    if (fired.fired && alertRowId) {
+      try {
+        await supabase
+          .from("alerts")
+          .update({ webhook_fired: true })
+          .eq("id", alertRowId);
+      } catch (e) {
+        console.warn("Alert webhook_fired update failed:", e);
+      }
     }
   };
 
@@ -189,11 +215,20 @@ function YvesScreen() {
     setStage("loading");
     const queryText = text.trim();
 
+    let triage: TriageResult;
     try {
-      const triage = await analyzeSymptom(queryText, undefined, pName);
+      triage = await analyzeSymptom(queryText, undefined, pName);
+    } catch (e) {
+      console.error(e);
+      setError("Could not analyse. Please try again.");
+      setStage("input");
+      return;
+    }
 
-      // Persist
-      const { data: inserted, error: insErr } = await supabase
+    // Persist — RLS may block client-session inserts; treat as non-fatal
+    let inserted: SymptomQuery | null = null;
+    try {
+      const { data, error: insErr } = await supabase
         .from("symptom_queries")
         .insert({
           client_id: client.id,
@@ -208,30 +243,37 @@ function YvesScreen() {
         })
         .select("*")
         .maybeSingle();
-
       if (insErr) throw insErr;
+      inserted = data as SymptomQuery | null;
+    } catch (e) {
+      if (isRlsError(e)) {
+        setError(CLIENT_INSERT_FRIENDLY);
+      } else {
+        console.error(e);
+        setError(CLIENT_INSERT_FRIENDLY);
+      }
+    }
 
-      // Duplicate prevention BEFORE alert
-      if (triage.red_flag_detected) {
+    // Duplicate prevention BEFORE alert
+    if (triage.red_flag_detected) {
+      try {
         const dup = await checkRecentRedFlagQuery();
         if (!dup) {
           await fireAlertForResult(triage, queryText);
         }
+      } catch (e) {
+        console.warn("Alert flow failed:", e);
       }
-
-      setResult(triage);
-      setResultText(queryText);
-      setContacted(false);
-      if (inserted) setHistory((h) => [inserted as SymptomQuery, ...h].slice(0, 5));
-      setText("");
-      setRealTime(null);
-      setStage("result");
-      if (triage.urgency === "emergency") setShowEmergencyModal(true);
-    } catch (e) {
-      console.error(e);
-      setError("Could not analyse. Please try again.");
-      setStage("input");
     }
+
+    setResult(triage);
+    setResultText(queryText);
+    setContacted(false);
+    if (inserted) setHistory((h) => [inserted as SymptomQuery, ...h].slice(0, 5));
+    setText("");
+    setRealTime(null);
+    setStage("result");
+    if (triage.urgency === "emergency") setShowEmergencyModal(true);
   };
 
   const contactPractitioner = async (fromModal = false) => {
@@ -421,7 +463,24 @@ function YvesScreen() {
           )}
         </div>
 
-        {/* Original text */}
+        {error && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: "10px 12px",
+              background: "var(--navy-card)",
+              border: "1px solid var(--navy-border)",
+              borderRadius: 8,
+              color: "var(--white-muted)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            {error}
+          </div>
+        )}
+
         {resultText && (
           <div
             style={{
