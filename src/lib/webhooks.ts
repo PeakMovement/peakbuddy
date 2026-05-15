@@ -119,6 +119,8 @@ export async function findRecentOpenAlert(
     .eq("alert_type", alertType)
     .eq("is_read", false)
     .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
   return (data as { id: string } | null) ?? null;
 }
