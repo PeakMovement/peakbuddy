@@ -209,6 +209,33 @@ function YvesScreen() {
         </div>
       )}
 
+      {result && (
+        <button
+          type="button"
+          onClick={contactPractitioner}
+          disabled={contacting || contacted}
+          style={{
+            marginTop: 12,
+            width: "100%",
+            minHeight: 48,
+            borderRadius: 8,
+            background: contacted ? "var(--navy-card)" : "var(--blue-cold)",
+            color: contacted ? "var(--white-muted)" : "var(--navy)",
+            border: "1px solid var(--navy-border)",
+            fontFamily: "var(--font-ui)",
+            fontWeight: 600,
+            fontSize: 15,
+            opacity: contacting ? 0.6 : 1,
+          }}
+        >
+          {contacted
+            ? "Your practitioner has been notified."
+            : contacting
+              ? "Notifying…"
+              : "Contact my practitioner"}
+        </button>
+      )}
+
       {history.length > 0 && (
         <div style={{ marginTop: 32 }}>
           <h2
