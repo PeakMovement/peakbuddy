@@ -83,25 +83,25 @@ function YvesScreen() {
       const cl = c as Client | null;
       setClient(cl);
 
-      const promises: Promise<unknown>[] = [
+      const [{ data: q }, profRes] = await Promise.all([
         supabase
           .from("symptom_queries")
           .select("*")
           .eq("client_id", id)
           .order("created_at", { ascending: false })
-          .limit(5),
-      ];
-      if (cl?.practitioner_id) {
-        promises.push(
-          supabase.from("profiles").select("full_name").eq("id", cl.practitioner_id).maybeSingle(),
-        );
-      }
-      const results = await Promise.all(promises);
-      setHistory(((results[0] as { data: SymptomQuery[] | null }).data ?? []) as SymptomQuery[]);
-      if (cl?.practitioner_id) {
-        const profRes = results[1] as { data: { full_name: string } | null };
-        setPractitionerName(profRes.data?.full_name ?? null);
-      }
+          .limit(5)
+          .then((r) => r),
+        cl?.practitioner_id
+          ? supabase
+              .from("profiles")
+              .select("full_name")
+              .eq("id", cl.practitioner_id)
+              .maybeSingle()
+              .then((r) => r)
+          : Promise.resolve({ data: null as { full_name: string } | null }),
+      ]);
+      setHistory(((q as SymptomQuery[] | null) ?? []) as SymptomQuery[]);
+      setPractitionerName((profRes.data as { full_name: string } | null)?.full_name ?? null);
     })();
   }, []);
 
