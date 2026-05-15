@@ -463,7 +463,24 @@ function YvesScreen() {
           )}
         </div>
 
-        {/* Original text */}
+        {error && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: "10px 12px",
+              background: "var(--navy-card)",
+              border: "1px solid var(--navy-border)",
+              borderRadius: 8,
+              color: "var(--white-muted)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            {error}
+          </div>
+        )}
+
         {resultText && (
           <div
             style={{
