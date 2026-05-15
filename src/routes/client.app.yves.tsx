@@ -55,6 +55,17 @@ const REALTIME_THEME: Record<UrgencyTier, { bg: string; border: string; text: st
 
 type Stage = "input" | "loading" | "result";
 
+const CLIENT_INSERT_FRIENDLY =
+  "Unable to save your query right now. Your symptoms have been noted. Please contact your practitioner directly if urgent.";
+
+function isRlsError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { code?: string; message?: string };
+  if (e.code === "42501") return true;
+  const msg = (e.message ?? "").toLowerCase();
+  return msg.includes("row-level security") || msg.includes("row level security");
+}
+
 function YvesScreen() {
   const [client, setClient] = useState<Client | null>(null);
   const [practitionerName, setPractitionerName] = useState<string | null>(null);
