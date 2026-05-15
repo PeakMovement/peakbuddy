@@ -389,6 +389,22 @@ function YvesScreen() {
             </p>
           )}
 
+          {result.source === "keyword_fallback" && (
+            <p
+              style={{
+                marginTop: 12,
+                padding: "8px 10px",
+                background: "var(--navy-card)",
+                border: "1px solid var(--navy-border)",
+                borderRadius: 8,
+                color: "var(--white-muted)",
+                fontSize: 12,
+                lineHeight: 1.5,
+              }}
+            >
+              Yves is temporarily unavailable. Your symptoms have been noted and keyword analysis is being used.
+            </p>
+          )}
           {import.meta.env.DEV && (
             <div
               style={{
