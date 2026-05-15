@@ -8,6 +8,7 @@ import {
   RED_FLAG_TERMS_CHECKIN,
   containsRedFlag,
 } from "@/lib/client-session";
+import { fireAlertWebhook, findRecentOpenAlert } from "@/lib/webhooks";
 import type { CheckIn, Client } from "@/lib/types";
 
 export const Route = createFileRoute("/client/app/checkin")({
