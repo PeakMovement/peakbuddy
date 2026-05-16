@@ -13,6 +13,9 @@ export const Route = createFileRoute("/client/app/checkin")({
 
 const moods = ["Very Low", "Low", "Okay", "Good", "Great"];
 
+const CLIENT_GENERIC_ERROR =
+  "Something went wrong. Please try again or contact your practitioner directly if your symptoms are urgent.";
+
 function painColor(p: number) {
   if (p <= 3) return "var(--green)";
   if (p <= 6) return "var(--amber)";
