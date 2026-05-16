@@ -225,12 +225,16 @@ export async function analyzeSymptom(
   let aiResult: (Omit<TriageResult, 'source'>) | null = null;
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    const { data, error } = await supabase.functions.invoke('triage-query', {
-      body: { query_text: text, client_context: clientContext },
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch('/api/public/triage-query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query_text: text, client_context: clientContext }),
+      signal: controller.signal,
     });
     clearTimeout(timeout);
-    if (!error && data && typeof data.severity === 'number') {
+    const data = res.ok ? await res.json() : null;
+    if (data && typeof data.severity === 'number') {
       const urgency = data.urgency as UrgencyTier;
       aiResult = {
         urgency,
