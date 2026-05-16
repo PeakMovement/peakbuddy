@@ -159,25 +159,17 @@ function YvesScreen() {
 
     let alertRowId: string | null = null;
     try {
-      const { data: alertRow, error: alertErr } = await supabase
-        .from("alerts")
-        .insert({
-          practitioner_id: client.practitioner_id,
-          client_id: client.id,
-          alert_type: "yves_red_flag",
-          urgency: triage.urgency === "emergency" ? "emergency" : "urgent",
-          message: `Red flag in symptom query: "${queryText.slice(0, 200)}"`,
-        })
-        .select("id")
-        .maybeSingle();
+      const { data, error: alertErr } = await supabase.rpc("insert_alert", {
+        p_practitioner_id: client.practitioner_id,
+        p_client_id: client.id,
+        p_alert_type: "red_flag",
+        p_message: `Red flag detected: ${queryText.slice(0, 100)}`,
+        p_urgency: triage.urgency,
+      });
       if (alertErr) throw alertErr;
-      alertRowId = (alertRow as { id: string } | null)?.id ?? null;
+      alertRowId = (data as string | null) ?? null;
     } catch (e) {
-      if (isRlsError(e)) {
-        console.warn("Alert insert blocked by RLS — firing webhook only");
-      } else {
-        console.error(e);
-      }
+      console.error("[Yves] insert_alert failed:", e);
     }
 
     const fired = await fireAlertWebhook({
