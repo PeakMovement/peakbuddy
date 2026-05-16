@@ -55,16 +55,8 @@ const REALTIME_THEME: Record<UrgencyTier, { bg: string; border: string; text: st
 
 type Stage = "input" | "loading" | "result";
 
-const CLIENT_INSERT_FRIENDLY =
-  "Unable to save your query right now. Your symptoms have been noted. Please contact your practitioner directly if urgent.";
-
-function isRlsError(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-  const e = err as { code?: string; message?: string };
-  if (e.code === "42501") return true;
-  const msg = (e.message ?? "").toLowerCase();
-  return msg.includes("row-level security") || msg.includes("row level security");
-}
+const CLIENT_GENERIC_ERROR =
+  "Something went wrong. Please try again or contact your practitioner directly if your symptoms are urgent.";
 
 function YvesScreen() {
   const [client, setClient] = useState<Client | null>(null);
@@ -167,25 +159,17 @@ function YvesScreen() {
 
     let alertRowId: string | null = null;
     try {
-      const { data: alertRow, error: alertErr } = await supabase
-        .from("alerts")
-        .insert({
-          practitioner_id: client.practitioner_id,
-          client_id: client.id,
-          alert_type: "yves_red_flag",
-          urgency: triage.urgency === "emergency" ? "emergency" : "urgent",
-          message: `Red flag in symptom query: "${queryText.slice(0, 200)}"`,
-        })
-        .select("id")
-        .maybeSingle();
+      const { data, error: alertErr } = await supabase.rpc("insert_alert", {
+        p_practitioner_id: client.practitioner_id,
+        p_client_id: client.id,
+        p_alert_type: "red_flag",
+        p_message: `Red flag detected: ${queryText.slice(0, 100)}`,
+        p_urgency: triage.urgency,
+      });
       if (alertErr) throw alertErr;
-      alertRowId = (alertRow as { id: string } | null)?.id ?? null;
+      alertRowId = (data as string | null) ?? null;
     } catch (e) {
-      if (isRlsError(e)) {
-        console.warn("Alert insert blocked by RLS — firing webhook only");
-      } else {
-        console.error(e);
-      }
+      console.error("[Yves] insert_alert failed:", e);
     }
 
     const fired = await fireAlertWebhook({
@@ -220,38 +204,30 @@ function YvesScreen() {
       triage = await analyzeSymptom(queryText, undefined, pName);
     } catch (e) {
       console.error(e);
-      setError("Could not analyse. Please try again.");
+      setError(CLIENT_GENERIC_ERROR);
       setStage("input");
       return;
     }
 
-    // Persist — RLS may block client-session inserts; treat as non-fatal
-    let inserted: SymptomQuery | null = null;
+    // Persist via security definer RPC (client portal has no auth.uid)
+    let insertedId: string | null = null;
     try {
-      const { data, error: insErr } = await supabase
-        .from("symptom_queries")
-        .insert({
-          client_id: client.id,
-          practitioner_id: client.practitioner_id,
-          query_text: queryText,
-          urgency: triage.urgency,
-          red_flag_detected: triage.red_flag_detected,
-          suggested_next_step: triage.suggested_next_step,
-          ai_rationale: triage.rationale,
-          severity: triage.severity,
-          source: triage.source,
-        })
-        .select("*")
-        .maybeSingle();
+      const { data, error: insErr } = await supabase.rpc("insert_symptom_query", {
+        p_client_id: client.id,
+        p_practitioner_id: client.practitioner_id,
+        p_query_text: queryText,
+        p_urgency: triage.urgency,
+        p_red_flag_detected: triage.red_flag_detected,
+        p_suggested_next_step: triage.suggested_next_step,
+        p_ai_rationale: triage.rationale,
+        p_severity: triage.severity,
+        p_source: triage.source,
+      });
       if (insErr) throw insErr;
-      inserted = data as SymptomQuery | null;
+      insertedId = (data as string | null) ?? null;
     } catch (e) {
-      if (isRlsError(e)) {
-        setError(CLIENT_INSERT_FRIENDLY);
-      } else {
-        console.error(e);
-        setError(CLIENT_INSERT_FRIENDLY);
-      }
+      console.error("[Yves] insert_symptom_query failed:", e);
+      setError(CLIENT_GENERIC_ERROR);
     }
 
     // Duplicate prevention BEFORE alert
@@ -269,7 +245,26 @@ function YvesScreen() {
     setResult(triage);
     setResultText(queryText);
     setContacted(false);
-    if (inserted) setHistory((h) => [inserted as SymptomQuery, ...h].slice(0, 5));
+    if (insertedId) {
+      setHistory((h) =>
+        [
+          {
+            id: insertedId!,
+            client_id: client.id,
+            practitioner_id: client.practitioner_id,
+            query_text: queryText,
+            urgency: triage.urgency,
+            red_flag_detected: triage.red_flag_detected,
+            suggested_next_step: triage.suggested_next_step,
+            ai_rationale: triage.rationale,
+            severity: triage.severity,
+            source: triage.source,
+            created_at: new Date().toISOString(),
+          } as SymptomQuery,
+          ...h,
+        ].slice(0, 5),
+      );
+    }
     setText("");
     setRealTime(null);
     setStage("result");

@@ -13,6 +13,9 @@ export const Route = createFileRoute("/client/app/checkin")({
 
 const moods = ["Very Low", "Low", "Okay", "Good", "Great"];
 
+const CLIENT_GENERIC_ERROR =
+  "Something went wrong. Please try again or contact your practitioner directly if your symptoms are urgent.";
+
 function painColor(p: number) {
   if (p <= 3) return "var(--green)";
   if (p <= 6) return "var(--amber)";
@@ -76,28 +79,27 @@ function CheckInScreen() {
     const notesFlagged = rt.detected && rt.severity >= 6;
     const flagged = pain >= 7 || notesFlagged;
 
-    const { data: inserted, error: insErr } = await supabase
-      .from("check_ins")
-      .insert({
-        client_id: client.id,
-        practitioner_id: client.practitioner_id,
-        pain_level: pain,
-        sleep_quality: sleep,
-        stress_level: stress,
-        energy_level: energy,
-        mood,
-        notes,
-        medication_taken: med,
-        flagged,
-      })
-      .select("*")
-      .maybeSingle();
+    const { data: newId, error: insErr } = await supabase.rpc("insert_check_in", {
+      p_client_id: client.id,
+      p_practitioner_id: client.practitioner_id,
+      p_pain_level: pain,
+      p_sleep_quality: sleep,
+      p_stress_level: stress,
+      p_energy_level: energy,
+      p_mood: mood,
+      p_notes: notes,
+      p_medication_taken: med,
+      p_flagged: flagged,
+    });
 
-    if (insErr || !inserted) {
+    if (insErr || !newId) {
+      console.error("[Check-in] insert_check_in failed:", insErr);
       setSubmitting(false);
-      setSubmitError(insErr?.message ?? "Could not save your check-in.");
+      setSubmitError(CLIENT_GENERIC_ERROR);
       return;
     }
+
+    const insertedId = newId as string;
 
     if (flagged) {
       const existing = await findRecentOpenAlert(client.id, "red_flag");
@@ -107,17 +109,21 @@ function CheckInScreen() {
           pain >= 7
             ? `Pain level ${pain}/10 reported in check-in.`
             : "Red flag keyword detected in check-in notes.";
-        const { data: alertRow } = await supabase
-          .from("alerts")
-          .insert({
-            practitioner_id: client.practitioner_id,
-            client_id: client.id,
-            alert_type: "red_flag",
-            urgency: "urgent",
-            message: alertMessage,
-          })
-          .select("id")
-          .maybeSingle();
+
+        let alertRowId: string | null = null;
+        try {
+          const { data: alertId, error: alertErr } = await supabase.rpc("insert_alert", {
+            p_practitioner_id: client.practitioner_id,
+            p_client_id: client.id,
+            p_alert_type: "red_flag",
+            p_message: alertMessage,
+            p_urgency: "urgent",
+          });
+          if (alertErr) throw alertErr;
+          alertRowId = (alertId as string | null) ?? null;
+        } catch (e) {
+          console.error("[Check-in] insert_alert failed:", e);
+        }
 
         const result = await fireAlertWebhook({
           practitionerId: client.practitioner_id,
@@ -128,18 +134,31 @@ function CheckInScreen() {
           redFlagDetected: true,
         });
 
-        if (result.fired && alertRow?.id) {
+        if (result.fired && alertRowId) {
           await supabase
             .from("alerts")
             .update({ webhook_fired: true })
-            .eq("id", (alertRow as { id: string }).id);
+            .eq("id", alertRowId);
         }
       } else {
         console.log("[Buddy] Duplicate alert suppressed for client:", client.id);
       }
     }
 
-    setTodayCheckIn(inserted as CheckIn);
+    setTodayCheckIn({
+      id: insertedId,
+      client_id: client.id,
+      practitioner_id: client.practitioner_id,
+      pain_level: pain,
+      sleep_quality: sleep,
+      stress_level: stress,
+      energy_level: energy,
+      mood,
+      notes,
+      medication_taken: med,
+      flagged,
+      created_at: new Date().toISOString(),
+    } as CheckIn);
     setSubmitting(false);
     setSuccess(true);
   };
