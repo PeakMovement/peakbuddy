@@ -204,7 +204,7 @@ function YvesScreen() {
       triage = await analyzeSymptom(queryText, undefined, pName);
     } catch (e) {
       console.error(e);
-      setError("Could not analyse. Please try again.");
+      setError(CLIENT_GENERIC_ERROR);
       setStage("input");
       return;
     }
