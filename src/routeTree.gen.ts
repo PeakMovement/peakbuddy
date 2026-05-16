@@ -26,6 +26,7 @@ import { Route as ClientAppYvesRouteImport } from './routes/client.app.yves'
 import { Route as ClientAppTimelineRouteImport } from './routes/client.app.timeline'
 import { Route as ClientAppProgressRouteImport } from './routes/client.app.progress'
 import { Route as ClientAppCheckinRouteImport } from './routes/client.app.checkin'
+import { Route as ApiPublicTriageQueryRouteImport } from './routes/api/public/triage-query'
 import { Route as AdminAppPractitionersRouteImport } from './routes/admin.app.practitioners'
 import { Route as AdminAppDashboardRouteImport } from './routes/admin.app.dashboard'
 import { Route as AdminAppClientsRouteImport } from './routes/admin.app.clients'
@@ -121,6 +122,11 @@ const ClientAppCheckinRoute = ClientAppCheckinRouteImport.update({
   path: '/checkin',
   getParentRoute: () => ClientAppRoute,
 } as any)
+const ApiPublicTriageQueryRoute = ApiPublicTriageQueryRouteImport.update({
+  id: '/api/public/triage-query',
+  path: '/api/public/triage-query',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminAppPractitionersRoute = AdminAppPractitionersRouteImport.update({
   id: '/practitioners',
   path: '/practitioners',
@@ -173,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
+  '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
@@ -198,6 +205,7 @@ export interface FileRoutesByTo {
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
+  '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
@@ -225,6 +233,7 @@ export interface FileRoutesById {
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
+  '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
@@ -253,6 +262,7 @@ export interface FileRouteTypes {
     | '/admin/app/clients'
     | '/admin/app/dashboard'
     | '/admin/app/practitioners'
+    | '/api/public/triage-query'
     | '/client/app/checkin'
     | '/client/app/progress'
     | '/client/app/timeline'
@@ -278,6 +288,7 @@ export interface FileRouteTypes {
     | '/admin/app/clients'
     | '/admin/app/dashboard'
     | '/admin/app/practitioners'
+    | '/api/public/triage-query'
     | '/client/app/checkin'
     | '/client/app/progress'
     | '/client/app/timeline'
@@ -304,6 +315,7 @@ export interface FileRouteTypes {
     | '/admin/app/clients'
     | '/admin/app/dashboard'
     | '/admin/app/practitioners'
+    | '/api/public/triage-query'
     | '/client/app/checkin'
     | '/client/app/progress'
     | '/client/app/timeline'
@@ -327,6 +339,7 @@ export interface RootRouteChildren {
   PractitionerAppRoute: typeof PractitionerAppRouteWithChildren
   PractitionerLoginRoute: typeof PractitionerLoginRoute
   PractitionerOnboardingRoute: typeof PractitionerOnboardingRoute
+  ApiPublicTriageQueryRoute: typeof ApiPublicTriageQueryRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -449,6 +462,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/client/app/checkin'
       preLoaderRoute: typeof ClientAppCheckinRouteImport
       parentRoute: typeof ClientAppRoute
+    }
+    '/api/public/triage-query': {
+      id: '/api/public/triage-query'
+      path: '/api/public/triage-query'
+      fullPath: '/api/public/triage-query'
+      preLoaderRoute: typeof ApiPublicTriageQueryRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/admin/app/practitioners': {
       id: '/admin/app/practitioners'
@@ -575,6 +595,7 @@ const rootRouteChildren: RootRouteChildren = {
   PractitionerAppRoute: PractitionerAppRouteWithChildren,
   PractitionerLoginRoute: PractitionerLoginRoute,
   PractitionerOnboardingRoute: PractitionerOnboardingRoute,
+  ApiPublicTriageQueryRoute: ApiPublicTriageQueryRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
