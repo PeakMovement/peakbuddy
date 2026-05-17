@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { setClientId } from "@/lib/client-session";
 import { BuddyLogo } from "@/components/CrosshairLogo";
@@ -15,16 +15,6 @@ function ClientLogin() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  // Dev-only shortcut for screenshot capture: /client/login?as=<clientId>
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const as = new URLSearchParams(window.location.search).get("as");
-    if (as) {
-      setClientId(as);
-      navigate({ to: "/client/app/checkin" });
-    }
-  }, [navigate]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
