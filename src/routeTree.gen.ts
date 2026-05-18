@@ -29,6 +29,7 @@ import { Route as ClientAppTimelineRouteImport } from './routes/client.app.timel
 import { Route as ClientAppProgressRouteImport } from './routes/client.app.progress'
 import { Route as ClientAppCheckinRouteImport } from './routes/client.app.checkin'
 import { Route as ApiPublicTriageQueryRouteImport } from './routes/api/public/triage-query'
+import { Route as AdminAppSettingsRouteImport } from './routes/admin.app.settings'
 import { Route as AdminAppPractitionersRouteImport } from './routes/admin.app.practitioners'
 import { Route as AdminAppDashboardRouteImport } from './routes/admin.app.dashboard'
 import { Route as AdminAppClientsRouteImport } from './routes/admin.app.clients'
@@ -139,6 +140,11 @@ const ApiPublicTriageQueryRoute = ApiPublicTriageQueryRouteImport.update({
   path: '/api/public/triage-query',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminAppSettingsRoute = AdminAppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminAppRoute,
+} as any)
 const AdminAppPractitionersRoute = AdminAppPractitionersRouteImport.update({
   id: '/practitioners',
   path: '/practitioners',
@@ -193,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
+  '/admin/app/settings': typeof AdminAppSettingsRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/progress': typeof ClientAppProgressRoute
@@ -221,6 +228,7 @@ export interface FileRoutesByTo {
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
+  '/admin/app/settings': typeof AdminAppSettingsRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/progress': typeof ClientAppProgressRoute
@@ -251,6 +259,7 @@ export interface FileRoutesById {
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
+  '/admin/app/settings': typeof AdminAppSettingsRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/progress': typeof ClientAppProgressRoute
@@ -282,6 +291,7 @@ export interface FileRouteTypes {
     | '/admin/app/clients'
     | '/admin/app/dashboard'
     | '/admin/app/practitioners'
+    | '/admin/app/settings'
     | '/api/public/triage-query'
     | '/client/app/checkin'
     | '/client/app/progress'
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/admin/app/clients'
     | '/admin/app/dashboard'
     | '/admin/app/practitioners'
+    | '/admin/app/settings'
     | '/api/public/triage-query'
     | '/client/app/checkin'
     | '/client/app/progress'
@@ -339,6 +350,7 @@ export interface FileRouteTypes {
     | '/admin/app/clients'
     | '/admin/app/dashboard'
     | '/admin/app/practitioners'
+    | '/admin/app/settings'
     | '/api/public/triage-query'
     | '/client/app/checkin'
     | '/client/app/progress'
@@ -510,6 +522,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTriageQueryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/app/settings': {
+      id: '/admin/app/settings'
+      path: '/settings'
+      fullPath: '/admin/app/settings'
+      preLoaderRoute: typeof AdminAppSettingsRouteImport
+      parentRoute: typeof AdminAppRoute
+    }
     '/admin/app/practitioners': {
       id: '/admin/app/practitioners'
       path: '/practitioners'
@@ -567,6 +586,7 @@ interface AdminAppRouteChildren {
   AdminAppClientsRoute: typeof AdminAppClientsRoute
   AdminAppDashboardRoute: typeof AdminAppDashboardRoute
   AdminAppPractitionersRoute: typeof AdminAppPractitionersRoute
+  AdminAppSettingsRoute: typeof AdminAppSettingsRoute
   AdminAppClientDetailClientIdRoute: typeof AdminAppClientDetailClientIdRoute
   AdminAppPractitionerPractitionerIdRoute: typeof AdminAppPractitionerPractitionerIdRoute
 }
@@ -576,6 +596,7 @@ const AdminAppRouteChildren: AdminAppRouteChildren = {
   AdminAppClientsRoute: AdminAppClientsRoute,
   AdminAppDashboardRoute: AdminAppDashboardRoute,
   AdminAppPractitionersRoute: AdminAppPractitionersRoute,
+  AdminAppSettingsRoute: AdminAppSettingsRoute,
   AdminAppClientDetailClientIdRoute: AdminAppClientDetailClientIdRoute,
   AdminAppPractitionerPractitionerIdRoute:
     AdminAppPractitionerPractitionerIdRoute,
@@ -642,3 +663,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
