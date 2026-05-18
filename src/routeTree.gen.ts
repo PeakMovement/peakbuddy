@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PractitionerSignupRouteImport } from './routes/practitioner.signup'
+import { Route as PractitionerPendingRouteImport } from './routes/practitioner.pending'
 import { Route as PractitionerOnboardingRouteImport } from './routes/practitioner.onboarding'
 import { Route as PractitionerLoginRouteImport } from './routes/practitioner.login'
 import { Route as PractitionerAppRouteImport } from './routes/practitioner.app'
@@ -38,6 +40,16 @@ import { Route as AdminAppClientDetailClientIdRouteImport } from './routes/admin
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PractitionerSignupRoute = PractitionerSignupRouteImport.update({
+  id: '/practitioner/signup',
+  path: '/practitioner/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PractitionerPendingRoute = PractitionerPendingRouteImport.update({
+  id: '/practitioner/pending',
+  path: '/practitioner/pending',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PractitionerOnboardingRoute = PractitionerOnboardingRouteImport.update({
@@ -175,6 +187,8 @@ export interface FileRoutesByFullPath {
   '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
   '/practitioner/onboarding': typeof PractitionerOnboardingRoute
+  '/practitioner/pending': typeof PractitionerPendingRoute
+  '/practitioner/signup': typeof PractitionerSignupRoute
   '/admin/app/alerts': typeof AdminAppAlertsRoute
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
@@ -201,6 +215,8 @@ export interface FileRoutesByTo {
   '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
   '/practitioner/onboarding': typeof PractitionerOnboardingRoute
+  '/practitioner/pending': typeof PractitionerPendingRoute
+  '/practitioner/signup': typeof PractitionerSignupRoute
   '/admin/app/alerts': typeof AdminAppAlertsRoute
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
@@ -229,6 +245,8 @@ export interface FileRoutesById {
   '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
   '/practitioner/onboarding': typeof PractitionerOnboardingRoute
+  '/practitioner/pending': typeof PractitionerPendingRoute
+  '/practitioner/signup': typeof PractitionerSignupRoute
   '/admin/app/alerts': typeof AdminAppAlertsRoute
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
@@ -258,6 +276,8 @@ export interface FileRouteTypes {
     | '/practitioner/app'
     | '/practitioner/login'
     | '/practitioner/onboarding'
+    | '/practitioner/pending'
+    | '/practitioner/signup'
     | '/admin/app/alerts'
     | '/admin/app/clients'
     | '/admin/app/dashboard'
@@ -284,6 +304,8 @@ export interface FileRouteTypes {
     | '/practitioner/app'
     | '/practitioner/login'
     | '/practitioner/onboarding'
+    | '/practitioner/pending'
+    | '/practitioner/signup'
     | '/admin/app/alerts'
     | '/admin/app/clients'
     | '/admin/app/dashboard'
@@ -311,6 +333,8 @@ export interface FileRouteTypes {
     | '/practitioner/app'
     | '/practitioner/login'
     | '/practitioner/onboarding'
+    | '/practitioner/pending'
+    | '/practitioner/signup'
     | '/admin/app/alerts'
     | '/admin/app/clients'
     | '/admin/app/dashboard'
@@ -339,6 +363,8 @@ export interface RootRouteChildren {
   PractitionerAppRoute: typeof PractitionerAppRouteWithChildren
   PractitionerLoginRoute: typeof PractitionerLoginRoute
   PractitionerOnboardingRoute: typeof PractitionerOnboardingRoute
+  PractitionerPendingRoute: typeof PractitionerPendingRoute
+  PractitionerSignupRoute: typeof PractitionerSignupRoute
   ApiPublicTriageQueryRoute: typeof ApiPublicTriageQueryRoute
 }
 
@@ -349,6 +375,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/practitioner/signup': {
+      id: '/practitioner/signup'
+      path: '/practitioner/signup'
+      fullPath: '/practitioner/signup'
+      preLoaderRoute: typeof PractitionerSignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/practitioner/pending': {
+      id: '/practitioner/pending'
+      path: '/practitioner/pending'
+      fullPath: '/practitioner/pending'
+      preLoaderRoute: typeof PractitionerPendingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/practitioner/onboarding': {
@@ -595,18 +635,10 @@ const rootRouteChildren: RootRouteChildren = {
   PractitionerAppRoute: PractitionerAppRouteWithChildren,
   PractitionerLoginRoute: PractitionerLoginRoute,
   PractitionerOnboardingRoute: PractitionerOnboardingRoute,
+  PractitionerPendingRoute: PractitionerPendingRoute,
+  PractitionerSignupRoute: PractitionerSignupRoute,
   ApiPublicTriageQueryRoute: ApiPublicTriageQueryRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
