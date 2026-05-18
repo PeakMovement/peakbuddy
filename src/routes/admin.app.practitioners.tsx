@@ -16,6 +16,7 @@ type Row = {
   practice_name: string;
   profession: string | null;
   onboarding_complete: boolean;
+  is_approved: boolean;
   client_count: number;
 };
 
@@ -49,6 +50,7 @@ function PractitionersList() {
           practice_name: pr.practice_name,
           profession: pr.profession ?? prof?.profession ?? null,
           onboarding_complete: pr.onboarding_complete,
+          is_approved: pr.is_approved ?? false,
           client_count: counts.get(pr.practitioner_id) ?? 0,
         };
       });
@@ -60,6 +62,7 @@ function PractitionersList() {
             practice_name: "—",
             profession: p.profession,
             onboarding_complete: false,
+            is_approved: false,
             client_count: counts.get(p.id) ?? 0,
           });
         }
@@ -98,75 +101,17 @@ function PractitionersList() {
       ) : (
         <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
           {rows.map((r) => (
-            <button
+            <PractitionerCard
               key={r.practitioner_id}
-              type="button"
-              onClick={() =>
+              row={r}
+              onOpen={() =>
                 navigate({
                   to: "/admin/app/practitioner/$practitionerId",
                   params: { practitionerId: r.practitioner_id },
                 })
               }
-              style={{
-                textAlign: "left",
-                background: "var(--navy-card)",
-                border: "1px solid var(--navy-border)",
-                borderRadius: 12,
-                padding: 14,
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                cursor: "pointer",
-                color: "inherit",
-              }}
-            >
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    fontFamily: "var(--font-ui)",
-                    fontWeight: 700,
-                    color: "var(--white)",
-                    fontSize: 16,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {r.full_name}
-                </div>
-                <div
-                  style={{
-                    marginTop: 2,
-                    color: "var(--white-muted)",
-                    fontSize: 12,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {r.practice_name}
-                  {r.profession ? ` · ${r.profession}` : ""}
-                </div>
-                <div style={{ marginTop: 6, fontFamily: "var(--font-data)", fontSize: 11, color: "var(--white-muted)" }}>
-                  {r.client_count} {r.client_count === 1 ? "client" : "clients"}
-                </div>
-              </div>
-              <span
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  fontFamily: "var(--font-ui)",
-                  border: `1px solid ${r.onboarding_complete ? "var(--green)" : "var(--amber)"}`,
-                  color: r.onboarding_complete ? "var(--green)" : "var(--amber)",
-                }}
-              >
-                {r.onboarding_complete ? "Complete" : "Pending"}
-              </span>
-            </button>
+              onApproved={load}
+            />
           ))}
         </div>
       )}
