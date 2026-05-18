@@ -38,6 +38,15 @@ function PractitionerAppLayout() {
           navigate({ to: "/practitioner/login" });
           return;
         }
+        const { data: practice } = await supabase
+          .from("practices")
+          .select("is_approved")
+          .eq("practitioner_id", data.user.id)
+          .maybeSingle();
+        if (practice && practice.is_approved === false) {
+          navigate({ to: "/practitioner/pending" });
+          return;
+        }
         setUserId(data.user.id);
       } catch {
         navigate({ to: "/practitioner/login" });

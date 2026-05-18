@@ -48,11 +48,15 @@ function PractitionerLogin() {
 
     const { data: practice } = await supabase
       .from("practices")
-      .select("onboarding_complete")
+      .select("onboarding_complete,is_approved")
       .eq("practitioner_id", userId)
       .maybeSingle();
 
     setLoading(false);
+    if (practice && practice.is_approved === false) {
+      navigate({ to: "/practitioner/pending" });
+      return;
+    }
     if (practice?.onboarding_complete) {
       navigate({ to: "/practitioner/app/dashboard" });
     } else {
@@ -160,9 +164,22 @@ function PractitionerLogin() {
         </form>
 
         <Link
+          to="/practitioner/signup"
+          style={{
+            marginTop: 32,
+            color: "var(--blue-accent)",
+            fontSize: 14,
+            textDecoration: "underline",
+            textUnderlineOffset: 4,
+          }}
+        >
+          New to Buddy? Request access
+        </Link>
+
+        <Link
           to="/"
           style={{
-            marginTop: 40,
+            marginTop: 20,
             color: "var(--white-muted)",
             fontSize: 14,
             textDecoration: "underline",
