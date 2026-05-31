@@ -9,16 +9,16 @@
 @source "../src";
 
 :root {
-  --navy: #0a0e1a;
-  --navy-card: #111827;
-  --navy-border: #1e2a3a;
+  --navy: #1a2952;
+  --navy-card: #243a6b;
+  --navy-border: #3658a3;
   --white: #f0ece4;
-  --white-muted: #9ca3af;
-  --blue-cold: #6b9ab8;
-  --blue-accent: #3b82f6;
-  --green: #22c55e;
-  --amber: #f59e0b;
-  --red: #ef4444;
+  --white-muted: #b8c5db;
+  --blue-cold: #9ec2e8;
+  --blue-accent: #4a8df0;
+  --green: #34d399;
+  --amber: #fbbf24;
+  --red: #f87171;
   --font-hero: 'Cormorant Garamond', Georgia, serif;
   --font-ui: 'Rajdhani', sans-serif;
   --font-data: 'Space Mono', monospace;
