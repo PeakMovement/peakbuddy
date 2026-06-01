@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PractitionerSignupRouteImport } from './routes/practitioner.signup'
 import { Route as PractitionerPendingRouteImport } from './routes/practitioner.pending'
@@ -38,6 +39,11 @@ import { Route as PractitionerAppClientDetailClientIdRouteImport } from './route
 import { Route as AdminAppPractitionerPractitionerIdRouteImport } from './routes/admin.app.practitioner.$practitionerId'
 import { Route as AdminAppClientDetailClientIdRouteImport } from './routes/admin.app.client-detail.$clientId'
 
+const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
+  id: '/privacy-policy',
+  path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -186,6 +192,7 @@ const AdminAppClientDetailClientIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
   '/admin/app': typeof AdminAppRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/client/app': typeof ClientAppRouteWithChildren
@@ -216,6 +223,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
   '/admin/app': typeof AdminAppRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/client/login': typeof ClientLoginRoute
@@ -246,6 +254,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
   '/admin/app': typeof AdminAppRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/client/app': typeof ClientAppRouteWithChildren
@@ -278,6 +287,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/privacy-policy'
     | '/admin/app'
     | '/admin/login'
     | '/client/app'
@@ -308,6 +318,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/privacy-policy'
     | '/admin/app'
     | '/admin/login'
     | '/client/login'
@@ -337,6 +348,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/privacy-policy'
     | '/admin/app'
     | '/admin/login'
     | '/client/app'
@@ -368,6 +380,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   AdminAppRoute: typeof AdminAppRouteWithChildren
   AdminLoginRoute: typeof AdminLoginRoute
   ClientAppRoute: typeof ClientAppRouteWithChildren
@@ -382,6 +395,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/privacy-policy': {
+      id: '/privacy-policy'
+      path: '/privacy-policy'
+      fullPath: '/privacy-policy'
+      preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -649,6 +669,7 @@ const PractitionerAppRouteWithChildren = PractitionerAppRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  PrivacyPolicyRoute: PrivacyPolicyRoute,
   AdminAppRoute: AdminAppRouteWithChildren,
   AdminLoginRoute: AdminLoginRoute,
   ClientAppRoute: ClientAppRouteWithChildren,
@@ -663,3 +684,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
