@@ -9,7 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SupportRouteImport } from './routes/support'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
+import { Route as MarketingRouteImport } from './routes/marketing'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PractitionerSignupRouteImport } from './routes/practitioner.signup'
 import { Route as PractitionerPendingRouteImport } from './routes/practitioner.pending'
@@ -39,9 +41,19 @@ import { Route as PractitionerAppClientDetailClientIdRouteImport } from './route
 import { Route as AdminAppPractitionerPractitionerIdRouteImport } from './routes/admin.app.practitioner.$practitionerId'
 import { Route as AdminAppClientDetailClientIdRouteImport } from './routes/admin.app.client-detail.$clientId'
 
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
   id: '/privacy-policy',
   path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketingRoute = MarketingRouteImport.update({
+  id: '/marketing',
+  path: '/marketing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -192,7 +204,9 @@ const AdminAppClientDetailClientIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/marketing': typeof MarketingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/support': typeof SupportRoute
   '/admin/app': typeof AdminAppRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/client/app': typeof ClientAppRouteWithChildren
@@ -223,7 +237,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/marketing': typeof MarketingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/support': typeof SupportRoute
   '/admin/app': typeof AdminAppRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/client/login': typeof ClientLoginRoute
@@ -254,7 +270,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/marketing': typeof MarketingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/support': typeof SupportRoute
   '/admin/app': typeof AdminAppRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/client/app': typeof ClientAppRouteWithChildren
@@ -287,7 +305,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/marketing'
     | '/privacy-policy'
+    | '/support'
     | '/admin/app'
     | '/admin/login'
     | '/client/app'
@@ -318,7 +338,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/marketing'
     | '/privacy-policy'
+    | '/support'
     | '/admin/app'
     | '/admin/login'
     | '/client/login'
@@ -348,7 +370,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/marketing'
     | '/privacy-policy'
+    | '/support'
     | '/admin/app'
     | '/admin/login'
     | '/client/app'
@@ -380,7 +404,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  MarketingRoute: typeof MarketingRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
+  SupportRoute: typeof SupportRoute
   AdminAppRoute: typeof AdminAppRouteWithChildren
   AdminLoginRoute: typeof AdminLoginRoute
   ClientAppRoute: typeof ClientAppRouteWithChildren
@@ -395,11 +421,25 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/privacy-policy': {
       id: '/privacy-policy'
       path: '/privacy-policy'
       fullPath: '/privacy-policy'
       preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/marketing': {
+      id: '/marketing'
+      path: '/marketing'
+      fullPath: '/marketing'
+      preLoaderRoute: typeof MarketingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -669,7 +709,9 @@ const PractitionerAppRouteWithChildren = PractitionerAppRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  MarketingRoute: MarketingRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
+  SupportRoute: SupportRoute,
   AdminAppRoute: AdminAppRouteWithChildren,
   AdminLoginRoute: AdminLoginRoute,
   ClientAppRoute: ClientAppRouteWithChildren,
