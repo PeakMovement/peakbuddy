@@ -124,7 +124,7 @@ async function seedAlert(clientId: string, practitionerId: string) {
     client_id: clientId,
     alert_type: "pain_spike",
     message: "Pain level spiked to 7/10 with poor sleep — possible flare-up pattern detected.",
-    urgency: "soon",
+    urgency: "urgent",
     is_read: false,
   });
   if (error) throw error;
