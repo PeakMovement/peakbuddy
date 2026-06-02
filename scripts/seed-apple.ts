@@ -126,7 +126,6 @@ async function seedAlert(clientId: string, practitionerId: string) {
     message: "Pain level spiked to 7/10 with poor sleep — possible flare-up pattern detected.",
     urgency: "soon",
     is_read: false,
-    webhook_fired: false,
   });
   if (error) throw error;
   console.log("+ alert created");
