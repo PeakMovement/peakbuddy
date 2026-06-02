@@ -45,7 +45,6 @@ async function ensurePractice(practitionerId: string) {
     data_processing_agreed: true,
     data_processing_agreed_at: now,
     onboarding_complete: true,
-    is_approved: true,
   };
   if (existing) {
     await sb.from("practices").update(payload).eq("id", existing.id);
