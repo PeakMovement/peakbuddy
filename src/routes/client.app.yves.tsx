@@ -61,6 +61,7 @@ const CLIENT_GENERIC_ERROR =
 function YvesScreen() {
   const [client, setClient] = useState<Client | null>(null);
   const [practitionerName, setPractitionerName] = useState<string | null>(null);
+  const [practiceYvesEnabled, setPracticeYvesEnabled] = useState<boolean>(true);
   const [history, setHistory] = useState<SymptomQuery[]>([]);
   const [text, setText] = useState("");
   const [stage, setStage] = useState<Stage>("input");
