@@ -50,6 +50,7 @@ export interface Client {
   login_code: string;
   popia_accepted: boolean;
   yves_enabled: boolean;
+  created_at: string;
 }
 
 export interface CheckIn {
