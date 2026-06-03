@@ -1,44 +1,30 @@
+import buddyIcon from "@/assets/buddy-icon.png.asset.json";
+
 /**
- * Buddy logo mark — precision monitoring reticle.
- * Two concentric circles + four cardinal tick marks. No crosshair lines.
- *
- * Default size 40px (per design spec). Internals are scaled from a 40-unit
- * viewBox so passing a different `size` keeps proportions exact.
+ * Buddy logo mark — the official "B" app icon.
+ * Renders the brand image. Default 40px to match prior reticle sizing.
  */
 export function CrosshairLogo({ size = 40 }: { size?: number }) {
   return (
-    <svg
+    <img
+      src={buddyIcon.url}
+      alt="Buddy"
       width={size}
       height={size}
-      viewBox="0 0 40 40"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      {/* Outer ring — thin stroke, 40px diameter (r=19.25 leaves room for stroke) */}
-      <circle cx="20" cy="20" r="19.25" stroke="var(--blue-cold)" strokeWidth="1.5" />
-
-      {/* Cardinal tick marks — 4px long, 1.5px stroke, just inside the ring */}
-      {/* 12 o'clock */}
-      <line x1="20" y1="3" x2="20" y2="7" stroke="var(--blue-cold)" strokeWidth="1.5" strokeLinecap="round" />
-      {/* 3 o'clock */}
-      <line x1="33" y1="20" x2="37" y2="20" stroke="var(--blue-cold)" strokeWidth="1.5" strokeLinecap="round" />
-      {/* 6 o'clock */}
-      <line x1="20" y1="33" x2="20" y2="37" stroke="var(--blue-cold)" strokeWidth="1.5" strokeLinecap="round" />
-      {/* 9 o'clock */}
-      <line x1="3" y1="20" x2="7" y2="20" stroke="var(--blue-cold)" strokeWidth="1.5" strokeLinecap="round" />
-
-      {/* Inner dot — filled, 8px diameter (r=4) */}
-      <circle cx="20" cy="20" r="4" fill="var(--blue-accent)" />
-    </svg>
+      style={{
+        width: size,
+        height: size,
+        borderRadius: Math.round(size * 0.22),
+        display: "block",
+      }}
+    />
   );
 }
 
 /**
  * Full Buddy lockup: mark + wordmark + tagline.
- * Use anywhere the brand should appear as a centered block.
  */
-export function BuddyLogo({ markSize = 40 }: { markSize?: number }) {
+export function BuddyLogo({ markSize = 64 }: { markSize?: number }) {
   return (
     <div
       style={{
