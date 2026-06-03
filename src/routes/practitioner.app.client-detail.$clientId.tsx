@@ -22,11 +22,13 @@ function ClientDetail() {
   const [items, setItems] = useState<CheckIn[]>([]);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [practiceYves, setPracticeYves] = useState<boolean>(true);
+  const [savingYves, setSavingYves] = useState(false);
 
   const load = async () => {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
-    const [{ data: c }, { data: ci }] = await Promise.all([
+    const [{ data: c }, { data: ci }, { data: pr }] = await Promise.all([
       supabase
         .from("clients")
         .select("*")
@@ -38,10 +40,28 @@ function ClientDetail() {
         .select("*")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("practices")
+        .select("yves_enabled")
+        .eq("practitioner_id", u.user.id)
+        .maybeSingle(),
     ]);
     setClient(c as Client | null);
     setItems((ci as CheckIn[]) ?? []);
+    setPracticeYves((pr as { yves_enabled: boolean } | null)?.yves_enabled !== false);
     setLoading(false);
+  };
+
+  const toggleYves = async () => {
+    if (!client || savingYves) return;
+    const next = !(client.yves_enabled !== false);
+    setSavingYves(true);
+    const { error } = await supabase
+      .from("clients")
+      .update({ yves_enabled: next })
+      .eq("id", client.id);
+    if (!error) setClient({ ...client, yves_enabled: next });
+    setSavingYves(false);
   };
 
   useEffect(() => {
@@ -290,6 +310,52 @@ function ClientDetail() {
           </div>
         )}
       </section>
+
+      <section
+        style={{
+          marginTop: 24,
+          padding: 14,
+          background: "var(--navy-card)",
+          border: "1px solid var(--navy-border)",
+          borderRadius: 10,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <div>
+            <div style={{ fontFamily: "var(--font-ui)", fontWeight: 600, color: "var(--white)", fontSize: 14 }}>
+              Yves AI triage
+            </div>
+            <div style={{ marginTop: 4, color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 12 }}>
+              {!practiceYves
+                ? "Disabled at practice level by admin."
+                : client.yves_enabled !== false
+                  ? "On — this client can ask Yves."
+                  : "Off — this client sees a message asking you to enable it."}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={toggleYves}
+            disabled={!practiceYves || savingYves}
+            style={{
+              minWidth: 72,
+              minHeight: 36,
+              borderRadius: 999,
+              border: "1px solid var(--blue-accent)",
+              background: client.yves_enabled !== false ? "var(--blue-accent)" : "transparent",
+              color: client.yves_enabled !== false ? "var(--white)" : "var(--blue-accent)",
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: !practiceYves || savingYves ? "not-allowed" : "pointer",
+              opacity: !practiceYves ? 0.5 : savingYves ? 0.6 : 1,
+            }}
+          >
+            {client.yves_enabled !== false ? "On" : "Off"}
+          </button>
+        </div>
+      </section>
+
 
       <button
         type="button"

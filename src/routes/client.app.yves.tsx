@@ -61,6 +61,7 @@ const CLIENT_GENERIC_ERROR =
 function YvesScreen() {
   const [client, setClient] = useState<Client | null>(null);
   const [practitionerName, setPractitionerName] = useState<string | null>(null);
+  const [practiceYvesEnabled, setPracticeYvesEnabled] = useState<boolean>(true);
   const [history, setHistory] = useState<SymptomQuery[]>([]);
   const [text, setText] = useState("");
   const [stage, setStage] = useState<Stage>("input");
@@ -86,7 +87,7 @@ function YvesScreen() {
       const cl = c as Client | null;
       setClient(cl);
 
-      const [{ data: q }, profRes] = await Promise.all([
+      const [{ data: q }, profRes, pracRes] = await Promise.all([
         supabase
           .from("symptom_queries")
           .select("*")
@@ -102,9 +103,19 @@ function YvesScreen() {
               .maybeSingle()
               .then((r) => r)
           : Promise.resolve({ data: null as { full_name: string } | null }),
+        cl?.practitioner_id
+          ? supabase
+              .from("practices")
+              .select("yves_enabled")
+              .eq("practitioner_id", cl.practitioner_id)
+              .maybeSingle()
+              .then((r) => r)
+          : Promise.resolve({ data: null as { yves_enabled: boolean } | null }),
       ]);
       setHistory(((q as SymptomQuery[] | null) ?? []) as SymptomQuery[]);
       setPractitionerName((profRes.data as { full_name: string } | null)?.full_name ?? null);
+      const pe = (pracRes.data as { yves_enabled: boolean } | null)?.yves_enabled;
+      setPracticeYvesEnabled(pe === false ? false : true);
     })();
   }, []);
 
@@ -193,15 +204,29 @@ function YvesScreen() {
     }
   };
 
+  const canUseYves =
+    !!client?.practitioner_id && practiceYvesEnabled && client?.yves_enabled !== false;
+
+  const accessBlockReason: string | null = !client
+    ? null
+    : !client.practitioner_id
+      ? "Yves is unavailable. You aren't linked to a practitioner yet. Please contact your clinic."
+      : !practiceYvesEnabled
+        ? "Yves is currently unavailable through your practitioner. Please contact them if you'd like access."
+        : client.yves_enabled === false
+          ? "Your practitioner hasn't enabled Yves for your account. Reach out to them if you'd like access."
+          : null;
+
   const submit = async () => {
     if (!client || text.trim().length < 3 || stage === "loading") return;
+    if (!canUseYves) return;
     setError(null);
     setStage("loading");
     const queryText = text.trim();
 
     let triage: TriageResult;
     try {
-      triage = await analyzeSymptom(queryText, undefined, pName);
+      triage = await analyzeSymptom(queryText, undefined, pName, client.id);
     } catch (e) {
       console.error(e);
       setError(CLIENT_GENERIC_ERROR);
@@ -612,6 +637,43 @@ function YvesScreen() {
         )}
       </div>
 
+      {accessBlockReason ? (
+        <div
+          style={{
+            marginTop: 20,
+            padding: 16,
+            background: "var(--navy-card)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 10,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 13,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "var(--blue-cold)",
+            }}
+          >
+            Yves unavailable
+          </div>
+          <p
+            style={{
+              marginTop: 8,
+              color: "var(--white)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 14,
+              lineHeight: 1.5,
+            }}
+          >
+            {accessBlockReason}
+          </p>
+          <PreviousQueries history={history} expanded={expanded} setExpanded={setExpanded} />
+        </div>
+      ) : (
+      <>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -700,7 +762,7 @@ function YvesScreen() {
       <button
         type="button"
         onClick={submit}
-        disabled={text.trim().length < 3}
+        disabled={text.trim().length < 3 || !canUseYves}
         style={{
           marginTop: 16,
           width: "100%",
@@ -712,13 +774,15 @@ function YvesScreen() {
           fontFamily: "var(--font-ui)",
           fontWeight: 600,
           fontSize: 16,
-          opacity: text.trim().length < 3 ? 0.6 : 1,
+          opacity: text.trim().length < 3 || !canUseYves ? 0.6 : 1,
         }}
       >
         {submitLabel}
       </button>
 
       <PreviousQueries history={history} expanded={expanded} setExpanded={setExpanded} />
+      </>
+      )}
     </div>
   );
 }

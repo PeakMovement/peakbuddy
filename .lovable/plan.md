@@ -1,50 +1,65 @@
-## Direction
+## Goal
 
-V1 (vivid blue square + cream "B") becomes the official Buddy brand. The current app uses near-black navy (#0a0e1a) which feels too dark, like v3. We'll lift the whole app into a brighter, blue-forward palette and re-shoot the App Store screenshots to match.
+Gate access to Yves (AI triage at `/client/app/yves`) through a three-level permission chain:
 
-## New palette (replaces existing tokens in `src/styles.css`)
+1. **Client without a practitioner → blocked.** (Already structurally true — every `clients` row requires `practitioner_id` — but enforce explicitly in the route.)
+2. **Practitioner per-client toggle.** Each practitioner can grant/revoke Yves for any of their own clients.
+3. **Super admin per-practitioner toggle.** Super admin can disable Yves wholesale for a practitioner; that disables it for every client under them regardless of the per-client setting.
 
-| Token | Before | After | Use |
-|---|---|---|---|
-| `--navy` | `#0a0e1a` (near black) | `#1a2952` (rich mid-navy) | App background |
-| `--navy-card` | `#111827` | `#243a6b` | Cards / surfaces |
-| `--navy-border` | `#1e2a3a` | `#3658a3` | Borders / dividers |
-| `--blue-accent` | `#3b82f6` | `#4a8df0` (v1 icon blue) | Primary buttons, CTAs, brand mark |
-| `--blue-cold` | `#6b9ab8` | `#9ec2e8` | Secondary accent, sub-labels |
-| `--white` | `#f0ece4` (cream) | `#f0ece4` (unchanged) | Text |
-| `--white-muted` | `#9ca3af` | `#b8c5db` | Muted text (tuned for new bg) |
+Final rule for a client: `yves_enabled = practitioner.yves_enabled AND client.yves_enabled AND practitioner_id IS NOT NULL`.
 
-Status colors (`--green` / `--amber` / `--red`) stay; they read fine on the lighter navy.
+## Schema changes (migration)
 
-Result: the app feels closer to v1 — deep but vibrant blue instead of black, cream text, vivid blue accents. No layout or component changes.
+- `practices`: add `yves_enabled boolean NOT NULL DEFAULT true`.
+- `clients`: add `yves_enabled boolean NOT NULL DEFAULT true`.
+- RLS: keep existing policies; add update grant so a practitioner can update their own clients' `yves_enabled`, and super admin can update any `practices.yves_enabled` (existing super-admin policy likely already covers it — verify).
 
-## Brand assets
+No data backfill needed (defaults are `true`, so behavior is unchanged on day one).
 
-- Replace the in-app `CrosshairLogo` / favicon with the v1 "B" mark on small splash/header surfaces where it makes sense. Keep the crosshair reticle as a secondary brand element (used in Yves assessment cards, loading states).
-- Add `app-icon-B-v1.png` into the project at `public/icon.png` so the browser tab and any social cards pick it up.
-- Update `<link rel="icon">` in `__root.tsx` to point to it.
+## Client app: `/client/app/yves`
 
-## Marketing screenshots (regenerate)
+At the top of `YvesScreen`'s initial load (right after fetching the client + practitioner name), also fetch `practices.yves_enabled` for the linked practitioner. Compute `canUseYves = !!client.practitioner_id && practitionerYvesEnabled && client.yves_enabled`.
 
-Re-shoot all 5 portrait images with the new lighter blue background, keeping the same headlines, mock UI, and artificial data. Output to `/mnt/documents/appstore/`, overwriting:
+If `canUseYves` is false, render a blocked-state card in place of the input form:
 
-- `screenshot-1-checkin.png` — "Your health, monitored daily."
-- `screenshot-2-yves.png` — "Meet Yves. Your AI triage."
-- `screenshot-3-timeline.png` — "See your progress."
-- `screenshot-4-practitioner.png` — "For practitioners."
-- `screenshot-5-alerts.png` — "Catch problems early."
+- No practitioner assigned → "Yves is unavailable. You aren't linked to a practitioner yet."
+- Practitioner disabled at practice level → "Yves is currently unavailable through your practitioner. Please contact them."
+- Per-client disabled → "Your practitioner hasn't enabled Yves for your account. Reach out to them if you'd like access."
 
-Each will use the v1 blue (`#4a8df0`) as the marketing backdrop with cream serif headline, and the phone mockup will show the newly-themed app interior so the screenshots match what users will actually see in-app.
+Same visual language as the existing "no practitioner / urgent care" cards — navy card, cold-blue heading, single CTA back to `/client/app`. History view (past queries) can stay visible read-only; only the input + submit are gated.
 
-## What I won't touch
+## Practitioner app
 
-- Component structure, copy, routing, auth, server functions — all unchanged.
-- Status semantics (green/amber/red) — kept for clinical clarity.
-- The original crosshair `CrosshairLogo` component stays in the codebase; just demoted to a secondary mark.
+**Client detail page** (`practitioner.app.client-detail.$clientId.tsx`): add a "Yves AI triage" row in the client settings area with a toggle bound to `clients.yves_enabled`. Saving writes through `supabase.from("clients").update({ yves_enabled }).eq("id", clientId)`. Show a small note: "When off, this client sees a message asking you to enable it." If the practice-level toggle is off, show the row disabled with helper text "Disabled at practice level by admin."
 
-## Order of operations
+**Clients list** (`practitioner.app.dashboard.tsx` or wherever the client list lives): add a small "Yves" pill (on/off) per row so the practitioner can see status at a glance. Optional — can fold into client detail only if cleaner.
 
-1. Update color tokens in `src/styles.css`.
-2. Add `public/icon.png` (v1 B) + wire favicon in `__root.tsx`.
-3. Spot-check 2–3 key screens in preview, tweak token values if contrast looks off.
-4. Regenerate the 5 marketing screenshots.
+## Super admin app
+
+**Practitioner detail page** (`admin.app.practitioner.$practitionerId.tsx`): add a "Yves access" toggle in the practice settings card. Writes `practices.yves_enabled` via `supabase.from("practices").update({ yves_enabled }).eq("practitioner_id", practitionerId)`. Caption: "When off, no client under this practitioner can use Yves, regardless of the practitioner's per-client settings."
+
+**Practitioners list** (`admin.app.practitioners.tsx`): add a "Yves" column (green "On" / muted "Off" badge) alongside the existing Active/Pending status.
+
+## Where the rule lives
+
+The gate is enforced client-side in the Yves route (good UX — instant block) AND server-side in the existing `analyzeSymptom` / `analyzeRealTime` call path (security backstop). Add a quick check at the top of those server functions:
+
+- Load the calling client's `practitioner_id` + `clients.yves_enabled`.
+- Load that practitioner's `practices.yves_enabled`.
+- If any is false / missing, return `{ error: "Yves access disabled" }` without calling the model. This prevents anyone from bypassing the UI by hitting the function directly.
+
+## File touch list
+
+1. New migration in `supabase/migrations/` — add two columns + policies.
+2. `src/lib/types.ts` — add `yves_enabled` to `Client` and `Practice`.
+3. `src/routes/client.app.yves.tsx` — load practice flag, gate the input UI.
+4. `src/lib/yves.ts` (or the server-fn module that wraps it) — add the access check.
+5. `src/routes/practitioner.app.client-detail.$clientId.tsx` — per-client toggle UI.
+6. `src/routes/admin.app.practitioner.$practitionerId.tsx` — per-practice toggle UI.
+7. `src/routes/admin.app.practitioners.tsx` — Yves status column.
+
+## Out of scope
+
+- No new role tier; "super practitioner" maps to the existing `super_admin` role per `src/lib/types.ts`.
+- No audit log of who toggled what (can be added later if you want).
+- No bulk toggle UI — single-row toggles only.

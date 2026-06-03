@@ -83,6 +83,7 @@ function PractitionerDetail() {
         <Row label="Profession" value={practice?.profession ?? profile?.profession ?? "—"} />
         <Row label="Onboarding" value={practice?.onboarding_complete ? "Complete" : "Pending"} />
         <Row label="POPIA Agreed" value={practice?.popia_agreed ? "Yes" : "No"} />
+        <YvesAccessRow practice={practice} onChange={(p) => setPractice(p)} />
       </Card>
 
       <div style={sectionTitle}>Webhooks (admin view)</div>
@@ -212,3 +213,66 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
     </div>
   );
 }
+
+function YvesAccessRow({
+  practice,
+  onChange,
+}: {
+  practice: Practice | null;
+  onChange: (p: Practice) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const enabled = practice?.yves_enabled !== false;
+  const toggle = async () => {
+    if (!practice || saving) return;
+    setSaving(true);
+    const next = !enabled;
+    const { error } = await supabase
+      .from("practices")
+      .update({ yves_enabled: next })
+      .eq("practitioner_id", practice.practitioner_id);
+    if (!error) onChange({ ...practice, yves_enabled: next });
+    setSaving(false);
+  };
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            fontFamily: "var(--font-ui)",
+            fontSize: 12,
+            color: "var(--white-muted)",
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+          }}
+        >
+          Yves Access
+        </div>
+        <div style={{ marginTop: 4, color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 11 }}>
+          When off, no client under this practitioner can use Yves.
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={toggle}
+        disabled={!practice || saving}
+        style={{
+          minWidth: 72,
+          minHeight: 32,
+          borderRadius: 999,
+          border: "1px solid var(--blue-accent)",
+          background: enabled ? "var(--blue-accent)" : "transparent",
+          color: enabled ? "var(--white)" : "var(--blue-accent)",
+          fontFamily: "var(--font-ui)",
+          fontWeight: 600,
+          fontSize: 13,
+          cursor: !practice || saving ? "not-allowed" : "pointer",
+          opacity: saving ? 0.6 : 1,
+        }}
+      >
+        {enabled ? "On" : "Off"}
+      </button>
+    </div>
+  );
+}
+
