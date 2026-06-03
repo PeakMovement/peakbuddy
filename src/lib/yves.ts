@@ -203,7 +203,8 @@ function buildNextStep(urgency: UrgencyTier, practitionerName: string): string {
 export async function analyzeSymptom(
   text: string,
   clientContext?: ClientRiskContext,
-  practitionerName?: string
+  practitionerName?: string,
+  clientId?: string,
 ): Promise<TriageResult> {
   const pName = practitionerName ?? 'your practitioner';
 
@@ -229,7 +230,7 @@ export async function analyzeSymptom(
     const res = await fetch('/api/public/triage-query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query_text: text, client_context: clientContext }),
+      body: JSON.stringify({ query_text: text, client_context: clientContext, client_id: clientId }),
       signal: controller.signal,
     });
     clearTimeout(timeout);
