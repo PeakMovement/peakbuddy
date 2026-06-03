@@ -26,6 +26,7 @@ export interface Practice {
   contact_webhook_enabled: boolean;
   onboarding_complete: boolean;
   is_approved: boolean;
+  yves_enabled: boolean;
   created_at: string;
 }
 
