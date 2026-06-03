@@ -49,7 +49,7 @@ export interface Client {
   tracking_duration_weeks: number;
   login_code: string;
   popia_accepted: boolean;
-  created_at: string;
+  yves_enabled: boolean;
 }
 
 export interface CheckIn {
