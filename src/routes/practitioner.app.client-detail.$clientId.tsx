@@ -311,6 +311,52 @@ function ClientDetail() {
         )}
       </section>
 
+      <section
+        style={{
+          marginTop: 24,
+          padding: 14,
+          background: "var(--navy-card)",
+          border: "1px solid var(--navy-border)",
+          borderRadius: 10,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <div>
+            <div style={{ fontFamily: "var(--font-ui)", fontWeight: 600, color: "var(--white)", fontSize: 14 }}>
+              Yves AI triage
+            </div>
+            <div style={{ marginTop: 4, color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 12 }}>
+              {!practiceYves
+                ? "Disabled at practice level by admin."
+                : client.yves_enabled !== false
+                  ? "On — this client can ask Yves."
+                  : "Off — this client sees a message asking you to enable it."}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={toggleYves}
+            disabled={!practiceYves || savingYves}
+            style={{
+              minWidth: 72,
+              minHeight: 36,
+              borderRadius: 999,
+              border: "1px solid var(--blue-accent)",
+              background: client.yves_enabled !== false ? "var(--blue-accent)" : "transparent",
+              color: client.yves_enabled !== false ? "var(--white)" : "var(--blue-accent)",
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: !practiceYves || savingYves ? "not-allowed" : "pointer",
+              opacity: !practiceYves ? 0.5 : savingYves ? 0.6 : 1,
+            }}
+          >
+            {client.yves_enabled !== false ? "On" : "Off"}
+          </button>
+        </div>
+      </section>
+
+
       <button
         type="button"
         onClick={() => setEditOpen(true)}
