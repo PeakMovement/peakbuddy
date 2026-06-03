@@ -22,11 +22,13 @@ function ClientDetail() {
   const [items, setItems] = useState<CheckIn[]>([]);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [practiceYves, setPracticeYves] = useState<boolean>(true);
+  const [savingYves, setSavingYves] = useState(false);
 
   const load = async () => {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
-    const [{ data: c }, { data: ci }] = await Promise.all([
+    const [{ data: c }, { data: ci }, { data: pr }] = await Promise.all([
       supabase
         .from("clients")
         .select("*")
@@ -38,10 +40,28 @@ function ClientDetail() {
         .select("*")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("practices")
+        .select("yves_enabled")
+        .eq("practitioner_id", u.user.id)
+        .maybeSingle(),
     ]);
     setClient(c as Client | null);
     setItems((ci as CheckIn[]) ?? []);
+    setPracticeYves((pr as { yves_enabled: boolean } | null)?.yves_enabled !== false);
     setLoading(false);
+  };
+
+  const toggleYves = async () => {
+    if (!client || savingYves) return;
+    const next = !(client.yves_enabled !== false);
+    setSavingYves(true);
+    const { error } = await supabase
+      .from("clients")
+      .update({ yves_enabled: next })
+      .eq("id", client.id);
+    if (!error) setClient({ ...client, yves_enabled: next });
+    setSavingYves(false);
   };
 
   useEffect(() => {
