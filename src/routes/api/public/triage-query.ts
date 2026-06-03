@@ -81,16 +81,62 @@ export const Route = createFileRoute("/api/public/triage-query")({
           }
 
           const body = await request.json().catch(() => null) as
-            | { query_text?: unknown; client_context?: Record<string, unknown> }
+            | { query_text?: unknown; client_context?: Record<string, unknown>; client_id?: unknown }
             | null;
           const query_text = body?.query_text;
           const client_context = body?.client_context;
+          const client_id = typeof body?.client_id === "string" ? body.client_id : null;
 
           if (!query_text || typeof query_text !== "string") {
             return new Response(
               JSON.stringify({ error: "query_text is required" }),
               { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
             );
+          }
+
+          // Yves access gate — verify client has access before calling the model.
+          if (client_id) {
+            const serviceKey = process.env.SEED_SERVICE_ROLE_KEY;
+            if (serviceKey) {
+              try {
+                const { createClient } = await import("@supabase/supabase-js");
+                const admin = createClient(
+                  "https://vzzpmsmtjlhpsrkbzqlh.supabase.co",
+                  serviceKey,
+                  { auth: { autoRefreshToken: false, persistSession: false } },
+                );
+                const { data: c } = await admin
+                  .from("clients")
+                  .select("practitioner_id, yves_enabled")
+                  .eq("id", client_id)
+                  .maybeSingle();
+                if (!c || !c.practitioner_id) {
+                  return new Response(
+                    JSON.stringify({ error: "Yves access disabled" }),
+                    { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+                  );
+                }
+                if (c.yves_enabled === false) {
+                  return new Response(
+                    JSON.stringify({ error: "Yves access disabled" }),
+                    { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+                  );
+                }
+                const { data: p } = await admin
+                  .from("practices")
+                  .select("yves_enabled")
+                  .eq("practitioner_id", c.practitioner_id)
+                  .maybeSingle();
+                if (p && p.yves_enabled === false) {
+                  return new Response(
+                    JSON.stringify({ error: "Yves access disabled" }),
+                    { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+                  );
+                }
+              } catch (err) {
+                console.warn("[triage-query] access check failed:", err);
+              }
+            }
           }
 
           let userMessage = `Patient symptom description:\n"${query_text}"`;
