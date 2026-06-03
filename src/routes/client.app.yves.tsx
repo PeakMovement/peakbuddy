@@ -781,6 +781,8 @@ function YvesScreen() {
       </button>
 
       <PreviousQueries history={history} expanded={expanded} setExpanded={setExpanded} />
+      </>
+      )}
     </div>
   );
 }
