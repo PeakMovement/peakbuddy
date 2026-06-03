@@ -762,7 +762,7 @@ function YvesScreen() {
       <button
         type="button"
         onClick={submit}
-        disabled={text.trim().length < 3}
+        disabled={text.trim().length < 3 || !canUseYves}
         style={{
           marginTop: 16,
           width: "100%",
@@ -774,7 +774,7 @@ function YvesScreen() {
           fontFamily: "var(--font-ui)",
           fontWeight: 600,
           fontSize: 16,
-          opacity: text.trim().length < 3 ? 0.6 : 1,
+          opacity: text.trim().length < 3 || !canUseYves ? 0.6 : 1,
         }}
       >
         {submitLabel}
