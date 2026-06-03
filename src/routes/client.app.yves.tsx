@@ -204,8 +204,22 @@ function YvesScreen() {
     }
   };
 
+  const canUseYves =
+    !!client?.practitioner_id && practiceYvesEnabled && client?.yves_enabled !== false;
+
+  const accessBlockReason: string | null = !client
+    ? null
+    : !client.practitioner_id
+      ? "Yves is unavailable. You aren't linked to a practitioner yet. Please contact your clinic."
+      : !practiceYvesEnabled
+        ? "Yves is currently unavailable through your practitioner. Please contact them if you'd like access."
+        : client.yves_enabled === false
+          ? "Your practitioner hasn't enabled Yves for your account. Reach out to them if you'd like access."
+          : null;
+
   const submit = async () => {
     if (!client || text.trim().length < 3 || stage === "loading") return;
+    if (!canUseYves) return;
     setError(null);
     setStage("loading");
     const queryText = text.trim();
