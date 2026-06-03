@@ -226,7 +226,7 @@ function YvesScreen() {
 
     let triage: TriageResult;
     try {
-      triage = await analyzeSymptom(queryText, undefined, pName);
+      triage = await analyzeSymptom(queryText, undefined, pName, client.id);
     } catch (e) {
       console.error(e);
       setError(CLIENT_GENERIC_ERROR);
