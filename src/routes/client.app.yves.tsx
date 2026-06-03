@@ -637,6 +637,43 @@ function YvesScreen() {
         )}
       </div>
 
+      {accessBlockReason ? (
+        <div
+          style={{
+            marginTop: 20,
+            padding: 16,
+            background: "var(--navy-card)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 10,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 13,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "var(--blue-cold)",
+            }}
+          >
+            Yves unavailable
+          </div>
+          <p
+            style={{
+              marginTop: 8,
+              color: "var(--white)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 14,
+              lineHeight: 1.5,
+            }}
+          >
+            {accessBlockReason}
+          </p>
+          <PreviousQueries history={history} expanded={expanded} setExpanded={setExpanded} />
+        </div>
+      ) : (
+      <>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
