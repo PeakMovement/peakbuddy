@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { UserCheck, AlertTriangle, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId } from "@/lib/client-session";
-import { fireAlertWebhook, fireContactWebhook, findRecentOpenAlert } from "@/lib/webhooks";
+import { fireAlertWebhook, findRecentOpenAlert } from "@/lib/webhooks";
+import { notifyAssignedPractitioner } from "@/lib/notify-practitioner.functions";
 import {
   analyzeRealTime,
   analyzeSymptom,
@@ -303,12 +304,14 @@ function YvesScreen() {
     const dup = await checkRecentRedFlagQuery();
     // Even if duplicate, mark UI as "Notified" so the user gets feedback
     if (!dup) {
-      await fireContactWebhook({
-        practitionerId: client.practitioner_id,
-        clientName: client.full_name,
-        clientId: client.id,
-        symptomDescription: result?.rationale ?? resultText ?? text.trim(),
-        symptomScore: result?.severity ?? 0,
+      await notifyAssignedPractitioner({
+        data: {
+          clientId: client.id,
+          symptomDescription: result?.rationale ?? resultText ?? text.trim(),
+          symptomScore: result?.severity ?? 0,
+          urgency: (result?.urgency ?? "urgent") as
+            | "emergency" | "urgent" | "soon" | "monitor" | "routine",
+        },
       });
     }
     setContacting(false);
@@ -320,12 +323,14 @@ function YvesScreen() {
     setContacting(true);
     const dup = await checkRecentRedFlagQuery();
     if (!dup) {
-      await fireContactWebhook({
-        practitionerId: client.practitioner_id,
-        clientName: client.full_name,
-        clientId: client.id,
-        symptomDescription: text.trim(),
-        symptomScore: realTime?.severity ?? 0,
+      await notifyAssignedPractitioner({
+        data: {
+          clientId: client.id,
+          symptomDescription: text.trim(),
+          symptomScore: realTime?.severity ?? 0,
+          urgency: (realTime?.urgency ?? "urgent") as
+            | "emergency" | "urgent" | "soon" | "monitor" | "routine",
+        },
       });
     }
     setContacting(false);
