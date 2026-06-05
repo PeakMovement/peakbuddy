@@ -45,6 +45,13 @@ button, a, input, select, textarea {
   font-family: inherit;
 }
 
+/* iOS Safari zooms the page when a focused form control has font-size < 16px.
+   Force 16px on all form controls to prevent zoom-on-focus on iPad/iPhone. */
+input, select, textarea {
+  font-size: 16px;
+  scroll-margin-bottom: 120px;
+}
+
 button { cursor: pointer; }
 
 /* per-component transitions only — global !important here was a perf killer */
