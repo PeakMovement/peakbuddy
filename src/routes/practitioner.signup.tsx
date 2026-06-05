@@ -139,8 +139,12 @@ function PractitionerSignup() {
               <Field label="Email">
                 <input
                   type="email"
+                  name="email"
                   inputMode="email"
                   autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   style={inputStyle}
@@ -164,10 +168,11 @@ function PractitionerSignup() {
                 <div style={{ position: "relative" }}>
                   <input
                     type={show ? "text" : "password"}
+                    name="new-password"
                     autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    style={{ ...inputStyle, paddingRight: 44 }}
+                    style={{ ...inputStyle, paddingRight: 48 }}
                     minLength={8}
                     required
                   />
@@ -184,6 +189,7 @@ function PractitionerSignup() {
               <Field label="Confirm password">
                 <input
                   type={show ? "text" : "password"}
+                  name="confirm-password"
                   autoComplete="new-password"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
@@ -255,15 +261,18 @@ const inputStyle: React.CSSProperties = {
 
 const eyeBtn: React.CSSProperties = {
   position: "absolute",
-  right: 8,
+  right: 2,
   top: "50%",
   transform: "translateY(-50%)",
   background: "transparent",
   border: "none",
   color: "var(--white-muted)",
-  padding: 8,
-  cursor: "pointer",
+  minWidth: 44,
+  minHeight: 44,
   display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
 };
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

@@ -95,8 +95,12 @@ function PractitionerLogin() {
           <Field label="Email">
             <input
               type="email"
+              name="email"
               inputMode="email"
               autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -108,11 +112,12 @@ function PractitionerLogin() {
             <div style={{ position: "relative" }}>
               <input
                 type={show ? "text" : "password"}
+                name="password"
                 autoComplete="current-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                style={{ ...inputStyle, paddingRight: 44 }}
+                style={{ ...inputStyle, paddingRight: 48 }}
               />
               <button
                 type="button"
@@ -120,15 +125,18 @@ function PractitionerLogin() {
                 onClick={() => setShow((s) => !s)}
                 style={{
                   position: "absolute",
-                  right: 8,
+                  right: 2,
                   top: "50%",
                   transform: "translateY(-50%)",
                   background: "transparent",
                   border: "none",
                   color: "var(--white-muted)",
-                  padding: 8,
-                  cursor: "pointer",
+                  minWidth: 44,
+                  minHeight: 44,
                   display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
                 }}
               >
                 {show ? <EyeOff size={18} /> : <Eye size={18} />}
