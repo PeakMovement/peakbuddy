@@ -71,7 +71,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "Buddy Tracker by Peak Movement" },
       { name: "description", content: "The ultimate symptom tracker and at home aid in making sure youre finding the route cause of your problems" },
       { name: "author", content: "Lovable" },

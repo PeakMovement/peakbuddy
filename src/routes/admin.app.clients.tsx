@@ -150,7 +150,7 @@ function AllClients() {
                       fontFamily: "var(--font-ui)",
                       fontWeight: 700,
                       color: "var(--white)",
-                      fontSize: 15,
+                      fontSize: 16,
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",

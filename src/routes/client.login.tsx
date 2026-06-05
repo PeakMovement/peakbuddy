@@ -78,8 +78,12 @@ function ClientLogin() {
         <form onSubmit={onSubmit} style={{ width: "100%", marginTop: 32, display: "flex", flexDirection: "column", gap: 14 }}>
           <input
             type="email"
+            name="email"
             autoComplete="email"
             inputMode="email"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email"
@@ -100,6 +104,7 @@ function ClientLogin() {
           />
           <input
             type="password"
+            name="password"
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { BuddyLogo } from "@/components/CrosshairLogo";
-import { registerPractitioner } from "@/lib/practitioner-signup.functions";
+import { registerPractitioner, checkSignupReady } from "@/lib/practitioner-signup.functions";
 
 export const Route = createFileRoute("/practitioner/signup")({
   head: () => ({ meta: [{ title: "Request Access — Buddy" }] }),
@@ -47,6 +47,15 @@ function PractitionerSignup() {
       return;
     }
     setLoading(true);
+    // Preflight: confirm the server is configured before we create an auth
+    // user. Without this, a missing SEED_SERVICE_ROLE_KEY leaves an orphan
+    // auth account and the user can never retry with the same email.
+    const ready = await checkSignupReady().catch(() => ({ ok: false }));
+    if (!ready.ok) {
+      setLoading(false);
+      setError("Signup is temporarily unavailable. Please contact support.");
+      return;
+    }
     const { data: signUp, error: authErr } = await supabase.auth.signUp({
       email: email.trim(),
       password,
@@ -139,8 +148,12 @@ function PractitionerSignup() {
               <Field label="Email">
                 <input
                   type="email"
+                  name="email"
                   inputMode="email"
                   autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   style={inputStyle}
@@ -164,10 +177,11 @@ function PractitionerSignup() {
                 <div style={{ position: "relative" }}>
                   <input
                     type={show ? "text" : "password"}
+                    name="new-password"
                     autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    style={{ ...inputStyle, paddingRight: 44 }}
+                    style={{ ...inputStyle, paddingRight: 48 }}
                     minLength={8}
                     required
                   />
@@ -184,6 +198,7 @@ function PractitionerSignup() {
               <Field label="Confirm password">
                 <input
                   type={show ? "text" : "password"}
+                  name="confirm-password"
                   autoComplete="new-password"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
@@ -248,22 +263,25 @@ const inputStyle: React.CSSProperties = {
   border: "1px solid var(--navy-border)",
   color: "var(--white)",
   fontFamily: "var(--font-ui)",
-  fontSize: 15,
+  fontSize: 16,
   padding: "0 14px",
   outline: "none",
 };
 
 const eyeBtn: React.CSSProperties = {
   position: "absolute",
-  right: 8,
+  right: 2,
   top: "50%",
   transform: "translateY(-50%)",
   background: "transparent",
   border: "none",
   color: "var(--white-muted)",
-  padding: 8,
-  cursor: "pointer",
+  minWidth: 44,
+  minHeight: 44,
   display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
 };
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

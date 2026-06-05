@@ -96,7 +96,7 @@ function AddClient() {
     padding: "12px 14px",
     color: "var(--white)",
     fontFamily: "var(--font-ui)",
-    fontSize: 15,
+    fontSize: 16,
     minHeight: 48,
   };
   const labelStyle: React.CSSProperties = {
