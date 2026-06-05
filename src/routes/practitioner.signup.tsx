@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { BuddyLogo } from "@/components/CrosshairLogo";
-import { registerPractitioner } from "@/lib/practitioner-signup.functions";
+import { registerPractitioner, checkSignupReady } from "@/lib/practitioner-signup.functions";
 
 export const Route = createFileRoute("/practitioner/signup")({
   head: () => ({ meta: [{ title: "Request Access — Buddy" }] }),
@@ -47,6 +47,15 @@ function PractitionerSignup() {
       return;
     }
     setLoading(true);
+    // Preflight: confirm the server is configured before we create an auth
+    // user. Without this, a missing SEED_SERVICE_ROLE_KEY leaves an orphan
+    // auth account and the user can never retry with the same email.
+    const ready = await checkSignupReady().catch(() => ({ ok: false }));
+    if (!ready.ok) {
+      setLoading(false);
+      setError("Signup is temporarily unavailable. Please contact support.");
+      return;
+    }
     const { data: signUp, error: authErr } = await supabase.auth.signUp({
       email: email.trim(),
       password,

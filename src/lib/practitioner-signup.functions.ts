@@ -2,6 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
+export const checkSignupReady = createServerFn({ method: "GET" }).handler(async () => {
+  return { ok: Boolean(process.env.SEED_SERVICE_ROLE_KEY) };
+});
+
 const SUPABASE_URL = "https://vzzpmsmtjlhpsrkbzqlh.supabase.co";
 
 const inputSchema = z.object({
