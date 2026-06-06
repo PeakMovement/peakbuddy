@@ -12,6 +12,7 @@ import {
   type TriageResult,
   type UrgencyTier,
 } from "@/lib/yves";
+import { getClientYvesAccess } from "@/lib/yves-access.functions";
 import type { Client, SymptomQuery } from "@/lib/types";
 import { CrosshairLogo } from "@/components/CrosshairLogo";
 
