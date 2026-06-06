@@ -93,16 +93,22 @@ function Onboarding() {
       return;
     }
 
-    const { error: prErr } = await supabase.from("practices").insert({
-      practitioner_id: userId,
-      practice_name: practiceName,
-      profession,
-      popia_agreed: true,
-      popia_agreed_at: now,
-      data_processing_agreed: true,
-      data_processing_agreed_at: now,
-      onboarding_complete: true,
-    });
+    const { error: prErr } = await supabase
+      .from("practices")
+      .upsert(
+        {
+          practitioner_id: userId,
+          practice_name: practiceName,
+          profession,
+          popia_agreed: true,
+          popia_agreed_at: now,
+          data_processing_agreed: true,
+          data_processing_agreed_at: now,
+          onboarding_complete: true,
+        },
+        { onConflict: "practitioner_id" },
+      );
+
 
     if (prErr) {
       setSaving(false);
