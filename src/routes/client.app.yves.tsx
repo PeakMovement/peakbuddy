@@ -171,17 +171,21 @@ function YvesScreen() {
 
     let alertRowId: string | null = null;
     try {
-      const { data, error: alertErr } = await supabase.rpc("insert_alert", {
-        p_practitioner_id: client.practitioner_id,
-        p_client_id: client.id,
-        p_alert_type: "red_flag",
-        p_message: `Red flag detected: ${queryText.slice(0, 100)}`,
-        p_urgency: triage.urgency,
-      });
+      const { data, error: alertErr } = await supabase
+        .from("alerts")
+        .insert({
+          practitioner_id: client.practitioner_id,
+          client_id: client.id,
+          alert_type: "red_flag",
+          message: `Red flag detected: ${queryText.slice(0, 100)}`,
+          urgency: triage.urgency,
+        })
+        .select("id")
+        .single();
       if (alertErr) throw alertErr;
-      alertRowId = (data as string | null) ?? null;
+      alertRowId = (data?.id as string | null) ?? null;
     } catch (e) {
-      console.error("[Yves] insert_alert failed:", e);
+      console.error("[Yves] insert alert failed:", e);
     }
 
     const fired = await fireAlertWebhook({
@@ -235,24 +239,28 @@ function YvesScreen() {
       return;
     }
 
-    // Persist via security definer RPC (client portal has no auth.uid)
+    // Persist via direct insert (RLS allows client_id = current_client_id())
     let insertedId: string | null = null;
     try {
-      const { data, error: insErr } = await supabase.rpc("insert_symptom_query", {
-        p_client_id: client.id,
-        p_practitioner_id: client.practitioner_id,
-        p_query_text: queryText,
-        p_urgency: triage.urgency,
-        p_red_flag_detected: triage.red_flag_detected,
-        p_suggested_next_step: triage.suggested_next_step,
-        p_ai_rationale: triage.rationale,
-        p_severity: triage.severity,
-        p_source: triage.source,
-      });
+      const { data, error: insErr } = await supabase
+        .from("symptom_queries")
+        .insert({
+          client_id: client.id,
+          practitioner_id: client.practitioner_id,
+          query_text: queryText,
+          urgency: triage.urgency,
+          red_flag_detected: triage.red_flag_detected,
+          suggested_next_step: triage.suggested_next_step,
+          ai_rationale: triage.rationale,
+          severity: triage.severity,
+          source: triage.source,
+        })
+        .select("id")
+        .single();
       if (insErr) throw insErr;
-      insertedId = (data as string | null) ?? null;
+      insertedId = (data?.id as string | null) ?? null;
     } catch (e) {
-      console.error("[Yves] insert_symptom_query failed:", e);
+      console.error("[Yves] insert symptom_query failed:", e);
       setError(CLIENT_GENERIC_ERROR);
     }
 
