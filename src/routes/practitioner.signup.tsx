@@ -75,6 +75,14 @@ function PractitionerSignup() {
       return;
     }
     const userId = signUp.user?.id;
+    // Supabase returns an obfuscated user object with `identities: []` when the
+    // email is already registered (anti-enumeration). Detect and surface a
+    // clear error instead of attempting a profiles insert that will FK-fail.
+    if (signUp.user && (signUp.user.identities?.length ?? 0) === 0) {
+      setLoading(false);
+      setError("Email already registered.");
+      return;
+    }
     if (!userId) {
       setLoading(false);
       setError("Could not create account. Please try again.");
