@@ -1,46 +1,33 @@
-## Diagnosis
+## Problem
 
-Claude isn't broken — the request never reaches it.
+Practitioner signup shows **"Invalid API key"** after submitting the form. The auth user is actually created successfully, but the follow-up server function that writes the `profiles` and `practices` rows fails — and its error string ("Invalid API key" from Supabase) is shown verbatim under the form. Every failed attempt also leaves an orphan auth user, so retrying the same email then shows "Email already registered."
 
-**Evidence**
-- Server log for the failing call: `POST /api/public/triage-query → 403`
-- DB row from that submission: `source = keyword_fallback`, `severity = 0`, `urgency = routine`
-- The 403 comes from the route's own "Yves access gate" (lines 98–140 of `src/routes/api/public/triage-query.ts`), which returns `{ "error": "Yves access disabled" }` before calling Anthropic
-- But in the database both flags are true:
-  - `clients.yves_enabled = true`
-  - `clients.practitioner_id = 66d06c2c-…` (not null)
-  - `practices.yves_enabled = true`
+## Root cause
 
-So the gate's three explicit "disabled" conditions are all false in data, yet the gate fires. That means the **service-role lookup is returning no row** (`c` is null) → the `if (!c || !c.practitioner_id)` branch returns 403.
-
-**Root cause**
-The route uses `process.env.SEED_SERVICE_ROLE_KEY` for the admin lookup. That secret is a separate, seed-script-scoped key — likely stale or not actually a service-role-privileged key in this project. The canonical secret is `SUPABASE_SERVICE_ROLE_KEY` (or even better, the integration-managed `supabaseAdmin` from `@/integrations/supabase/client.server`). When the lookup runs under the wrong key, RLS hides the `clients` row → `data` is `null` → gate 403s → client falls back to keyword analysis ("Yves is temporarily unavailable…").
-
-**Secondary issue**
-Even if the lookup legitimately fails (network, transient error), the current code silently returns 403 with the *same* "access disabled" message it uses for genuine opt-outs. There's no log distinguishing "client lookup returned null" from "yves_enabled is false", which is what made this take a while to spot.
+`src/lib/practitioner-signup.functions.ts` builds its own admin Supabase client from `process.env.SEED_SERVICE_ROLE_KEY`. That secret is stale / not a valid service-role key for this project anymore. The integration-managed `supabaseAdmin` (which uses `SUPABASE_SERVICE_ROLE_KEY`) works correctly — we already proved this when we fixed the Yves access gate.
 
 ## Fix
 
-Edit only `src/routes/api/public/triage-query.ts`:
+Edit only `src/lib/practitioner-signup.functions.ts`:
 
-1. **Swap the service client** to use the integration-managed admin client:
-   - `import { supabaseAdmin } from "@/integrations/supabase/client.server"` (inside the handler via `await import(...)` per the server-only import rules)
-   - Remove the `SEED_SERVICE_ROLE_KEY` + manual `createClient` block
-2. **Distinguish failure modes** in the gate:
-   - If the `clients` query returns a Supabase `error` (auth/network), log it and **fail-open** (skip the gate, proceed to Claude) — same behavior as the current `catch` block. The gate is a UX nicety, not a security boundary; RLS + the existing app flow already prevent unauthorized writes.
-   - If the lookup succeeds but `c` is null OR `practitioner_id` is null OR either `yves_enabled` is false → still 403, but with a distinct message (e.g. `"Yves access disabled"` vs `"Client not found"`) and a `console.warn` so future occurrences are visible in logs.
-3. **Keep everything else identical** — same Anthropic call, same tool schema, same response shape. No client-side changes.
+1. **`registerPractitioner`** — replace the `createClient(SUPABASE_URL, SEED_SERVICE_ROLE_KEY, …)` construction with a dynamic import of the integration-managed admin client inside the handler:
+   ```ts
+   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+   ```
+   Use `supabaseAdmin` for the existing `profiles` upsert, the `practices` lookup/insert, and the `platform_settings` webhook lookup. No other logic changes.
+
+2. **`checkSignupReady`** — stop probing `SEED_SERVICE_ROLE_KEY`. The signup form's preflight should just return `{ ok: true }` (the integration guarantees `SUPABASE_SERVICE_ROLE_KEY` is present whenever Cloud is connected). This also unblocks the form on environments where the legacy seed key was never set.
+
+3. Leave `SEED_SERVICE_ROLE_KEY` alone elsewhere — `scripts/seed-*.ts` still reference it, and those are run manually outside the app.
+
+## Out of scope
+
+- No client-side changes to `src/routes/practitioner.signup.tsx` (it already surfaces the serverFn's error string; once the underlying call succeeds, the UI works).
+- No DB migrations.
+- Orphan auth users from previous failed attempts are not cleaned up automatically. If the user wants to retry with the same email, they should use a different email or we can clean those rows up afterward via SQL — say the word and I'll do it as a follow-up.
 
 ## Verification
 
-After the edit:
-1. Submit a benign symptom from the client portal ("my lower back is stiff").
-2. Confirm in logs: `POST /api/public/triage-query → 200`.
-3. Confirm in DB: newest `symptom_queries` row has `source = 'ai_primary'` or `'ai_keyword_escalated'` (not `keyword_fallback`).
-4. Submit the original test ("I am bleeding out of my eyes is that ok?") → should now come back as **emergency** from Claude, not routine from the fallback.
-
-## Out of scope (not changing now)
-
-- The hard-override keyword list I added last turn stays as a safety net.
-- The `SEED_SERVICE_ROLE_KEY` secret itself — leave it for any seeding scripts that still use it; just stop using it in this route.
-- No changes to `src/lib/yves.ts` or `client.app.yves.tsx`.
+1. Submit the signup form with a fresh email → expect success screen ("Check your email").
+2. Confirm a row exists in `profiles` with `role='practitioner'` and a row in `practices` with `is_approved=false` for that user.
+3. Existing practitioner login flow unaffected.
