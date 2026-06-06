@@ -42,6 +42,7 @@ export interface Client {
   practitioner_id: string;
   full_name: string;
   email: string;
+  phone: string | null;
   primary_complaint: string;
   notes: string;
   check_in_frequency: string;

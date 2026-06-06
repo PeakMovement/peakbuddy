@@ -24,12 +24,14 @@ import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as AdminAppRouteImport } from './routes/admin.app'
 import { Route as ClientAppIndexRouteImport } from './routes/client.app.index'
 import { Route as PractitionerAppSettingsRouteImport } from './routes/practitioner.app.settings'
+import { Route as PractitionerAppProfileRouteImport } from './routes/practitioner.app.profile'
 import { Route as PractitionerAppDashboardRouteImport } from './routes/practitioner.app.dashboard'
 import { Route as PractitionerAppAlertsRouteImport } from './routes/practitioner.app.alerts'
 import { Route as PractitionerAppAddClientRouteImport } from './routes/practitioner.app.add-client'
 import { Route as ClientAppYvesRouteImport } from './routes/client.app.yves'
 import { Route as ClientAppTimelineRouteImport } from './routes/client.app.timeline'
 import { Route as ClientAppProgressRouteImport } from './routes/client.app.progress'
+import { Route as ClientAppProfileRouteImport } from './routes/client.app.profile'
 import { Route as ClientAppCheckinRouteImport } from './routes/client.app.checkin'
 import { Route as ApiPublicTriageQueryRouteImport } from './routes/api/public/triage-query'
 import { Route as AdminAppSettingsRouteImport } from './routes/admin.app.settings'
@@ -116,6 +118,11 @@ const PractitionerAppSettingsRoute = PractitionerAppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => PractitionerAppRoute,
 } as any)
+const PractitionerAppProfileRoute = PractitionerAppProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => PractitionerAppRoute,
+} as any)
 const PractitionerAppDashboardRoute =
   PractitionerAppDashboardRouteImport.update({
     id: '/dashboard',
@@ -146,6 +153,11 @@ const ClientAppTimelineRoute = ClientAppTimelineRouteImport.update({
 const ClientAppProgressRoute = ClientAppProgressRouteImport.update({
   id: '/progress',
   path: '/progress',
+  getParentRoute: () => ClientAppRoute,
+} as any)
+const ClientAppProfileRoute = ClientAppProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => ClientAppRoute,
 } as any)
 const ClientAppCheckinRoute = ClientAppCheckinRouteImport.update({
@@ -223,12 +235,14 @@ export interface FileRoutesByFullPath {
   '/admin/app/settings': typeof AdminAppSettingsRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
+  '/client/app/profile': typeof ClientAppProfileRoute
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
   '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
+  '/practitioner/app/profile': typeof PractitionerAppProfileRoute
   '/practitioner/app/settings': typeof PractitionerAppSettingsRoute
   '/client/app/': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
@@ -255,12 +269,14 @@ export interface FileRoutesByTo {
   '/admin/app/settings': typeof AdminAppSettingsRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
+  '/client/app/profile': typeof ClientAppProfileRoute
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
   '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
+  '/practitioner/app/profile': typeof PractitionerAppProfileRoute
   '/practitioner/app/settings': typeof PractitionerAppSettingsRoute
   '/client/app': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
@@ -289,12 +305,14 @@ export interface FileRoutesById {
   '/admin/app/settings': typeof AdminAppSettingsRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
+  '/client/app/profile': typeof ClientAppProfileRoute
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
   '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
+  '/practitioner/app/profile': typeof PractitionerAppProfileRoute
   '/practitioner/app/settings': typeof PractitionerAppSettingsRoute
   '/client/app/': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
@@ -324,12 +342,14 @@ export interface FileRouteTypes {
     | '/admin/app/settings'
     | '/api/public/triage-query'
     | '/client/app/checkin'
+    | '/client/app/profile'
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
     | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
+    | '/practitioner/app/profile'
     | '/practitioner/app/settings'
     | '/client/app/'
     | '/admin/app/client-detail/$clientId'
@@ -356,12 +376,14 @@ export interface FileRouteTypes {
     | '/admin/app/settings'
     | '/api/public/triage-query'
     | '/client/app/checkin'
+    | '/client/app/profile'
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
     | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
+    | '/practitioner/app/profile'
     | '/practitioner/app/settings'
     | '/client/app'
     | '/admin/app/client-detail/$clientId'
@@ -389,12 +411,14 @@ export interface FileRouteTypes {
     | '/admin/app/settings'
     | '/api/public/triage-query'
     | '/client/app/checkin'
+    | '/client/app/profile'
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
     | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
+    | '/practitioner/app/profile'
     | '/practitioner/app/settings'
     | '/client/app/'
     | '/admin/app/client-detail/$clientId'
@@ -526,6 +550,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PractitionerAppSettingsRouteImport
       parentRoute: typeof PractitionerAppRoute
     }
+    '/practitioner/app/profile': {
+      id: '/practitioner/app/profile'
+      path: '/profile'
+      fullPath: '/practitioner/app/profile'
+      preLoaderRoute: typeof PractitionerAppProfileRouteImport
+      parentRoute: typeof PractitionerAppRoute
+    }
     '/practitioner/app/dashboard': {
       id: '/practitioner/app/dashboard'
       path: '/dashboard'
@@ -566,6 +597,13 @@ declare module '@tanstack/react-router' {
       path: '/progress'
       fullPath: '/client/app/progress'
       preLoaderRoute: typeof ClientAppProgressRouteImport
+      parentRoute: typeof ClientAppRoute
+    }
+    '/client/app/profile': {
+      id: '/client/app/profile'
+      path: '/profile'
+      fullPath: '/client/app/profile'
+      preLoaderRoute: typeof ClientAppProfileRouteImport
       parentRoute: typeof ClientAppRoute
     }
     '/client/app/checkin': {
@@ -668,6 +706,7 @@ const AdminAppRouteWithChildren = AdminAppRoute._addFileChildren(
 
 interface ClientAppRouteChildren {
   ClientAppCheckinRoute: typeof ClientAppCheckinRoute
+  ClientAppProfileRoute: typeof ClientAppProfileRoute
   ClientAppProgressRoute: typeof ClientAppProgressRoute
   ClientAppTimelineRoute: typeof ClientAppTimelineRoute
   ClientAppYvesRoute: typeof ClientAppYvesRoute
@@ -676,6 +715,7 @@ interface ClientAppRouteChildren {
 
 const ClientAppRouteChildren: ClientAppRouteChildren = {
   ClientAppCheckinRoute: ClientAppCheckinRoute,
+  ClientAppProfileRoute: ClientAppProfileRoute,
   ClientAppProgressRoute: ClientAppProgressRoute,
   ClientAppTimelineRoute: ClientAppTimelineRoute,
   ClientAppYvesRoute: ClientAppYvesRoute,
@@ -690,6 +730,7 @@ interface PractitionerAppRouteChildren {
   PractitionerAppAddClientRoute: typeof PractitionerAppAddClientRoute
   PractitionerAppAlertsRoute: typeof PractitionerAppAlertsRoute
   PractitionerAppDashboardRoute: typeof PractitionerAppDashboardRoute
+  PractitionerAppProfileRoute: typeof PractitionerAppProfileRoute
   PractitionerAppSettingsRoute: typeof PractitionerAppSettingsRoute
   PractitionerAppClientDetailClientIdRoute: typeof PractitionerAppClientDetailClientIdRoute
 }
@@ -698,6 +739,7 @@ const PractitionerAppRouteChildren: PractitionerAppRouteChildren = {
   PractitionerAppAddClientRoute: PractitionerAppAddClientRoute,
   PractitionerAppAlertsRoute: PractitionerAppAlertsRoute,
   PractitionerAppDashboardRoute: PractitionerAppDashboardRoute,
+  PractitionerAppProfileRoute: PractitionerAppProfileRoute,
   PractitionerAppSettingsRoute: PractitionerAppSettingsRoute,
   PractitionerAppClientDetailClientIdRoute:
     PractitionerAppClientDetailClientIdRoute,
