@@ -47,7 +47,10 @@ const HARD_OVERRIDE_PHRASES = [
   'want to kill myself', 'end my life', 'overdose', 'took too many pills',
   'anaphylaxis', 'throat closing', 'severe allergic reaction',
   'worst headache of my life', 'thunderclap headache', 'sudden vision loss',
-  'sudden blindness', 'eyes bleeding', 'bleeding from eyes', 'bleeding from ears',
+  'sudden blindness', 'eyes bleeding', 'bleeding from eyes', 'bleeding out of my eyes',
+  'bleeding from my eyes', 'bleeding from ears', 'bleeding from my ears',
+  'bleeding out of my ears', 'bleeding from nose', 'bleeding from my nose',
+  'bleeding from mouth', 'bleeding from my mouth',
   'coughing up blood', 'vomiting blood', 'stabbed', 'gunshot', 'major trauma',
 ];
 
