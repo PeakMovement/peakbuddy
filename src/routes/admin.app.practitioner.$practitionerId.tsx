@@ -282,6 +282,20 @@ function YvesAccessRow({
       >
         {enabled ? "On" : "Off"}
       </button>
+      {err && (
+        <div
+          role="alert"
+          style={{
+            flexBasis: "100%",
+            marginTop: 8,
+            color: "var(--red, #ef4444)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 12,
+          }}
+        >
+          {err}
+        </div>
+      )}
     </div>
   );
 }
