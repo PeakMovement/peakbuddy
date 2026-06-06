@@ -1,8 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-
-const SUPABASE_URL = process.env.SUPABASE_URL!;
 
 const inputSchema = z.object({
   practitionerId: z.string().uuid(),
@@ -17,14 +14,7 @@ const inputSchema = z.object({
 export const createClientAccount = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data }) => {
-    const serviceKey = process.env.SEED_SERVICE_ROLE_KEY;
-    if (!serviceKey) {
-      return { ok: false as const, error: "Server is missing SEED_SERVICE_ROLE_KEY." };
-    }
-
-    const admin = createClient(SUPABASE_URL, serviceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
 
     // Create or find auth user
     let userId: string | null = null;
@@ -34,7 +24,6 @@ export const createClientAccount = createServerFn({ method: "POST" })
       email_confirm: true,
     });
     if (createErr) {
-      // If user already exists, look them up
       const msg = createErr.message.toLowerCase();
       if (msg.includes("already") || msg.includes("registered") || msg.includes("exists")) {
         const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
@@ -44,7 +33,6 @@ export const createClientAccount = createServerFn({ method: "POST" })
         if (!existing) {
           return { ok: false as const, error: "Email already in use but user not found." };
         }
-        // Update password so practitioner can share new credentials
         await admin.auth.admin.updateUserById(existing.id, { password: data.password });
         userId = existing.id;
       } else {
@@ -58,7 +46,6 @@ export const createClientAccount = createServerFn({ method: "POST" })
       return { ok: false as const, error: "Failed to create auth user." };
     }
 
-    // Insert clients row
     const { data: inserted, error: insErr } = await admin
       .from("clients")
       .insert({
@@ -69,7 +56,6 @@ export const createClientAccount = createServerFn({ method: "POST" })
         notes: data.notes ?? "",
         check_in_frequency: data.checkInFrequency,
         popia_accepted: false,
-        // login_code retained for legacy schema compatibility; not used for login.
         login_code: String(Math.floor(1000 + Math.random() * 9000)),
       })
       .select("id")
