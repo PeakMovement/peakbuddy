@@ -31,9 +31,8 @@ function ClientLogin() {
       setError("Invalid email or password.");
       return;
     }
-    // Sign out immediately after credential verification so the client lookup
-    // runs under the anon role that the client-facing pages are built against.
-    await supabase.auth.signOut();
+    // Keep the auth session active — client-side reads rely on RLS policies
+    // that match the authenticated user's email to clients.email.
     const { data: client, error: lookupErr } = await supabase
       .from("clients")
       .select("id")
