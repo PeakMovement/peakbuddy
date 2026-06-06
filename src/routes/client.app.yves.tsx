@@ -171,17 +171,21 @@ function YvesScreen() {
 
     let alertRowId: string | null = null;
     try {
-      const { data, error: alertErr } = await supabase.rpc("insert_alert", {
-        p_practitioner_id: client.practitioner_id,
-        p_client_id: client.id,
-        p_alert_type: "red_flag",
-        p_message: `Red flag detected: ${queryText.slice(0, 100)}`,
-        p_urgency: triage.urgency,
-      });
+      const { data, error: alertErr } = await supabase
+        .from("alerts")
+        .insert({
+          practitioner_id: client.practitioner_id,
+          client_id: client.id,
+          alert_type: "red_flag",
+          message: `Red flag detected: ${queryText.slice(0, 100)}`,
+          urgency: triage.urgency,
+        })
+        .select("id")
+        .single();
       if (alertErr) throw alertErr;
-      alertRowId = (data as string | null) ?? null;
+      alertRowId = (data?.id as string | null) ?? null;
     } catch (e) {
-      console.error("[Yves] insert_alert failed:", e);
+      console.error("[Yves] insert alert failed:", e);
     }
 
     const fired = await fireAlertWebhook({
