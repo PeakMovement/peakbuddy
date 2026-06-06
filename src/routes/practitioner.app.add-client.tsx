@@ -247,7 +247,21 @@ function AddClient() {
         </div>
 
         {error && (
-          <div style={{ color: "var(--red)", fontSize: 13, fontFamily: "var(--font-ui)" }}>{error}</div>
+          <div
+            role="alert"
+            style={{
+              padding: 12,
+              background: "color-mix(in oklab, var(--red) 18%, transparent)",
+              border: "1px solid var(--red)",
+              borderRadius: 10,
+              color: "var(--white)",
+              fontSize: 13,
+              fontFamily: "var(--font-ui)",
+              lineHeight: 1.45,
+            }}
+          >
+            {error}
+          </div>
         )}
 
         <button
