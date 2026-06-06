@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = "https://vzzpmsmtjlhpsrkbzqlh.supabase.co";
+const SUPABASE_URL = process.env.SUPABASE_URL || "https://gkgdqfghvjjaapluxcrz.supabase.co";
 const SERVICE_KEY = process.env.SEED_SERVICE_ROLE_KEY!;
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },

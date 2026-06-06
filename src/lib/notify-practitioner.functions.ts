@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
-const SUPABASE_URL = "https://vzzpmsmtjlhpsrkbzqlh.supabase.co";
+const SUPABASE_URL = process.env.SUPABASE_URL!;
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 
 // Default sender. Works out of the box via Resend's sandbox address — note

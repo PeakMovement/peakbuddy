@@ -101,7 +101,7 @@ export const Route = createFileRoute("/api/public/triage-query")({
               try {
                 const { createClient } = await import("@supabase/supabase-js");
                 const admin = createClient(
-                  "https://vzzpmsmtjlhpsrkbzqlh.supabase.co",
+                  process.env.SUPABASE_URL!,
                   serviceKey,
                   { auth: { autoRefreshToken: false, persistSession: false } },
                 );
