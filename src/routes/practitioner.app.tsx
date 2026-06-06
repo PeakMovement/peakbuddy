@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { LayoutGrid, Bell, UserPlus, Settings as SettingsIcon } from "lucide-react";
+import { LayoutGrid, Bell, UserPlus, Settings as SettingsIcon, User } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/practitioner/app")({
@@ -13,6 +13,7 @@ const tabs: Tab[] = [
   { to: "/practitioner/app/alerts", label: "Alerts", Icon: Bell, badge: true },
   { to: "/practitioner/app/add-client", label: "Add", Icon: UserPlus },
   { to: "/practitioner/app/settings", label: "Settings", Icon: SettingsIcon },
+  { to: "/practitioner/app/profile", label: "Profile", Icon: User },
 ];
 
 function PractitionerAppLayout() {
