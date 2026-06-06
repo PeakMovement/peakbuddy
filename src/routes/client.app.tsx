@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { ClipboardList, List, Activity, MessageCircle } from "lucide-react";
+import { ClipboardList, List, Activity, MessageCircle, User } from "lucide-react";
 import { getClientId } from "@/lib/client-session";
 
 export const Route = createFileRoute("/client/app")({
@@ -12,6 +12,7 @@ const tabs = [
   { to: "/client/app/timeline", label: "Timeline", Icon: List },
   { to: "/client/app/progress", label: "Progress", Icon: Activity },
   { to: "/client/app/yves", label: "Yves", Icon: MessageCircle },
+  { to: "/client/app/profile", label: "Profile", Icon: User },
 ] as const;
 
 function ClientAppLayout() {
