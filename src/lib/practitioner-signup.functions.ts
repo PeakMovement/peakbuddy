@@ -6,7 +6,7 @@ export const checkSignupReady = createServerFn({ method: "GET" }).handler(async 
   return { ok: Boolean(process.env.SEED_SERVICE_ROLE_KEY) };
 });
 
-const SUPABASE_URL = "https://vzzpmsmtjlhpsrkbzqlh.supabase.co";
+const SUPABASE_URL = process.env.SUPABASE_URL!;
 
 const inputSchema = z.object({
   userId: z.string().uuid(),
