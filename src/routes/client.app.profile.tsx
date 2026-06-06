@@ -28,7 +28,8 @@ function ClientProfile() {
     })();
   }, [navigate]);
 
-  const signOut = () => {
+  const signOut = async () => {
+    await supabase.auth.signOut();
     clearClientId();
     navigate({ to: "/client/login" });
   };
