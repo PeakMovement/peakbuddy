@@ -333,26 +333,31 @@ function ClientDetail() {
                   : "Off — this client sees a message asking you to enable it."}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={toggleYves}
-            disabled={!practiceYves || savingYves}
-            style={{
-              minWidth: 72,
-              minHeight: 36,
-              borderRadius: 999,
-              border: "1px solid var(--blue-accent)",
-              background: client.yves_enabled !== false ? "var(--blue-accent)" : "transparent",
-              color: client.yves_enabled !== false ? "var(--white)" : "var(--blue-accent)",
-              fontFamily: "var(--font-ui)",
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: !practiceYves || savingYves ? "not-allowed" : "pointer",
-              opacity: !practiceYves ? 0.5 : savingYves ? 0.6 : 1,
-            }}
-          >
-            {client.yves_enabled !== false ? "On" : "Off"}
-          </button>
+          {(() => {
+            const effectiveOn = practiceYves && client.yves_enabled !== false;
+            return (
+              <button
+                type="button"
+                onClick={toggleYves}
+                disabled={!practiceYves || savingYves}
+                style={{
+                  minWidth: 72,
+                  minHeight: 36,
+                  borderRadius: 999,
+                  border: "1px solid var(--blue-accent)",
+                  background: effectiveOn ? "var(--blue-accent)" : "transparent",
+                  color: effectiveOn ? "var(--white)" : "var(--blue-accent)",
+                  fontFamily: "var(--font-ui)",
+                  fontWeight: 600,
+                  fontSize: 13,
+                  cursor: !practiceYves || savingYves ? "not-allowed" : "pointer",
+                  opacity: !practiceYves ? 0.5 : savingYves ? 0.6 : 1,
+                }}
+              >
+                {effectiveOn ? "On" : "Off"}
+              </button>
+            );
+          })()}
         </div>
       </section>
 
