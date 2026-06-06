@@ -95,49 +95,55 @@ export const Route = createFileRoute("/api/public/triage-query")({
           }
 
           // Yves access gate — verify client has access before calling the model.
+          // Fail-open on lookup errors so transient infra issues don't degrade Yves to keyword fallback.
           if (client_id) {
-            const serviceKey = process.env.SEED_SERVICE_ROLE_KEY;
-            if (serviceKey) {
-              try {
-                const { createClient } = await import("@supabase/supabase-js");
-                const admin = createClient(
-                  process.env.SUPABASE_URL!,
-                  serviceKey,
-                  { auth: { autoRefreshToken: false, persistSession: false } },
+            try {
+              const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+              const { data: c, error: cErr } = await supabaseAdmin
+                .from("clients")
+                .select("practitioner_id, yves_enabled")
+                .eq("id", client_id)
+                .maybeSingle();
+
+              if (cErr) {
+                console.warn("[triage-query] client lookup failed, failing open:", cErr);
+              } else if (!c) {
+                console.warn("[triage-query] no client row for id", client_id);
+                return new Response(
+                  JSON.stringify({ error: "Client not found" }),
+                  { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
                 );
-                const { data: c } = await admin
-                  .from("clients")
-                  .select("practitioner_id, yves_enabled")
-                  .eq("id", client_id)
-                  .maybeSingle();
-                if (!c || !c.practitioner_id) {
-                  return new Response(
-                    JSON.stringify({ error: "Yves access disabled" }),
-                    { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-                  );
-                }
-                if (c.yves_enabled === false) {
-                  return new Response(
-                    JSON.stringify({ error: "Yves access disabled" }),
-                    { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-                  );
-                }
-                const { data: p } = await admin
+              } else if (!c.practitioner_id) {
+                console.warn("[triage-query] client has no practitioner", client_id);
+                return new Response(
+                  JSON.stringify({ error: "Yves access disabled: no practitioner" }),
+                  { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+                );
+              } else if (c.yves_enabled === false) {
+                return new Response(
+                  JSON.stringify({ error: "Yves access disabled for client" }),
+                  { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+                );
+              } else {
+                const { data: p, error: pErr } = await supabaseAdmin
                   .from("practices")
                   .select("yves_enabled")
                   .eq("practitioner_id", c.practitioner_id)
                   .maybeSingle();
-                if (p && p.yves_enabled === false) {
+                if (pErr) {
+                  console.warn("[triage-query] practice lookup failed, failing open:", pErr);
+                } else if (p && p.yves_enabled === false) {
                   return new Response(
-                    JSON.stringify({ error: "Yves access disabled" }),
+                    JSON.stringify({ error: "Yves access disabled for practice" }),
                     { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
                   );
                 }
-              } catch (err) {
-                console.warn("[triage-query] access check failed:", err);
               }
+            } catch (err) {
+              console.warn("[triage-query] access check threw, failing open:", err);
             }
           }
+
 
           let userMessage = `Patient symptom description:\n"${query_text}"`;
           if (client_context) {
