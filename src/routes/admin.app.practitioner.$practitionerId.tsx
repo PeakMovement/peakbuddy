@@ -222,16 +222,26 @@ function YvesAccessRow({
   onChange: (p: Practice) => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const enabled = practice?.yves_enabled !== false;
   const toggle = async () => {
     if (!practice || saving) return;
     setSaving(true);
+    setErr(null);
     const next = !enabled;
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("practices")
       .update({ yves_enabled: next })
-      .eq("practitioner_id", practice.practitioner_id);
-    if (!error) onChange({ ...practice, yves_enabled: next });
+      .eq("practitioner_id", practice.practitioner_id)
+      .select("yves_enabled")
+      .maybeSingle();
+    if (error) {
+      setErr(error.message);
+    } else if (!data) {
+      setErr("Update was blocked (no rows changed). Check permissions.");
+    } else {
+      onChange({ ...practice, yves_enabled: (data as { yves_enabled: boolean }).yves_enabled });
+    }
     setSaving(false);
   };
   return (
@@ -272,6 +282,20 @@ function YvesAccessRow({
       >
         {enabled ? "On" : "Off"}
       </button>
+      {err && (
+        <div
+          role="alert"
+          style={{
+            flexBasis: "100%",
+            marginTop: 8,
+            color: "var(--red, #ef4444)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 12,
+          }}
+        >
+          {err}
+        </div>
+      )}
     </div>
   );
 }
