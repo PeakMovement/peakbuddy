@@ -30,22 +30,21 @@ export const registerPractitioner = createServerFn({ method: "POST" })
       );
     if (profErr) return { ok: false as const, error: profErr.message };
 
-    const { data: existingPractice } = await supabaseAdmin
-      .from("practices")
-      .select("id")
-      .eq("practitioner_id", data.userId)
-      .maybeSingle();
-
-    if (!existingPractice) {
-      const { error: prErr } = await supabaseAdmin.from("practices").insert({
+    // Idempotent insert: a retry or double-submit (e.g. slow iPad connection)
+    // must not fail on the practices_practitioner_id_key unique constraint.
+    // ignoreDuplicates makes the conflict a no-op instead of an error, and
+    // never overwrites an existing practice row.
+    const { error: prErr } = await supabaseAdmin.from("practices").upsert(
+      {
         practitioner_id: data.userId,
         practice_name: "",
         profession: data.profession,
         onboarding_complete: false,
         is_approved: false,
-      });
-      if (prErr) return { ok: false as const, error: prErr.message };
-    }
+      },
+      { onConflict: "practitioner_id", ignoreDuplicates: true },
+    );
+    if (prErr) return { ok: false as const, error: prErr.message };
 
     // Fire platform webhook (best effort, never fail the signup).
     try {
