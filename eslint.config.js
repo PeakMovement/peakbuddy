@@ -34,7 +34,18 @@ export default tseslint.config(
       ],
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
+      "no-console": "error",
     },
+  },
+  {
+    // Lovable-generated files and the logger itself may use console directly.
+    files: [
+      "src/lib/log.ts",
+      "src/integrations/supabase/**",
+      "src/routeTree.gen.ts",
+      "scripts/**",
+    ],
+    rules: { "no-console": "off" },
   },
   eslintPluginPrettier,
 );

@@ -4,6 +4,7 @@ import { Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Practice, Profile, Client } from "@/lib/types";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
+import { log } from "@/lib/log";
 
 export const Route = createFileRoute("/admin/app/practitioners")({
   head: () => ({ meta: [{ title: "Practitioners — Buddy Admin" }] }),
@@ -69,7 +70,7 @@ function PractitionersList() {
       });
       setRows(out);
     } catch (e) {
-      console.error(e);
+      log.error(e);
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);

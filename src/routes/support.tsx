@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
+import { log } from "@/lib/log";
 
 export const Route = createFileRoute("/support")({
   head: () => ({
@@ -96,7 +97,7 @@ function SupportPage() {
       } else {
         // No webhook configured yet — log the JSON payload for now.
         // eslint-disable-next-line no-console
-        console.info("[buddy-support] payload (no webhook configured):", payload);
+        log.info("[buddy-support] payload (no webhook configured):", payload);
       }
       setStatus("success");
       setForm({

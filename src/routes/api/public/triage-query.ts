@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { log } from "@/lib/log";
 
 const ALLOWED_ORIGINS = (
   process.env.ALLOWED_ORIGINS ??
@@ -167,7 +168,7 @@ export const Route = createFileRoute("/api/public/triage-query")({
             .maybeSingle();
 
           if (cErr) {
-            console.warn("[triage-query] client lookup failed, failing closed:", cErr.code);
+            log.warn("[triage-query] client lookup failed, failing closed:", cErr.code);
             return json({ error: "Access check unavailable, try again", retryable: true }, 503);
           }
           if (!c) {
@@ -190,7 +191,7 @@ export const Route = createFileRoute("/api/public/triage-query")({
             .eq("practitioner_id", c.practitioner_id)
             .maybeSingle();
           if (pErr) {
-            console.warn("[triage-query] practice lookup failed, failing closed:", pErr.code);
+            log.warn("[triage-query] practice lookup failed, failing closed:", pErr.code);
             return json({ error: "Access check unavailable, try again", retryable: true }, 503);
           }
           if (p && p.yves_enabled === false) {
@@ -227,7 +228,7 @@ export const Route = createFileRoute("/api/public/triage-query")({
           });
 
           if (!response.ok) {
-            console.error("[triage-query] Anthropic API error:", response.status);
+            log.error("[triage-query] Anthropic API error:", response.status);
             return json({ error: "Triage service unavailable", retryable: true }, 502);
           }
 
@@ -243,7 +244,7 @@ export const Route = createFileRoute("/api/public/triage-query")({
           return json(toolUse.input);
         } catch (err) {
           // Never leak internals to the caller; log server-side only.
-          console.error("[triage-query] unhandled error:", err);
+          log.error("[triage-query] unhandled error:", err);
           return json({ error: "Internal error", retryable: true }, 500);
         }
       },

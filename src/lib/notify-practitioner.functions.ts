@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { log } from "@/lib/log";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
@@ -120,7 +121,7 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
         webhook_fired: false,
       });
     } catch (e) {
-      console.error("[notifyPractitioner] alert insert failed", e);
+      log.error("[notifyPractitioner] alert insert failed", e);
     }
 
     const clientLink = `${APP_BASE_URL}/practitioner/app/client-detail/${client.id}`;
@@ -155,12 +156,12 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
       });
       if (!res.ok) {
         const body = await res.text();
-        console.error("[notifyPractitioner] resend gateway error", res.status, body);
+        log.error("[notifyPractitioner] resend gateway error", res.status, body);
         return { ok: false as const, error: `Email send failed (${res.status})` };
       }
       return { ok: true as const };
     } catch (e) {
-      console.error("[notifyPractitioner] fetch failed", e);
+      log.error("[notifyPractitioner] fetch failed", e);
       return { ok: false as const, error: "Email send failed" };
     }
   });

@@ -4,6 +4,7 @@ import { User } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { CheckIn, Client, Profile } from "@/lib/types";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
+import { log } from "@/lib/log";
 
 export const Route = createFileRoute("/admin/app/clients")({
   head: () => ({ meta: [{ title: "All Clients — Buddy Admin" }] }),
@@ -68,7 +69,7 @@ function AllClients() {
       setPracts((profs as Profile[]) ?? []);
       setRows(out);
     } catch (e) {
-      console.error(e);
+      log.error(e);
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);

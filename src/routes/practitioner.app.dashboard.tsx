@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import type { Profile, Client, CheckIn } from "@/lib/types";
 import { CircularRing, ringColor } from "@/components/CircularRing";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
+import { log } from "@/lib/log";
 
 export const Route = createFileRoute("/practitioner/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Buddy" }] }),
@@ -102,7 +103,7 @@ function Dashboard() {
       });
       setRows(enriched);
     } catch (e) {
-      console.error(e);
+      log.error(e);
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);

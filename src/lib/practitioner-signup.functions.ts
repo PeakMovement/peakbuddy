@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { log } from "@/lib/log";
 
 export const checkSignupReady = createServerFn({ method: "GET" }).handler(async () => {
   return { ok: true };
@@ -68,7 +69,7 @@ export const registerPractitioner = createServerFn({ method: "POST" })
         });
       }
     } catch (e) {
-      console.error("platform webhook failed", e);
+      log.error("platform webhook failed", e);
     }
 
     return { ok: true as const };

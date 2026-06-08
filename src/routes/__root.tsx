@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { log } from "@/lib/log";
 
 function NotFoundComponent() {
   return (
@@ -33,7 +34,7 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  console.error(error);
+  log.error(error);
   const router = useRouter();
 
   return (

@@ -4,6 +4,7 @@ import { BellOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Alert, Client } from "@/lib/types";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
+import { log } from "@/lib/log";
 
 export const Route = createFileRoute("/practitioner/app/alerts")({
   head: () => ({ meta: [{ title: "Alerts — Buddy" }] }),
@@ -64,7 +65,7 @@ function Alerts() {
       ((c as Client[]) ?? []).forEach((cl) => (map[cl.id] = cl));
       setClients(map);
     } catch (e) {
-      console.error(e);
+      log.error(e);
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);

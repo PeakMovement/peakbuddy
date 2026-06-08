@@ -15,6 +15,7 @@ import {
 import { getClientYvesAccess } from "@/lib/yves-access.functions";
 import type { Client, SymptomQuery } from "@/lib/types";
 import { CrosshairLogo } from "@/components/CrosshairLogo";
+import { log } from "@/lib/log";
 
 export const Route = createFileRoute("/client/app/yves")({
   component: YvesScreen,
@@ -182,7 +183,7 @@ function YvesScreen() {
       if (alertErr) throw alertErr;
       alertRowId = (data?.id as string | null) ?? null;
     } catch (e) {
-      console.error("[Yves] insert alert failed:", e);
+      log.error("[Yves] insert alert failed:", e);
     }
 
     const fired = await fireAlertWebhook({
@@ -201,7 +202,7 @@ function YvesScreen() {
           .update({ webhook_fired: true })
           .eq("id", alertRowId);
       } catch (e) {
-        console.warn("Alert webhook_fired update failed:", e);
+        log.warn("Alert webhook_fired update failed:", e);
       }
     }
   };
@@ -230,7 +231,7 @@ function YvesScreen() {
     try {
       triage = await analyzeSymptom(queryText, undefined, pName, client.id);
     } catch (e) {
-      console.error(e);
+      log.error(e);
       setError(CLIENT_GENERIC_ERROR);
       setStage("input");
       return;
@@ -257,7 +258,7 @@ function YvesScreen() {
       if (insErr) throw insErr;
       insertedId = (data?.id as string | null) ?? null;
     } catch (e) {
-      console.error("[Yves] insert symptom_query failed:", e);
+      log.error("[Yves] insert symptom_query failed:", e);
       setError(CLIENT_GENERIC_ERROR);
     }
 
@@ -269,7 +270,7 @@ function YvesScreen() {
           await fireAlertForResult(triage, queryText);
         }
       } catch (e) {
-        console.warn("Alert flow failed:", e);
+        log.warn("Alert flow failed:", e);
       }
     }
 

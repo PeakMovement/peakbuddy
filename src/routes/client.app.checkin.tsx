@@ -6,6 +6,7 @@ import { getClientId, startOfTodayISO } from "@/lib/client-session";
 import { analyzeRealTime } from "@/lib/yves";
 import { fireAlertWebhook, findRecentOpenAlert } from "@/lib/webhooks";
 import type { CheckIn, Client } from "@/lib/types";
+import { log } from "@/lib/log";
 
 export const Route = createFileRoute("/client/app/checkin")({
   component: CheckInScreen,
@@ -93,7 +94,7 @@ function CheckInScreen() {
     });
 
     if (insErr || !newId) {
-      console.error("[Check-in] insert_check_in failed:", insErr);
+      log.error("[Check-in] insert_check_in failed:", insErr);
       setSubmitting(false);
       setSubmitError(CLIENT_GENERIC_ERROR);
       return;
@@ -122,7 +123,7 @@ function CheckInScreen() {
           if (alertErr) throw alertErr;
           alertRowId = (alertId as string | null) ?? null;
         } catch (e) {
-          console.error("[Check-in] insert_alert failed:", e);
+          log.error("[Check-in] insert_alert failed:", e);
         }
 
         const result = await fireAlertWebhook({
@@ -141,7 +142,7 @@ function CheckInScreen() {
             .eq("id", alertRowId);
         }
       } else {
-        console.log("[Buddy] Duplicate alert suppressed for client:", client.id);
+        log.debug("[Buddy] Duplicate alert suppressed for client:", client.id);
       }
     }
 
