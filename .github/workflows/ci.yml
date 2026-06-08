@@ -5,6 +5,14 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+  issues: write
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   checks:
     runs-on: ubuntu-latest
@@ -17,17 +25,39 @@ jobs:
 
       - name: Install dependencies
         # --no-frozen-lockfile: bun.lock can momentarily lag package.json when
-        # dependencies are edited from environments that cannot run bun (e.g.
-        # the agent sandbox). Bun otherwise auto-enables --frozen-lockfile on
-        # CI and fails on the drift. Regenerate and commit bun.lock locally
-        # when convenient to tighten this back up.
-        run: bun install --no-frozen-lockfile
+        # dependencies are edited from environments that cannot run bun.
+        run: bun install --no-frozen-lockfile 2>&1 | tee /tmp/step-1-install.log
 
       - name: Typecheck
-        run: bunx tsc --noEmit
+        run: bunx tsc --noEmit 2>&1 | tee /tmp/step-2-typecheck.log
 
       - name: Lint
-        run: bunx eslint src --max-warnings 50
+        run: bunx eslint src --max-warnings 50 2>&1 | tee /tmp/step-3-lint.log
 
       - name: Test
-        run: bunx vitest run
+        run: bunx vitest run 2>&1 | tee /tmp/step-4-test.log
+
+      - name: Publish failure report
+        # Posts the tail of each step log to an issue so failures are
+        # diagnosable without GitHub UI access (agent reads the public issue).
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "CI failure report"
+            echo ""
+            echo "- Commit: ${{ github.sha }}"
+            echo "- Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            for f in /tmp/step-*.log; do
+              echo ""
+              echo "### $(basename "$f" .log)"
+              echo '```'
+              tail -60 "$f" 2>/dev/null || echo "(step did not run)"
+              echo '```'
+            done
+          } > /tmp/report.md
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "CI failure report: $(echo '${{ github.sha }}' | cut -c1-7)" \
+            --body-file /tmp/report.md
