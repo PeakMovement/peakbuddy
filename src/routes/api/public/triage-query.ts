@@ -95,7 +95,9 @@ export const Route = createFileRoute("/api/public/triage-query")({
           }
 
           // Yves access gate — verify client has access before calling the model.
-          // Fail-open on lookup errors so transient infra issues don't degrade Yves to keyword fallback.
+          // Fail-closed on lookup errors: a transient infra issue must never grant
+          // access that may be disabled. The client falls back to keyword triage
+          // (which still carries the hard-override safety phrases) on any non-OK response.
           if (client_id) {
             try {
               const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -106,7 +108,11 @@ export const Route = createFileRoute("/api/public/triage-query")({
                 .maybeSingle();
 
               if (cErr) {
-                console.warn("[triage-query] client lookup failed, failing open:", cErr);
+                console.warn("[triage-query] client lookup failed, failing closed:", cErr);
+                return new Response(
+                  JSON.stringify({ error: "Access check unavailable, try again", retryable: true }),
+                  { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+                );
               } else if (!c) {
                 console.warn("[triage-query] no client row for id", client_id);
                 return new Response(
@@ -131,7 +137,11 @@ export const Route = createFileRoute("/api/public/triage-query")({
                   .eq("practitioner_id", c.practitioner_id)
                   .maybeSingle();
                 if (pErr) {
-                  console.warn("[triage-query] practice lookup failed, failing open:", pErr);
+                  console.warn("[triage-query] practice lookup failed, failing closed:", pErr);
+                  return new Response(
+                  JSON.stringify({ error: "Access check unavailable, try again", retryable: true }),
+                  { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+                );
                 } else if (p && p.yves_enabled === false) {
                   return new Response(
                     JSON.stringify({ error: "Yves access disabled for practice" }),
@@ -140,7 +150,11 @@ export const Route = createFileRoute("/api/public/triage-query")({
                 }
               }
             } catch (err) {
-              console.warn("[triage-query] access check threw, failing open:", err);
+              console.warn("[triage-query] access check threw, failing closed:", err);
+              return new Response(
+                JSON.stringify({ error: "Access check unavailable, try again", retryable: true }),
+                { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+              );
             }
           }
 
