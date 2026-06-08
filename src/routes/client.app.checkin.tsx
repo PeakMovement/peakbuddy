@@ -5,6 +5,12 @@ import { supabase } from "@/lib/supabase";
 import { getClientId, startOfTodayISO } from "@/lib/client-session";
 import { analyzeRealTime } from "@/lib/yves";
 import { fireAlertWebhook, findRecentOpenAlert } from "@/lib/webhooks";
+import {
+  cacheClient,
+  getCachedClient,
+  queueCheckIn,
+  startQueueAutoFlush,
+} from "@/lib/offline-queue";
 import type { CheckIn, Client } from "@/lib/types";
 import { log } from "@/lib/log";
 
@@ -38,6 +44,7 @@ function CheckInScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [savedOffline, setSavedOffline] = useState(false);
 
   const todayLabel = useMemo(
     () =>
@@ -65,10 +72,15 @@ function CheckInScreen() {
           .limit(1)
           .maybeSingle(),
       ]);
-      setClient(c as Client | null);
+      const resolved = (c as Client | null) ?? getCachedClient<Client>();
+      if (c) cacheClient(c);
+      setClient(resolved);
       setTodayCheckIn(ci as CheckIn | null);
       setLoading(false);
     })();
+    // Sync any check-ins queued while offline (now and on reconnect).
+    const stop = startQueueAutoFlush();
+    return stop;
   }, []);
 
   const submit = async () => {
@@ -79,6 +91,47 @@ function CheckInScreen() {
     const rt = analyzeRealTime(notes);
     const notesFlagged = rt.detected && rt.severity >= 6;
     const flagged = pain >= 7 || notesFlagged;
+
+    const queuePayload = {
+      queued_at: new Date().toISOString(),
+      client_id: client.id,
+      practitioner_id: client.practitioner_id,
+      client_name: client.full_name,
+      pain_level: pain,
+      sleep_quality: sleep,
+      stress_level: stress,
+      energy_level: energy,
+      mood,
+      notes,
+      medication_taken: med,
+      flagged,
+    };
+
+    const saveOffline = () => {
+      queueCheckIn(queuePayload);
+      setTodayCheckIn({
+        id: `offline-${Date.now()}`,
+        client_id: client.id,
+        practitioner_id: client.practitioner_id,
+        pain_level: pain,
+        sleep_quality: sleep,
+        stress_level: stress,
+        energy_level: energy,
+        mood,
+        notes,
+        medication_taken: med,
+        flagged,
+        created_at: new Date().toISOString(),
+      } as CheckIn);
+      setSubmitting(false);
+      setSavedOffline(true);
+      setSuccess(true);
+    };
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      saveOffline();
+      return;
+    }
 
     const { data: newId, error: insErr } = await supabase.rpc("insert_check_in", {
       p_client_id: client.id,
@@ -94,6 +147,14 @@ function CheckInScreen() {
     });
 
     if (insErr || !newId) {
+      const msg = insErr?.message?.toLowerCase() ?? "";
+      const looksLikeNetwork =
+        msg.includes("fetch") || msg.includes("network") || msg.includes("timeout");
+      if (looksLikeNetwork) {
+        // Connection dropped mid-submit — keep the data, sync later.
+        saveOffline();
+        return;
+      }
       log.error("[Check-in] insert_check_in failed:", insErr);
       setSubmitting(false);
       setSubmitError(CLIENT_GENERIC_ERROR);
@@ -192,6 +253,14 @@ function CheckInScreen() {
         </h1>
         {!success && (
           <p style={{ marginTop: 8, color: "var(--white-muted)" }}>See you tomorrow.</p>
+        )}
+        {savedOffline && (
+          <p
+            role="status"
+            style={{ marginTop: 12, color: "var(--amber, #f9a825)", fontSize: 14 }}
+          >
+            Saved on your device. It will sync automatically when you are back online.
+          </p>
         )}
         {ci?.pain_level != null && (
           <p style={{ marginTop: 24, fontFamily: "var(--font-data)", color: "var(--white-muted)" }}>

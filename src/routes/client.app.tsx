@@ -2,6 +2,7 @@ import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-rout
 import { useEffect } from "react";
 import { ClipboardList, List, Activity, MessageCircle, User } from "lucide-react";
 import { getClientId } from "@/lib/client-session";
+import { useOnline } from "@/hooks/use-online";
 
 export const Route = createFileRoute("/client/app")({
   component: ClientAppLayout,
@@ -14,6 +15,26 @@ const tabs = [
   { to: "/client/app/yves", label: "Yves", Icon: MessageCircle },
   { to: "/client/app/profile", label: "Profile", Icon: User },
 ] as const;
+
+function OfflineBanner() {
+  const online = useOnline();
+  if (online) return null;
+  return (
+    <div
+      role="status"
+      style={{
+        background: "var(--amber, #f9a825)",
+        color: "#0f1419",
+        textAlign: "center",
+        padding: "6px 12px",
+        fontSize: 13,
+        fontWeight: 600,
+      }}
+    >
+      Offline — your check-ins will sync when you reconnect.
+    </div>
+  );
+}
 
 function ClientAppLayout() {
   const navigate = useNavigate();
@@ -31,6 +52,7 @@ function ClientAppLayout() {
         flexDirection: "column",
       }}
     >
+      <OfflineBanner />
       <main style={{ flex: 1, paddingBottom: 80, overflowX: "hidden" }}>
         <Outlet />
       </main>
