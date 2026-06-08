@@ -197,10 +197,7 @@ function CheckInScreen() {
         });
 
         if (result.fired && alertRowId) {
-          await supabase
-            .from("alerts")
-            .update({ webhook_fired: true })
-            .eq("id", alertRowId);
+          await supabase.from("alerts").update({ webhook_fired: true }).eq("id", alertRowId);
         }
       } else {
         log.debug("[Buddy] Duplicate alert suppressed for client:", client.id);
@@ -232,7 +229,15 @@ function CheckInScreen() {
   if (success || todayCheckIn) {
     const ci = todayCheckIn;
     return (
-      <div style={{ padding: "32px 20px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+      <div
+        style={{
+          padding: "32px 20px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          textAlign: "center",
+        }}
+      >
         <div
           style={{
             width: 96,
@@ -248,17 +253,19 @@ function CheckInScreen() {
         >
           <CheckCircle2 size={48} color="var(--green)" />
         </div>
-        <h1 style={{ fontFamily: "var(--font-hero)", fontSize: 26, marginTop: 24, color: "var(--white)" }}>
+        <h1
+          style={{
+            fontFamily: "var(--font-hero)",
+            fontSize: 26,
+            marginTop: 24,
+            color: "var(--white)",
+          }}
+        >
           {success ? "Check-in complete. Well done." : "Already checked in today."}
         </h1>
-        {!success && (
-          <p style={{ marginTop: 8, color: "var(--white-muted)" }}>See you tomorrow.</p>
-        )}
+        {!success && <p style={{ marginTop: 8, color: "var(--white-muted)" }}>See you tomorrow.</p>}
         {savedOffline && (
-          <p
-            role="status"
-            style={{ marginTop: 12, color: "var(--amber, #f9a825)", fontSize: 14 }}
-          >
+          <p role="status" style={{ marginTop: 12, color: "var(--amber, #f9a825)", fontSize: 14 }}>
             Saved on your device. It will sync automatically when you are back online.
           </p>
         )}
@@ -276,10 +283,24 @@ function CheckInScreen() {
 
   return (
     <div style={{ padding: "24px 20px 32px" }}>
-      <h1 style={{ fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 24, color: "var(--white)" }}>
+      <h1
+        style={{
+          fontFamily: "var(--font-hero)",
+          fontWeight: 400,
+          fontSize: 24,
+          color: "var(--white)",
+        }}
+      >
         How are you feeling today?
       </h1>
-      <p style={{ marginTop: 6, fontFamily: "var(--font-data)", fontSize: 12, color: "var(--white-muted)" }}>
+      <p
+        style={{
+          marginTop: 6,
+          fontFamily: "var(--font-data)",
+          fontSize: 12,
+          color: "var(--white-muted)",
+        }}
+      >
         {todayLabel}
       </p>
 
@@ -306,8 +327,18 @@ function CheckInScreen() {
             style={{ width: "100%", accentColor: painColor(pain) }}
             aria-label="Pain level"
           />
-          <div style={{ display: "flex", justifyContent: "space-between", width: "100%", fontSize: 11, color: "var(--white-muted)", fontFamily: "var(--font-data)" }}>
-            <span>0</span><span>10</span>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              width: "100%",
+              fontSize: 11,
+              color: "var(--white-muted)",
+              fontFamily: "var(--font-data)",
+            }}
+          >
+            <span>0</span>
+            <span>10</span>
           </div>
         </div>
       </Section>

@@ -73,7 +73,12 @@ function PractitionerAppLayout() {
   return (
     <div
       className="safe-area"
-      style={{ minHeight: "100vh", background: "var(--navy)", display: "flex", flexDirection: "column" }}
+      style={{
+        minHeight: "100vh",
+        background: "var(--navy)",
+        display: "flex",
+        flexDirection: "column",
+      }}
     >
       <main style={{ flex: 1, paddingBottom: 80, overflowX: "hidden" }}>
         <Outlet />
@@ -139,7 +144,9 @@ function PractitionerAppLayout() {
                 </span>
               )}
             </div>
-            <span style={{ fontSize: 11, fontFamily: "var(--font-ui)", fontWeight: 600 }}>{label}</span>
+            <span style={{ fontSize: 11, fontFamily: "var(--font-ui)", fontWeight: 600 }}>
+              {label}
+            </span>
           </Link>
         ))}
       </nav>

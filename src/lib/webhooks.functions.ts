@@ -27,9 +27,7 @@ async function loadWebhookSettings(practitionerId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("practices")
-    .select(
-      "webhook_url, webhook_enabled, contact_webhook_url, contact_webhook_enabled",
-    )
+    .select("webhook_url, webhook_enabled, contact_webhook_url, contact_webhook_enabled")
     .eq("practitioner_id", practitionerId)
     .maybeSingle();
   return data;

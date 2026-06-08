@@ -74,17 +74,37 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "Buddy Tracker by Peak Movement" },
-      { name: "description", content: "The ultimate symptom tracker and at home aid in making sure youre finding the route cause of your problems" },
+      {
+        name: "description",
+        content:
+          "The ultimate symptom tracker and at home aid in making sure youre finding the route cause of your problems",
+      },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "Buddy Tracker by Peak Movement" },
-      { property: "og:description", content: "The ultimate symptom tracker and at home aid in making sure youre finding the route cause of your problems" },
+      {
+        property: "og:description",
+        content:
+          "The ultimate symptom tracker and at home aid in making sure youre finding the route cause of your problems",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Buddy Tracker by Peak Movement" },
-      { name: "twitter:description", content: "The ultimate symptom tracker and at home aid in making sure youre finding the route cause of your problems" },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/9e3b7f08-fbc5-4cde-92e4-68f6499b0de7" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/9e3b7f08-fbc5-4cde-92e4-68f6499b0de7" },
+      {
+        name: "twitter:description",
+        content:
+          "The ultimate symptom tracker and at home aid in making sure youre finding the route cause of your problems",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/9e3b7f08-fbc5-4cde-92e4-68f6499b0de7",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/9e3b7f08-fbc5-4cde-92e4-68f6499b0de7",
+      },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

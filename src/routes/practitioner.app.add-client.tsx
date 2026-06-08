@@ -112,7 +112,14 @@ function AddClient() {
 
   return (
     <div style={{ padding: "20px 16px 32px" }}>
-      <h1 style={{ fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 28, color: "var(--white)" }}>
+      <h1
+        style={{
+          fontFamily: "var(--font-hero)",
+          fontWeight: 400,
+          fontSize: 28,
+          color: "var(--white)",
+        }}
+      >
         Add New Client
       </h1>
 
@@ -156,10 +163,18 @@ function AddClient() {
         </div>
       )}
 
-      <form onSubmit={submit} style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+      <form
+        onSubmit={submit}
+        style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 16 }}
+      >
         <div>
           <label style={labelStyle}>Full Name *</label>
-          <input style={inputStyle} value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+          <input
+            style={inputStyle}
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            required
+          />
         </div>
         <div>
           <label style={labelStyle}>Email *</label>
@@ -174,7 +189,12 @@ function AddClient() {
         </div>
         <div>
           <label style={labelStyle}>Primary Complaint *</label>
-          <input style={inputStyle} value={complaint} onChange={(e) => setComplaint(e.target.value)} required />
+          <input
+            style={inputStyle}
+            value={complaint}
+            onChange={(e) => setComplaint(e.target.value)}
+            required
+          />
         </div>
         <div>
           <label style={labelStyle}>Notes</label>

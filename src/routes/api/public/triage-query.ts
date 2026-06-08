@@ -48,9 +48,15 @@ const TRIAGE_TOOL = {
   input_schema: {
     type: "object",
     required: [
-      "severity", "urgency", "categories", "red_flags",
-      "negation_detected", "attribution_detected", "rationale",
-      "should_notify_practitioner", "confidence",
+      "severity",
+      "urgency",
+      "categories",
+      "red_flags",
+      "negation_detected",
+      "attribution_detected",
+      "rationale",
+      "should_notify_practitioner",
+      "confidence",
     ],
     properties: {
       severity: { type: "integer", minimum: 0, maximum: 10 },

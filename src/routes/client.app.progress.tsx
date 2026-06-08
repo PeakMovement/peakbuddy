@@ -1,6 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId } from "@/lib/client-session";
@@ -35,7 +43,14 @@ function CircularRing({
   return (
     <div style={{ position: "relative", width: size, height: size }}>
       <svg width={size} height={size}>
-        <circle cx={size / 2} cy={size / 2} r={r} stroke="var(--navy-border)" strokeWidth={stroke} fill="none" />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke="var(--navy-border)"
+          strokeWidth={stroke}
+          fill="none"
+        />
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -49,7 +64,15 @@ function CircularRing({
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </svg>
-      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         {children}
       </div>
     </div>
@@ -98,7 +121,10 @@ function ProgressScreen() {
     const expected = client.check_in_frequency === "daily" ? weeks * 7 : weeks;
     const start = new Date(client.created_at).getTime();
     const elapsed = Math.max(1, Math.ceil((Date.now() - start) / (1000 * 60 * 60 * 24)));
-    const expectedSoFar = client.check_in_frequency === "daily" ? Math.min(elapsed, expected) : Math.min(Math.ceil(elapsed / 7), expected);
+    const expectedSoFar =
+      client.check_in_frequency === "daily"
+        ? Math.min(elapsed, expected)
+        : Math.min(Math.ceil(elapsed / 7), expected);
     return Math.min(100, Math.round((items.length / Math.max(1, expectedSoFar)) * 100));
   }, [client, items]);
 
@@ -119,7 +145,10 @@ function ProgressScreen() {
     return items
       .filter((i) => new Date(i.created_at).getTime() >= cutoff && i.pain_level != null)
       .map((i) => ({
-        date: new Date(i.created_at).toLocaleDateString(undefined, { month: "numeric", day: "numeric" }),
+        date: new Date(i.created_at).toLocaleDateString(undefined, {
+          month: "numeric",
+          day: "numeric",
+        }),
         pain: i.pain_level,
       }));
   }, [items]);
@@ -130,7 +159,14 @@ function ProgressScreen() {
 
   return (
     <div style={{ padding: "24px 20px 32px" }}>
-      <h1 style={{ fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 28, color: "var(--white)" }}>
+      <h1
+        style={{
+          fontFamily: "var(--font-hero)",
+          fontWeight: 400,
+          fontSize: 28,
+          color: "var(--white)",
+        }}
+      >
         Your Progress
       </h1>
 
@@ -141,15 +177,44 @@ function ProgressScreen() {
       ) : (
         <>
           {/* Compliance Ring */}
-          <div style={{ marginTop: 28, display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <CircularRing size={180} stroke={14} pct={compliancePct} color={ringColor(compliancePct)}>
+          <div
+            style={{
+              marginTop: 28,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <CircularRing
+              size={180}
+              stroke={14}
+              pct={compliancePct}
+              color={ringColor(compliancePct)}
+            >
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontFamily: "var(--font-data)", fontSize: 36, fontWeight: 700, color: "var(--white)" }}>
+                <div
+                  style={{
+                    fontFamily: "var(--font-data)",
+                    fontSize: 36,
+                    fontWeight: 700,
+                    color: "var(--white)",
+                  }}
+                >
                   {compliancePct}%
                 </div>
               </div>
             </CircularRing>
-            <div style={{ marginTop: 12, fontFamily: "var(--font-ui)", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--white-muted)", fontSize: 12 }}>
+            <div
+              style={{
+                marginTop: 12,
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: "var(--white-muted)",
+                fontSize: 12,
+              }}
+            >
               Compliance
             </div>
           </div>
@@ -180,7 +245,14 @@ function ProgressScreen() {
                 padding: 16,
               }}
             >
-              <div style={{ fontFamily: "var(--font-ui)", fontWeight: 600, color: "var(--white)", marginBottom: 12 }}>
+              <div
+                style={{
+                  fontFamily: "var(--font-ui)",
+                  fontWeight: 600,
+                  color: "var(--white)",
+                  marginBottom: 12,
+                }}
+              >
                 Pain — last 30 days
               </div>
               <div style={{ width: "100%", height: 180 }}>
@@ -197,7 +269,13 @@ function ProgressScreen() {
                         fontSize: 12,
                       }}
                     />
-                    <Line type="monotone" dataKey="pain" stroke="var(--blue-cold)" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line
+                      type="monotone"
+                      dataKey="pain"
+                      stroke="var(--blue-cold)"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -233,11 +311,27 @@ function MetricRing({ label, value }: { label: string; value: number }) {
       }}
     >
       <CircularRing size={84} stroke={8} pct={pct} color="var(--blue-cold)">
-        <div style={{ fontFamily: "var(--font-data)", fontSize: 18, fontWeight: 700, color: "var(--white)" }}>
+        <div
+          style={{
+            fontFamily: "var(--font-data)",
+            fontSize: 18,
+            fontWeight: 700,
+            color: "var(--white)",
+          }}
+        >
           {value ? value.toFixed(1) : "—"}
         </div>
       </CircularRing>
-      <div style={{ fontFamily: "var(--font-ui)", fontWeight: 600, color: "var(--white-muted)", fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+      <div
+        style={{
+          fontFamily: "var(--font-ui)",
+          fontWeight: 600,
+          color: "var(--white-muted)",
+          fontSize: 12,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+        }}
+      >
         {label}
       </div>
     </div>

@@ -25,7 +25,11 @@ function PractitionerProfile() {
       }
       setEmail(u.user.email ?? null);
       setPhone(u.user.phone ?? null);
-      const { data: prof } = await supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle();
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", u.user.id)
+        .maybeSingle();
       setProfile(prof as Profile | null);
       setLoading(false);
     })();

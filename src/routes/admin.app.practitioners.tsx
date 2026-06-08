@@ -31,11 +31,12 @@ function PractitionersList() {
     setError(null);
     setLoading(true);
     try {
-      const [{ data: profs, error: e1 }, { data: pracs, error: e2 }, { data: clients, error: e3 }] = await Promise.all([
-        supabase.from("profiles").select("*").eq("role", "practitioner"),
-        supabase.from("practices").select("*"),
-        supabase.from("clients").select("id,practitioner_id"),
-      ]);
+      const [{ data: profs, error: e1 }, { data: pracs, error: e2 }, { data: clients, error: e3 }] =
+        await Promise.all([
+          supabase.from("profiles").select("*").eq("role", "practitioner"),
+          supabase.from("practices").select("*"),
+          supabase.from("clients").select("id,practitioner_id"),
+        ]);
       if (e1 || e2 || e3) throw e1 || e2 || e3;
       const profileMap = new Map<string, Profile>();
       ((profs as Profile[]) ?? []).forEach((p) => profileMap.set(p.id, p));
@@ -83,7 +84,14 @@ function PractitionersList() {
 
   return (
     <div style={{ padding: "20px 16px 32px" }}>
-      <h1 style={{ fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 28, color: "var(--white)" }}>
+      <h1
+        style={{
+          fontFamily: "var(--font-hero)",
+          fontWeight: 400,
+          fontSize: 28,
+          color: "var(--white)",
+        }}
+      >
         All Practitioners
       </h1>
 
@@ -97,7 +105,11 @@ function PractitionersList() {
         </div>
       ) : rows.length === 0 ? (
         <div style={{ marginTop: 16 }}>
-          <EmptyState Icon={Users} title="No practitioners yet" subtitle="Practitioners will appear here once they sign up." />
+          <EmptyState
+            Icon={Users}
+            title="No practitioners yet"
+            subtitle="Practitioners will appear here once they sign up."
+          />
         </div>
       ) : (
         <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -199,7 +211,14 @@ function PractitionerCard({
             {row.practice_name}
             {row.profession ? ` · ${row.profession}` : ""}
           </div>
-          <div style={{ marginTop: 6, fontFamily: "var(--font-data)", fontSize: 11, color: "var(--white-muted)" }}>
+          <div
+            style={{
+              marginTop: 6,
+              fontFamily: "var(--font-data)",
+              fontSize: 11,
+              color: "var(--white-muted)",
+            }}
+          >
             {row.client_count} {row.client_count === 1 ? "client" : "clients"}
           </div>
         </div>
@@ -238,8 +257,15 @@ function PractitionerCard({
   );
 }
 
-function Badge({ color, children }: { color: "green" | "amber" | "muted"; children: React.ReactNode }) {
-  const c = color === "green" ? "var(--green)" : color === "amber" ? "var(--amber)" : "var(--white-muted)";
+function Badge({
+  color,
+  children,
+}: {
+  color: "green" | "amber" | "muted";
+  children: React.ReactNode;
+}) {
+  const c =
+    color === "green" ? "var(--green)" : color === "amber" ? "var(--amber)" : "var(--white-muted)";
   return (
     <span
       style={{
@@ -258,4 +284,3 @@ function Badge({ color, children }: { color: "green" | "amber" | "muted"; childr
     </span>
   );
 }
-

@@ -40,20 +40,56 @@ const URGENCY_LABEL: Record<UrgencyTier, string> = {
   routine: "ROUTINE",
 };
 
-const BANNER_THEME: Record<UrgencyTier, { bg: string; border: string; text: string; heading: string }> = {
-  emergency: { bg: "#1a0000", border: "#7a1e1e", text: "#ffb3b3", heading: "Medical Attention Recommended" },
-  urgent:    { bg: "#1a0f00", border: "#7a4e1e", text: "#ffd28a", heading: "Medical Attention Recommended" },
-  soon:      { bg: "#1a1400", border: "#7a701e", text: "#f5e58a", heading: "Follow-up Recommended" },
-  monitor:   { bg: "#00101a", border: "#1e4a7a", text: "#9ec9ee", heading: "Keep an Eye On This" },
-  routine:   { bg: "#001a08", border: "#1e7a3a", text: "#9eebc1", heading: "Routine Symptom" },
+const BANNER_THEME: Record<
+  UrgencyTier,
+  { bg: string; border: string; text: string; heading: string }
+> = {
+  emergency: {
+    bg: "#1a0000",
+    border: "#7a1e1e",
+    text: "#ffb3b3",
+    heading: "Medical Attention Recommended",
+  },
+  urgent: {
+    bg: "#1a0f00",
+    border: "#7a4e1e",
+    text: "#ffd28a",
+    heading: "Medical Attention Recommended",
+  },
+  soon: { bg: "#1a1400", border: "#7a701e", text: "#f5e58a", heading: "Follow-up Recommended" },
+  monitor: { bg: "#00101a", border: "#1e4a7a", text: "#9ec9ee", heading: "Keep an Eye On This" },
+  routine: { bg: "#001a08", border: "#1e7a3a", text: "#9eebc1", heading: "Routine Symptom" },
 };
 
-const REALTIME_THEME: Record<UrgencyTier, { bg: string; border: string; text: string; message: string }> = {
-  emergency: { bg: "#1a0000", border: "#7a1e1e", text: "#ffb3b3", message: "⚠ This may need emergency attention — please act immediately" },
-  urgent:    { bg: "#1a0f00", border: "#7a4e1e", text: "#ffd28a", message: "This may need prompt attention before your next appointment" },
-  soon:      { bg: "#1a1400", border: "#7a701e", text: "#f5e58a", message: "These symptoms suggest a follow-up soon would be advisable" },
-  monitor:   { bg: "#00101a", border: "#1e4a7a", text: "#9ec9ee", message: "Symptoms noted — worth discussing with your practitioner" },
-  routine:   { bg: "#001a08", border: "#1e7a3a", text: "#9eebc1", message: "" },
+const REALTIME_THEME: Record<
+  UrgencyTier,
+  { bg: string; border: string; text: string; message: string }
+> = {
+  emergency: {
+    bg: "#1a0000",
+    border: "#7a1e1e",
+    text: "#ffb3b3",
+    message: "⚠ This may need emergency attention — please act immediately",
+  },
+  urgent: {
+    bg: "#1a0f00",
+    border: "#7a4e1e",
+    text: "#ffd28a",
+    message: "This may need prompt attention before your next appointment",
+  },
+  soon: {
+    bg: "#1a1400",
+    border: "#7a701e",
+    text: "#f5e58a",
+    message: "These symptoms suggest a follow-up soon would be advisable",
+  },
+  monitor: {
+    bg: "#00101a",
+    border: "#1e4a7a",
+    text: "#9ec9ee",
+    message: "Symptoms noted — worth discussing with your practitioner",
+  },
+  routine: { bg: "#001a08", border: "#1e7a3a", text: "#9eebc1", message: "" },
 };
 
 type Stage = "input" | "loading" | "result";
@@ -197,10 +233,7 @@ function YvesScreen() {
 
     if (fired.fired && alertRowId) {
       try {
-        await supabase
-          .from("alerts")
-          .update({ webhook_fired: true })
-          .eq("id", alertRowId);
+        await supabase.from("alerts").update({ webhook_fired: true }).eq("id", alertRowId);
       } catch (e) {
         log.warn("Alert webhook_fired update failed:", e);
       }
@@ -316,7 +349,11 @@ function YvesScreen() {
           symptomDescription: result?.rationale ?? resultText ?? text.trim(),
           symptomScore: result?.severity ?? 0,
           urgency: (result?.urgency ?? "urgent") as
-            | "emergency" | "urgent" | "soon" | "monitor" | "routine",
+            | "emergency"
+            | "urgent"
+            | "soon"
+            | "monitor"
+            | "routine",
         },
       });
     }
@@ -335,7 +372,11 @@ function YvesScreen() {
           symptomDescription: text.trim(),
           symptomScore: realTime?.severity ?? 0,
           urgency: (realTime?.urgency ?? "urgent") as
-            | "emergency" | "urgent" | "soon" | "monitor" | "routine",
+            | "emergency"
+            | "urgent"
+            | "soon"
+            | "monitor"
+            | "routine",
         },
       });
     }
@@ -374,7 +415,14 @@ function YvesScreen() {
         <div style={{ animation: "buddy-pulse 1.6s ease-in-out infinite" }}>
           <CrosshairLogo />
         </div>
-        <div style={{ fontFamily: "var(--font-hero)", fontSize: 20, color: "var(--white-muted)", textAlign: "center" }}>
+        <div
+          style={{
+            fontFamily: "var(--font-hero)",
+            fontSize: 20,
+            color: "var(--white-muted)",
+            textAlign: "center",
+          }}
+        >
           Yves is reviewing your symptoms…
         </div>
         <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--white-muted)" }}>
@@ -387,8 +435,7 @@ function YvesScreen() {
   // ---------- RESULT ----------
   if (stage === "result" && result) {
     const theme = BANNER_THEME[result.urgency];
-    const showContact =
-      result.should_notify_practitioner && !!client?.practitioner_id;
+    const showContact = result.should_notify_practitioner && !!client?.practitioner_id;
     const isEmergencyish = result.urgency === "emergency" || result.urgency === "urgent";
     const contactLabel = isEmergencyish
       ? `Contact ${pName} — urgent review needed`
@@ -405,8 +452,22 @@ function YvesScreen() {
             padding: 16,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <div style={{ fontFamily: "var(--font-hero)", fontSize: 20, color: theme.text, fontWeight: 600 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "var(--font-hero)",
+                fontSize: 20,
+                color: theme.text,
+                fontWeight: 600,
+              }}
+            >
               {theme.heading}
             </div>
             <span
@@ -451,14 +512,32 @@ function YvesScreen() {
           )}
 
           {result.negation_detected && (
-            <p style={{ marginTop: 10, color: theme.text, opacity: 0.8, fontSize: 12, fontStyle: "italic" }}>
-              It looks like you may be describing symptoms you don't have — rephrase if that's incorrect.
+            <p
+              style={{
+                marginTop: 10,
+                color: theme.text,
+                opacity: 0.8,
+                fontSize: 12,
+                fontStyle: "italic",
+              }}
+            >
+              It looks like you may be describing symptoms you don't have — rephrase if that's
+              incorrect.
             </p>
           )}
 
           {result.attribution_detected && (
-            <p style={{ marginTop: 10, color: theme.text, opacity: 0.8, fontSize: 12, fontStyle: "italic" }}>
-              It looks like these symptoms may belong to someone else — rephrase if that's incorrect.
+            <p
+              style={{
+                marginTop: 10,
+                color: theme.text,
+                opacity: 0.8,
+                fontSize: 12,
+                fontStyle: "italic",
+              }}
+            >
+              It looks like these symptoms may belong to someone else — rephrase if that's
+              incorrect.
             </p>
           )}
 
@@ -475,7 +554,8 @@ function YvesScreen() {
                 lineHeight: 1.5,
               }}
             >
-              Yves is temporarily unavailable. Your symptoms have been noted and keyword analysis is being used.
+              Yves is temporarily unavailable. Your symptoms have been noted and keyword analysis is
+              being used.
             </p>
           )}
           {import.meta.env.DEV && (
@@ -600,10 +680,24 @@ function YvesScreen() {
 
   return (
     <div style={{ padding: "24px 20px 32px" }}>
-      <h1 style={{ fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 26, color: "var(--white)" }}>
+      <h1
+        style={{
+          fontFamily: "var(--font-hero)",
+          fontWeight: 400,
+          fontSize: 26,
+          color: "var(--white)",
+        }}
+      >
         Ask Yves
       </h1>
-      <p style={{ marginTop: 6, color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 13 }}>
+      <p
+        style={{
+          marginTop: 6,
+          color: "var(--white-muted)",
+          fontFamily: "var(--font-ui)",
+          fontSize: 13,
+        }}
+      >
         Describe how you're feeling and Yves will assess what to do next
       </p>
 
@@ -684,115 +778,115 @@ function YvesScreen() {
           <PreviousQueries history={history} expanded={expanded} setExpanded={setExpanded} />
         </div>
       ) : (
-      <>
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={6}
-        maxLength={2000}
-        placeholder="Describe your symptoms in your own words..."
-        style={{
-          width: "100%",
-          marginTop: 16,
-          background: "var(--navy-card)",
-          border: "1px solid var(--navy-border)",
-          color: "var(--white)",
-          borderRadius: 8,
-          padding: 12,
-          fontFamily: "var(--font-ui)",
-          fontSize: 14,
-          resize: "vertical",
-          outline: "none",
-          minHeight: 140,
-        }}
-      />
+        <>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={6}
+            maxLength={2000}
+            placeholder="Describe your symptoms in your own words..."
+            style={{
+              width: "100%",
+              marginTop: 16,
+              background: "var(--navy-card)",
+              border: "1px solid var(--navy-border)",
+              color: "var(--white)",
+              borderRadius: 8,
+              padding: 12,
+              fontFamily: "var(--font-ui)",
+              fontSize: 14,
+              resize: "vertical",
+              outline: "none",
+              minHeight: 140,
+            }}
+          />
 
-      {/* Rotating examples */}
-      <div
-        style={{
-          marginTop: 10,
-          padding: 10,
-          background: "var(--navy-card)",
-          border: "1px solid var(--navy-border)",
-          borderRadius: 8,
-          color: "var(--white-muted)",
-          fontStyle: "italic",
-          fontFamily: "var(--font-ui)",
-          fontSize: 13,
-          opacity: exampleVisible ? 1 : 0,
-          transition: "opacity 0.3s ease",
-          minHeight: 38,
-        }}
-      >
-        e.g. {EXAMPLES[exampleIdx]}
-      </div>
+          {/* Rotating examples */}
+          <div
+            style={{
+              marginTop: 10,
+              padding: 10,
+              background: "var(--navy-card)",
+              border: "1px solid var(--navy-border)",
+              borderRadius: 8,
+              color: "var(--white-muted)",
+              fontStyle: "italic",
+              fontFamily: "var(--font-ui)",
+              fontSize: 13,
+              opacity: exampleVisible ? 1 : 0,
+              transition: "opacity 0.3s ease",
+              minHeight: 38,
+            }}
+          >
+            e.g. {EXAMPLES[exampleIdx]}
+          </div>
 
-      {/* Real-time alert */}
-      {realTimeShow && realTimeTheme && (
-        <div
-          style={{
-            marginTop: 12,
-            padding: 12,
-            background: realTimeTheme.bg,
-            border: `1px solid ${realTimeTheme.border}`,
-            borderRadius: 8,
-            color: realTimeTheme.text,
-            fontFamily: "var(--font-ui)",
-            fontSize: 13,
-          }}
-        >
-          {realTimeTheme.message}
-          {(realTime.urgency === "emergency" || realTime.urgency === "urgent") &&
-            client?.practitioner_id && (
-              <button
-                type="button"
-                onClick={realTimeContact}
-                disabled={contacting || contacted}
-                style={{
-                  marginTop: 10,
-                  width: "100%",
-                  minHeight: 40,
-                  borderRadius: 8,
-                  background: contacted ? "transparent" : realTimeTheme.border,
-                  color: contacted ? realTimeTheme.text : "var(--white)",
-                  border: `1px solid ${realTimeTheme.border}`,
-                  fontFamily: "var(--font-ui)",
-                  fontWeight: 600,
-                  fontSize: 13,
-                  opacity: contacting ? 0.6 : 1,
-                }}
-              >
-                {contacted ? "Notified" : contacting ? "Notifying…" : `Notify ${pName} now`}
-              </button>
-            )}
-        </div>
-      )}
+          {/* Real-time alert */}
+          {realTimeShow && realTimeTheme && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                background: realTimeTheme.bg,
+                border: `1px solid ${realTimeTheme.border}`,
+                borderRadius: 8,
+                color: realTimeTheme.text,
+                fontFamily: "var(--font-ui)",
+                fontSize: 13,
+              }}
+            >
+              {realTimeTheme.message}
+              {(realTime.urgency === "emergency" || realTime.urgency === "urgent") &&
+                client?.practitioner_id && (
+                  <button
+                    type="button"
+                    onClick={realTimeContact}
+                    disabled={contacting || contacted}
+                    style={{
+                      marginTop: 10,
+                      width: "100%",
+                      minHeight: 40,
+                      borderRadius: 8,
+                      background: contacted ? "transparent" : realTimeTheme.border,
+                      color: contacted ? realTimeTheme.text : "var(--white)",
+                      border: `1px solid ${realTimeTheme.border}`,
+                      fontFamily: "var(--font-ui)",
+                      fontWeight: 600,
+                      fontSize: 13,
+                      opacity: contacting ? 0.6 : 1,
+                    }}
+                  >
+                    {contacted ? "Notified" : contacting ? "Notifying…" : `Notify ${pName} now`}
+                  </button>
+                )}
+            </div>
+          )}
 
-      {error && <p style={{ color: "var(--red)", marginTop: 12, fontSize: 13 }}>{error}</p>}
+          {error && <p style={{ color: "var(--red)", marginTop: 12, fontSize: 13 }}>{error}</p>}
 
-      <button
-        type="button"
-        onClick={submit}
-        disabled={text.trim().length < 3 || !canUseYves}
-        style={{
-          marginTop: 16,
-          width: "100%",
-          minHeight: 48,
-          borderRadius: 8,
-          background: "var(--blue-accent)",
-          color: "var(--white)",
-          border: "none",
-          fontFamily: "var(--font-ui)",
-          fontWeight: 600,
-          fontSize: 16,
-          opacity: text.trim().length < 3 || !canUseYves ? 0.6 : 1,
-        }}
-      >
-        {submitLabel}
-      </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={text.trim().length < 3 || !canUseYves}
+            style={{
+              marginTop: 16,
+              width: "100%",
+              minHeight: 48,
+              borderRadius: 8,
+              background: "var(--blue-accent)",
+              color: "var(--white)",
+              border: "none",
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 16,
+              opacity: text.trim().length < 3 || !canUseYves ? 0.6 : 1,
+            }}
+          >
+            {submitLabel}
+          </button>
 
-      <PreviousQueries history={history} expanded={expanded} setExpanded={setExpanded} />
-      </>
+          <PreviousQueries history={history} expanded={expanded} setExpanded={setExpanded} />
+        </>
       )}
     </div>
   );
@@ -843,8 +937,21 @@ function PreviousQueries({
                 cursor: "pointer",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                <div style={{ fontFamily: "var(--font-data)", fontSize: 11, color: "var(--white-muted)" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: "var(--font-data)",
+                    fontSize: 11,
+                    color: "var(--white-muted)",
+                  }}
+                >
                   {new Date(q.created_at).toLocaleDateString(undefined, {
                     month: "short",
                     day: "numeric",
@@ -1025,7 +1132,11 @@ function EmergencyModal({
               opacity: contacting ? 0.6 : 1,
             }}
           >
-            {contacted ? `Notified ${practitionerName}` : contacting ? "Notifying…" : `Notify ${practitionerName}`}
+            {contacted
+              ? `Notified ${practitionerName}`
+              : contacting
+                ? "Notifying…"
+                : `Notify ${practitionerName}`}
           </button>
         )}
       </div>

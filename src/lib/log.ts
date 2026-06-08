@@ -6,9 +6,20 @@
 // PHI keys from plain objects as a backstop, not a licence.
 
 const PHI_KEYS = new Set([
-  "email", "full_name", "fullname", "clientname", "client_name", "phone",
-  "query_text", "symptomdescription", "symptom_description", "notes",
-  "password", "token", "access_token", "login_code",
+  "email",
+  "full_name",
+  "fullname",
+  "clientname",
+  "client_name",
+  "phone",
+  "query_text",
+  "symptomdescription",
+  "symptom_description",
+  "notes",
+  "password",
+  "token",
+  "access_token",
+  "login_code",
 ]);
 
 function sanitize(value: unknown): unknown {

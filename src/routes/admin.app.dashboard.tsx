@@ -17,7 +17,10 @@ function AdminDashboard() {
       todayStart.setHours(0, 0, 0, 0);
 
       const [pr, cl, ci, al] = await Promise.all([
-        supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "practitioner"),
+        supabase
+          .from("profiles")
+          .select("*", { count: "exact", head: true })
+          .eq("role", "practitioner"),
         supabase.from("clients").select("*", { count: "exact", head: true }),
         supabase.from("check_ins").select("*", { count: "exact", head: true }),
         supabase
@@ -45,10 +48,24 @@ function AdminDashboard() {
 
   return (
     <div style={{ padding: "20px 16px 32px" }}>
-      <h1 style={{ fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 30, color: "var(--white)" }}>
+      <h1
+        style={{
+          fontFamily: "var(--font-hero)",
+          fontWeight: 400,
+          fontSize: 30,
+          color: "var(--white)",
+        }}
+      >
         Buddy Admin
       </h1>
-      <div style={{ marginTop: 4, fontFamily: "var(--font-data)", fontSize: 12, color: "var(--white-muted)" }}>
+      <div
+        style={{
+          marginTop: 4,
+          fontFamily: "var(--font-data)",
+          fontSize: 12,
+          color: "var(--white-muted)",
+        }}
+      >
         {today}
       </div>
 
@@ -56,7 +73,12 @@ function AdminDashboard() {
         <StatCard label="Practitioners" value={stats.practitioners} loading={loading} />
         <StatCard label="Clients" value={stats.clients} loading={loading} />
         <StatCard label="Check-ins" value={stats.checkins} loading={loading} />
-        <StatCard label="Open Alerts Today" value={stats.openAlerts} loading={loading} danger={stats.openAlerts > 0} />
+        <StatCard
+          label="Open Alerts Today"
+          value={stats.openAlerts}
+          loading={loading}
+          danger={stats.openAlerts > 0}
+        />
       </div>
     </div>
   );

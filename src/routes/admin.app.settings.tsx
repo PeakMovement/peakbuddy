@@ -21,11 +21,7 @@ function AdminSettings() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
-        .from("platform_settings")
-        .select("*")
-        .limit(1)
-        .maybeSingle();
+      const { data } = await supabase.from("platform_settings").select("*").limit(1).maybeSingle();
       const s = data as PlatformSettings | null;
       if (s) {
         setSettingsId(s.id);
@@ -75,14 +71,25 @@ function AdminSettings() {
 
   return (
     <div style={{ padding: "20px 16px 32px" }}>
-      <h1 style={{ fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 28, color: "var(--white)" }}>
+      <h1
+        style={{
+          fontFamily: "var(--font-hero)",
+          fontWeight: 400,
+          fontSize: 28,
+          color: "var(--white)",
+        }}
+      >
         Platform Settings
       </h1>
 
-      <form onSubmit={save} style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+      <form
+        onSubmit={save}
+        style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 14 }}
+      >
         <div style={sectionTitle}>New practitioner notification webhook</div>
         <p style={{ color: "var(--white-muted)", fontSize: 12, marginTop: -8 }}>
-          Fired when a new practitioner completes signup. Use this with Make.com to receive an approval email.
+          Fired when a new practitioner completes signup. Use this with Make.com to receive an
+          approval email.
         </p>
 
         <div>
@@ -109,7 +116,9 @@ function AdminSettings() {
             cursor: "pointer",
           }}
         >
-          <span style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14 }}>Enabled</span>
+          <span style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
+            Enabled
+          </span>
           <input
             type="checkbox"
             checked={enabled}

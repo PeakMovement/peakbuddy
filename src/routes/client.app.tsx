@@ -103,7 +103,9 @@ function ClientAppLayout() {
             }}
           >
             <Icon size={22} />
-            <span style={{ fontSize: 11, fontFamily: "var(--font-ui)", fontWeight: 600 }}>{label}</span>
+            <span style={{ fontSize: 11, fontFamily: "var(--font-ui)", fontWeight: 600 }}>
+              {label}
+            </span>
           </Link>
         ))}
       </nav>

@@ -115,7 +115,8 @@ export async function flushQueue(): Promise<{ synced: number; remaining: number 
                 practitionerId: item.practitioner_id,
                 clientName: item.client_name,
                 clientId: item.client_id,
-                alertMessage: "Red flag symptom detected in daily check-in (synced after offline period)",
+                alertMessage:
+                  "Red flag symptom detected in daily check-in (synced after offline period)",
                 urgency: "urgent",
                 redFlagDetected: true,
               });

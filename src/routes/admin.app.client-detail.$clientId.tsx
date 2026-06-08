@@ -18,13 +18,21 @@ function ClientDetailAdmin() {
 
   useEffect(() => {
     (async () => {
-      const { data: c } = await supabase.from("clients").select("*").eq("id", clientId).maybeSingle();
+      const { data: c } = await supabase
+        .from("clients")
+        .select("*")
+        .eq("id", clientId)
+        .maybeSingle();
       const cl = c as Client | null;
       setClient(cl);
       if (cl) {
         const [{ data: p }, { data: ci }] = await Promise.all([
           supabase.from("profiles").select("*").eq("id", cl.practitioner_id).maybeSingle(),
-          supabase.from("check_ins").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
+          supabase
+            .from("check_ins")
+            .select("*")
+            .eq("client_id", clientId)
+            .order("created_at", { ascending: false }),
         ]);
         setPractitioner(p as Profile | null);
         setItems((ci as CheckIn[]) ?? []);
@@ -62,7 +70,15 @@ function ClientDetailAdmin() {
         <ArrowLeft size={16} /> Back
       </Link>
 
-      <h1 style={{ marginTop: 12, fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 28, color: "var(--white)" }}>
+      <h1
+        style={{
+          marginTop: 12,
+          fontFamily: "var(--font-hero)",
+          fontWeight: 400,
+          fontSize: 28,
+          color: "var(--white)",
+        }}
+      >
         {client.full_name}
       </h1>
       <div style={{ marginTop: 4, color: "var(--white-muted)", fontSize: 13 }}>
@@ -117,8 +133,21 @@ function ClientDetailAdmin() {
                 padding: 12,
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                <span style={{ fontFamily: "var(--font-data)", fontSize: 12, color: "var(--white-muted)" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                  gap: 8,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "var(--font-data)",
+                    fontSize: 12,
+                    color: "var(--white-muted)",
+                  }}
+                >
                   {new Date(ci.created_at).toLocaleString()}
                 </span>
                 {ci.pain_level != null && (

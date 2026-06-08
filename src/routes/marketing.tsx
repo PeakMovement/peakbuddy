@@ -9,8 +9,14 @@ export const Route = createFileRoute("/marketing")({
         content:
           "Buddy is a clinical symptom tracking app from Peak Movement. Log pain, sleep, stress, energy and mood — share trends with your practitioner, with AI-powered early warnings.",
       },
-      { property: "og:title", content: "Buddy Symptom Tracker — Daily health, clinically connected" },
-      { property: "og:description", content: "Track symptoms, share with your practitioner, catch issues early with AI." },
+      {
+        property: "og:title",
+        content: "Buddy Symptom Tracker — Daily health, clinically connected",
+      },
+      {
+        property: "og:description",
+        content: "Track symptoms, share with your practitioner, catch issues early with AI.",
+      },
       { property: "og:url", content: "https://peakbuddy.lovable.app/marketing" },
       { property: "og:type", content: "website" },
     ],
@@ -24,12 +30,20 @@ function MarketingPage() {
     <div className="min-h-screen" style={{ background: "var(--navy)", color: "var(--white)" }}>
       <header className="border-b" style={{ borderColor: "var(--navy-border)" }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link to="/" className="text-lg font-semibold tracking-tight" style={{ fontFamily: "var(--font-hero)" }}>
+          <Link
+            to="/"
+            className="text-lg font-semibold tracking-tight"
+            style={{ fontFamily: "var(--font-hero)" }}
+          >
             Buddy
           </Link>
           <nav className="flex items-center gap-6 text-sm" style={{ color: "var(--white-muted)" }}>
-            <Link to="/privacy-policy" className="hover:text-[var(--blue-cold)]">Privacy</Link>
-            <Link to="/support" className="hover:text-[var(--blue-cold)]">Support</Link>
+            <Link to="/privacy-policy" className="hover:text-[var(--blue-cold)]">
+              Privacy
+            </Link>
+            <Link to="/support" className="hover:text-[var(--blue-cold)]">
+              Support
+            </Link>
           </nav>
         </div>
       </header>
@@ -48,10 +62,7 @@ function MarketingPage() {
         >
           Your health, monitored daily — clinically connected.
         </h1>
-        <p
-          className="mx-auto mt-6 max-w-2xl text-lg"
-          style={{ color: "var(--white-muted)" }}
-        >
+        <p className="mx-auto mt-6 max-w-2xl text-lg" style={{ color: "var(--white-muted)" }}>
           Buddy is the daily symptom tracker that turns five quick check-ins into actionable
           insights for you and your healthcare practitioner.
         </p>
@@ -116,20 +127,37 @@ function MarketingPage() {
         </h2>
         <ol className="mt-10 grid gap-6 sm:grid-cols-3">
           {[
-            { n: "01", t: "Daily check-in", d: "Five sliders. One screen. Pain, sleep, stress, energy, mood." },
-            { n: "02", t: "AI detects patterns", d: "Yves watches your timeline and highlights correlations and risk windows." },
-            { n: "03", t: "Practitioner reviews", d: "Your clinician sees flagged days and trends in their dashboard." },
+            {
+              n: "01",
+              t: "Daily check-in",
+              d: "Five sliders. One screen. Pain, sleep, stress, energy, mood.",
+            },
+            {
+              n: "02",
+              t: "AI detects patterns",
+              d: "Yves watches your timeline and highlights correlations and risk windows.",
+            },
+            {
+              n: "03",
+              t: "Practitioner reviews",
+              d: "Your clinician sees flagged days and trends in their dashboard.",
+            },
           ].map((s) => (
             <li
               key={s.n}
               className="rounded-2xl border p-6"
               style={{ background: "var(--navy-card)", borderColor: "var(--navy-border)" }}
             >
-              <div className="text-xs font-semibold tracking-widest" style={{ color: "var(--blue-cold)" }}>
+              <div
+                className="text-xs font-semibold tracking-widest"
+                style={{ color: "var(--blue-cold)" }}
+              >
                 STEP {s.n}
               </div>
               <h3 className="mt-2 text-lg font-medium">{s.t}</h3>
-              <p className="mt-2 text-sm" style={{ color: "var(--white-muted)" }}>{s.d}</p>
+              <p className="mt-2 text-sm" style={{ color: "var(--white-muted)" }}>
+                {s.d}
+              </p>
             </li>
           ))}
         </ol>
@@ -175,15 +203,19 @@ function MarketingPage() {
               </a>
             </p>
           </div>
-          <div className="flex flex-wrap items-start gap-6 text-sm sm:justify-end" style={{ color: "var(--white-muted)" }}>
-            <Link to="/privacy-policy" className="hover:text-[var(--blue-cold)]">Privacy Policy</Link>
-            <Link to="/support" className="hover:text-[var(--blue-cold)]">Support</Link>
+          <div
+            className="flex flex-wrap items-start gap-6 text-sm sm:justify-end"
+            style={{ color: "var(--white-muted)" }}
+          >
+            <Link to="/privacy-policy" className="hover:text-[var(--blue-cold)]">
+              Privacy Policy
+            </Link>
+            <Link to="/support" className="hover:text-[var(--blue-cold)]">
+              Support
+            </Link>
           </div>
         </div>
-        <div
-          className="px-6 pb-8 text-center text-xs"
-          style={{ color: "var(--white-muted)" }}
-        >
+        <div className="px-6 pb-8 text-center text-xs" style={{ color: "var(--white-muted)" }}>
           © {new Date().getFullYear()} Peak Movement Medical &amp; High Performance Center.
         </div>
       </footer>

@@ -28,8 +28,16 @@ function PractitionerDetail() {
       const [{ data: prof }, { data: prac }, { data: cl }, { data: al }] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", practitionerId).maybeSingle(),
         supabase.from("practices").select("*").eq("practitioner_id", practitionerId).maybeSingle(),
-        supabase.from("clients").select("*").eq("practitioner_id", practitionerId).order("created_at", { ascending: false }),
-        supabase.from("alerts").select("*").eq("practitioner_id", practitionerId).order("created_at", { ascending: false }),
+        supabase
+          .from("clients")
+          .select("*")
+          .eq("practitioner_id", practitionerId)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("alerts")
+          .select("*")
+          .eq("practitioner_id", practitionerId)
+          .order("created_at", { ascending: false }),
       ]);
       setProfile(prof as Profile | null);
       setPractice(prac as Practice | null);
@@ -69,12 +77,31 @@ function PractitionerDetail() {
         <ArrowLeft size={16} /> Back
       </Link>
 
-      <h1 style={{ marginTop: 12, fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 28, color: "var(--white)" }}>
+      <h1
+        style={{
+          marginTop: 12,
+          fontFamily: "var(--font-hero)",
+          fontWeight: 400,
+          fontSize: 28,
+          color: "var(--white)",
+        }}
+      >
         {profile?.full_name ?? "Unknown"}
       </h1>
-      <div style={{ marginTop: 4, color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 13 }}>
+      <div
+        style={{
+          marginTop: 4,
+          color: "var(--white-muted)",
+          fontFamily: "var(--font-ui)",
+          fontSize: 13,
+        }}
+      >
         {practice?.practice_name ?? "—"}
-        {practice?.profession ? ` · ${practice.profession}` : profile?.profession ? ` · ${profile.profession}` : ""}
+        {practice?.profession
+          ? ` · ${practice.profession}`
+          : profile?.profession
+            ? ` · ${profile.profession}`
+            : ""}
       </div>
 
       <div style={sectionTitle}>Practice Details</div>
@@ -112,7 +139,9 @@ function PractitionerDetail() {
             <button
               key={c.id}
               type="button"
-              onClick={() => navigate({ to: "/admin/app/client-detail/$clientId", params: { clientId: c.id } })}
+              onClick={() =>
+                navigate({ to: "/admin/app/client-detail/$clientId", params: { clientId: c.id } })
+              }
               style={{
                 textAlign: "left",
                 background: "var(--navy-card)",
@@ -123,8 +152,12 @@ function PractitionerDetail() {
                 color: "inherit",
               }}
             >
-              <div style={{ fontFamily: "var(--font-ui)", fontWeight: 600, color: "var(--white)" }}>{c.full_name}</div>
-              <div style={{ marginTop: 2, color: "var(--white-muted)", fontSize: 12 }}>{c.primary_complaint || "—"}</div>
+              <div style={{ fontFamily: "var(--font-ui)", fontWeight: 600, color: "var(--white)" }}>
+                {c.full_name}
+              </div>
+              <div style={{ marginTop: 2, color: "var(--white-muted)", fontSize: 12 }}>
+                {c.primary_complaint || "—"}
+              </div>
             </button>
           ))}
         </div>
@@ -149,10 +182,23 @@ function PractitionerDetail() {
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                <span style={{ fontFamily: "var(--font-ui)", fontWeight: 600, color: "var(--white)", fontSize: 13 }}>
+                <span
+                  style={{
+                    fontFamily: "var(--font-ui)",
+                    fontWeight: 600,
+                    color: "var(--white)",
+                    fontSize: 13,
+                  }}
+                >
                   {a.urgency.toUpperCase()}
                 </span>
-                <span style={{ fontFamily: "var(--font-data)", fontSize: 11, color: "var(--white-muted)" }}>
+                <span
+                  style={{
+                    fontFamily: "var(--font-data)",
+                    fontSize: 11,
+                    color: "var(--white-muted)",
+                  }}
+                >
                   {new Date(a.created_at).toLocaleString()}
                 </span>
               </div>
@@ -258,7 +304,14 @@ function YvesAccessRow({
         >
           Yves Access
         </div>
-        <div style={{ marginTop: 4, color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 11 }}>
+        <div
+          style={{
+            marginTop: 4,
+            color: "var(--white-muted)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 11,
+          }}
+        >
           When off, no client under this practitioner can use Yves.
         </div>
       </div>
@@ -299,4 +352,3 @@ function YvesAccessRow({
     </div>
   );
 }
-

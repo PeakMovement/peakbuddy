@@ -46,7 +46,14 @@ function Timeline() {
 
   return (
     <div style={{ padding: "24px 20px 32px" }}>
-      <h1 style={{ fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 28, color: "var(--white)" }}>
+      <h1
+        style={{
+          fontFamily: "var(--font-hero)",
+          fontWeight: 400,
+          fontSize: 28,
+          color: "var(--white)",
+        }}
+      >
         Your Timeline
       </h1>
 
@@ -79,8 +86,16 @@ function Timeline() {
                   cursor: "pointer",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontFamily: "var(--font-data)", fontSize: 12, color: "var(--white-muted)" }}>
+                <div
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                >
+                  <span
+                    style={{
+                      fontFamily: "var(--font-data)",
+                      fontSize: 12,
+                      color: "var(--white-muted)",
+                    }}
+                  >
                     {fmtDate(ci.created_at)}
                   </span>
                   {ci.flagged && (
@@ -119,14 +134,25 @@ function Timeline() {
                   )}
                 </div>
                 {open && (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--navy-border)", display: "grid", gap: 6, fontSize: 13 }}>
+                  <div
+                    style={{
+                      marginTop: 12,
+                      paddingTop: 12,
+                      borderTop: "1px solid var(--navy-border)",
+                      display: "grid",
+                      gap: 6,
+                      fontSize: 13,
+                    }}
+                  >
                     <Row k="Sleep" v={ci.sleep_quality} />
                     <Row k="Stress" v={ci.stress_level} />
                     <Row k="Energy" v={ci.energy_level} />
                     <Row k="Mood" v={ci.mood} />
                     <Row k="Medication" v={ci.medication_taken ? "Yes" : "No"} />
                     {ci.notes && (
-                      <div style={{ marginTop: 8, color: "var(--white-muted)", fontStyle: "italic" }}>
+                      <div
+                        style={{ marginTop: 8, color: "var(--white-muted)", fontStyle: "italic" }}
+                      >
                         “{ci.notes}”
                       </div>
                     )}

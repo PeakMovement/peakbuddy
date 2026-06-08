@@ -27,7 +27,16 @@ function PendingApproval() {
         padding: "64px 24px",
       }}
     >
-      <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          textAlign: "center",
+        }}
+      >
         <BuddyLogo />
         <div
           style={{
@@ -57,7 +66,8 @@ function PendingApproval() {
           Your account is pending approval
         </h1>
         <p style={{ marginTop: 16, color: "var(--white-muted)", fontSize: 15, lineHeight: 1.55 }}>
-          Your registration has been received. You will receive an email once your account has been approved by the Buddy team.
+          Your registration has been received. You will receive an email once your account has been
+          approved by the Buddy team.
         </p>
 
         <button

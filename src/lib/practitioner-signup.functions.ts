@@ -18,17 +18,15 @@ export const registerPractitioner = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { error: profErr } = await supabaseAdmin
-      .from("profiles")
-      .upsert(
-        {
-          id: data.userId,
-          role: "practitioner",
-          full_name: data.fullName,
-          profession: data.profession,
-        },
-        { onConflict: "id" },
-      );
+    const { error: profErr } = await supabaseAdmin.from("profiles").upsert(
+      {
+        id: data.userId,
+        role: "practitioner",
+        full_name: data.fullName,
+        profession: data.profession,
+      },
+      { onConflict: "id" },
+    );
     if (profErr) return { ok: false as const, error: profErr.message };
 
     // Idempotent insert: a retry or double-submit (e.g. slow iPad connection)

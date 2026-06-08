@@ -74,7 +74,15 @@ function AdminLogin() {
         padding: "48px 24px",
       }}
     >
-      <div style={{ width: "100%", maxWidth: 360, display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 360,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
         <BuddyLogo />
         <h1
           style={{
@@ -89,7 +97,16 @@ function AdminLogin() {
           Admin Login
         </h1>
 
-        <form onSubmit={onSubmit} style={{ width: "100%", marginTop: 32, display: "flex", flexDirection: "column", gap: 14 }}>
+        <form
+          onSubmit={onSubmit}
+          style={{
+            width: "100%",
+            marginTop: 32,
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+          }}
+        >
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={fieldLabel}>Email</span>
             <input

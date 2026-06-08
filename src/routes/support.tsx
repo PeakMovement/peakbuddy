@@ -7,7 +7,11 @@ export const Route = createFileRoute("/support")({
   head: () => ({
     meta: [
       { title: "Support — Buddy Symptom Tracker" },
-      { name: "description", content: "Get help with Buddy Symptom Tracker. Submit bug reports, feature requests, technical issues, or general inquiries." },
+      {
+        name: "description",
+        content:
+          "Get help with Buddy Symptom Tracker. Submit bug reports, feature requests, technical issues, or general inquiries.",
+      },
       { property: "og:title", content: "Support — Buddy Symptom Tracker" },
       { property: "og:description", content: "Submit a support request to the Buddy team." },
       { property: "og:url", content: "https://peakbuddy.lovable.app/support" },
@@ -18,15 +22,9 @@ export const Route = createFileRoute("/support")({
 });
 
 // Webhook endpoint — replace this URL when configured.
-const SUPPORT_WEBHOOK_URL =
-  (import.meta.env.VITE_SUPPORT_WEBHOOK_URL as string | undefined) ?? "";
+const SUPPORT_WEBHOOK_URL = (import.meta.env.VITE_SUPPORT_WEBHOOK_URL as string | undefined) ?? "";
 
-const SubjectEnum = z.enum([
-  "Bug Report",
-  "Feature Request",
-  "Technical Issue",
-  "General Inquiry",
-]);
+const SubjectEnum = z.enum(["Bug Report", "Feature Request", "Technical Issue", "General Inquiry"]);
 const PriorityEnum = z.enum(["Low", "Medium", "High"]);
 const DeviceEnum = z.enum(["iOS", "Android", "Web"]);
 
@@ -96,7 +94,6 @@ function SupportPage() {
         if (!res.ok) throw new Error(`Webhook responded ${res.status}`);
       } else {
         // No webhook configured yet — log the JSON payload for now.
-        // eslint-disable-next-line no-console
         log.info("[buddy-support] payload (no webhook configured):", payload);
       }
       setStatus("success");
@@ -118,7 +115,11 @@ function SupportPage() {
     <div className="min-h-screen" style={{ background: "var(--navy)", color: "var(--white)" }}>
       <header className="border-b" style={{ borderColor: "var(--navy-border)" }}>
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-          <Link to="/" className="text-lg font-semibold tracking-tight" style={{ fontFamily: "var(--font-hero)" }}>
+          <Link
+            to="/"
+            className="text-lg font-semibold tracking-tight"
+            style={{ fontFamily: "var(--font-hero)" }}
+          >
             Buddy
           </Link>
           <span
@@ -131,7 +132,10 @@ function SupportPage() {
       </header>
 
       <main className="mx-auto max-w-2xl px-6 py-12">
-        <h1 className="text-4xl font-semibold tracking-tight" style={{ fontFamily: "var(--font-hero)" }}>
+        <h1
+          className="text-4xl font-semibold tracking-tight"
+          style={{ fontFamily: "var(--font-hero)" }}
+        >
           How can we help?
         </h1>
         <p className="mt-3 text-sm" style={{ color: "var(--white-muted)" }}>
@@ -194,7 +198,9 @@ function SupportPage() {
                 style={{ borderColor: "var(--navy-border)" }}
               >
                 {SubjectEnum.options.map((o) => (
-                  <option key={o} value={o}>{o}</option>
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
                 ))}
               </select>
             </Field>
@@ -203,13 +209,17 @@ function SupportPage() {
               <Field label="Priority (optional)">
                 <select
                   value={form.priority ?? ""}
-                  onChange={(e) => set("priority", (e.target.value || undefined) as FormState["priority"])}
+                  onChange={(e) =>
+                    set("priority", (e.target.value || undefined) as FormState["priority"])
+                  }
                   className={inputCls}
                   style={{ borderColor: "var(--navy-border)" }}
                 >
                   <option value="">— Select —</option>
                   {PriorityEnum.options.map((o) => (
-                    <option key={o} value={o}>{o}</option>
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
                   ))}
                 </select>
               </Field>
@@ -217,13 +227,17 @@ function SupportPage() {
               <Field label="Device / OS (optional)">
                 <select
                   value={form.device ?? ""}
-                  onChange={(e) => set("device", (e.target.value || undefined) as FormState["device"])}
+                  onChange={(e) =>
+                    set("device", (e.target.value || undefined) as FormState["device"])
+                  }
                   className={inputCls}
                   style={{ borderColor: "var(--navy-border)" }}
                 >
                   <option value="">— Select —</option>
                   {DeviceEnum.options.map((o) => (
-                    <option key={o} value={o}>{o}</option>
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
                   ))}
                 </select>
               </Field>
@@ -243,8 +257,11 @@ function SupportPage() {
 
             {status === "error" && (
               <p className="text-sm" style={{ color: "var(--red)" }}>
-                Something went wrong{serverMsg ? `: ${serverMsg}` : ""}. Please try again or email
-                {" "}<a href="mailto:hello@peakmovement.co.za" className="underline">hello@peakmovement.co.za</a>.
+                Something went wrong{serverMsg ? `: ${serverMsg}` : ""}. Please try again or email{" "}
+                <a href="mailto:hello@peakmovement.co.za" className="underline">
+                  hello@peakmovement.co.za
+                </a>
+                .
               </p>
             )}
 
@@ -261,7 +278,11 @@ function SupportPage() {
 
         <p className="mt-10 text-xs" style={{ color: "var(--white-muted)" }}>
           Or email us directly at{" "}
-          <a href="mailto:hello@peakmovement.co.za" className="underline" style={{ color: "var(--blue-cold)" }}>
+          <a
+            href="mailto:hello@peakmovement.co.za"
+            className="underline"
+            style={{ color: "var(--blue-cold)" }}
+          >
             hello@peakmovement.co.za
           </a>
         </p>

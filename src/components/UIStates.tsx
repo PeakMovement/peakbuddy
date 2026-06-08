@@ -97,7 +97,14 @@ export function EmptyState({
         {title}
       </h3>
       {subtitle && (
-        <p style={{ color: "var(--white-muted)", fontSize: 13, fontFamily: "var(--font-ui)", maxWidth: 280 }}>
+        <p
+          style={{
+            color: "var(--white-muted)",
+            fontSize: 13,
+            fontFamily: "var(--font-ui)",
+            maxWidth: 280,
+          }}
+        >
           {subtitle}
         </p>
       )}

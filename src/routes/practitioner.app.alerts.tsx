@@ -33,9 +33,17 @@ function urgencyStyle(u: string): React.CSSProperties {
     case "soon":
       return { background: "transparent", color: "var(--amber)", border: "1px solid var(--amber)" };
     case "monitor":
-      return { background: "transparent", color: "var(--blue-cold)", border: "1px solid var(--blue-cold)" };
+      return {
+        background: "transparent",
+        color: "var(--blue-cold)",
+        border: "1px solid var(--blue-cold)",
+      };
     default:
-      return { background: "transparent", color: "var(--white-muted)", border: "1px solid var(--navy-border)" };
+      return {
+        background: "transparent",
+        color: "var(--white-muted)",
+        border: "1px solid var(--navy-border)",
+      };
   }
 }
 
@@ -82,7 +90,8 @@ function Alerts() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     if (filter === "unread") return sorted.filter((a) => !a.is_read);
-    if (filter === "red_flag") return sorted.filter((a) => a.urgency === "emergency" || a.urgency === "urgent");
+    if (filter === "red_flag")
+      return sorted.filter((a) => a.urgency === "emergency" || a.urgency === "urgent");
     return sorted;
   }, [alerts, filter]);
 
@@ -93,7 +102,16 @@ function Alerts() {
 
   return (
     <div style={{ padding: "20px 16px 32px" }}>
-      <h1 style={{ fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 28, color: "var(--white)" }}>Alerts</h1>
+      <h1
+        style={{
+          fontFamily: "var(--font-hero)",
+          fontWeight: 400,
+          fontSize: 28,
+          color: "var(--white)",
+        }}
+      >
+        Alerts
+      </h1>
 
       <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
         {(["all", "unread", "red_flag"] as Filter[]).map((f) => (
@@ -147,12 +165,27 @@ function Alerts() {
                   opacity: a.is_read ? 0.55 : 1,
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: 8,
+                  }}
+                >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: "var(--font-ui)", fontWeight: 700, color: "var(--white)" }}>
+                    <div
+                      style={{
+                        fontFamily: "var(--font-ui)",
+                        fontWeight: 700,
+                        color: "var(--white)",
+                      }}
+                    >
                       {client?.full_name ?? "Unknown client"}
                     </div>
-                    <div style={{ marginTop: 4, color: "var(--white-muted)", fontSize: 13 }}>{a.message}</div>
+                    <div style={{ marginTop: 4, color: "var(--white-muted)", fontSize: 13 }}>
+                      {a.message}
+                    </div>
                   </div>
                   <span
                     style={{
@@ -170,8 +203,21 @@ function Alerts() {
                     {a.urgency}
                   </span>
                 </div>
-                <div style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontFamily: "var(--font-data)", fontSize: 11, color: "var(--white-muted)" }}>
+                <div
+                  style={{
+                    marginTop: 10,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: "var(--font-data)",
+                      fontSize: 11,
+                      color: "var(--white-muted)",
+                    }}
+                  >
                     {timeAgo(a.created_at)} ago
                   </span>
                   {!a.is_read && (

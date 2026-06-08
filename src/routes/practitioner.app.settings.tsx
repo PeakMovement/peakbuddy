@@ -147,18 +147,35 @@ function Settings() {
 
   return (
     <div style={{ padding: "20px 16px 32px" }}>
-      <h1 style={{ fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 28, color: "var(--white)" }}>Settings</h1>
+      <h1
+        style={{
+          fontFamily: "var(--font-hero)",
+          fontWeight: 400,
+          fontSize: 28,
+          color: "var(--white)",
+        }}
+      >
+        Settings
+      </h1>
 
       <form onSubmit={save}>
         <div style={sectionTitle}>Practice Details</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
             <label style={labelStyle}>Your Name</label>
-            <input style={inputStyle} value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            <input
+              style={inputStyle}
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
           </div>
           <div>
             <label style={labelStyle}>Practice Name</label>
-            <input style={inputStyle} value={practiceName} onChange={(e) => setPracticeName(e.target.value)} />
+            <input
+              style={inputStyle}
+              value={practiceName}
+              onChange={(e) => setPracticeName(e.target.value)}
+            />
           </div>
           <div>
             <label style={labelStyle}>Profession</label>
@@ -206,7 +223,9 @@ function Settings() {
         />
 
         {error && <div style={{ color: "var(--red)", fontSize: 13, marginTop: 16 }}>{error}</div>}
-        {success && <div style={{ color: "var(--green)", fontSize: 13, marginTop: 16 }}>{success}</div>}
+        {success && (
+          <div style={{ color: "var(--green)", fontSize: 13, marginTop: 16 }}>{success}</div>
+        )}
 
         <button
           type="submit"
@@ -338,7 +357,9 @@ function WebhookSection({
         {title}
         <Info size={14} aria-label="info" />
       </div>
-      <p style={{ color: "var(--white-muted)", fontSize: 12, marginTop: -8, marginBottom: 12 }}>{help}</p>
+      <p style={{ color: "var(--white-muted)", fontSize: 12, marginTop: -8, marginBottom: 12 }}>
+        {help}
+      </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
           <label style={labelStyle}>URL</label>
@@ -363,7 +384,9 @@ function WebhookSection({
             cursor: "pointer",
           }}
         >
-          <span style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14 }}>Enabled</span>
+          <span style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
+            Enabled
+          </span>
           <input
             type="checkbox"
             checked={enabled}

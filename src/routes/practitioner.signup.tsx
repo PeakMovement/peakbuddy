@@ -116,7 +116,15 @@ function PractitionerSignup() {
         padding: "48px 24px",
       }}
     >
-      <div style={{ width: "100%", maxWidth: 380, display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 380,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
         <BuddyLogo />
         <h1
           style={{
@@ -132,26 +140,64 @@ function PractitionerSignup() {
         </h1>
 
         {success ? (
-          <div style={{ marginTop: 32, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <div
+            style={{
+              marginTop: 32,
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
             <CheckCircle2 size={56} color="var(--green)" />
-            <h2 style={{ fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 22, color: "var(--white)", marginTop: 20 }}>
+            <h2
+              style={{
+                fontFamily: "var(--font-hero)",
+                fontWeight: 400,
+                fontSize: 22,
+                color: "var(--white)",
+                marginTop: 20,
+              }}
+            >
               Check your email
             </h2>
-            <p style={{ color: "var(--white-muted)", fontSize: 14, marginTop: 12, lineHeight: 1.5 }}>
-              Check your email to confirm your account. Once confirmed, log in to complete your setup.
+            <p
+              style={{ color: "var(--white-muted)", fontSize: 14, marginTop: 12, lineHeight: 1.5 }}
+            >
+              Check your email to confirm your account. Once confirmed, log in to complete your
+              setup.
             </p>
             <Link
               to="/practitioner/login"
-              style={{ marginTop: 32, color: "var(--blue-accent)", fontSize: 14, textDecoration: "underline" }}
+              style={{
+                marginTop: 32,
+                color: "var(--blue-accent)",
+                fontSize: 14,
+                textDecoration: "underline",
+              }}
             >
               Back to login
             </Link>
           </div>
         ) : (
           <>
-            <form onSubmit={onSubmit} style={{ width: "100%", marginTop: 28, display: "flex", flexDirection: "column", gap: 14 }}>
+            <form
+              onSubmit={onSubmit}
+              style={{
+                width: "100%",
+                marginTop: 28,
+                display: "flex",
+                flexDirection: "column",
+                gap: 14,
+              }}
+            >
               <Field label="Full name">
-                <input value={fullName} onChange={(e) => setFullName(e.target.value)} style={inputStyle} required />
+                <input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  style={inputStyle}
+                  required
+                />
               </Field>
               <Field label="Email">
                 <input
@@ -175,9 +221,13 @@ function PractitionerSignup() {
                   style={{ ...inputStyle, appearance: "none" }}
                   required
                 >
-                  <option value="" disabled>Select…</option>
+                  <option value="" disabled>
+                    Select…
+                  </option>
                   {PROFESSIONS.map((p) => (
-                    <option key={p} value={p}>{p}</option>
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
                   ))}
                 </select>
               </Field>

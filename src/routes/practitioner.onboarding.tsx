@@ -75,17 +75,15 @@ function Onboarding() {
 
     const now = new Date().toISOString();
 
-    const { error: profErr } = await supabase
-      .from("profiles")
-      .upsert(
-        {
-          id: userId,
-          role: "practitioner",
-          full_name: fullName,
-          profession,
-        },
-        { onConflict: "id" },
-      );
+    const { error: profErr } = await supabase.from("profiles").upsert(
+      {
+        id: userId,
+        role: "practitioner",
+        full_name: fullName,
+        profession,
+      },
+      { onConflict: "id" },
+    );
 
     if (profErr) {
       setSaving(false);
@@ -93,22 +91,19 @@ function Onboarding() {
       return;
     }
 
-    const { error: prErr } = await supabase
-      .from("practices")
-      .upsert(
-        {
-          practitioner_id: userId,
-          practice_name: practiceName,
-          profession,
-          popia_agreed: true,
-          popia_agreed_at: now,
-          data_processing_agreed: true,
-          data_processing_agreed_at: now,
-          onboarding_complete: true,
-        },
-        { onConflict: "practitioner_id" },
-      );
-
+    const { error: prErr } = await supabase.from("practices").upsert(
+      {
+        practitioner_id: userId,
+        practice_name: practiceName,
+        profession,
+        popia_agreed: true,
+        popia_agreed_at: now,
+        data_processing_agreed: true,
+        data_processing_agreed_at: now,
+        onboarding_complete: true,
+      },
+      { onConflict: "practitioner_id" },
+    );
 
     if (prErr) {
       setSaving(false);
@@ -140,7 +135,11 @@ function Onboarding() {
 
             <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 24 }}>
               <Field label="Full name">
-                <input value={fullName} onChange={(e) => setFullName(e.target.value)} style={inputStyle} />
+                <input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  style={inputStyle}
+                />
               </Field>
 
               <Field label="Profession">
@@ -149,15 +148,23 @@ function Onboarding() {
                   onChange={(e) => setProfession(e.target.value)}
                   style={{ ...inputStyle, appearance: "none" }}
                 >
-                  <option value="" disabled>Select…</option>
+                  <option value="" disabled>
+                    Select…
+                  </option>
                   {PROFESSIONS.map((p) => (
-                    <option key={p} value={p}>{p}</option>
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
                   ))}
                 </select>
               </Field>
 
               <Field label="Practice name">
-                <input value={practiceName} onChange={(e) => setPracticeName(e.target.value)} style={inputStyle} />
+                <input
+                  value={practiceName}
+                  onChange={(e) => setPracticeName(e.target.value)}
+                  style={inputStyle}
+                />
               </Field>
             </div>
 
@@ -213,7 +220,15 @@ function Onboarding() {
         )}
 
         {step === 3 && (
-          <section style={{ marginTop: 48, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+          <section
+            style={{
+              marginTop: 48,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+            }}
+          >
             <div
               style={{
                 width: 96,

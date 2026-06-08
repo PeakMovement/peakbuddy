@@ -1,7 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, X } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 import { supabase } from "@/lib/supabase";
 import type { CheckIn, Client } from "@/lib/types";
 import { CircularRing, ringColor } from "@/components/CircularRing";
@@ -88,12 +96,18 @@ function ClientDetail() {
         ? Math.min(elapsed, weeks * 7)
         : client.check_in_frequency === "weekly"
           ? Math.min(Math.ceil(elapsed / 7), weeks)
-          : Math.min(Math.ceil(elapsed / (client.check_in_frequency === "every_3_days" ? 3 : 2)), weeks * 4);
+          : Math.min(
+              Math.ceil(elapsed / (client.check_in_frequency === "every_3_days" ? 3 : 2)),
+              weeks * 4,
+            );
     return Math.min(100, Math.round((items.length / Math.max(1, expectedSoFar)) * 100));
   }, [client, items]);
 
   const trendUp = useMemo(() => {
-    const pains = [...items].reverse().filter((i) => i.pain_level != null).map((i) => i.pain_level as number);
+    const pains = [...items]
+      .reverse()
+      .filter((i) => i.pain_level != null)
+      .map((i) => i.pain_level as number);
     if (pains.length < 6) return false;
     const half = Math.floor(pains.length / 2);
     const a = pains.slice(0, half).reduce((x, y) => x + y, 0) / half;
@@ -107,17 +121,22 @@ function ClientDetail() {
       .reverse()
       .filter((i) => new Date(i.created_at).getTime() >= cutoff && i.pain_level != null)
       .map((i) => ({
-        date: new Date(i.created_at).toLocaleDateString(undefined, { month: "numeric", day: "numeric" }),
+        date: new Date(i.created_at).toLocaleDateString(undefined, {
+          month: "numeric",
+          day: "numeric",
+        }),
         pain: i.pain_level,
       }));
   }, [items]);
 
   const recommendations = useMemo(() => {
     const recs: string[] = [];
-    if (trendUp) recs.push("Pain levels are increasing. Consider reviewing the current treatment plan.");
+    if (trendUp)
+      recs.push("Pain levels are increasing. Consider reviewing the current treatment plan.");
     if (compliance < 50) recs.push("Low check-in frequency. Encourage the client to log daily.");
     const last = items[0];
-    const noRecent = !last || Date.now() - new Date(last.created_at).getTime() > 7 * 24 * 60 * 60 * 1000;
+    const noRecent =
+      !last || Date.now() - new Date(last.created_at).getTime() > 7 * 24 * 60 * 60 * 1000;
     if (noRecent) recs.push("No recent check-ins. Follow up with this client.");
     if (stats.pain >= 7) recs.push("High average pain reported. Consider specialist referral.");
     return recs.slice(0, 4);
@@ -152,23 +171,49 @@ function ClientDetail() {
         <ArrowLeft size={16} /> Back
       </Link>
 
-      <h1 style={{ marginTop: 12, fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 30, color: "var(--white)" }}>
+      <h1
+        style={{
+          marginTop: 12,
+          fontFamily: "var(--font-hero)",
+          fontWeight: 400,
+          fontSize: 30,
+          color: "var(--white)",
+        }}
+      >
         {client.full_name}
       </h1>
-      <div style={{ marginTop: 4, color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
+      <div
+        style={{
+          marginTop: 4,
+          color: "var(--white-muted)",
+          fontFamily: "var(--font-ui)",
+          fontSize: 14,
+        }}
+      >
         {client.primary_complaint || "—"}
       </div>
 
-      <section style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}>
+      <section
+        style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}
+      >
         <MetricMini label="Pain" value={stats.pain} max={10} />
         <MetricMini label="Sleep" value={stats.sleep} max={5} />
         <MetricMini label="Stress" value={stats.stress} max={5} />
         <MetricMini label="Energy" value={stats.energy} max={5} />
       </section>
 
-      <div style={{ marginTop: 28, display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div
+        style={{ marginTop: 28, display: "flex", flexDirection: "column", alignItems: "center" }}
+      >
         <CircularRing size={160} stroke={14} pct={compliance} color={ringColor(compliance)}>
-          <div style={{ fontFamily: "var(--font-data)", fontSize: 32, fontWeight: 700, color: "var(--white)" }}>
+          <div
+            style={{
+              fontFamily: "var(--font-data)",
+              fontSize: 32,
+              fontWeight: 700,
+              color: "var(--white)",
+            }}
+          >
             {compliance}%
           </div>
         </CircularRing>
@@ -197,7 +242,14 @@ function ClientDetail() {
             padding: 14,
           }}
         >
-          <div style={{ fontFamily: "var(--font-ui)", fontWeight: 600, color: "var(--white)", marginBottom: 8 }}>
+          <div
+            style={{
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              color: "var(--white)",
+              marginBottom: 8,
+            }}
+          >
             Pain — last 30 days
           </div>
           <div style={{ width: "100%", height: 180 }}>
@@ -214,7 +266,13 @@ function ClientDetail() {
                     fontSize: 12,
                   }}
                 />
-                <Line type="monotone" dataKey="pain" stroke="var(--blue-cold)" strokeWidth={2} dot={{ r: 3 }} />
+                <Line
+                  type="monotone"
+                  dataKey="pain"
+                  stroke="var(--blue-cold)"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -286,8 +344,20 @@ function ClientDetail() {
                   padding: 12,
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <span style={{ fontFamily: "var(--font-data)", fontSize: 12, color: "var(--white-muted)" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: "var(--font-data)",
+                      fontSize: 12,
+                      color: "var(--white-muted)",
+                    }}
+                  >
                     {new Date(ci.created_at).toLocaleString()}
                   </span>
                   {ci.pain_level != null && (
@@ -303,7 +373,9 @@ function ClientDetail() {
                   )}
                 </div>
                 {ci.notes && (
-                  <div style={{ marginTop: 6, color: "var(--white)", fontSize: 13 }}>{ci.notes}</div>
+                  <div style={{ marginTop: 6, color: "var(--white)", fontSize: 13 }}>
+                    {ci.notes}
+                  </div>
                 )}
               </div>
             ))}
@@ -320,12 +392,33 @@ function ClientDetail() {
           borderRadius: 10,
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
           <div>
-            <div style={{ fontFamily: "var(--font-ui)", fontWeight: 600, color: "var(--white)", fontSize: 14 }}>
+            <div
+              style={{
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                color: "var(--white)",
+                fontSize: 14,
+              }}
+            >
               Yves AI triage
             </div>
-            <div style={{ marginTop: 4, color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 12 }}>
+            <div
+              style={{
+                marginTop: 4,
+                color: "var(--white-muted)",
+                fontFamily: "var(--font-ui)",
+                fontSize: 12,
+              }}
+            >
               {!practiceYves
                 ? "Disabled at practice level by admin."
                 : client.yves_enabled !== false
@@ -360,7 +453,6 @@ function ClientDetail() {
           })()}
         </div>
       </section>
-
 
       <button
         type="button"
@@ -412,7 +504,14 @@ function MetricMini({ label, value, max }: { label: string; value: number; max: 
       }}
     >
       <CircularRing size={56} stroke={6} pct={pct} color="var(--blue-cold)">
-        <span style={{ fontFamily: "var(--font-data)", fontSize: 13, fontWeight: 700, color: "var(--white)" }}>
+        <span
+          style={{
+            fontFamily: "var(--font-data)",
+            fontSize: 13,
+            fontWeight: 700,
+            color: "var(--white)",
+          }}
+        >
           {value ? value.toFixed(1) : "—"}
         </span>
       </CircularRing>
@@ -519,8 +618,17 @@ function EditClientSheet({
           paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h2 style={{ fontFamily: "var(--font-hero)", fontSize: 22, color: "var(--white)" }}>Edit Client</h2>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
+          <h2 style={{ fontFamily: "var(--font-hero)", fontSize: 22, color: "var(--white)" }}>
+            Edit Client
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -537,8 +645,18 @@ function EditClientSheet({
           </button>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <input style={inputStyle} value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full name" />
-          <input style={inputStyle} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+          <input
+            style={inputStyle}
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="Full name"
+          />
+          <input
+            style={inputStyle}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+          />
           <input
             style={inputStyle}
             value={complaint}

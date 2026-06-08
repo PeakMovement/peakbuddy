@@ -12,7 +12,11 @@ export const Route = createFileRoute("/practitioner/app/dashboard")({
   component: Dashboard,
 });
 
-type ClientRow = Client & { _lastCheckIn: string | null; _compliance: number; _activeToday: boolean };
+type ClientRow = Client & {
+  _lastCheckIn: string | null;
+  _compliance: number;
+  _activeToday: boolean;
+};
 
 function greeting() {
   const h = new Date().getHours();
@@ -49,11 +53,20 @@ function Dashboard() {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
 
-      const [{ data: prof }, { data: clients, error: cErr }, { count: unreadCount, error: aErr }] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
-        supabase.from("clients").select("*").eq("practitioner_id", u.user.id).order("created_at", { ascending: false }),
-        supabase.from("alerts").select("*", { count: "exact", head: true }).eq("practitioner_id", u.user.id).eq("is_read", false),
-      ]);
+      const [{ data: prof }, { data: clients, error: cErr }, { count: unreadCount, error: aErr }] =
+        await Promise.all([
+          supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
+          supabase
+            .from("clients")
+            .select("*")
+            .eq("practitioner_id", u.user.id)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("alerts")
+            .select("*", { count: "exact", head: true })
+            .eq("practitioner_id", u.user.id)
+            .eq("is_read", false),
+        ]);
       if (cErr || aErr) throw cErr || aErr;
 
       setProfile(prof as Profile | null);
@@ -92,8 +105,14 @@ function Dashboard() {
             ? Math.min(elapsed, weeks * 7)
             : c.check_in_frequency === "weekly"
               ? Math.min(Math.ceil(elapsed / 7), weeks)
-              : Math.min(Math.ceil(elapsed / (c.check_in_frequency === "every_3_days" ? 3 : 2)), weeks * 4);
-        const compliance = Math.min(100, Math.round((ci.length / Math.max(1, expectedSoFar)) * 100));
+              : Math.min(
+                  Math.ceil(elapsed / (c.check_in_frequency === "every_3_days" ? 3 : 2)),
+                  weeks * 4,
+                );
+        const compliance = Math.min(
+          100,
+          Math.round((ci.length / Math.max(1, expectedSoFar)) * 100),
+        );
         return {
           ...c,
           _lastCheckIn: last,
@@ -130,21 +149,44 @@ function Dashboard() {
   return (
     <div style={{ padding: "20px 16px 32px" }}>
       <header>
-        <h1 style={{ fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 26, color: "var(--white)" }}>
+        <h1
+          style={{
+            fontFamily: "var(--font-hero)",
+            fontWeight: 400,
+            fontSize: 26,
+            color: "var(--white)",
+          }}
+        >
           {greeting()} {firstName}
         </h1>
-        <div style={{ marginTop: 4, fontFamily: "var(--font-data)", fontSize: 12, color: "var(--white-muted)" }}>
+        <div
+          style={{
+            marginTop: 4,
+            fontFamily: "var(--font-data)",
+            fontSize: 12,
+            color: "var(--white-muted)",
+          }}
+        >
           {today}
         </div>
       </header>
 
-      <section style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+      <section
+        style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}
+      >
         <Stat label="Clients" value={rows.length} />
         <Stat label="Active" value={rows.filter((r) => r._activeToday).length} />
         <Stat label="Alerts" value={unread} danger={unread > 0} />
       </section>
 
-      <div style={{ marginTop: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div
+        style={{
+          marginTop: 24,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
         <h2
           style={{
             fontFamily: "var(--font-ui)",
@@ -198,7 +240,12 @@ function Dashboard() {
             <button
               key={r.id}
               type="button"
-              onClick={() => navigate({ to: "/practitioner/app/client-detail/$clientId", params: { clientId: r.id } })}
+              onClick={() =>
+                navigate({
+                  to: "/practitioner/app/client-detail/$clientId",
+                  params: { clientId: r.id },
+                })
+              }
               style={{
                 textAlign: "left",
                 background: "var(--navy-card)",
@@ -247,15 +294,31 @@ function Dashboard() {
                       background: dotColor(r._lastCheckIn),
                     }}
                   />
-                  <span style={{ fontFamily: "var(--font-data)", fontSize: 11, color: "var(--white-muted)" }}>
-                    {r._lastCheckIn
-                      ? new Date(r._lastCheckIn).toLocaleDateString()
-                      : "Never"}
+                  <span
+                    style={{
+                      fontFamily: "var(--font-data)",
+                      fontSize: 11,
+                      color: "var(--white-muted)",
+                    }}
+                  >
+                    {r._lastCheckIn ? new Date(r._lastCheckIn).toLocaleDateString() : "Never"}
                   </span>
                 </div>
               </div>
-              <CircularRing size={40} stroke={5} pct={r._compliance} color={ringColor(r._compliance)}>
-                <span style={{ fontFamily: "var(--font-data)", fontSize: 10, fontWeight: 700, color: "var(--white)" }}>
+              <CircularRing
+                size={40}
+                stroke={5}
+                pct={r._compliance}
+                color={ringColor(r._compliance)}
+              >
+                <span
+                  style={{
+                    fontFamily: "var(--font-data)",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "var(--white)",
+                  }}
+                >
                   {r._compliance}%
                 </span>
               </CircularRing>

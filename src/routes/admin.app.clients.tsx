@@ -30,7 +30,11 @@ function AllClients() {
     setError(null);
     setLoading(true);
     try {
-      const [{ data: clients, error: e1 }, { data: profs, error: e2 }, { data: checkIns, error: e3 }] = await Promise.all([
+      const [
+        { data: clients, error: e1 },
+        { data: profs, error: e2 },
+        { data: checkIns, error: e3 },
+      ] = await Promise.all([
         supabase.from("clients").select("*").order("created_at", { ascending: false }),
         supabase.from("profiles").select("*").eq("role", "practitioner"),
         supabase.from("check_ins").select("*").order("created_at", { ascending: false }),
@@ -56,8 +60,14 @@ function AllClients() {
             ? Math.min(elapsed, weeks * 7)
             : c.check_in_frequency === "weekly"
               ? Math.min(Math.ceil(elapsed / 7), weeks)
-              : Math.min(Math.ceil(elapsed / (c.check_in_frequency === "every_3_days" ? 3 : 2)), weeks * 4);
-        const compliance = Math.min(100, Math.round((ci.length / Math.max(1, expectedSoFar)) * 100));
+              : Math.min(
+                  Math.ceil(elapsed / (c.check_in_frequency === "every_3_days" ? 3 : 2)),
+                  weeks * 4,
+                );
+        const compliance = Math.min(
+          100,
+          Math.round((ci.length / Math.max(1, expectedSoFar)) * 100),
+        );
         return {
           ...c,
           _practitionerName: profileMap.get(c.practitioner_id)?.full_name ?? "Unknown",
@@ -87,7 +97,14 @@ function AllClients() {
 
   return (
     <div style={{ padding: "20px 16px 32px" }}>
-      <h1 style={{ fontFamily: "var(--font-hero)", fontWeight: 400, fontSize: 28, color: "var(--white)" }}>
+      <h1
+        style={{
+          fontFamily: "var(--font-hero)",
+          fontWeight: 400,
+          fontSize: 28,
+          color: "var(--white)",
+        }}
+      >
         All Clients
       </h1>
 
@@ -133,7 +150,9 @@ function AllClients() {
             <button
               key={r.id}
               type="button"
-              onClick={() => navigate({ to: "/admin/app/client-detail/$clientId", params: { clientId: r.id } })}
+              onClick={() =>
+                navigate({ to: "/admin/app/client-detail/$clientId", params: { clientId: r.id } })
+              }
               style={{
                 textAlign: "left",
                 background: "var(--navy-card)",
@@ -184,7 +203,15 @@ function AllClients() {
                   {r._compliance}%
                 </span>
               </div>
-              <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <div
+                style={{
+                  marginTop: 8,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
                 <span
                   style={{
                     padding: "2px 8px",
@@ -200,7 +227,13 @@ function AllClients() {
                 >
                   {r._practitionerName}
                 </span>
-                <span style={{ fontFamily: "var(--font-data)", fontSize: 11, color: "var(--white-muted)" }}>
+                <span
+                  style={{
+                    fontFamily: "var(--font-data)",
+                    fontSize: 11,
+                    color: "var(--white-muted)",
+                  }}
+                >
                   {r._lastCheckIn ? new Date(r._lastCheckIn).toLocaleDateString() : "Never"}
                 </span>
               </div>

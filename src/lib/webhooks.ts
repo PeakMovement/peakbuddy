@@ -3,19 +3,15 @@ import { supabase } from "@/lib/supabase";
 export async function getPracticeWebhookSettings(practitionerId: string) {
   const { data } = await supabase
     .from("practices")
-    .select(
-      "webhook_url, webhook_enabled, contact_webhook_url, contact_webhook_enabled",
-    )
+    .select("webhook_url, webhook_enabled, contact_webhook_url, contact_webhook_enabled")
     .eq("practitioner_id", practitionerId)
     .maybeSingle();
-  return data as
-    | {
-        webhook_url: string | null;
-        webhook_enabled: boolean | null;
-        contact_webhook_url: string | null;
-        contact_webhook_enabled: boolean | null;
-      }
-    | null;
+  return data as {
+    webhook_url: string | null;
+    webhook_enabled: boolean | null;
+    contact_webhook_url: string | null;
+    contact_webhook_enabled: boolean | null;
+  } | null;
 }
 
 export async function fireAlertWebhook(payload: {
@@ -48,10 +44,7 @@ export async function fireContactWebhook(payload: {
  * the last 24h (and is unread). Use BEFORE inserting a new alert to suppress
  * duplicates.
  */
-export async function findRecentOpenAlert(
-  clientId: string,
-  alertType: string,
-) {
+export async function findRecentOpenAlert(clientId: string, alertType: string) {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { data } = await supabase
     .from("alerts")
