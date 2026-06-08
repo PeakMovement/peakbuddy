@@ -230,9 +230,17 @@ export async function analyzeSymptom(
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
+    // The endpoint requires an authenticated Supabase session. Without one we
+    // skip the AI layer entirely and rely on keyword triage below.
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) throw new Error('no session');
     const res = await fetch('/api/public/triage-query', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
       body: JSON.stringify({ query_text: text, client_context: clientContext, client_id: clientId }),
       signal: controller.signal,
     });
