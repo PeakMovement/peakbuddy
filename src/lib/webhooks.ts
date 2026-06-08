@@ -26,39 +26,10 @@ export async function fireAlertWebhook(payload: {
   urgency: string;
   redFlagDetected: boolean;
 }) {
-  const settings = await getPracticeWebhookSettings(payload.practitionerId);
-
-  if (!settings?.webhook_url || !settings?.webhook_enabled) {
-    console.log(
-      "[Buddy Webhook] Alert webhook not configured or disabled for practitioner:",
-      payload.practitionerId,
-    );
-    return { fired: false, reason: "not_configured" as const };
-  }
-
-  const body = {
-    event: "buddy_alert",
-    practitioner_id: payload.practitionerId,
-    client_id: payload.clientId,
-    client_name: payload.clientName,
-    message: payload.alertMessage,
-    urgency: payload.urgency,
-    red_flag_detected: payload.redFlagDetected,
-    timestamp: new Date().toISOString(),
-  };
-
-  try {
-    const res = await fetch(settings.webhook_url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    console.log("[Buddy Webhook] Alert fired. Status:", res.status);
-    return { fired: true, status: res.status };
-  } catch (err) {
-    console.error("[Buddy Webhook] Alert webhook failed:", err);
-    return { fired: false, reason: "fetch_error" as const };
-  }
+  // Delegates to a server function — webhook settings and delivery never
+  // touch the patient's browser.
+  const { fireAlertWebhookServer } = await import("@/lib/webhooks.functions");
+  return fireAlertWebhookServer({ data: payload });
 }
 
 export async function fireContactWebhook(payload: {
@@ -68,38 +39,8 @@ export async function fireContactWebhook(payload: {
   symptomDescription: string;
   symptomScore: number;
 }) {
-  const settings = await getPracticeWebhookSettings(payload.practitionerId);
-
-  if (!settings?.contact_webhook_url || !settings?.contact_webhook_enabled) {
-    console.log(
-      "[Buddy Webhook] Contact webhook not configured or disabled for practitioner:",
-      payload.practitionerId,
-    );
-    return { fired: false, reason: "not_configured" as const };
-  }
-
-  const body = {
-    event: "buddy_contact",
-    practitioner_id: payload.practitionerId,
-    client_id: payload.clientId,
-    client_name: payload.clientName,
-    symptom_description: payload.symptomDescription,
-    symptom_score: payload.symptomScore,
-    timestamp: new Date().toISOString(),
-  };
-
-  try {
-    const res = await fetch(settings.contact_webhook_url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    console.log("[Buddy Webhook] Contact fired. Status:", res.status);
-    return { fired: true, status: res.status };
-  } catch (err) {
-    console.error("[Buddy Webhook] Contact webhook failed:", err);
-    return { fired: false, reason: "fetch_error" as const };
-  }
+  const { fireContactWebhookServer } = await import("@/lib/webhooks.functions");
+  return fireContactWebhookServer({ data: payload });
 }
 
 /**
