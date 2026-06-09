@@ -42,9 +42,28 @@ function OfflineBanner() {
 
 function ClientAppLayout() {
   const navigate = useNavigate();
+  const bootstrap = useServerFn(getClientBootstrap);
+  const [welcomeProgram, setWelcomeProgram] = useState<ProgramLite | null>(null);
+
   useEffect(() => {
-    if (!getClientId()) navigate({ to: "/client/login" });
-  }, [navigate]);
+    if (!getClientId()) {
+      navigate({ to: "/client/login" });
+      return;
+    }
+    let cancelled = false;
+    bootstrap()
+      .then((res) => {
+        if (cancelled) return;
+        if (res.first_login && res.program && res.status === "pending") {
+          setWelcomeProgram(res.program);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate, bootstrap]);
+
 
   return (
     <div
