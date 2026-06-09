@@ -38,8 +38,15 @@ function ClientDetail() {
   const [editOpen, setEditOpen] = useState(false);
   const [practiceYves, setPracticeYves] = useState<boolean>(true);
   const [savingYves, setSavingYves] = useState(false);
+  const [programInfo, setProgramInfo] = useState<{
+    program: ProgramLite | null;
+    status: "none" | "pending" | "accepted" | "declined";
+    decided_at: string | null;
+  } | null>(null);
+  const getProgram = useServerFn(getClientProgramForPractitioner);
 
   const load = async () => {
+
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
     const [{ data: c }, { data: ci }, { data: pr }] = await Promise.all([
