@@ -1,14 +1,21 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { LogOut } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { LogOut, ExternalLink } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId, clearClientId } from "@/lib/client-session";
 import type { Client } from "@/lib/types";
+import {
+  getMyProgram,
+  respondToSuggestedProgram,
+  type ClientProgramState,
+} from "@/lib/client-program.functions";
 
 export const Route = createFileRoute("/client/app/profile")({
   head: () => ({ meta: [{ title: "Profile — Buddy" }] }),
   component: ClientProfile,
 });
+
 
 function ClientProfile() {
   const navigate = useNavigate();
