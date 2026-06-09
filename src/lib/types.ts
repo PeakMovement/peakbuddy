@@ -51,6 +51,10 @@ export interface Client {
   login_code: string;
   popia_accepted: boolean;
   yves_enabled: boolean;
+  suggested_program_id: string | null;
+  program_status: "none" | "pending" | "accepted" | "declined";
+  program_decided_at: string | null;
+  first_login_at: string | null;
   created_at: string;
 }
 
