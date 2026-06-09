@@ -229,6 +229,21 @@ function CheckInScreen() {
     } as CheckIn);
     setSubmitting(false);
     setSuccess(true);
+    // Fetch program suggestion (non-blocking, graceful on error)
+    suggestProgram({
+      data: {
+        pain,
+        sleep,
+        stress,
+        energy,
+        mood,
+        notes,
+      },
+    })
+      .then((s) => {
+        if (s) setSuggestion(s);
+      })
+      .catch((e) => log.error("[Check-in] suggestProgram failed:", e));
   };
 
   if (loading) {
