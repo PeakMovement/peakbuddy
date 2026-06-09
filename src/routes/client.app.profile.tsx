@@ -102,6 +102,16 @@ function ClientProfile() {
         <ProfileField label="Phone" value={client?.phone || "Not set"} />
       </div>
 
+      {programState?.program && programState.status !== "none" && (
+        <MyProgramCard
+          state={programState}
+          busy={busy}
+          onAccept={handleAccept}
+          onDecline={handleDecline}
+        />
+      )}
+
+
       <button
         type="button"
         onClick={signOut}
