@@ -1,12 +1,16 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { ClipboardList, List, Activity, MessageCircle, User } from "lucide-react";
 import { getClientId } from "@/lib/client-session";
 import { useOnline } from "@/hooks/use-online";
+import { getClientBootstrap, type ProgramLite } from "@/lib/client-program.functions";
+import { WelcomeProgramModal } from "@/components/WelcomeProgramModal";
 
 export const Route = createFileRoute("/client/app")({
   component: ClientAppLayout,
 });
+
 
 const tabs = [
   { to: "/client/app/checkin", label: "Check-in", Icon: ClipboardList },
