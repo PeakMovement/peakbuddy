@@ -13,6 +13,12 @@ import {
 import { supabase } from "@/lib/supabase";
 import type { CheckIn, Client } from "@/lib/types";
 import { CircularRing, ringColor } from "@/components/CircularRing";
+import { useServerFn } from "@tanstack/react-start";
+import {
+  getClientProgramForPractitioner,
+  type ProgramLite,
+} from "@/lib/client-program.functions";
+
 
 export const Route = createFileRoute("/practitioner/app/client-detail/$clientId")({
   head: () => ({ meta: [{ title: "Client — Buddy" }] }),
@@ -32,8 +38,15 @@ function ClientDetail() {
   const [editOpen, setEditOpen] = useState(false);
   const [practiceYves, setPracticeYves] = useState<boolean>(true);
   const [savingYves, setSavingYves] = useState(false);
+  const [programInfo, setProgramInfo] = useState<{
+    program: ProgramLite | null;
+    status: "none" | "pending" | "accepted" | "declined";
+    decided_at: string | null;
+  } | null>(null);
+  const getProgram = useServerFn(getClientProgramForPractitioner);
 
   const load = async () => {
+
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
     const [{ data: c }, { data: ci }, { data: pr }] = await Promise.all([
@@ -74,7 +87,11 @@ function ClientDetail() {
 
   useEffect(() => {
     load();
-  }, [clientId]);
+    getProgram({ data: { clientId } })
+      .then((res) => setProgramInfo(res))
+      .catch(() => {});
+  }, [clientId, getProgram]);
+
 
   const stats = useMemo(
     () => ({
@@ -192,6 +209,12 @@ function ClientDetail() {
       >
         {client.primary_complaint || "—"}
       </div>
+
+      {programInfo?.program && programInfo.status !== "none" && (
+        <ProgramStatusRow info={programInfo} />
+      )}
+
+
 
       <section
         style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}
@@ -698,5 +721,98 @@ function EditClientSheet({
         </div>
       </div>
     </div>
+  );
+}
+
+function ProgramStatusRow({
+  info,
+}: {
+  info: {
+    program: ProgramLite | null;
+    status: "none" | "pending" | "accepted" | "declined";
+    decided_at: string | null;
+  };
+}) {
+  if (!info.program) return null;
+  const status = info.status;
+  const color =
+    status === "accepted"
+      ? "var(--green)"
+      : status === "declined"
+        ? "var(--red, #e57373)"
+        : "var(--blue-accent)";
+  const label =
+    status === "accepted" ? "Accepted" : status === "declined" ? "Declined" : "Pending";
+  return (
+    <section
+      style={{
+        marginTop: 14,
+        background: "var(--navy-card)",
+        border: "1px solid var(--navy-border)",
+        borderRadius: 10,
+        padding: "12px 14px",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        justifyContent: "space-between",
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            color: "var(--white-muted)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            marginBottom: 4,
+          }}
+        >
+          Suggested Program
+        </div>
+        <div
+          style={{
+            color: "var(--white)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 15,
+            fontWeight: 600,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {info.program.name}
+        </div>
+        {info.decided_at && (
+          <div
+            style={{
+              marginTop: 2,
+              fontSize: 11,
+              color: "var(--white-muted)",
+              fontFamily: "var(--font-ui)",
+            }}
+          >
+            {label} on {new Date(info.decided_at).toLocaleDateString()}
+          </div>
+        )}
+      </div>
+      <span
+        style={{
+          fontFamily: "var(--font-ui)",
+          fontSize: 11,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          padding: "4px 10px",
+          borderRadius: 999,
+          border: `1px solid ${color}`,
+          color,
+          flexShrink: 0,
+        }}
+      >
+        {label}
+      </span>
+    </section>
   );
 }

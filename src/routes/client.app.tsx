@@ -1,12 +1,16 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { ClipboardList, List, Activity, MessageCircle, User } from "lucide-react";
 import { getClientId } from "@/lib/client-session";
 import { useOnline } from "@/hooks/use-online";
+import { getClientBootstrap, type ProgramLite } from "@/lib/client-program.functions";
+import { WelcomeProgramModal } from "@/components/WelcomeProgramModal";
 
 export const Route = createFileRoute("/client/app")({
   component: ClientAppLayout,
 });
+
 
 const tabs = [
   { to: "/client/app/checkin", label: "Check-in", Icon: ClipboardList },
@@ -38,9 +42,28 @@ function OfflineBanner() {
 
 function ClientAppLayout() {
   const navigate = useNavigate();
+  const bootstrap = useServerFn(getClientBootstrap);
+  const [welcomeProgram, setWelcomeProgram] = useState<ProgramLite | null>(null);
+
   useEffect(() => {
-    if (!getClientId()) navigate({ to: "/client/login" });
-  }, [navigate]);
+    if (!getClientId()) {
+      navigate({ to: "/client/login" });
+      return;
+    }
+    let cancelled = false;
+    bootstrap()
+      .then((res) => {
+        if (cancelled) return;
+        if (res.first_login && res.program && res.status === "pending") {
+          setWelcomeProgram(res.program);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate, bootstrap]);
+
 
   return (
     <div
@@ -109,6 +132,14 @@ function ClientAppLayout() {
           </Link>
         ))}
       </nav>
+
+      {welcomeProgram && (
+        <WelcomeProgramModal
+          program={welcomeProgram}
+          onClose={() => setWelcomeProgram(null)}
+        />
+      )}
     </div>
+
   );
 }

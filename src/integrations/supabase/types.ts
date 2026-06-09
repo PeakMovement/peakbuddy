@@ -116,6 +116,7 @@ export type Database = {
           check_in_frequency: string
           created_at: string
           email: string | null
+          first_login_at: string | null
           full_name: string
           id: string
           login_code: string
@@ -124,12 +125,16 @@ export type Database = {
           popia_accepted: boolean
           practitioner_id: string
           primary_complaint: string | null
+          program_decided_at: string | null
+          program_status: string
+          suggested_program_id: string | null
           yves_enabled: boolean
         }
         Insert: {
           check_in_frequency?: string
           created_at?: string
           email?: string | null
+          first_login_at?: string | null
           full_name: string
           id?: string
           login_code: string
@@ -138,12 +143,16 @@ export type Database = {
           popia_accepted?: boolean
           practitioner_id: string
           primary_complaint?: string | null
+          program_decided_at?: string | null
+          program_status?: string
+          suggested_program_id?: string | null
           yves_enabled?: boolean
         }
         Update: {
           check_in_frequency?: string
           created_at?: string
           email?: string | null
+          first_login_at?: string | null
           full_name?: string
           id?: string
           login_code?: string
@@ -152,9 +161,20 @@ export type Database = {
           popia_accepted?: boolean
           practitioner_id?: string
           primary_complaint?: string | null
+          program_decided_at?: string | null
+          program_status?: string
+          suggested_program_id?: string | null
           yves_enabled?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "clients_suggested_program_id_fkey"
+            columns: ["suggested_program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       platform_settings: {
         Row: {

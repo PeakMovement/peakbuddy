@@ -9,7 +9,9 @@ const inputSchema = z.object({
   primaryComplaint: z.string().trim().min(1).max(500),
   notes: z.string().trim().max(2000).optional().default(""),
   checkInFrequency: z.enum(["daily", "every_2_days", "every_3_days", "weekly"]),
+  suggestedProgramId: z.string().uuid().nullable().optional(),
 });
+
 
 export const createClientAccount = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => inputSchema.parse(input))
@@ -57,9 +59,12 @@ export const createClientAccount = createServerFn({ method: "POST" })
         check_in_frequency: data.checkInFrequency,
         popia_accepted: false,
         login_code: String(Math.floor(1000 + Math.random() * 9000)),
+        suggested_program_id: data.suggestedProgramId ?? null,
+        program_status: data.suggestedProgramId ? "pending" : "none",
       })
       .select("id")
       .single();
+
 
     if (insErr) {
       return { ok: false as const, error: insErr.message };

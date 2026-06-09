@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RefreshCw, Copy, Check } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { createClientAccount } from "@/lib/clients.functions";
+import { listActivePrograms } from "@/lib/client-program.functions";
+
 
 export const Route = createFileRoute("/practitioner/app/add-client")({
   head: () => ({ meta: [{ title: "Add Client — Buddy" }] }),
@@ -36,6 +38,15 @@ function AddClient() {
   const [success, setSuccess] = useState<{ email: string; password: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [programs, setPrograms] = useState<{ id: string; name: string }[]>([]);
+  const [suggestedProgramId, setSuggestedProgramId] = useState<string>("");
+
+  useEffect(() => {
+    listActivePrograms()
+      .then((rows) => setPrograms(rows))
+      .catch(() => setPrograms([]));
+  }, []);
+
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +75,7 @@ function AddClient() {
         primaryComplaint: complaint.trim(),
         notes: notes.trim(),
         checkInFrequency: freq,
+        suggestedProgramId: suggestedProgramId || null,
       },
     });
     if (!result.ok) {
@@ -78,8 +90,10 @@ function AddClient() {
     setNotes("");
     setFreq("daily");
     setPassword(generatePassword());
+    setSuggestedProgramId("");
     setSubmitting(false);
   };
+
 
   const copyCreds = async () => {
     if (!success) return;
@@ -229,6 +243,25 @@ function AddClient() {
             ))}
           </div>
         </div>
+        <div>
+          <label style={labelStyle}>Suggested Program (optional)</label>
+          <select
+            value={suggestedProgramId}
+            onChange={(e) => setSuggestedProgramId(e.target.value)}
+            style={{ ...inputStyle, appearance: "auto" }}
+          >
+            <option value="">— None —</option>
+            {programs.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <div style={{ marginTop: 6, fontSize: 12, color: "var(--white-muted)" }}>
+            If selected, the client will be asked to join this program on their first sign-in.
+          </div>
+        </div>
+
         <div>
           <label style={labelStyle}>Initial Password *</label>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
