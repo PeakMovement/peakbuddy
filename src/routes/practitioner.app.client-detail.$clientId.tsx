@@ -13,6 +13,12 @@ import {
 import { supabase } from "@/lib/supabase";
 import type { CheckIn, Client } from "@/lib/types";
 import { CircularRing, ringColor } from "@/components/CircularRing";
+import { useServerFn } from "@tanstack/react-start";
+import {
+  getClientProgramForPractitioner,
+  type ProgramLite,
+} from "@/lib/client-program.functions";
+
 
 export const Route = createFileRoute("/practitioner/app/client-detail/$clientId")({
   head: () => ({ meta: [{ title: "Client — Buddy" }] }),
