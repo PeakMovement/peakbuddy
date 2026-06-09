@@ -28,11 +28,20 @@ const KEYWORDS: Record<string, string[]> = {
   neck: ["neck", "cervical"],
   knee: ["knee"],
   shoulder: ["shoulder"],
+  hip: ["hip", "hips", "glute"],
   headache: ["headache", "migraine"],
   sleep: ["sleep", "insomnia", "tired", "exhausted"],
   stress: ["stress", "anxious", "anxiety", "overwhelm"],
   mood: ["sad", "depressed", "low mood"],
   energy: ["fatigue", "no energy", "drained"],
+  posture: ["posture", "slouch", "hunched"],
+  "desk-worker": ["desk", "sitting", "office", "computer"],
+  mobility: ["stiff", "stiffness", "mobility", "tight"],
+  flexibility: ["flexibility", "inflexible"],
+  "chronic-pain": ["chronic", "ongoing pain", "persistent pain"],
+  "post-injury": ["injury", "injured", "recovering", "surgery"],
+  "core-strength": ["core", "weak core", "abs"],
+  cardio: ["cardio", "out of shape", "endurance"],
 };
 
 function deriveTags(input: z.infer<typeof InputSchema>): string[] {
