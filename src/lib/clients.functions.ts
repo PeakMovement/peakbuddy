@@ -9,7 +9,9 @@ const inputSchema = z.object({
   primaryComplaint: z.string().trim().min(1).max(500),
   notes: z.string().trim().max(2000).optional().default(""),
   checkInFrequency: z.enum(["daily", "every_2_days", "every_3_days", "weekly"]),
+  suggestedProgramId: z.string().uuid().nullable().optional(),
 });
+
 
 export const createClientAccount = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => inputSchema.parse(input))
