@@ -35,6 +35,7 @@ import { Route as ClientAppProfileRouteImport } from './routes/client.app.profil
 import { Route as ClientAppCheckinRouteImport } from './routes/client.app.checkin'
 import { Route as ApiPublicTriageQueryRouteImport } from './routes/api/public/triage-query'
 import { Route as AdminAppSettingsRouteImport } from './routes/admin.app.settings'
+import { Route as AdminAppProgramsRouteImport } from './routes/admin.app.programs'
 import { Route as AdminAppPractitionersRouteImport } from './routes/admin.app.practitioners'
 import { Route as AdminAppDashboardRouteImport } from './routes/admin.app.dashboard'
 import { Route as AdminAppClientsRouteImport } from './routes/admin.app.clients'
@@ -175,6 +176,11 @@ const AdminAppSettingsRoute = AdminAppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AdminAppRoute,
 } as any)
+const AdminAppProgramsRoute = AdminAppProgramsRouteImport.update({
+  id: '/programs',
+  path: '/programs',
+  getParentRoute: () => AdminAppRoute,
+} as any)
 const AdminAppPractitionersRoute = AdminAppPractitionersRouteImport.update({
   id: '/practitioners',
   path: '/practitioners',
@@ -232,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
+  '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
@@ -266,6 +273,7 @@ export interface FileRoutesByTo {
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
+  '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
@@ -302,6 +310,7 @@ export interface FileRoutesById {
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
+  '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
@@ -339,6 +348,7 @@ export interface FileRouteTypes {
     | '/admin/app/clients'
     | '/admin/app/dashboard'
     | '/admin/app/practitioners'
+    | '/admin/app/programs'
     | '/admin/app/settings'
     | '/api/public/triage-query'
     | '/client/app/checkin'
@@ -373,6 +383,7 @@ export interface FileRouteTypes {
     | '/admin/app/clients'
     | '/admin/app/dashboard'
     | '/admin/app/practitioners'
+    | '/admin/app/programs'
     | '/admin/app/settings'
     | '/api/public/triage-query'
     | '/client/app/checkin'
@@ -408,6 +419,7 @@ export interface FileRouteTypes {
     | '/admin/app/clients'
     | '/admin/app/dashboard'
     | '/admin/app/practitioners'
+    | '/admin/app/programs'
     | '/admin/app/settings'
     | '/api/public/triage-query'
     | '/client/app/checkin'
@@ -627,6 +639,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppSettingsRouteImport
       parentRoute: typeof AdminAppRoute
     }
+    '/admin/app/programs': {
+      id: '/admin/app/programs'
+      path: '/programs'
+      fullPath: '/admin/app/programs'
+      preLoaderRoute: typeof AdminAppProgramsRouteImport
+      parentRoute: typeof AdminAppRoute
+    }
     '/admin/app/practitioners': {
       id: '/admin/app/practitioners'
       path: '/practitioners'
@@ -684,6 +703,7 @@ interface AdminAppRouteChildren {
   AdminAppClientsRoute: typeof AdminAppClientsRoute
   AdminAppDashboardRoute: typeof AdminAppDashboardRoute
   AdminAppPractitionersRoute: typeof AdminAppPractitionersRoute
+  AdminAppProgramsRoute: typeof AdminAppProgramsRoute
   AdminAppSettingsRoute: typeof AdminAppSettingsRoute
   AdminAppClientDetailClientIdRoute: typeof AdminAppClientDetailClientIdRoute
   AdminAppPractitionerPractitionerIdRoute: typeof AdminAppPractitionerPractitionerIdRoute
@@ -694,6 +714,7 @@ const AdminAppRouteChildren: AdminAppRouteChildren = {
   AdminAppClientsRoute: AdminAppClientsRoute,
   AdminAppDashboardRoute: AdminAppDashboardRoute,
   AdminAppPractitionersRoute: AdminAppPractitionersRoute,
+  AdminAppProgramsRoute: AdminAppProgramsRoute,
   AdminAppSettingsRoute: AdminAppSettingsRoute,
   AdminAppClientDetailClientIdRoute: AdminAppClientDetailClientIdRoute,
   AdminAppPractitionerPractitionerIdRoute:

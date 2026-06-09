@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Activity, Users, User, Bell, Settings as SettingsIcon } from "lucide-react";
+import { Activity, Users, User, Bell, Settings as SettingsIcon, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/admin/app")({
@@ -12,6 +12,7 @@ const tabs: Tab[] = [
   { to: "/admin/app/dashboard", label: "Dashboard", Icon: Activity },
   { to: "/admin/app/practitioners", label: "Practitioners", Icon: Users },
   { to: "/admin/app/clients", label: "Clients", Icon: User },
+  { to: "/admin/app/programs", label: "Programs", Icon: Sparkles },
   { to: "/admin/app/alerts", label: "Alerts", Icon: Bell },
   { to: "/admin/app/settings", label: "Settings", Icon: SettingsIcon },
 ];
