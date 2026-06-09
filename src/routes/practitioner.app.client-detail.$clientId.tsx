@@ -210,6 +210,12 @@ function ClientDetail() {
         {client.primary_complaint || "—"}
       </div>
 
+      {programInfo?.program && programInfo.status !== "none" && (
+        <ProgramStatusRow info={programInfo} />
+      )}
+
+
+
       <section
         style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}
       >
