@@ -45,7 +45,7 @@ function ClientProfile() {
   const handleAccept = async () => {
     if (busy) return;
     setBusy(true);
-    const res = await respond({ data: { accept: true } });
+    const res = await respond({ data: { decision: "accepted" } });
     setBusy(false);
     if (res.ok && programState?.program?.external_url) {
       window.open(programState.program.external_url, "_blank", "noopener,noreferrer");
@@ -59,7 +59,7 @@ function ClientProfile() {
   const handleDecline = async () => {
     if (busy) return;
     setBusy(true);
-    const res = await respond({ data: { accept: false } });
+    const res = await respond({ data: { decision: "declined" } });
     setBusy(false);
     if (res.ok) {
       const fresh = await loadProgram();
