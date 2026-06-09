@@ -26,6 +26,19 @@ export function ProgramSuggestionCard({ program, reason, onDismiss }: Props) {
         textAlign: "left",
       }}
     >
+      {program.image_url && (
+        <img
+          src={program.image_url}
+          alt=""
+          style={{
+            width: "100%",
+            height: 140,
+            objectFit: "cover",
+            borderRadius: 10,
+            marginBottom: 14,
+          }}
+        />
+      )}
       <div
         style={{
           display: "flex",
