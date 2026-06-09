@@ -58,12 +58,17 @@ type ClientRow = {
 async function loadClientByAuth(email: string | null): Promise<ClientRow | null> {
   if (!email) return null;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // Defensive: if multiple rows somehow exist for an email, prefer the most recent one
+  // with an assigned program, then fall back to the most recent row overall.
   const { data } = await supabaseAdmin
     .from("clients")
-    .select(CLIENT_COLS)
+    .select(CLIENT_COLS + ", created_at")
     .ilike("email", email)
-    .maybeSingle();
-  return (data as ClientRow | null) ?? null;
+    .order("suggested_program_id", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+  return (row as ClientRow | null) ?? null;
 }
 
 async function loadProgram(id: string | null): Promise<ProgramLite | null> {
