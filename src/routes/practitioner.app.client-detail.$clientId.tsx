@@ -87,7 +87,11 @@ function ClientDetail() {
 
   useEffect(() => {
     load();
-  }, [clientId]);
+    getProgram({ data: { clientId } })
+      .then((res) => setProgramInfo(res))
+      .catch(() => {});
+  }, [clientId, getProgram]);
+
 
   const stats = useMemo(
     () => ({
