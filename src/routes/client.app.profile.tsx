@@ -210,9 +210,9 @@ function MyProgramCard({
         opacity: status === "declined" ? 0.7 : 1,
       }}
     >
-      {program.image_url && (
+      {(program.cover_image_url || program.image_url) && (
         <img
-          src={program.image_url}
+          src={program.cover_image_url || program.image_url || ""}
           alt=""
           style={{ width: "100%", height: 140, objectFit: "cover" }}
         />
