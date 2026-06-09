@@ -38,6 +38,15 @@ function AddClient() {
   const [success, setSuccess] = useState<{ email: string; password: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [programs, setPrograms] = useState<{ id: string; name: string }[]>([]);
+  const [suggestedProgramId, setSuggestedProgramId] = useState<string>("");
+
+  useEffect(() => {
+    listActivePrograms()
+      .then((rows) => setPrograms(rows))
+      .catch(() => setPrograms([]));
+  }, []);
+
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
