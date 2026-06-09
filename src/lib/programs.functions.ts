@@ -157,6 +157,7 @@ export const suggestProgram = createServerFn({ method: "POST" })
         name: ai.program.name,
         description: ai.program.description,
         external_url: ai.program.external_url,
+        image_url: ai.program.image_url,
       },
       reason: ai.reason,
       source: "ai" as const,
