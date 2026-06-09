@@ -21,6 +21,10 @@ function ClientProfile() {
   const navigate = useNavigate();
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
+  const [programState, setProgramState] = useState<ClientProgramState | null>(null);
+  const loadProgram = useServerFn(getMyProgram);
+  const respond = useServerFn(respondToSuggestedProgram);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const id = getClientId();
@@ -33,13 +37,42 @@ function ClientProfile() {
       setClient(data as Client | null);
       setLoading(false);
     })();
-  }, [navigate]);
+    loadProgram()
+      .then((res) => setProgramState(res))
+      .catch(() => {});
+  }, [navigate, loadProgram]);
+
+  const handleAccept = async () => {
+    if (busy) return;
+    setBusy(true);
+    const res = await respond({ data: { accept: true } });
+    setBusy(false);
+    if (res.ok && programState?.program?.external_url) {
+      window.open(programState.program.external_url, "_blank", "noopener,noreferrer");
+    }
+    if (res.ok) {
+      const fresh = await loadProgram();
+      setProgramState(fresh);
+    }
+  };
+
+  const handleDecline = async () => {
+    if (busy) return;
+    setBusy(true);
+    const res = await respond({ data: { accept: false } });
+    setBusy(false);
+    if (res.ok) {
+      const fresh = await loadProgram();
+      setProgramState(fresh);
+    }
+  };
 
   const signOut = async () => {
     await supabase.auth.signOut();
     clearClientId();
     navigate({ to: "/client/login" });
   };
+
 
   if (loading) return <div style={{ padding: 24, color: "var(--white-muted)" }}>Loading…</div>;
 
