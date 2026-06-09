@@ -132,6 +132,14 @@ function ClientAppLayout() {
           </Link>
         ))}
       </nav>
+
+      {welcomeProgram && (
+        <WelcomeProgramModal
+          program={welcomeProgram}
+          onClose={() => setWelcomeProgram(null)}
+        />
+      )}
     </div>
+
   );
 }
