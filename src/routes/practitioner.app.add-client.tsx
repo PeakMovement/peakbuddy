@@ -40,6 +40,7 @@ function AddClient() {
   const [copied, setCopied] = useState(false);
   const [programs, setPrograms] = useState<{ id: string; name: string }[]>([]);
   const [suggestedProgramId, setSuggestedProgramId] = useState<string>("");
+  const [programNote, setProgramNote] = useState<string>("");
 
   useEffect(() => {
     listActivePrograms()
@@ -76,6 +77,7 @@ function AddClient() {
         notes: notes.trim(),
         checkInFrequency: freq,
         suggestedProgramId: suggestedProgramId || null,
+        programPersonalNote: suggestedProgramId ? programNote.trim() : "",
       },
     });
     if (!result.ok) {
@@ -91,6 +93,7 @@ function AddClient() {
     setFreq("daily");
     setPassword(generatePassword());
     setSuggestedProgramId("");
+    setProgramNote("");
     setSubmitting(false);
   };
 
@@ -258,9 +261,34 @@ function AddClient() {
             ))}
           </select>
           <div style={{ marginTop: 6, fontSize: 12, color: "var(--white-muted)" }}>
-            If selected, the client will be asked to join this program on their first sign-in.
+            If selected, the client will see a friendly intro on first sign-in.
           </div>
         </div>
+
+        {suggestedProgramId && (
+          <div>
+            <label style={labelStyle}>Personal note (optional)</label>
+            <textarea
+              value={programNote}
+              onChange={(e) => setProgramNote(e.target.value.slice(0, 280))}
+              placeholder="A short message your client will see with the suggestion."
+              style={{ ...inputStyle, minHeight: 84, resize: "vertical" }}
+              maxLength={280}
+            />
+            <div
+              style={{
+                marginTop: 6,
+                fontSize: 12,
+                color: "var(--white-muted)",
+                display: "flex",
+                justifyContent: "space-between",
+              }}
+            >
+              <span>Shown on the final step of their welcome intro.</span>
+              <span>{programNote.length}/280</span>
+            </div>
+          </div>
+        )}
 
         <div>
           <label style={labelStyle}>Initial Password *</label>

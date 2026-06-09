@@ -45,7 +45,7 @@ function ClientProfile() {
   const handleAccept = async () => {
     if (busy) return;
     setBusy(true);
-    const res = await respond({ data: { accept: true } });
+    const res = await respond({ data: { decision: "accepted" } });
     setBusy(false);
     if (res.ok && programState?.program?.external_url) {
       window.open(programState.program.external_url, "_blank", "noopener,noreferrer");
@@ -59,7 +59,7 @@ function ClientProfile() {
   const handleDecline = async () => {
     if (busy) return;
     setBusy(true);
-    const res = await respond({ data: { accept: false } });
+    const res = await respond({ data: { decision: "declined" } });
     setBusy(false);
     if (res.ok) {
       const fresh = await loadProgram();
@@ -210,9 +210,9 @@ function MyProgramCard({
         opacity: status === "declined" ? 0.7 : 1,
       }}
     >
-      {program.image_url && (
+      {(program.cover_image_url || program.image_url) && (
         <img
-          src={program.image_url}
+          src={program.cover_image_url || program.image_url || ""}
           alt=""
           style={{ width: "100%", height: 140, objectFit: "cover" }}
         />

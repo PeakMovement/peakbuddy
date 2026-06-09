@@ -1,11 +1,14 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { ClipboardList, List, Activity, MessageCircle, User } from "lucide-react";
 import { getClientId } from "@/lib/client-session";
 import { useOnline } from "@/hooks/use-online";
-import { getClientBootstrap, type ProgramLite } from "@/lib/client-program.functions";
-import { WelcomeProgramModal } from "@/components/WelcomeProgramModal";
+import {
+  getClientBootstrap,
+  type ClientProgramState,
+} from "@/lib/client-program.functions";
+import { ProgramIntroModal } from "@/components/ProgramIntroModal";
 
 export const Route = createFileRoute("/client/app")({
   component: ClientAppLayout,
@@ -40,10 +43,18 @@ function OfflineBanner() {
   );
 }
 
+function shouldShowIntro(state: ClientProgramState | null) {
+  if (!state || !state.program || state.status !== "pending") return false;
+  if (!state.snoozed_until) return true;
+  return new Date(state.snoozed_until).getTime() <= Date.now();
+}
+
 function ClientAppLayout() {
   const navigate = useNavigate();
   const bootstrap = useServerFn(getClientBootstrap);
-  const [welcomeProgram, setWelcomeProgram] = useState<ProgramLite | null>(null);
+  const [programState, setProgramState] = useState<ClientProgramState | null>(null);
+  const [introOpen, setIntroOpen] = useState(false);
+  const [clientName, setClientName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!getClientId()) {
@@ -54,9 +65,8 @@ function ClientAppLayout() {
     bootstrap()
       .then((res) => {
         if (cancelled) return;
-        if (res.first_login && res.program && res.status === "pending") {
-          setWelcomeProgram(res.program);
-        }
+        setProgramState(res);
+        if (shouldShowIntro(res)) setIntroOpen(true);
       })
       .catch(() => {});
     return () => {
@@ -64,6 +74,45 @@ function ClientAppLayout() {
     };
   }, [navigate, bootstrap]);
 
+  useEffect(() => {
+    const id = getClientId();
+    if (!id) return;
+    let cancelled = false;
+    import("@/lib/supabase").then(({ supabase }) =>
+      supabase
+        .from("clients")
+        .select("full_name")
+        .eq("id", id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (cancelled) return;
+          const full = (data as { full_name?: string } | null)?.full_name ?? "";
+          setClientName(full.trim().split(/\s+/)[0] || null);
+        }),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setIntroOpen(false);
+    // Refresh state so the snooze/decision is reflected.
+    bootstrap()
+      .then((res) => setProgramState(res))
+      .catch(() => {});
+  }, [bootstrap]);
+
+  const reopenIntro = () => {
+    if (programState?.program && programState.status === "pending") setIntroOpen(true);
+  };
+
+  const pendingBannerVisible =
+    !introOpen &&
+    programState?.program &&
+    programState.status === "pending" &&
+    programState.snoozed_until &&
+    new Date(programState.snoozed_until).getTime() > Date.now();
 
   return (
     <div
@@ -76,6 +125,35 @@ function ClientAppLayout() {
       }}
     >
       <OfflineBanner />
+
+      {pendingBannerVisible && programState?.program && (
+        <button
+          type="button"
+          onClick={reopenIntro}
+          style={{
+            margin: "10px 12px 0",
+            background: "color-mix(in oklab, var(--blue-accent) 14%, transparent)",
+            border: "1px solid color-mix(in oklab, var(--blue-accent) 45%, transparent)",
+            borderRadius: 10,
+            padding: "10px 12px",
+            color: "var(--white)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 13,
+            textAlign: "left",
+            cursor: "pointer",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <span>
+            <strong>{programState.program.name}</strong> is waiting — take another look when you're ready.
+          </span>
+          <span style={{ color: "var(--blue-accent)", fontWeight: 700, fontSize: 12 }}>View</span>
+        </button>
+      )}
+
       <main style={{ flex: 1, paddingBottom: 80, overflowX: "hidden" }}>
         <Outlet />
       </main>
@@ -133,13 +211,14 @@ function ClientAppLayout() {
         ))}
       </nav>
 
-      {welcomeProgram && (
-        <WelcomeProgramModal
-          program={welcomeProgram}
-          onClose={() => setWelcomeProgram(null)}
+      {introOpen && programState?.program && (
+        <ProgramIntroModal
+          program={programState.program}
+          personalNote={programState.personal_note}
+          clientFirstName={clientName}
+          onClose={handleClose}
         />
       )}
     </div>
-
   );
 }

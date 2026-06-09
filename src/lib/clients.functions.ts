@@ -10,6 +10,7 @@ const inputSchema = z.object({
   notes: z.string().trim().max(2000).optional().default(""),
   checkInFrequency: z.enum(["daily", "every_2_days", "every_3_days", "weekly"]),
   suggestedProgramId: z.string().uuid().nullable().optional(),
+  programPersonalNote: z.string().trim().max(280).optional().default(""),
 });
 
 
@@ -61,6 +62,10 @@ export const createClientAccount = createServerFn({ method: "POST" })
         login_code: String(Math.floor(1000 + Math.random() * 9000)),
         suggested_program_id: data.suggestedProgramId ?? null,
         program_status: data.suggestedProgramId ? "pending" : "none",
+        program_personal_note:
+          data.suggestedProgramId && data.programPersonalNote
+            ? data.programPersonalNote
+            : null,
       })
       .select("id")
       .single();
