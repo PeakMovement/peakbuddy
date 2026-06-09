@@ -59,15 +59,22 @@ function deriveTags(input: z.infer<typeof InputSchema>): string[] {
   return [...tags];
 }
 
-function ruleMatch(programs: ProgramRow[], tags: string[], pain: number) {
-  let best: { program: ProgramRow; score: number } | null = null;
+function scoreProgram(p: ProgramRow, tags: string[], pain: number): number {
+  if (p.pain_min != null && pain < p.pain_min) return 0;
+  if (p.pain_max != null && pain > p.pain_max) return 0;
+  const overlap = p.symptom_tags.filter((t) => tags.includes(t)).length;
+  if (overlap === 0) return 0;
+  return overlap * 100 + p.priority;
+}
+
+function ruleMatch(programs: ProgramRow[], tags: string[], pain: number, minOverlap: number) {
+  let best: { program: ProgramRow; score: number; overlap: number } | null = null;
   for (const p of programs) {
-    if (p.pain_min != null && pain < p.pain_min) continue;
-    if (p.pain_max != null && pain > p.pain_max) continue;
+    const score = scoreProgram(p, tags, pain);
+    if (score === 0) continue;
     const overlap = p.symptom_tags.filter((t) => tags.includes(t)).length;
-    if (overlap === 0) continue;
-    const score = overlap * 100 + p.priority;
-    if (!best || score > best.score) best = { program: p, score };
+    if (overlap < minOverlap) continue;
+    if (!best || score > best.score) best = { program: p, score, overlap };
   }
   return best?.program ?? null;
 }
