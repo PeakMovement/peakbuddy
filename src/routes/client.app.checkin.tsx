@@ -301,6 +301,13 @@ function CheckInScreen() {
             </span>
           </p>
         )}
+        {suggestion && !suggestionDismissed && (
+          <ProgramSuggestionCard
+            program={suggestion.program}
+            reason={suggestion.reason}
+            onDismiss={() => setSuggestionDismissed(true)}
+          />
+        )}
       </div>
     );
   }
