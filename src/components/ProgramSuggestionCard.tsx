@@ -1,7 +1,13 @@
 import { ExternalLink, Sparkles } from "lucide-react";
 
 type Props = {
-  program: { id: string; name: string; description: string; external_url: string };
+  program: {
+    id: string;
+    name: string;
+    description: string;
+    external_url: string;
+    image_url?: string | null;
+  };
   reason: string;
   onDismiss?: () => void;
 };
