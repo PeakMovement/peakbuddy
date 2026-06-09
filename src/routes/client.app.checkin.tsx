@@ -52,6 +52,8 @@ function CheckInScreen() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [savedOffline, setSavedOffline] = useState(false);
+  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
 
   const todayLabel = useMemo(
     () =>
