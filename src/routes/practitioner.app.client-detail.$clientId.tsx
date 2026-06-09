@@ -723,3 +723,96 @@ function EditClientSheet({
     </div>
   );
 }
+
+function ProgramStatusRow({
+  info,
+}: {
+  info: {
+    program: ProgramLite | null;
+    status: "none" | "pending" | "accepted" | "declined";
+    decided_at: string | null;
+  };
+}) {
+  if (!info.program) return null;
+  const status = info.status;
+  const color =
+    status === "accepted"
+      ? "var(--green)"
+      : status === "declined"
+        ? "var(--red, #e57373)"
+        : "var(--blue-accent)";
+  const label =
+    status === "accepted" ? "Accepted" : status === "declined" ? "Declined" : "Pending";
+  return (
+    <section
+      style={{
+        marginTop: 14,
+        background: "var(--navy-card)",
+        border: "1px solid var(--navy-border)",
+        borderRadius: 10,
+        padding: "12px 14px",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        justifyContent: "space-between",
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            color: "var(--white-muted)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            marginBottom: 4,
+          }}
+        >
+          Suggested Program
+        </div>
+        <div
+          style={{
+            color: "var(--white)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 15,
+            fontWeight: 600,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {info.program.name}
+        </div>
+        {info.decided_at && (
+          <div
+            style={{
+              marginTop: 2,
+              fontSize: 11,
+              color: "var(--white-muted)",
+              fontFamily: "var(--font-ui)",
+            }}
+          >
+            {label} on {new Date(info.decided_at).toLocaleDateString()}
+          </div>
+        )}
+      </div>
+      <span
+        style={{
+          fontFamily: "var(--font-ui)",
+          fontSize: 11,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          padding: "4px 10px",
+          borderRadius: 999,
+          border: `1px solid ${color}`,
+          color,
+          flexShrink: 0,
+        }}
+      >
+        {label}
+      </span>
+    </section>
+  );
+}
