@@ -1,76 +1,51 @@
-# Softer Program Onboarding
+## What you're seeing — and why
 
-Replace the current single-screen accept/decline modal with a friendlier, more visual flow that gives clients context and a graceful way to defer.
+I checked the data and the code paths and found two concrete bugs.
 
-## What changes for the client
+### 1. The onboarding intro never shows for Bruce Wayne
+There are **two `clients` rows with the same email** `peakmvement@gmail.com` — one has the Knee program assigned (`pending`), the other has no program. The lookup that powers the intro modal uses `.maybeSingle()`, which silently returns `null` whenever more than one row matches. So when Bruce logs in, the bootstrap call returns "no client found" → no modal, no banner, nothing different from a normal check-in.
 
-A 3-step **"Meet your program"** intro appears on first login (still modal, but feels like a guided tour, not a pop quiz):
+Nothing is wrong with your onboarding flow itself — the duplicate row is masking it.
 
-```text
-Step 1 — Welcome           Step 2 — About the program     Step 3 — Your choice
-┌─────────────────────┐    ┌─────────────────────────┐    ┌──────────────────────┐
-│  Hi {firstName} 👋  │    │  Program cover image    │    │  Ready to start?     │
-│                     │    │  Program name           │    │                      │
-│  Welcome to Buddy.  │    │  Duration · Focus area  │    │  [ Yes, start now ]  │
-│  Your practitioner  │    │                         │    │  [ Remind me later ] │
-│  has something for  │    │  Visual highlights:     │    │  [ Not for me ]      │
-│  you.               │    │   • Outcome 1 (icon)    │    │                      │
-│                     │    │   • Outcome 2 (icon)    │    │  "Note from {Prac}:  │
-│        [ Next → ]   │    │   • What you'll do      │    │   {personal note}"   │
-└─────────────────────┘    │        [ Next → ]       │    └──────────────────────┘
-                           └─────────────────────────┘
-```
+### 2. The check-in suggestion ignores the practitioner-assigned program
+`suggestProgram` runs a generic keyword match across **all 14 active programs** and ignores `clients.suggested_program_id` entirely. So when Bruce logs "knee pain", the matcher fires whatever scores highest globally (often Lower Back or a generic one), never the Knee Stability program his practitioner assigned. It also fires on almost every check-in because a single tag hit is enough.
 
-Key differences vs today:
-- **Visual program preview** — cover image, outcome highlights with icons, duration/focus tags, short description. Client sees *what* before being asked to commit.
-- **Three choices** instead of two: Accept · **Remind me later** · Decline.
-- **Personal note** from the practitioner shown on the final step (when provided).
-- **Dismissable** — closing the modal counts as "remind me later", not a decline.
-- **Re-surfaces** — if status is `pending`, show a soft banner on the client dashboard ("Your practitioner suggested a program — take a look") that re-opens the intro.
+---
 
-## What changes for the practitioner
+## Fix plan
 
-In the **Add Client** form, the existing program dropdown gets two new optional fields:
+### A. Clean up duplicate clients + prevent it happening again
+- **Data fix (migration)**: collapse the two `peakmvement@gmail.com` rows — keep the one with `suggested_program_id` set, delete the empty duplicate. Reassign any `check_ins` / `alerts` from the deleted row to the kept one first.
+- **Schema**: add a unique index on `lower(email)` in `clients` so this can't happen again.
+- **createClientAccount**: return a friendly "this email is already a client" error instead of inserting a second row.
+- **Defensive lookup**: change `loadClientByAuth` to `.order("created_at", { ascending: false }).limit(1)` so a future near-miss still resolves to the most recent record instead of silently returning null.
 
-- **Personal note** (textarea, 280 chars) — "Add a short message your client will see with the suggestion."
-- **Key outcomes** is read from the program itself (no new field per client) — see schema below.
+### B. Make the check-in suggestion respect the assigned program and stop over-suggesting
+Rework `suggestProgram` so it takes the client into account:
 
-On the **Client detail** page, the status badge gains a third state: **Pending** (alongside Accepted / Declined), with the date of last interaction.
+1. **Pass the client id** from the check-in screen into `suggestProgram`.
+2. **Prefer the assigned program** when it's relevant. If the client has a `suggested_program_id` AND the check-in matches its `symptom_tags`/`focus_area` OR pain is in its range → return that program with a reason like *"Your knee program from Dr. X fits today's check-in."*
+3. **Tighten the threshold for everything else**. Only surface a non-assigned program when:
+   - it overlaps **2+ tags** with the check-in, OR
+   - pain ≥ 7 AND the program's focus area matches the dominant tag.
+   Otherwise return `null` (no card). The AI fallback only runs in this stricter mode.
+4. **Never suggest a program the client already accepted or declined** — if `program_status = 'accepted'` and the assigned program matches, just affirm it ("Keep going with your knee program"). If `declined`, skip suggestions for that program entirely.
 
-## What changes for program setup
+### C. Surface the assigned program on the check-in screen too (small UX touch)
+At the top of the check-in form, if the client has an accepted program, show a one-line reminder ("Today: Knee Strength & Stability — Day X"). This makes the program feel present every day, not just on day one. *(Light addition — say no if you want me to skip it.)*
 
-Programs get richer fields so the intro has something visual to show:
-- `cover_image_url` — hero image for step 2
-- `duration_label` — e.g. "4 weeks", "Daily, 10 min"
-- `focus_area` — short tag, e.g. "Sleep", "Stress"
-- `outcomes` — array of 3 short strings ("Sleep more deeply", "Reduce evening anxiety", …)
-
-These render as the visual highlights in step 2. If a program is missing them, step 2 falls back to the description only.
+---
 
 ## Technical details
 
-**DB migration:**
-- `programs`: add `cover_image_url text`, `duration_label text`, `focus_area text`, `outcomes text[]`.
-- `clients`: add `program_personal_note text` (practitioner's note to this client).
-- `clients.program_status` enum/text: extend allowed values to include `pending` (in addition to existing `accepted` / `declined`). New default on assignment = `pending` (instead of jumping straight to a yes/no prompt).
-- Add `clients.program_reminder_snoozed_until timestamptz` so "Remind me later" can suppress the banner for e.g. 3 days.
+**Files touched**
+- `supabase/migrations/<new>.sql` — merge duplicate Bruce Wayne rows, add `UNIQUE (lower(email))` index on `clients`
+- `src/lib/client-program.functions.ts` — defensive lookup order; new `getMyAssignedProgramForSuggestion` helper
+- `src/lib/programs.functions.ts` — `suggestProgram` accepts optional `clientId`, branches on assigned program, raises match threshold
+- `src/lib/clients.functions.ts` — duplicate-email guard in `createClientAccount`
+- `src/routes/client.app.checkin.tsx` — pass `clientId` to `suggestProgram`; (optional C) top-of-screen program reminder
 
-**Server functions** (`src/lib/client-program.functions.ts`):
-- Extend `setClientProgramStatus` to accept `pending` and to set `program_reminder_snoozed_until` when status = `pending`.
-- New `getClientProgramSuggestion` returning program + personal note + status for the logged-in client.
-
-**Frontend:**
-- Replace `src/components/WelcomeProgramModal.tsx` with a stepped component (`ProgramIntroModal`) — three panels, progress dots, Back/Next, final-step CTAs.
-- Add `ProgramSuggestionBanner` on the client dashboard for `pending` status (respects snooze).
-- Practitioner Add Client form (`src/routes/practitioner.app.add-client.tsx`) — add the **Personal note** textarea below the program dropdown, only enabled when a program is selected.
-- Practitioner Client Detail (`src/routes/practitioner.app.client-detail.$clientId.tsx`) — add `Pending` to the status badge variants.
-
-**No business logic changes** to check-ins, alerts, or other flows.
-
-## Out of scope (call out, don't build)
-
-- Contextual nudges tied to check-in content (option 7).
-- Pre-login email warm-up (option 8).
-- Progressive delay until login #2 (option 6).
-
-Happy to fold any of these in — just say which.
+**Out of scope** (say if you want any of these)
+- Changing how clients log in (still email/password via Supabase auth)
+- Re-designing the practitioner program picker
+- AI rewriting the suggestion copy
