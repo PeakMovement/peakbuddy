@@ -244,6 +244,25 @@ function AddClient() {
           </div>
         </div>
         <div>
+          <label style={labelStyle}>Suggested Program (optional)</label>
+          <select
+            value={suggestedProgramId}
+            onChange={(e) => setSuggestedProgramId(e.target.value)}
+            style={{ ...inputStyle, appearance: "auto" }}
+          >
+            <option value="">— None —</option>
+            {programs.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <div style={{ marginTop: 6, fontSize: 12, color: "var(--white-muted)" }}>
+            If selected, the client will be asked to join this program on their first sign-in.
+          </div>
+        </div>
+
+        <div>
           <label style={labelStyle}>Initial Password *</label>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <input
