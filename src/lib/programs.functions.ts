@@ -142,6 +142,7 @@ export const suggestProgram = createServerFn({ method: "POST" })
           name: ruled.name,
           description: ruled.description,
           external_url: ruled.external_url,
+          image_url: ruled.image_url,
         },
         reason,
         source: "rules" as const,
