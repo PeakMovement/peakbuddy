@@ -176,3 +176,188 @@ function ProfileField({ label, value }: { label: string; value?: string | null }
     </div>
   );
 }
+
+function MyProgramCard({
+  state,
+  busy,
+  onAccept,
+  onDecline,
+}: {
+  state: ClientProgramState;
+  busy: boolean;
+  onAccept: () => void;
+  onDecline: () => void;
+}) {
+  const program = state.program!;
+  const status = state.status;
+  const statusColor =
+    status === "accepted"
+      ? "var(--green)"
+      : status === "declined"
+        ? "var(--white-muted)"
+        : "var(--blue-accent)";
+  const statusLabel =
+    status === "accepted" ? "Joined" : status === "declined" ? "Declined" : "Pending";
+
+  return (
+    <div
+      style={{
+        marginTop: 28,
+        background: "var(--navy-card)",
+        border: "1px solid var(--navy-border)",
+        borderRadius: 12,
+        overflow: "hidden",
+        opacity: status === "declined" ? 0.7 : 1,
+      }}
+    >
+      {program.image_url && (
+        <img
+          src={program.image_url}
+          alt=""
+          style={{ width: "100%", height: 140, objectFit: "cover" }}
+        />
+      )}
+      <div style={{ padding: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 6,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "var(--font-ui)",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: "var(--white-muted)",
+            }}
+          >
+            My Program
+          </div>
+          <span
+            style={{
+              fontFamily: "var(--font-ui)",
+              fontSize: 11,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              padding: "4px 8px",
+              borderRadius: 999,
+              border: `1px solid ${statusColor}`,
+              color: statusColor,
+            }}
+          >
+            {statusLabel}
+          </span>
+        </div>
+        <div
+          style={{
+            fontFamily: "var(--font-ui)",
+            fontSize: 18,
+            fontWeight: 600,
+            color: "var(--white)",
+          }}
+        >
+          {program.name}
+        </div>
+        <p
+          style={{
+            fontFamily: "var(--font-ui)",
+            fontSize: 14,
+            lineHeight: 1.5,
+            color: "var(--white-muted)",
+            marginTop: 6,
+          }}
+        >
+          {program.description}
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
+          {status === "accepted" && program.external_url && (
+            <a
+              href={program.external_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                minHeight: 44,
+                background: "var(--blue-accent)",
+                color: "var(--white)",
+                border: "none",
+                borderRadius: 8,
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: "pointer",
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+              }}
+            >
+              Open program <ExternalLink size={16} />
+            </a>
+          )}
+          {(status === "declined" || status === "pending") && (
+            <button
+              type="button"
+              onClick={onAccept}
+              disabled={busy}
+              style={{
+                minHeight: 44,
+                background: "var(--blue-accent)",
+                color: "var(--white)",
+                border: "none",
+                borderRadius: 8,
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: "pointer",
+                opacity: busy ? 0.7 : 1,
+              }}
+            >
+              {status === "declined" ? "Change my mind — join program" : "Yes, I'll join"}
+            </button>
+          )}
+          {status === "pending" && (
+            <button
+              type="button"
+              onClick={onDecline}
+              disabled={busy}
+              style={{
+                minHeight: 40,
+                background: "transparent",
+                color: "var(--white-muted)",
+                border: "1px solid var(--navy-border)",
+                borderRadius: 8,
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              Not for me
+            </button>
+          )}
+        </div>
+        {state.decided_at && (
+          <div
+            style={{
+              marginTop: 10,
+              fontSize: 11,
+              color: "var(--white-muted)",
+              fontFamily: "var(--font-ui)",
+            }}
+          >
+            Decision: {new Date(state.decided_at).toLocaleDateString()}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
