@@ -75,6 +75,7 @@ function AddClient() {
         primaryComplaint: complaint.trim(),
         notes: notes.trim(),
         checkInFrequency: freq,
+        suggestedProgramId: suggestedProgramId || null,
       },
     });
     if (!result.ok) {
@@ -89,8 +90,10 @@ function AddClient() {
     setNotes("");
     setFreq("daily");
     setPassword(generatePassword());
+    setSuggestedProgramId("");
     setSubmitting(false);
   };
+
 
   const copyCreds = async () => {
     if (!success) return;
