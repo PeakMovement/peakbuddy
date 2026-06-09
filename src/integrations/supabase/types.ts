@@ -386,6 +386,31 @@ export type Database = {
     }
     Functions: {
       current_client_id: { Args: never; Returns: string }
+      insert_alert: {
+        Args: {
+          p_alert_type: string
+          p_client_id: string
+          p_message: string
+          p_practitioner_id: string
+          p_urgency: string
+        }
+        Returns: string
+      }
+      insert_check_in: {
+        Args: {
+          p_client_id: string
+          p_energy_level: number
+          p_flagged: boolean
+          p_medication_taken: boolean
+          p_mood: string
+          p_notes: string
+          p_pain_level: number
+          p_practitioner_id: string
+          p_sleep_quality: number
+          p_stress_level: number
+        }
+        Returns: string
+      }
       is_super_admin: { Args: { _uid: string }; Returns: boolean }
     }
     Enums: {
