@@ -265,6 +265,7 @@ export type Database = {
           description: string
           external_url: string
           id: string
+          image_url: string | null
           name: string
           pain_max: number | null
           pain_min: number | null
@@ -278,6 +279,7 @@ export type Database = {
           description?: string
           external_url: string
           id?: string
+          image_url?: string | null
           name: string
           pain_max?: number | null
           pain_min?: number | null
@@ -291,6 +293,7 @@ export type Database = {
           description?: string
           external_url?: string
           id?: string
+          image_url?: string | null
           name?: string
           pain_max?: number | null
           pain_min?: number | null

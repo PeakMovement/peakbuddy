@@ -15,6 +15,7 @@ type ProgramRow = {
   name: string;
   description: string;
   external_url: string;
+  image_url: string | null;
   symptom_tags: string[];
   pain_min: number | null;
   pain_max: number | null;
@@ -122,7 +123,7 @@ export const suggestProgram = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
       .from("programs")
-      .select("id, name, description, external_url, symptom_tags, pain_min, pain_max, priority")
+      .select("id, name, description, external_url, image_url, symptom_tags, pain_min, pain_max, priority")
       .eq("active", true);
     if (error || !rows || rows.length === 0) return null;
 
@@ -141,6 +142,7 @@ export const suggestProgram = createServerFn({ method: "POST" })
           name: ruled.name,
           description: ruled.description,
           external_url: ruled.external_url,
+          image_url: ruled.image_url,
         },
         reason,
         source: "rules" as const,
@@ -155,6 +157,7 @@ export const suggestProgram = createServerFn({ method: "POST" })
         name: ai.program.name,
         description: ai.program.description,
         external_url: ai.program.external_url,
+        image_url: ai.program.image_url,
       },
       reason: ai.reason,
       source: "ai" as const,
