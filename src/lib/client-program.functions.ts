@@ -8,7 +8,13 @@ export type ProgramLite = {
   description: string;
   external_url: string;
   image_url: string | null;
+  cover_image_url: string | null;
+  duration_label: string | null;
+  focus_area: string | null;
+  outcomes: string[];
 };
+
+export type ProgramDecision = "accepted" | "declined" | "remind_later";
 
 export type ClientProgramState = {
   client_id: string;
@@ -16,7 +22,15 @@ export type ClientProgramState = {
   status: "none" | "pending" | "accepted" | "declined";
   decided_at: string | null;
   first_login: boolean;
+  personal_note: string | null;
+  snoozed_until: string | null;
 };
+
+const PROGRAM_COLS =
+  "id, name, description, external_url, image_url, cover_image_url, duration_label, focus_area, outcomes";
+
+const CLIENT_COLS =
+  "id, suggested_program_id, program_status, program_decided_at, first_login_at, program_personal_note, program_reminder_snoozed_until";
 
 // Public: list of active programs (id + name) for practitioner dropdown.
 export const listActivePrograms = createServerFn({ method: "GET" }).handler(async () => {
@@ -31,25 +45,25 @@ export const listActivePrograms = createServerFn({ method: "GET" }).handler(asyn
   return (data ?? []) as { id: string; name: string }[];
 });
 
-async function loadClientByAuth(email: string | null) {
+type ClientRow = {
+  id: string;
+  suggested_program_id: string | null;
+  program_status: "none" | "pending" | "accepted" | "declined";
+  program_decided_at: string | null;
+  first_login_at: string | null;
+  program_personal_note: string | null;
+  program_reminder_snoozed_until: string | null;
+};
+
+async function loadClientByAuth(email: string | null): Promise<ClientRow | null> {
   if (!email) return null;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("clients")
-    .select(
-      "id, suggested_program_id, program_status, program_decided_at, first_login_at",
-    )
+    .select(CLIENT_COLS)
     .ilike("email", email)
     .maybeSingle();
-  return data as
-    | {
-        id: string;
-        suggested_program_id: string | null;
-        program_status: "none" | "pending" | "accepted" | "declined";
-        program_decided_at: string | null;
-        first_login_at: string | null;
-      }
-    | null;
+  return (data as ClientRow | null) ?? null;
 }
 
 async function loadProgram(id: string | null): Promise<ProgramLite | null> {
@@ -57,28 +71,55 @@ async function loadProgram(id: string | null): Promise<ProgramLite | null> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("programs")
-    .select("id, name, description, external_url, image_url")
+    .select(PROGRAM_COLS)
     .eq("id", id)
     .maybeSingle();
-  return (data as ProgramLite | null) ?? null;
+  if (!data) return null;
+  const row = data as Record<string, unknown>;
+  return {
+    id: String(row.id),
+    name: String(row.name ?? ""),
+    description: String(row.description ?? ""),
+    external_url: String(row.external_url ?? ""),
+    image_url: (row.image_url as string | null) ?? null,
+    cover_image_url: (row.cover_image_url as string | null) ?? null,
+    duration_label: (row.duration_label as string | null) ?? null,
+    focus_area: (row.focus_area as string | null) ?? null,
+    outcomes: Array.isArray(row.outcomes) ? (row.outcomes as string[]) : [],
+  };
+}
+
+function buildState(client: ClientRow | null, program: ProgramLite | null, firstLogin: boolean): ClientProgramState {
+  if (!client) {
+    return {
+      client_id: "",
+      program: null,
+      status: "none",
+      decided_at: null,
+      first_login: false,
+      personal_note: null,
+      snoozed_until: null,
+    };
+  }
+  return {
+    client_id: client.id,
+    program,
+    status: client.program_status,
+    decided_at: client.program_decided_at,
+    first_login: firstLogin,
+    personal_note: client.program_personal_note,
+    snoozed_until: client.program_reminder_snoozed_until,
+  };
 }
 
 // Called by the client app on mount. Stamps first_login_at the first time and returns
-// the assigned-program state so the welcome modal can be shown.
+// the assigned-program state so the intro modal can be shown.
 export const getClientBootstrap = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const email = (context.claims?.email as string | undefined) ?? null;
     const client = await loadClientByAuth(email);
-    if (!client) {
-      return {
-        client_id: "",
-        program: null,
-        status: "none" as const,
-        decided_at: null,
-        first_login: false,
-      } satisfies ClientProgramState;
-    }
+    if (!client) return buildState(null, null, false);
 
     const wasFirstLogin = client.first_login_at === null;
     if (wasFirstLogin) {
@@ -90,13 +131,7 @@ export const getClientBootstrap = createServerFn({ method: "POST" })
     }
 
     const program = await loadProgram(client.suggested_program_id);
-    return {
-      client_id: client.id,
-      program,
-      status: client.program_status,
-      decided_at: client.program_decided_at,
-      first_login: wasFirstLogin,
-    } satisfies ClientProgramState;
+    return buildState(client, program, wasFirstLogin);
   });
 
 // Returns current program state without mutating first_login_at — for the profile page.
@@ -105,26 +140,16 @@ export const getMyProgram = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const email = (context.claims?.email as string | undefined) ?? null;
     const client = await loadClientByAuth(email);
-    if (!client) {
-      return {
-        client_id: "",
-        program: null,
-        status: "none" as const,
-        decided_at: null,
-        first_login: false,
-      } satisfies ClientProgramState;
-    }
+    if (!client) return buildState(null, null, false);
     const program = await loadProgram(client.suggested_program_id);
-    return {
-      client_id: client.id,
-      program,
-      status: client.program_status,
-      decided_at: client.program_decided_at,
-      first_login: false,
-    } satisfies ClientProgramState;
+    return buildState(client, program, false);
   });
 
-const RespondSchema = z.object({ accept: z.boolean() });
+const RespondSchema = z.object({
+  decision: z.enum(["accepted", "declined", "remind_later"]),
+});
+
+const SNOOZE_DAYS = 3;
 
 export const respondToSuggestedProgram = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -135,14 +160,32 @@ export const respondToSuggestedProgram = createServerFn({ method: "POST" })
     if (!client || !client.suggested_program_id) {
       return { ok: false as const, error: "No suggested program." };
     }
-    const status: "accepted" | "declined" = data.accept ? "accepted" : "declined";
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    if (data.decision === "remind_later") {
+      const snoozeUntil = new Date(Date.now() + SNOOZE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+      const { error } = await supabaseAdmin
+        .from("clients")
+        .update({
+          program_status: "pending",
+          program_reminder_snoozed_until: snoozeUntil,
+        })
+        .eq("id", client.id);
+      if (error) return { ok: false as const, error: error.message };
+      return { ok: true as const, status: "pending" as const, snoozed_until: snoozeUntil };
+    }
+
+    const status: "accepted" | "declined" = data.decision;
     const { error } = await supabaseAdmin
       .from("clients")
-      .update({ program_status: status, program_decided_at: new Date().toISOString() })
+      .update({
+        program_status: status,
+        program_decided_at: new Date().toISOString(),
+        program_reminder_snoozed_until: null,
+      })
       .eq("id", client.id);
     if (error) return { ok: false as const, error: error.message };
-    return { ok: true as const, status };
+    return { ok: true as const, status, snoozed_until: null };
   });
 
 const PractClientSchema = z.object({ clientId: z.string().uuid() });
@@ -155,14 +198,12 @@ export const getClientProgramForPractitioner = createServerFn({ method: "POST" }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: c } = await supabaseAdmin
       .from("clients")
-      .select(
-        "id, suggested_program_id, program_status, program_decided_at, first_login_at, practitioner_id",
-      )
+      .select(`${CLIENT_COLS}, practitioner_id`)
       .eq("id", data.clientId)
       .maybeSingle();
     if (!c) return null;
-    // Authorize: must be the practitioner who owns the client, or super admin.
-    const isOwner = c.practitioner_id === context.userId;
+    const row = c as ClientRow & { practitioner_id: string };
+    const isOwner = row.practitioner_id === context.userId;
     let allowed = isOwner;
     if (!allowed) {
       const { data: prof } = await supabaseAdmin
@@ -173,10 +214,11 @@ export const getClientProgramForPractitioner = createServerFn({ method: "POST" }
       allowed = (prof as { role?: string } | null)?.role === "super_admin";
     }
     if (!allowed) return null;
-    const program = await loadProgram(c.suggested_program_id);
+    const program = await loadProgram(row.suggested_program_id);
     return {
       program,
-      status: c.program_status as "none" | "pending" | "accepted" | "declined",
-      decided_at: c.program_decided_at as string | null,
+      status: row.program_status,
+      decided_at: row.program_decided_at,
+      personal_note: row.program_personal_note,
     };
   });
