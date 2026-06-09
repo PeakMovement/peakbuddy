@@ -19,6 +19,19 @@ export const createClientAccount = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
 
+    // Guard: refuse to create a second client row for the same email.
+    const { data: existingClient } = await admin
+      .from("clients")
+      .select("id")
+      .ilike("email", data.email)
+      .limit(1);
+    if (Array.isArray(existingClient) && existingClient.length > 0) {
+      return {
+        ok: false as const,
+        error: "A client with this email already exists. Open their record instead of adding a new one.",
+      };
+    }
+
     // Create or find auth user
     let userId: string | null = null;
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
