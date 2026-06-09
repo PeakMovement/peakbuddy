@@ -126,6 +126,8 @@ export type Database = {
           practitioner_id: string
           primary_complaint: string | null
           program_decided_at: string | null
+          program_personal_note: string | null
+          program_reminder_snoozed_until: string | null
           program_status: string
           suggested_program_id: string | null
           yves_enabled: boolean
@@ -144,6 +146,8 @@ export type Database = {
           practitioner_id: string
           primary_complaint?: string | null
           program_decided_at?: string | null
+          program_personal_note?: string | null
+          program_reminder_snoozed_until?: string | null
           program_status?: string
           suggested_program_id?: string | null
           yves_enabled?: boolean
@@ -162,6 +166,8 @@ export type Database = {
           practitioner_id?: string
           primary_complaint?: string | null
           program_decided_at?: string | null
+          program_personal_note?: string | null
+          program_reminder_snoozed_until?: string | null
           program_status?: string
           suggested_program_id?: string | null
           yves_enabled?: boolean
@@ -281,12 +287,16 @@ export type Database = {
       programs: {
         Row: {
           active: boolean
+          cover_image_url: string | null
           created_at: string
           description: string
+          duration_label: string | null
           external_url: string
+          focus_area: string | null
           id: string
           image_url: string | null
           name: string
+          outcomes: string[]
           pain_max: number | null
           pain_min: number | null
           priority: number
@@ -295,12 +305,16 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          cover_image_url?: string | null
           created_at?: string
           description?: string
+          duration_label?: string | null
           external_url: string
+          focus_area?: string | null
           id?: string
           image_url?: string | null
           name: string
+          outcomes?: string[]
           pain_max?: number | null
           pain_min?: number | null
           priority?: number
@@ -309,12 +323,16 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          cover_image_url?: string | null
           created_at?: string
           description?: string
+          duration_label?: string | null
           external_url?: string
+          focus_area?: string | null
           id?: string
           image_url?: string | null
           name?: string
+          outcomes?: string[]
           pain_max?: number | null
           pain_min?: number | null
           priority?: number
