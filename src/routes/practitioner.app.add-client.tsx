@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RefreshCw, Copy, Check } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { createClientAccount } from "@/lib/clients.functions";
+import { listActivePrograms } from "@/lib/client-program.functions";
+
 
 export const Route = createFileRoute("/practitioner/app/add-client")({
   head: () => ({ meta: [{ title: "Add Client — Buddy" }] }),
