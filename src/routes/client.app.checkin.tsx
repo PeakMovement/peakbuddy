@@ -238,6 +238,7 @@ function CheckInScreen() {
         energy,
         mood,
         notes,
+        clientId: client.id,
       },
     })
       .then((s) => {
