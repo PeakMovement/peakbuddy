@@ -8,6 +8,7 @@ const InputSchema = z.object({
   energy: z.number().min(0).max(10).nullable().optional(),
   mood: z.number().min(0).max(10).nullable().optional(),
   notes: z.string().max(2000).optional().default(""),
+  clientId: z.string().uuid().nullable().optional(),
 });
 
 type ProgramRow = {
