@@ -15,6 +15,7 @@ type ProgramRow = {
   name: string;
   description: string;
   external_url: string;
+  image_url: string | null;
   symptom_tags: string[];
   pain_min: number | null;
   pain_max: number | null;
