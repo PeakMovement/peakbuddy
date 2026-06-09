@@ -147,12 +147,42 @@ export const suggestProgram = createServerFn({ method: "POST" })
     const programs = rows as ProgramRow[];
     const tags = deriveTags(data);
 
-    const ruled = ruleMatch(programs, tags, data.pain);
+    // 1) If the practitioner assigned a program, prefer it whenever it fits today's check-in.
+    if (data.clientId) {
+      const { data: clientRow } = await supabaseAdmin
+        .from("clients")
+        .select("suggested_program_id, program_status")
+        .eq("id", data.clientId)
+        .maybeSingle();
+      const c = clientRow as { suggested_program_id: string | null; program_status: string } | null;
+      if (c?.suggested_program_id && c.program_status !== "declined") {
+        const assigned = programs.find((p) => p.id === c.suggested_program_id);
+        if (assigned && scoreProgram(assigned, tags, data.pain) > 0) {
+          const reason =
+            c.program_status === "accepted"
+              ? "Today's check-in fits the program you're on — keep going."
+              : "Your assigned program fits today's check-in.";
+          return {
+            program: {
+              id: assigned.id,
+              name: assigned.name,
+              description: assigned.description,
+              external_url: assigned.external_url,
+              image_url: assigned.image_url,
+            },
+            reason,
+            source: "assigned" as const,
+          };
+        }
+      }
+    }
+
+    // 2) Otherwise only surface a generic suggestion when the match is strong
+    //    (2+ tag overlap, OR high pain ≥7 with at least one tag).
+    const minOverlap = data.pain >= 7 ? 1 : 2;
+    const ruled = ruleMatch(programs, tags, data.pain, minOverlap);
     if (ruled) {
-      const reason =
-        tags.length > 0
-          ? `Matched your check-in (${tags.slice(0, 3).join(", ")}).`
-          : "Suggested based on your check-in.";
+      const reason = `Matched your check-in (${tags.slice(0, 3).join(", ")}).`;
       return {
         program: {
           id: ruled.id,
@@ -166,6 +196,8 @@ export const suggestProgram = createServerFn({ method: "POST" })
       };
     }
 
+    // 3) AI fallback only for high-pain check-ins where rules found nothing.
+    if (data.pain < 7) return null;
     const ai = await aiFallback(programs, data);
     if (!ai) return null;
     return {
