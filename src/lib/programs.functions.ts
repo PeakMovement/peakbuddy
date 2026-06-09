@@ -123,7 +123,7 @@ export const suggestProgram = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
       .from("programs")
-      .select("id, name, description, external_url, symptom_tags, pain_min, pain_max, priority")
+      .select("id, name, description, external_url, image_url, symptom_tags, pain_min, pain_max, priority")
       .eq("active", true);
     if (error || !rows || rows.length === 0) return null;
 
