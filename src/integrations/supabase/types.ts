@@ -258,6 +258,48 @@ export type Database = {
         }
         Relationships: []
       }
+      programs: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string
+          external_url: string
+          id: string
+          name: string
+          pain_max: number | null
+          pain_min: number | null
+          priority: number
+          symptom_tags: string[]
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          external_url: string
+          id?: string
+          name: string
+          pain_max?: number | null
+          pain_min?: number | null
+          priority?: number
+          symptom_tags?: string[]
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          external_url?: string
+          id?: string
+          name?: string
+          pain_max?: number | null
+          pain_min?: number | null
+          priority?: number
+          symptom_tags?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       symptom_queries: {
         Row: {
           ai_rationale: string | null
