@@ -315,6 +315,51 @@ function Alerts() {
                     </button>
                   )}
                 </div>
+                {a.is_read && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      paddingTop: 10,
+                      borderTop: "1px solid var(--navy-border)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span style={{ fontSize: 11, color: "var(--white-muted)" }}>
+                      Was this alert right?
+                    </span>
+                    {(["correct", "over", "under"] as const).map((opt) => {
+                      const active = a.practitioner_assessment === opt;
+                      const label =
+                        opt === "correct"
+                          ? "Spot on"
+                          : opt === "over"
+                            ? "Too alarming"
+                            : "Should have been higher";
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => submitAssessment(a.id, opt)}
+                          style={{
+                            background: active ? "var(--blue-accent)" : "transparent",
+                            color: active ? "var(--white)" : "var(--white-muted)",
+                            border: `1px solid ${active ? "var(--blue-accent)" : "var(--navy-border)"}`,
+                            padding: "4px 10px",
+                            borderRadius: 999,
+                            fontSize: 11,
+                            fontFamily: "var(--font-ui)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
