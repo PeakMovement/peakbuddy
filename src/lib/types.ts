@@ -97,4 +97,8 @@ export interface Alert {
   is_read: boolean;
   webhook_fired: boolean;
   created_at: string;
+  red_flag_category?: string | null;
+  pattern?: string | null;
+  practitioner_assessment?: "correct" | "over" | "under" | null;
 }
+
