@@ -196,6 +196,14 @@ function CheckInScreen() {
           log.error("[Check-in] insert_alert failed:", e);
         }
 
+        // Tag the alert with detected red-flag category for grouping/feedback.
+        if (alertRowId && rt.category) {
+          await supabase
+            .from("alerts")
+            .update({ red_flag_category: rt.category })
+            .eq("id", alertRowId);
+        }
+
         const result = await fireAlertWebhook({
           practitionerId: client.practitioner_id,
           clientName: client.full_name,
@@ -212,6 +220,53 @@ function CheckInScreen() {
         log.debug("[Buddy] Duplicate alert suppressed for client:", client.id);
       }
     }
+
+    // Pattern detection — rising pain trend across last few check-ins
+    try {
+      const { data: recent } = await supabase
+        .from("check_ins")
+        .select("pain_level, created_at")
+        .eq("client_id", client.id)
+        .order("created_at", { ascending: false })
+        .limit(4);
+      const pains = (recent ?? [])
+        .map((c) => c.pain_level)
+        .filter((p): p is number => typeof p === "number");
+      // Include today's submission as the newest if not yet returned by DB
+      const series = [pain, ...pains].slice(0, 4);
+      const rising =
+        series.length >= 3 &&
+        series[0] - series[series.length - 1] >= 3 &&
+        series[0] >= 5 &&
+        !flagged; // don't double-alert when red-flag already fired
+
+      if (rising) {
+        const existingPattern = await findRecentOpenAlert(client.id, "pattern");
+        if (!existingPattern) {
+          try {
+            const { data: patternAlertId } = await supabase.rpc("insert_alert", {
+              p_practitioner_id: client.practitioner_id,
+              p_client_id: client.id,
+              p_alert_type: "pattern",
+              p_message: `Pain has risen from ${series[series.length - 1]}/10 to ${series[0]}/10 over the last ${series.length} check-ins.`,
+              p_urgency: "soon",
+            });
+            if (patternAlertId) {
+              await supabase
+                .from("alerts")
+                .update({ pattern: "rising_pain" })
+                .eq("id", patternAlertId as string);
+            }
+          } catch (e) {
+            log.error("[Check-in] pattern alert failed:", e);
+          }
+        }
+      }
+    } catch (e) {
+      log.debug("[Check-in] pattern detection skipped:", e);
+    }
+
+
 
     setTodayCheckIn({
       id: insertedId,
