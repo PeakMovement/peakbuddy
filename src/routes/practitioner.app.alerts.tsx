@@ -217,6 +217,50 @@ function Alerts() {
                     <div style={{ marginTop: 4, color: "var(--white-muted)", fontSize: 13 }}>
                       {a.message}
                     </div>
+                    {(categoryLabel(a.red_flag_category) || patternLabel(a.pattern)) && (
+                      <div
+                        style={{
+                          marginTop: 6,
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 6,
+                        }}
+                      >
+                        {categoryLabel(a.red_flag_category) && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              background: "var(--navy-deep, rgba(0,0,0,0.25))",
+                              color: "var(--white-muted)",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
+                              fontFamily: "var(--font-ui)",
+                            }}
+                          >
+                            {categoryLabel(a.red_flag_category)}
+                          </span>
+                        )}
+                        {patternLabel(a.pattern) && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              background: "var(--amber, #f9a825)",
+                              color: "var(--navy)",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
+                              fontFamily: "var(--font-ui)",
+                              fontWeight: 700,
+                            }}
+                          >
+                            {patternLabel(a.pattern)}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <span
                     style={{
