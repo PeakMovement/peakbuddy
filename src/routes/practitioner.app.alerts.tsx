@@ -100,6 +100,37 @@ function Alerts() {
     await supabase.from("alerts").update({ is_read: true }).eq("id", id);
   };
 
+  const submitAssessment = async (id: string, assessment: "correct" | "over" | "under") => {
+    setAlerts((prev) =>
+      prev.map((a) =>
+        a.id === id ? ({ ...a, practitioner_assessment: assessment } as Alert) : a,
+      ),
+    );
+    await supabase
+      .from("alerts")
+      .update({ practitioner_assessment: assessment })
+      .eq("id", id);
+  };
+
+  const categoryLabel = (cat: string | null | undefined) => {
+    if (!cat) return null;
+    return cat.replace(/_/g, " ");
+  };
+
+  const patternLabel = (p: string | null | undefined) => {
+    if (!p) return null;
+    switch (p) {
+      case "rising_pain":
+        return "Rising pain trend";
+      case "recurring_category":
+        return "Recurring red flag";
+      case "repeated_moderate":
+        return "Repeated moderate symptoms";
+      default:
+        return p.replace(/_/g, " ");
+    }
+  };
+
   return (
     <div style={{ padding: "20px 16px 32px" }}>
       <h1
@@ -186,6 +217,50 @@ function Alerts() {
                     <div style={{ marginTop: 4, color: "var(--white-muted)", fontSize: 13 }}>
                       {a.message}
                     </div>
+                    {(categoryLabel(a.red_flag_category) || patternLabel(a.pattern)) && (
+                      <div
+                        style={{
+                          marginTop: 6,
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 6,
+                        }}
+                      >
+                        {categoryLabel(a.red_flag_category) && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              background: "var(--navy-deep, rgba(0,0,0,0.25))",
+                              color: "var(--white-muted)",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
+                              fontFamily: "var(--font-ui)",
+                            }}
+                          >
+                            {categoryLabel(a.red_flag_category)}
+                          </span>
+                        )}
+                        {patternLabel(a.pattern) && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              background: "var(--amber, #f9a825)",
+                              color: "var(--navy)",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
+                              fontFamily: "var(--font-ui)",
+                              fontWeight: 700,
+                            }}
+                          >
+                            {patternLabel(a.pattern)}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <span
                     style={{
@@ -240,6 +315,51 @@ function Alerts() {
                     </button>
                   )}
                 </div>
+                {a.is_read && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      paddingTop: 10,
+                      borderTop: "1px solid var(--navy-border)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span style={{ fontSize: 11, color: "var(--white-muted)" }}>
+                      Was this alert right?
+                    </span>
+                    {(["correct", "over", "under"] as const).map((opt) => {
+                      const active = a.practitioner_assessment === opt;
+                      const label =
+                        opt === "correct"
+                          ? "Spot on"
+                          : opt === "over"
+                            ? "Too alarming"
+                            : "Should have been higher";
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => submitAssessment(a.id, opt)}
+                          style={{
+                            background: active ? "var(--blue-accent)" : "transparent",
+                            color: active ? "var(--white)" : "var(--white-muted)",
+                            border: `1px solid ${active ? "var(--blue-accent)" : "var(--navy-border)"}`,
+                            padding: "4px 10px",
+                            borderRadius: 999,
+                            fontSize: 11,
+                            fontFamily: "var(--font-ui)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
