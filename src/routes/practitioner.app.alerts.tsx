@@ -100,6 +100,37 @@ function Alerts() {
     await supabase.from("alerts").update({ is_read: true }).eq("id", id);
   };
 
+  const submitAssessment = async (id: string, assessment: "correct" | "over" | "under") => {
+    setAlerts((prev) =>
+      prev.map((a) =>
+        a.id === id ? ({ ...a, practitioner_assessment: assessment } as Alert) : a,
+      ),
+    );
+    await supabase
+      .from("alerts")
+      .update({ practitioner_assessment: assessment })
+      .eq("id", id);
+  };
+
+  const categoryLabel = (cat: string | null | undefined) => {
+    if (!cat) return null;
+    return cat.replace(/_/g, " ");
+  };
+
+  const patternLabel = (p: string | null | undefined) => {
+    if (!p) return null;
+    switch (p) {
+      case "rising_pain":
+        return "Rising pain trend";
+      case "recurring_category":
+        return "Recurring red flag";
+      case "repeated_moderate":
+        return "Repeated moderate symptoms";
+      default:
+        return p.replace(/_/g, " ");
+    }
+  };
+
   return (
     <div style={{ padding: "20px 16px 32px" }}>
       <h1
