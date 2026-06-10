@@ -22,7 +22,10 @@ export type Database = {
           id: string
           is_read: boolean
           message: string | null
+          pattern: string | null
+          practitioner_assessment: string | null
           practitioner_id: string
+          red_flag_category: string | null
           urgency: string
           webhook_fired: boolean
         }
@@ -33,7 +36,10 @@ export type Database = {
           id?: string
           is_read?: boolean
           message?: string | null
+          pattern?: string | null
+          practitioner_assessment?: string | null
           practitioner_id: string
+          red_flag_category?: string | null
           urgency: string
           webhook_fired?: boolean
         }
@@ -44,7 +50,10 @@ export type Database = {
           id?: string
           is_read?: boolean
           message?: string | null
+          pattern?: string | null
+          practitioner_assessment?: string | null
           practitioner_id?: string
+          red_flag_category?: string | null
           urgency?: string
           webhook_fired?: boolean
         }
@@ -205,6 +214,7 @@ export type Database = {
       }
       practices: {
         Row: {
+          alert_sensitivity: string
           contact_webhook_enabled: boolean
           contact_webhook_url: string | null
           created_at: string
@@ -223,6 +233,7 @@ export type Database = {
           yves_enabled: boolean
         }
         Insert: {
+          alert_sensitivity?: string
           contact_webhook_enabled?: boolean
           contact_webhook_url?: string | null
           created_at?: string
@@ -241,6 +252,7 @@ export type Database = {
           yves_enabled?: boolean
         }
         Update: {
+          alert_sensitivity?: string
           contact_webhook_enabled?: boolean
           contact_webhook_url?: string | null
           created_at?: string
@@ -346,9 +358,11 @@ export type Database = {
           ai_rationale: string | null
           client_id: string
           created_at: string | null
+          differential: Json | null
           id: string
           practitioner_id: string
           query_text: string
+          red_flag_category: string | null
           red_flag_detected: boolean | null
           severity: number | null
           source: string | null
@@ -359,9 +373,11 @@ export type Database = {
           ai_rationale?: string | null
           client_id: string
           created_at?: string | null
+          differential?: Json | null
           id?: string
           practitioner_id: string
           query_text: string
+          red_flag_category?: string | null
           red_flag_detected?: boolean | null
           severity?: number | null
           source?: string | null
@@ -372,9 +388,11 @@ export type Database = {
           ai_rationale?: string | null
           client_id?: string
           created_at?: string | null
+          differential?: Json | null
           id?: string
           practitioner_id?: string
           query_text?: string
+          red_flag_category?: string | null
           red_flag_detected?: boolean | null
           severity?: number | null
           source?: string | null
