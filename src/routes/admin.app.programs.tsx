@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, ExternalLink } from "lucide-react";
+import { Plus, Pencil, Trash2, ExternalLink, ShieldCheck, ShieldOff } from "lucide-react";
 import {
   listAllPrograms,
   upsertProgram,
   deleteProgram,
+  setProgramApproval,
 } from "@/lib/admin-programs.functions";
 import { log } from "@/lib/log";
+
 
 export const Route = createFileRoute("/admin/app/programs")({
   head: () => ({ meta: [{ title: "Programs — Buddy Admin" }] }),
@@ -24,9 +26,13 @@ type Program = {
   pain_max: number | null;
   active: boolean;
   priority: number;
+  approved_by_admin: boolean;
 };
 
-const emptyForm: Omit<Program, "id"> & { id: string | null } = {
+
+type ProgramForm = Omit<Program, "id" | "approved_by_admin"> & { id: string | null };
+
+const emptyForm: ProgramForm = {
   id: null,
   name: "",
   description: "",
@@ -38,6 +44,7 @@ const emptyForm: Omit<Program, "id"> & { id: string | null } = {
   active: true,
   priority: 0,
 };
+
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -147,6 +154,16 @@ function AdminPrograms() {
     }
   };
 
+  const toggleApproval = async (p: Program) => {
+    try {
+      await setProgramApproval({ data: { id: p.id, approved: !p.approved_by_admin } });
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Could not update approval.");
+    }
+  };
+
+
   const addTag = () => {
     const t = tagInput.trim().toLowerCase();
     if (!t || !form) return;
@@ -249,10 +266,41 @@ function AdminPrograms() {
                       INACTIVE
                     </span>
                   )}
+                  {p.approved_by_admin ? (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        padding: "2px 6px",
+                        background: "color-mix(in oklab, var(--green) 20%, transparent)",
+                        border: "1px solid var(--green)",
+                        borderRadius: 4,
+                        color: "var(--green)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <ShieldCheck size={10} /> APPROVED
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        padding: "2px 6px",
+                        background: "color-mix(in oklab, var(--amber, #f9a825) 20%, transparent)",
+                        border: "1px solid var(--amber, #f9a825)",
+                        borderRadius: 4,
+                        color: "var(--amber, #f9a825)",
+                      }}
+                    >
+                      AWAITING APPROVAL
+                    </span>
+                  )}
                   <span style={{ fontSize: 11, color: "var(--white-muted)" }}>
                     priority {p.priority}
                   </span>
                 </div>
+
                 <p
                   style={{
                     fontSize: 13,
@@ -306,12 +354,25 @@ function AdminPrograms() {
                   <ExternalLink size={16} />
                 </a>
                 <button
+                  onClick={() => toggleApproval(p)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: p.approved_by_admin ? "var(--amber, #f9a825)" : "var(--green)",
+                    cursor: "pointer",
+                  }}
+                  title={p.approved_by_admin ? "Revoke approval" : "Approve for practitioners"}
+                >
+                  {p.approved_by_admin ? <ShieldOff size={16} /> : <ShieldCheck size={16} />}
+                </button>
+                <button
                   onClick={() => openEdit(p)}
                   style={{ background: "transparent", border: "none", color: "var(--white-muted)", cursor: "pointer" }}
                   title="Edit"
                 >
                   <Pencil size={16} />
                 </button>
+
                 <button
                   onClick={() => remove(p.id)}
                   style={{ background: "transparent", border: "none", color: "var(--red, #e74c3c)", cursor: "pointer" }}

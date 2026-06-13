@@ -86,3 +86,25 @@ export const deleteProgram = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const setProgramApproval = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ id: z.string().uuid(), approved: z.boolean() }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    await assertSuperAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const payload = data.approved
+      ? { approved_by_admin: true, approved_by: context.userId, approved_at: new Date().toISOString() }
+      : { approved_by_admin: false, approved_by: null, approved_at: null };
+    const { data: row, error } = await supabaseAdmin
+      .from("programs")
+      .update(payload)
+      .eq("id", data.id)
+      .select()
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return row;
+  });
+

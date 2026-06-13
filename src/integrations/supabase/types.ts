@@ -139,6 +139,8 @@ export type Database = {
           program_personal_note: string | null
           program_reminder_snoozed_until: string | null
           program_status: string
+          program_suggested_at: string | null
+          program_suggested_by: string | null
           suggested_program_id: string | null
           yves_enabled: boolean
         }
@@ -160,6 +162,8 @@ export type Database = {
           program_personal_note?: string | null
           program_reminder_snoozed_until?: string | null
           program_status?: string
+          program_suggested_at?: string | null
+          program_suggested_by?: string | null
           suggested_program_id?: string | null
           yves_enabled?: boolean
         }
@@ -181,6 +185,8 @@ export type Database = {
           program_personal_note?: string | null
           program_reminder_snoozed_until?: string | null
           program_status?: string
+          program_suggested_at?: string | null
+          program_suggested_by?: string | null
           suggested_program_id?: string | null
           yves_enabled?: boolean
         }
@@ -302,6 +308,9 @@ export type Database = {
       programs: {
         Row: {
           active: boolean
+          approved_at: string | null
+          approved_by: string | null
+          approved_by_admin: boolean
           cover_image_url: string | null
           created_at: string
           description: string
@@ -320,6 +329,9 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_by_admin?: boolean
           cover_image_url?: string | null
           created_at?: string
           description?: string
@@ -338,6 +350,9 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_by_admin?: boolean
           cover_image_url?: string | null
           created_at?: string
           description?: string

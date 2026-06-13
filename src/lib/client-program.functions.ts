@@ -32,18 +32,20 @@ const PROGRAM_COLS =
 const CLIENT_COLS =
   "id, suggested_program_id, program_status, program_decided_at, first_login_at, program_personal_note, program_reminder_snoozed_until";
 
-// Public: list of active programs (id + name) for practitioner dropdown.
+// Public: list of admin-approved + active programs (id + name) for practitioner dropdown.
 export const listActivePrograms = createServerFn({ method: "GET" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("programs")
     .select("id, name")
     .eq("active", true)
+    .eq("approved_by_admin", true)
     .order("priority", { ascending: false })
     .order("name", { ascending: true });
   if (error) return [] as { id: string; name: string }[];
   return (data ?? []) as { id: string; name: string }[];
 });
+
 
 type ClientRow = {
   id: string;
@@ -227,3 +229,115 @@ export const getClientProgramForPractitioner = createServerFn({ method: "POST" }
       personal_note: row.program_personal_note,
     };
   });
+
+// Practitioner: list of clients waiting for a program-suggestion decision.
+export type PendingSuggestion = {
+  client_id: string;
+  client_name: string;
+  primary_complaint: string | null;
+  program: ProgramLite | null;
+  source: "auto_rules" | "auto_ai" | "practitioner" | null;
+  suggested_at: string | null;
+};
+
+export const listPendingProgramSuggestions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("clients")
+      .select(
+        "id, full_name, primary_complaint, suggested_program_id, program_suggested_by, program_suggested_at",
+      )
+      .eq("practitioner_id", context.userId)
+      .eq("program_status", "awaiting_practitioner")
+      .order("program_suggested_at", { ascending: false });
+    if (error || !data) return [] as PendingSuggestion[];
+
+    const rows = data as Array<{
+      id: string;
+      full_name: string;
+      primary_complaint: string | null;
+      suggested_program_id: string | null;
+      program_suggested_by: PendingSuggestion["source"];
+      program_suggested_at: string | null;
+    }>;
+
+    const programs = await Promise.all(rows.map((r) => loadProgram(r.suggested_program_id)));
+    return rows.map<PendingSuggestion>((r, i) => ({
+      client_id: r.id,
+      client_name: r.full_name,
+      primary_complaint: r.primary_complaint,
+      program: programs[i],
+      source: r.program_suggested_by,
+      suggested_at: r.program_suggested_at,
+    }));
+  });
+
+export const countPendingProgramSuggestions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { count } = await supabaseAdmin
+      .from("clients")
+      .select("id", { count: "exact", head: true })
+      .eq("practitioner_id", context.userId)
+      .eq("program_status", "awaiting_practitioner");
+    return count ?? 0;
+  });
+
+async function assertOwnsClient(userId: string, clientId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
+    .from("clients")
+    .select("practitioner_id")
+    .eq("id", clientId)
+    .maybeSingle();
+  const ownerId = (data as { practitioner_id?: string } | null)?.practitioner_id;
+  if (!ownerId || ownerId !== userId) {
+    throw new Error("Not authorized");
+  }
+}
+
+export const approveProgramSuggestion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => PractClientSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertOwnsClient(context.userId, data.clientId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("clients")
+      .update({
+        program_status: "pending",
+        program_decided_at: new Date().toISOString(),
+        program_reminder_snoozed_until: null,
+      })
+      .eq("id", data.clientId)
+      .eq("program_status", "awaiting_practitioner");
+    if (error) return { ok: false as const, error: error.message };
+    return { ok: true as const };
+  });
+
+export const rejectProgramSuggestion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => PractClientSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertOwnsClient(context.userId, data.clientId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("clients")
+      .update({
+        suggested_program_id: null,
+        program_status: "none",
+        program_decided_at: null,
+        program_personal_note: null,
+        program_suggested_by: null,
+        program_suggested_at: null,
+        program_reminder_snoozed_until: null,
+      })
+      .eq("id", data.clientId)
+      .eq("program_status", "awaiting_practitioner");
+    if (error) return { ok: false as const, error: error.message };
+    return { ok: true as const };
+  });
+

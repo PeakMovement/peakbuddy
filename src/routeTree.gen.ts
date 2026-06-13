@@ -24,6 +24,7 @@ import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as AdminAppRouteImport } from './routes/admin.app'
 import { Route as ClientAppIndexRouteImport } from './routes/client.app.index'
 import { Route as PractitionerAppSettingsRouteImport } from './routes/practitioner.app.settings'
+import { Route as PractitionerAppProgramQueueRouteImport } from './routes/practitioner.app.program-queue'
 import { Route as PractitionerAppProfileRouteImport } from './routes/practitioner.app.profile'
 import { Route as PractitionerAppDashboardRouteImport } from './routes/practitioner.app.dashboard'
 import { Route as PractitionerAppAlertsRouteImport } from './routes/practitioner.app.alerts'
@@ -119,6 +120,12 @@ const PractitionerAppSettingsRoute = PractitionerAppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => PractitionerAppRoute,
 } as any)
+const PractitionerAppProgramQueueRoute =
+  PractitionerAppProgramQueueRouteImport.update({
+    id: '/program-queue',
+    path: '/program-queue',
+    getParentRoute: () => PractitionerAppRoute,
+  } as any)
 const PractitionerAppProfileRoute = PractitionerAppProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -250,6 +257,7 @@ export interface FileRoutesByFullPath {
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
   '/practitioner/app/profile': typeof PractitionerAppProfileRoute
+  '/practitioner/app/program-queue': typeof PractitionerAppProgramQueueRoute
   '/practitioner/app/settings': typeof PractitionerAppSettingsRoute
   '/client/app/': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
@@ -285,6 +293,7 @@ export interface FileRoutesByTo {
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
   '/practitioner/app/profile': typeof PractitionerAppProfileRoute
+  '/practitioner/app/program-queue': typeof PractitionerAppProgramQueueRoute
   '/practitioner/app/settings': typeof PractitionerAppSettingsRoute
   '/client/app': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
@@ -322,6 +331,7 @@ export interface FileRoutesById {
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
   '/practitioner/app/profile': typeof PractitionerAppProfileRoute
+  '/practitioner/app/program-queue': typeof PractitionerAppProgramQueueRoute
   '/practitioner/app/settings': typeof PractitionerAppSettingsRoute
   '/client/app/': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
@@ -360,6 +370,7 @@ export interface FileRouteTypes {
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
     | '/practitioner/app/profile'
+    | '/practitioner/app/program-queue'
     | '/practitioner/app/settings'
     | '/client/app/'
     | '/admin/app/client-detail/$clientId'
@@ -395,6 +406,7 @@ export interface FileRouteTypes {
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
     | '/practitioner/app/profile'
+    | '/practitioner/app/program-queue'
     | '/practitioner/app/settings'
     | '/client/app'
     | '/admin/app/client-detail/$clientId'
@@ -431,6 +443,7 @@ export interface FileRouteTypes {
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
     | '/practitioner/app/profile'
+    | '/practitioner/app/program-queue'
     | '/practitioner/app/settings'
     | '/client/app/'
     | '/admin/app/client-detail/$clientId'
@@ -560,6 +573,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/practitioner/app/settings'
       preLoaderRoute: typeof PractitionerAppSettingsRouteImport
+      parentRoute: typeof PractitionerAppRoute
+    }
+    '/practitioner/app/program-queue': {
+      id: '/practitioner/app/program-queue'
+      path: '/program-queue'
+      fullPath: '/practitioner/app/program-queue'
+      preLoaderRoute: typeof PractitionerAppProgramQueueRouteImport
       parentRoute: typeof PractitionerAppRoute
     }
     '/practitioner/app/profile': {
@@ -752,6 +772,7 @@ interface PractitionerAppRouteChildren {
   PractitionerAppAlertsRoute: typeof PractitionerAppAlertsRoute
   PractitionerAppDashboardRoute: typeof PractitionerAppDashboardRoute
   PractitionerAppProfileRoute: typeof PractitionerAppProfileRoute
+  PractitionerAppProgramQueueRoute: typeof PractitionerAppProgramQueueRoute
   PractitionerAppSettingsRoute: typeof PractitionerAppSettingsRoute
   PractitionerAppClientDetailClientIdRoute: typeof PractitionerAppClientDetailClientIdRoute
 }
@@ -761,6 +782,7 @@ const PractitionerAppRouteChildren: PractitionerAppRouteChildren = {
   PractitionerAppAlertsRoute: PractitionerAppAlertsRoute,
   PractitionerAppDashboardRoute: PractitionerAppDashboardRoute,
   PractitionerAppProfileRoute: PractitionerAppProfileRoute,
+  PractitionerAppProgramQueueRoute: PractitionerAppProgramQueueRoute,
   PractitionerAppSettingsRoute: PractitionerAppSettingsRoute,
   PractitionerAppClientDetailClientIdRoute:
     PractitionerAppClientDetailClientIdRoute,

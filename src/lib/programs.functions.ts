@@ -137,78 +137,66 @@ Respond ONLY with strict JSON: {"program_id": "<id or null>", "reason": "<one sh
 export const suggestProgram = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data }) => {
+    if (!data.clientId) return null;
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Only queue a new suggestion if the client doesn't already have one in flight.
+    const { data: clientRow } = await supabaseAdmin
+      .from("clients")
+      .select("program_status, suggested_program_id")
+      .eq("id", data.clientId)
+      .maybeSingle();
+    const cur = clientRow as
+      | { program_status: string; suggested_program_id: string | null }
+      | null;
+    if (!cur) return null;
+    const canQueue =
+      cur.program_status === "none" ||
+      (cur.program_status === "declined" && cur.suggested_program_id == null);
+    if (!canQueue) return null;
+
     const { data: rows, error } = await supabaseAdmin
       .from("programs")
       .select("id, name, description, external_url, image_url, symptom_tags, pain_min, pain_max, priority")
-      .eq("active", true);
+      .eq("active", true)
+      .eq("approved_by_admin", true);
     if (error || !rows || rows.length === 0) return null;
 
     const programs = rows as ProgramRow[];
     const tags = deriveTags(data);
 
-    // 1) If the practitioner assigned a program, prefer it whenever it fits today's check-in.
-    if (data.clientId) {
-      const { data: clientRow } = await supabaseAdmin
-        .from("clients")
-        .select("suggested_program_id, program_status")
-        .eq("id", data.clientId)
-        .maybeSingle();
-      const c = clientRow as { suggested_program_id: string | null; program_status: string } | null;
-      if (c?.suggested_program_id && c.program_status !== "declined") {
-        const assigned = programs.find((p) => p.id === c.suggested_program_id);
-        if (assigned && scoreProgram(assigned, tags, data.pain) > 0) {
-          const reason =
-            c.program_status === "accepted"
-              ? "Today's check-in fits the program you're on — keep going."
-              : "Your assigned program fits today's check-in.";
-          return {
-            program: {
-              id: assigned.id,
-              name: assigned.name,
-              description: assigned.description,
-              external_url: assigned.external_url,
-              image_url: assigned.image_url,
-            },
-            reason,
-            source: "assigned" as const,
-          };
-        }
+    // 1) Strong rule match first
+    const minOverlap = data.pain >= 7 ? 1 : 2;
+    const ruled = ruleMatch(programs, tags, data.pain, minOverlap);
+    let chosenId: string | null = ruled?.id ?? null;
+    let source: "auto_rules" | "auto_ai" | null = ruled ? "auto_rules" : null;
+
+    // 2) AI fallback for high-pain check-ins
+    if (!chosenId && data.pain >= 7) {
+      const ai = await aiFallback(programs, data);
+      if (ai) {
+        chosenId = ai.program.id;
+        source = "auto_ai";
       }
     }
 
-    // 2) Otherwise only surface a generic suggestion when the match is strong
-    //    (2+ tag overlap, OR high pain ≥7 with at least one tag).
-    const minOverlap = data.pain >= 7 ? 1 : 2;
-    const ruled = ruleMatch(programs, tags, data.pain, minOverlap);
-    if (ruled) {
-      const reason = `Matched your check-in (${tags.slice(0, 3).join(", ")}).`;
-      return {
-        program: {
-          id: ruled.id,
-          name: ruled.name,
-          description: ruled.description,
-          external_url: ruled.external_url,
-          image_url: ruled.image_url,
-        },
-        reason,
-        source: "rules" as const,
-      };
-    }
+    if (!chosenId || !source) return null;
 
-    // 3) AI fallback only for high-pain check-ins where rules found nothing.
-    if (data.pain < 7) return null;
-    const ai = await aiFallback(programs, data);
-    if (!ai) return null;
-    return {
-      program: {
-        id: ai.program.id,
-        name: ai.program.name,
-        description: ai.program.description,
-        external_url: ai.program.external_url,
-        image_url: ai.program.image_url,
-      },
-      reason: ai.reason,
-      source: "ai" as const,
-    };
+    await supabaseAdmin
+      .from("clients")
+      .update({
+        suggested_program_id: chosenId,
+        program_status: "awaiting_practitioner",
+        program_suggested_by: source,
+        program_suggested_at: new Date().toISOString(),
+        program_decided_at: null,
+        program_reminder_snoozed_until: null,
+      })
+      .eq("id", data.clientId)
+      .in("program_status", ["none", "declined"]);
+
+    // Client UI no longer shows a suggestion card directly — practitioner approves first.
+    return null;
   });
+
