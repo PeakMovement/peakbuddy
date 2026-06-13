@@ -1,25 +1,29 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { LayoutGrid, Bell, UserPlus, Settings as SettingsIcon, User } from "lucide-react";
+import { LayoutGrid, Bell, UserPlus, Settings as SettingsIcon, User, ClipboardCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { countPendingProgramSuggestions } from "@/lib/client-program.functions";
 
 export const Route = createFileRoute("/practitioner/app")({
   component: PractitionerAppLayout,
 });
 
-type Tab = { to: string; label: string; Icon: typeof LayoutGrid; badge?: boolean };
+type Tab = { to: string; label: string; Icon: typeof LayoutGrid; badge?: "alerts" | "queue" };
 const tabs: Tab[] = [
   { to: "/practitioner/app/dashboard", label: "Dashboard", Icon: LayoutGrid },
-  { to: "/practitioner/app/alerts", label: "Alerts", Icon: Bell, badge: true },
+  { to: "/practitioner/app/alerts", label: "Alerts", Icon: Bell, badge: "alerts" },
+  { to: "/practitioner/app/program-queue", label: "Queue", Icon: ClipboardCheck, badge: "queue" },
   { to: "/practitioner/app/add-client", label: "Add", Icon: UserPlus },
   { to: "/practitioner/app/settings", label: "Settings", Icon: SettingsIcon },
   { to: "/practitioner/app/profile", label: "Profile", Icon: User },
 ];
 
+
 function PractitionerAppLayout() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | null>(null);
   const [unread, setUnread] = useState(0);
+  const [queueCount, setQueueCount] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -57,18 +61,23 @@ function PractitionerAppLayout() {
 
   useEffect(() => {
     if (!userId) return;
-    const fetchUnread = async () => {
-      const { count } = await supabase
-        .from("alerts")
-        .select("*", { count: "exact", head: true })
-        .eq("practitioner_id", userId)
-        .eq("is_read", false);
+    const fetchCounts = async () => {
+      const [{ count }, qc] = await Promise.all([
+        supabase
+          .from("alerts")
+          .select("*", { count: "exact", head: true })
+          .eq("practitioner_id", userId)
+          .eq("is_read", false),
+        countPendingProgramSuggestions().catch(() => 0),
+      ]);
       setUnread(count ?? 0);
+      setQueueCount(typeof qc === "number" ? qc : 0);
     };
-    fetchUnread();
-    const id = setInterval(fetchUnread, 30000);
+    fetchCounts();
+    const id = setInterval(fetchCounts, 30000);
     return () => clearInterval(id);
   }, [userId]);
+
 
   return (
     <div
@@ -98,7 +107,9 @@ function PractitionerAppLayout() {
           zIndex: 50,
         }}
       >
-        {tabs.map(({ to, label, Icon, badge }) => (
+        {tabs.map(({ to, label, Icon, badge }) => {
+          const badgeCount = badge === "alerts" ? unread : badge === "queue" ? queueCount : 0;
+          return (
           <Link
             key={to}
             to={to}
@@ -119,7 +130,7 @@ function PractitionerAppLayout() {
           >
             <div style={{ position: "relative" }}>
               <Icon size={22} />
-              {badge && unread > 0 && (
+              {badge && badgeCount > 0 && (
                 <span
                   style={{
                     position: "absolute",
@@ -140,7 +151,7 @@ function PractitionerAppLayout() {
                     lineHeight: 1,
                   }}
                 >
-                  {unread > 99 ? "99+" : unread}
+                  {badgeCount > 99 ? "99+" : badgeCount}
                 </span>
               )}
             </div>
@@ -148,7 +159,9 @@ function PractitionerAppLayout() {
               {label}
             </span>
           </Link>
-        ))}
+          );
+        })}
+
       </nav>
     </div>
   );
