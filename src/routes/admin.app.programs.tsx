@@ -354,12 +354,25 @@ function AdminPrograms() {
                   <ExternalLink size={16} />
                 </a>
                 <button
+                  onClick={() => toggleApproval(p)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: p.approved_by_admin ? "var(--amber, #f9a825)" : "var(--green)",
+                    cursor: "pointer",
+                  }}
+                  title={p.approved_by_admin ? "Revoke approval" : "Approve for practitioners"}
+                >
+                  {p.approved_by_admin ? <ShieldOff size={16} /> : <ShieldCheck size={16} />}
+                </button>
+                <button
                   onClick={() => openEdit(p)}
                   style={{ background: "transparent", border: "none", color: "var(--white-muted)", cursor: "pointer" }}
                   title="Edit"
                 >
                   <Pencil size={16} />
                 </button>
+
                 <button
                   onClick={() => remove(p.id)}
                   style={{ background: "transparent", border: "none", color: "var(--red, #e74c3c)", cursor: "pointer" }}
