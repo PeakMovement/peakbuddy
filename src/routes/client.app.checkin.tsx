@@ -279,7 +279,7 @@ function CheckInScreen() {
     } as CheckIn);
     setSubmitting(false);
     setSuccess(true);
-    // Fetch program suggestion (non-blocking, graceful on error)
+    // Trigger background suggestion (queued for the practitioner — no UI on the client).
     suggestProgram({
       data: {
         pain,
@@ -290,12 +290,9 @@ function CheckInScreen() {
         notes,
         clientId: client.id,
       },
-    })
-      .then((s) => {
-        if (s) setSuggestion(s);
-      })
-      .catch((e) => log.error("[Check-in] suggestProgram failed:", e));
+    }).catch((e) => log.error("[Check-in] suggestProgram failed:", e));
   };
+
 
   if (loading) {
     return <div style={{ padding: 24, color: "var(--white-muted)" }}>Loading…</div>;
@@ -352,14 +349,8 @@ function CheckInScreen() {
             </span>
           </p>
         )}
-        {suggestion && !suggestionDismissed && (
-          <ProgramSuggestionCard
-            program={suggestion.program}
-            reason={suggestion.reason}
-            onDismiss={() => setSuggestionDismissed(true)}
-          />
-        )}
       </div>
+
     );
   }
 
