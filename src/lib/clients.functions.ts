@@ -75,6 +75,9 @@ export const createClientAccount = createServerFn({ method: "POST" })
         login_code: String(Math.floor(1000 + Math.random() * 9000)),
         suggested_program_id: data.suggestedProgramId ?? null,
         program_status: data.suggestedProgramId ? "pending" : "none",
+        program_suggested_by: data.suggestedProgramId ? "practitioner" : null,
+        program_suggested_at: data.suggestedProgramId ? new Date().toISOString() : null,
+        program_decided_at: data.suggestedProgramId ? new Date().toISOString() : null,
         program_personal_note:
           data.suggestedProgramId && data.programPersonalNote
             ? data.programPersonalNote
@@ -82,6 +85,7 @@ export const createClientAccount = createServerFn({ method: "POST" })
       })
       .select("id")
       .single();
+
 
 
     if (insErr) {

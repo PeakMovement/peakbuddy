@@ -14,12 +14,8 @@ import {
 import type { CheckIn, Client } from "@/lib/types";
 import { log } from "@/lib/log";
 import { suggestProgram } from "@/lib/programs.functions";
-import { ProgramSuggestionCard } from "@/components/ProgramSuggestionCard";
 
-type Suggestion = {
-  program: { id: string; name: string; description: string; external_url: string };
-  reason: string;
-};
+
 
 export const Route = createFileRoute("/client/app/checkin")({
   component: CheckInScreen,
@@ -52,8 +48,7 @@ function CheckInScreen() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [savedOffline, setSavedOffline] = useState(false);
-  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
-  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
+
 
   const todayLabel = useMemo(
     () =>
