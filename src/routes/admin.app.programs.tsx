@@ -30,7 +30,9 @@ type Program = {
 };
 
 
-const emptyForm: Omit<Program, "id"> & { id: string | null } = {
+type ProgramForm = Omit<Program, "id" | "approved_by_admin"> & { id: string | null };
+
+const emptyForm: ProgramForm = {
   id: null,
   name: "",
   description: "",
@@ -42,6 +44,7 @@ const emptyForm: Omit<Program, "id"> & { id: string | null } = {
   active: true,
   priority: 0,
 };
+
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
