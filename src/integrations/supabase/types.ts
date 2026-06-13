@@ -122,6 +122,7 @@ export type Database = {
       }
       clients: {
         Row: {
+          auth_user_id: string | null
           check_in_frequency: string
           created_at: string
           email: string | null
@@ -142,6 +143,7 @@ export type Database = {
           yves_enabled: boolean
         }
         Insert: {
+          auth_user_id?: string | null
           check_in_frequency?: string
           created_at?: string
           email?: string | null
@@ -162,6 +164,7 @@ export type Database = {
           yves_enabled?: boolean
         }
         Update: {
+          auth_user_id?: string | null
           check_in_frequency?: string
           created_at?: string
           email?: string | null
