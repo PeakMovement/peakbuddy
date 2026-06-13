@@ -32,18 +32,20 @@ const PROGRAM_COLS =
 const CLIENT_COLS =
   "id, suggested_program_id, program_status, program_decided_at, first_login_at, program_personal_note, program_reminder_snoozed_until";
 
-// Public: list of active programs (id + name) for practitioner dropdown.
+// Public: list of admin-approved + active programs (id + name) for practitioner dropdown.
 export const listActivePrograms = createServerFn({ method: "GET" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("programs")
     .select("id, name")
     .eq("active", true)
+    .eq("approved_by_admin", true)
     .order("priority", { ascending: false })
     .order("name", { ascending: true });
   if (error) return [] as { id: string; name: string }[];
   return (data ?? []) as { id: string; name: string }[];
 });
+
 
 type ClientRow = {
   id: string;
