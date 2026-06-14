@@ -948,3 +948,52 @@ function ProgramStatusRow({
     </section>
   );
 }
+
+function Segmented({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        background: "var(--navy)",
+        border: "1px solid var(--navy-border)",
+        borderRadius: 999,
+        padding: 3,
+        gap: 2,
+      }}
+    >
+      {options.map((opt) => {
+        const active = opt.value === value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            style={{
+              border: "none",
+              cursor: "pointer",
+              padding: "5px 12px",
+              borderRadius: 999,
+              fontFamily: "var(--font-ui)",
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: "0.04em",
+              background: active ? "var(--blue-accent)" : "transparent",
+              color: active ? "var(--white)" : "var(--white-muted)",
+              transition: "background 120ms ease, color 120ms ease",
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
