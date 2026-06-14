@@ -269,7 +269,7 @@ function ClientDetail() {
         </div>
       </div>
 
-      {last30.length >= 3 && (
+      {last30.length >= 1 && (
         <div
           style={{
             marginTop: 24,
@@ -281,40 +281,158 @@ function ClientDetail() {
         >
           <div
             style={{
-              fontFamily: "var(--font-ui)",
-              fontWeight: 600,
-              color: "var(--white)",
-              marginBottom: 8,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 10,
+              gap: 8,
+              flexWrap: "wrap",
             }}
           >
-            Pain — last 30 days
+            <div
+              style={{
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                color: "var(--white)",
+              }}
+            >
+              {chartType === "rings"
+                ? "Latest check-in"
+                : `${metricMeta[metric].label} — last 30 days`}
+            </div>
+            <Segmented
+              options={[
+                { value: "line", label: "Line" },
+                { value: "bar", label: "Bar" },
+                { value: "rings", label: "Rings" },
+              ]}
+              value={chartType}
+              onChange={(v) => setChartType(v as typeof chartType)}
+            />
           </div>
-          <div style={{ width: "100%", height: 180 }}>
-            <ResponsiveContainer>
-              <LineChart data={last30} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                <CartesianGrid stroke="var(--navy-border)" strokeDasharray="3 3" />
-                <XAxis dataKey="date" stroke="var(--white-muted)" fontSize={10} />
-                <YAxis domain={[0, 10]} stroke="var(--white-muted)" fontSize={10} />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--navy)",
-                    border: "1px solid var(--navy-border)",
-                    color: "var(--white)",
-                    fontSize: 12,
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="pain"
-                  stroke="var(--blue-cold)"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+
+          {chartType !== "rings" && (
+            <div style={{ marginBottom: 10 }}>
+              <Segmented
+                options={[
+                  { value: "pain", label: "Pain" },
+                  { value: "sleep", label: "Sleep" },
+                  { value: "stress", label: "Stress" },
+                  { value: "energy", label: "Energy" },
+                ]}
+                value={metric}
+                onChange={(v) => setMetric(v as typeof metric)}
+              />
+            </div>
+          )}
+
+          {chartType === "line" && (
+            <div style={{ width: "100%", height: 180 }}>
+              <ResponsiveContainer>
+                <LineChart data={last30} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                  <CartesianGrid stroke="var(--navy-border)" strokeDasharray="3 3" />
+                  <XAxis dataKey="date" stroke="var(--white-muted)" fontSize={10} />
+                  <YAxis
+                    domain={[0, metricMeta[metric].max]}
+                    stroke="var(--white-muted)"
+                    fontSize={10}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--navy)",
+                      border: "1px solid var(--navy-border)",
+                      color: "var(--white)",
+                      fontSize: 12,
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey={metric}
+                    stroke={metricMeta[metric].color}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    connectNulls
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {chartType === "bar" && (
+            <div style={{ width: "100%", height: 180 }}>
+              <ResponsiveContainer>
+                <BarChart data={last30} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                  <CartesianGrid stroke="var(--navy-border)" strokeDasharray="3 3" />
+                  <XAxis dataKey="date" stroke="var(--white-muted)" fontSize={10} />
+                  <YAxis
+                    domain={[0, metricMeta[metric].max]}
+                    stroke="var(--white-muted)"
+                    fontSize={10}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--navy)",
+                      border: "1px solid var(--navy-border)",
+                      color: "var(--white)",
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar dataKey={metric} fill={metricMeta[metric].color} radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {chartType === "rings" && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, 1fr)",
+                gap: 8,
+                paddingTop: 4,
+              }}
+            >
+              {(["pain", "sleep", "stress", "energy"] as const).map((k) => {
+                const v = stats[k];
+                const max = metricMeta[k].max;
+                const pct = Math.min(100, Math.round((v / max) * 100));
+                return (
+                  <div
+                    key={k}
+                    style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
+                  >
+                    <CircularRing size={72} stroke={7} pct={pct} color={metricMeta[k].color}>
+                      <div
+                        style={{
+                          fontFamily: "var(--font-data)",
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: "var(--white)",
+                        }}
+                      >
+                        {v.toFixed(1)}
+                      </div>
+                    </CircularRing>
+                    <div
+                      style={{
+                        marginTop: 6,
+                        fontFamily: "var(--font-ui)",
+                        fontSize: 11,
+                        color: "var(--white-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                      }}
+                    >
+                      {metricMeta[k].label}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
+
 
       {recommendations.length > 0 && (
         <section style={{ marginTop: 24 }}>
