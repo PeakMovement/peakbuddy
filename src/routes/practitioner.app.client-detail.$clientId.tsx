@@ -156,8 +156,8 @@ function ClientDetail() {
   const metricMeta = {
     pain: { label: "Pain", max: 10, color: "var(--blue-cold)" },
     sleep: { label: "Sleep", max: 5, color: "var(--blue-accent)" },
-    stress: { label: "Stress", max: 5, color: "var(--orange-warm)" },
-    energy: { label: "Energy", max: 5, color: "var(--green-fresh)" },
+    stress: { label: "Stress", max: 5, color: "var(--amber)" },
+    energy: { label: "Energy", max: 5, color: "var(--green)" },
   } as const;
 
   const recommendations = useMemo(() => {
