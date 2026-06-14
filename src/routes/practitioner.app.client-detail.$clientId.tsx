@@ -140,15 +140,25 @@ function ClientDetail() {
     const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
     return [...items]
       .reverse()
-      .filter((i) => new Date(i.created_at).getTime() >= cutoff && i.pain_level != null)
+      .filter((i) => new Date(i.created_at).getTime() >= cutoff)
       .map((i) => ({
         date: new Date(i.created_at).toLocaleDateString(undefined, {
           month: "numeric",
           day: "numeric",
         }),
         pain: i.pain_level,
+        sleep: i.sleep_quality,
+        stress: i.stress_level,
+        energy: i.energy_level,
       }));
   }, [items]);
+
+  const metricMeta = {
+    pain: { label: "Pain", max: 10, color: "var(--blue-cold)" },
+    sleep: { label: "Sleep", max: 5, color: "var(--blue-accent)" },
+    stress: { label: "Stress", max: 5, color: "var(--orange-warm)" },
+    energy: { label: "Energy", max: 5, color: "var(--green-fresh)" },
+  } as const;
 
   const recommendations = useMemo(() => {
     const recs: string[] = [];
