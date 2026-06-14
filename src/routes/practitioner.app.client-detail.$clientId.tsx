@@ -40,6 +40,8 @@ function ClientDetail() {
   const [editOpen, setEditOpen] = useState(false);
   const [practiceYves, setPracticeYves] = useState<boolean>(true);
   const [savingYves, setSavingYves] = useState(false);
+  const [chartType, setChartType] = useState<"line" | "bar" | "rings">("line");
+  const [metric, setMetric] = useState<"pain" | "sleep" | "stress" | "energy">("pain");
   const [programInfo, setProgramInfo] = useState<{
     program: ProgramLite | null;
     status: "none" | "pending" | "accepted" | "declined";
