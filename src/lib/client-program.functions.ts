@@ -157,6 +157,7 @@ export const getClientBootstrap = createServerFn({ method: "POST" })
         .eq("id", client.id);
     }
 
+    if (!(await isProgramsFeatureEnabled())) return buildState(client, null, wasFirstLogin);
     const program = await loadProgram(client.suggested_program_id);
     return buildState(client, program, wasFirstLogin);
   });
@@ -168,9 +169,11 @@ export const getMyProgram = createServerFn({ method: "POST" })
     const email = (context.claims?.email as string | undefined) ?? null;
     const client = await loadClientByAuth(email);
     if (!client) return buildState(null, null, false);
+    if (!(await isProgramsFeatureEnabled())) return buildState(client, null, false);
     const program = await loadProgram(client.suggested_program_id);
     return buildState(client, program, false);
   });
+
 
 const RespondSchema = z.object({
   decision: z.enum(["accepted", "declined", "remind_later"]),
