@@ -28,6 +28,8 @@ function PractitionerAppLayout() {
   const [userId, setUserId] = useState<string | null>(null);
   const [unread, setUnread] = useState(0);
   const [queueCount, setQueueCount] = useState(0);
+  const [programsEnabled, setProgramsEnabled] = useState(true);
+
 
   useEffect(() => {
     (async () => {
