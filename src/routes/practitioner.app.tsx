@@ -67,22 +67,36 @@ function PractitionerAppLayout() {
 
   useEffect(() => {
     if (!userId) return;
+    let cancelled = false;
     const fetchCounts = async () => {
+      const flag = await getProgramsFeatureEnabled().catch(() => ({ enabled: true }));
+      if (cancelled) return;
+      const enabled = flag?.enabled !== false;
+      setProgramsEnabled(enabled);
       const [{ count }, qc] = await Promise.all([
         supabase
           .from("alerts")
           .select("*", { count: "exact", head: true })
           .eq("practitioner_id", userId)
           .eq("is_read", false),
-        countPendingProgramSuggestions().catch(() => 0),
+        enabled ? countPendingProgramSuggestions().catch(() => 0) : Promise.resolve(0),
       ]);
+      if (cancelled) return;
       setUnread(count ?? 0);
       setQueueCount(typeof qc === "number" ? qc : 0);
     };
     fetchCounts();
     const id = setInterval(fetchCounts, 30000);
-    return () => clearInterval(id);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, [userId]);
+
+  const visibleTabs = tabs.filter(
+    (t) => programsEnabled || t.to !== "/practitioner/app/program-queue",
+  );
+
 
 
   return (
