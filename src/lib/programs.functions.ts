@@ -139,7 +139,11 @@ export const suggestProgram = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (!data.clientId) return null;
 
+    const { isProgramsFeatureEnabled } = await import("@/lib/client-program.functions");
+    if (!(await isProgramsFeatureEnabled())) return null;
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
 
     // Only queue a new suggestion if the client doesn't already have one in flight.
     const { data: clientRow } = await supabaseAdmin
