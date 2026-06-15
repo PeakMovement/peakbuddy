@@ -16,8 +16,10 @@ function AdminSettings() {
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [url, setUrl] = useState("");
   const [enabled, setEnabled] = useState(false);
+  const [programsEnabled, setProgramsEnabled] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
 
   useEffect(() => {
     (async () => {
@@ -27,7 +29,9 @@ function AdminSettings() {
         setSettingsId(s.id);
         setUrl(s.new_practitioner_webhook_url ?? "");
         setEnabled(s.new_practitioner_webhook_enabled ?? false);
+        setProgramsEnabled(s.programs_feature_enabled ?? true);
       }
+
       setLoading(false);
     })();
   }, []);
@@ -40,7 +44,9 @@ function AdminSettings() {
     const payload = {
       new_practitioner_webhook_url: url.trim(),
       new_practitioner_webhook_enabled: enabled,
+      programs_feature_enabled: programsEnabled,
     };
+
     let err: { message: string } | null = null;
     if (settingsId) {
       const { error } = await supabase
@@ -126,6 +132,36 @@ function AdminSettings() {
             style={{ width: 22, height: 22, accentColor: "var(--blue-accent)" }}
           />
         </label>
+
+        <div style={{ ...sectionTitle, marginTop: 24 }}>Suggested Programs</div>
+        <p style={{ color: "var(--white-muted)", fontSize: 12, marginTop: -8 }}>
+          When off, practitioners cannot assign or approve program suggestions, and clients see no program suggestion UI. Existing data is preserved.
+        </p>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "var(--navy-card)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 8,
+            padding: "12px 14px",
+            minHeight: 48,
+            cursor: "pointer",
+          }}
+        >
+          <span style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
+            Allow practitioners to send Suggested Programs
+          </span>
+          <input
+            type="checkbox"
+            checked={programsEnabled}
+            onChange={(e) => setProgramsEnabled(e.target.checked)}
+            style={{ width: 22, height: 22, accentColor: "var(--blue-accent)" }}
+          />
+        </label>
+
+
 
         {error && <div style={{ color: "var(--red)", fontSize: 13 }}>{error}</div>}
         {success && <div style={{ color: "var(--green)", fontSize: 13 }}>{success}</div>}

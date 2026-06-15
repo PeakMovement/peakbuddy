@@ -32,8 +32,27 @@ const PROGRAM_COLS =
 const CLIENT_COLS =
   "id, suggested_program_id, program_status, program_decided_at, first_login_at, program_personal_note, program_reminder_snoozed_until";
 
+// Public: is the Suggested Programs feature globally enabled? Defaults to true
+// if no platform_settings row exists, preserving prior behavior.
+export async function isProgramsFeatureEnabled(): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
+    .from("platform_settings")
+    .select("programs_feature_enabled")
+    .limit(1)
+    .maybeSingle();
+  const row = data as { programs_feature_enabled?: boolean } | null;
+  if (!row) return true;
+  return row.programs_feature_enabled !== false;
+}
+
+export const getProgramsFeatureEnabled = createServerFn({ method: "GET" }).handler(
+  async () => ({ enabled: await isProgramsFeatureEnabled() }),
+);
+
 // Public: list of admin-approved + active programs (id + name) for practitioner dropdown.
 export const listActivePrograms = createServerFn({ method: "GET" }).handler(async () => {
+  if (!(await isProgramsFeatureEnabled())) return [] as { id: string; name: string }[];
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("programs")
@@ -45,6 +64,7 @@ export const listActivePrograms = createServerFn({ method: "GET" }).handler(asyn
   if (error) return [] as { id: string; name: string }[];
   return (data ?? []) as { id: string; name: string }[];
 });
+
 
 
 type ClientRow = {
@@ -137,6 +157,7 @@ export const getClientBootstrap = createServerFn({ method: "POST" })
         .eq("id", client.id);
     }
 
+    if (!(await isProgramsFeatureEnabled())) return buildState(client, null, wasFirstLogin);
     const program = await loadProgram(client.suggested_program_id);
     return buildState(client, program, wasFirstLogin);
   });
@@ -148,9 +169,11 @@ export const getMyProgram = createServerFn({ method: "POST" })
     const email = (context.claims?.email as string | undefined) ?? null;
     const client = await loadClientByAuth(email);
     if (!client) return buildState(null, null, false);
+    if (!(await isProgramsFeatureEnabled())) return buildState(client, null, false);
     const program = await loadProgram(client.suggested_program_id);
     return buildState(client, program, false);
   });
+
 
 const RespondSchema = z.object({
   decision: z.enum(["accepted", "declined", "remind_later"]),
@@ -202,7 +225,9 @@ export const getClientProgramForPractitioner = createServerFn({ method: "POST" }
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => PractClientSchema.parse(input))
   .handler(async ({ data, context }) => {
+    if (!(await isProgramsFeatureEnabled())) return null;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
     const { data: c } = await supabaseAdmin
       .from("clients")
       .select(`${CLIENT_COLS}, practitioner_id`)
@@ -243,7 +268,9 @@ export type PendingSuggestion = {
 export const listPendingProgramSuggestions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    if (!(await isProgramsFeatureEnabled())) return [] as PendingSuggestion[];
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
     const { data, error } = await supabaseAdmin
       .from("clients")
       .select(
@@ -277,7 +304,9 @@ export const listPendingProgramSuggestions = createServerFn({ method: "GET" })
 export const countPendingProgramSuggestions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    if (!(await isProgramsFeatureEnabled())) return 0;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
     const { count } = await supabaseAdmin
       .from("clients")
       .select("id", { count: "exact", head: true })
@@ -303,8 +332,12 @@ export const approveProgramSuggestion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => PractClientSchema.parse(input))
   .handler(async ({ data, context }) => {
+    if (!(await isProgramsFeatureEnabled())) {
+      return { ok: false as const, error: "Suggested Programs is currently disabled." };
+    }
     await assertOwnsClient(context.userId, data.clientId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
     const { error } = await supabaseAdmin
       .from("clients")
       .update({

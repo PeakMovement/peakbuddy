@@ -2,7 +2,11 @@ import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-rout
 import { useEffect, useState } from "react";
 import { LayoutGrid, Bell, UserPlus, Settings as SettingsIcon, User, ClipboardCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { countPendingProgramSuggestions } from "@/lib/client-program.functions";
+import {
+  countPendingProgramSuggestions,
+  getProgramsFeatureEnabled,
+} from "@/lib/client-program.functions";
+
 
 export const Route = createFileRoute("/practitioner/app")({
   component: PractitionerAppLayout,
@@ -24,6 +28,8 @@ function PractitionerAppLayout() {
   const [userId, setUserId] = useState<string | null>(null);
   const [unread, setUnread] = useState(0);
   const [queueCount, setQueueCount] = useState(0);
+  const [programsEnabled, setProgramsEnabled] = useState(true);
+
 
   useEffect(() => {
     (async () => {
@@ -61,22 +67,36 @@ function PractitionerAppLayout() {
 
   useEffect(() => {
     if (!userId) return;
+    let cancelled = false;
     const fetchCounts = async () => {
+      const flag = await getProgramsFeatureEnabled().catch(() => ({ enabled: true }));
+      if (cancelled) return;
+      const enabled = flag?.enabled !== false;
+      setProgramsEnabled(enabled);
       const [{ count }, qc] = await Promise.all([
         supabase
           .from("alerts")
           .select("*", { count: "exact", head: true })
           .eq("practitioner_id", userId)
           .eq("is_read", false),
-        countPendingProgramSuggestions().catch(() => 0),
+        enabled ? countPendingProgramSuggestions().catch(() => 0) : Promise.resolve(0),
       ]);
+      if (cancelled) return;
       setUnread(count ?? 0);
       setQueueCount(typeof qc === "number" ? qc : 0);
     };
     fetchCounts();
     const id = setInterval(fetchCounts, 30000);
-    return () => clearInterval(id);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, [userId]);
+
+  const visibleTabs = tabs.filter(
+    (t) => programsEnabled || t.to !== "/practitioner/app/program-queue",
+  );
+
 
 
   return (
@@ -107,7 +127,7 @@ function PractitionerAppLayout() {
           zIndex: 50,
         }}
       >
-        {tabs.map(({ to, label, Icon, badge }) => {
+        {visibleTabs.map(({ to, label, Icon, badge }) => {
           const badgeCount = badge === "alerts" ? unread : badge === "queue" ? queueCount : 0;
           return (
           <Link

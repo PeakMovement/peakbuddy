@@ -18,6 +18,11 @@ export const createClientAccount = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data }) => {
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { isProgramsFeatureEnabled } = await import("@/lib/client-program.functions");
+    const programsEnabled = await isProgramsFeatureEnabled();
+    const suggestedProgramId = programsEnabled ? (data.suggestedProgramId ?? null) : null;
+
+
 
     // Guard: refuse to create a second client row for the same email.
     const { data: existingClient } = await admin
@@ -73,16 +78,17 @@ export const createClientAccount = createServerFn({ method: "POST" })
         check_in_frequency: data.checkInFrequency,
         popia_accepted: false,
         login_code: String(Math.floor(1000 + Math.random() * 9000)),
-        suggested_program_id: data.suggestedProgramId ?? null,
-        program_status: data.suggestedProgramId ? "pending" : "none",
-        program_suggested_by: data.suggestedProgramId ? "practitioner" : null,
-        program_suggested_at: data.suggestedProgramId ? new Date().toISOString() : null,
-        program_decided_at: data.suggestedProgramId ? new Date().toISOString() : null,
+        suggested_program_id: suggestedProgramId,
+        program_status: suggestedProgramId ? "pending" : "none",
+        program_suggested_by: suggestedProgramId ? "practitioner" : null,
+        program_suggested_at: suggestedProgramId ? new Date().toISOString() : null,
+        program_decided_at: suggestedProgramId ? new Date().toISOString() : null,
         program_personal_note:
-          data.suggestedProgramId && data.programPersonalNote
+          suggestedProgramId && data.programPersonalNote
             ? data.programPersonalNote
             : null,
       })
+
       .select("id")
       .single();
 

@@ -1,29 +1,43 @@
-# Add chart type switcher on the practitioner's client detail page
+## Goal
+Add a platform-wide switch in the Super Admin portal that enables or disables the entire "Suggested Programs" feature. When OFF, practitioners cannot send program suggestions to clients, and clients see no program suggestion UI. When ON, behavior is unchanged.
 
-On `/practitioner/app/client-detail/:clientId`, the "Pain — last 30 days" panel currently renders a single line chart. I'll add a small segmented control above it so the practitioner can switch between three views, and extend it to more than just pain.
+## Where the feature surfaces today
+- Practitioner: `practitioner.app.program-queue.tsx` (approval queue), program picker in `practitioner.app.add-client.tsx` and `practitioner.app.client-detail.$clientId.tsx`, nav entry in `practitioner.app.tsx`.
+- Client: `ProgramSuggestionCard`, `ProgramIntroModal`, rendered from `client.app.index.tsx` / `client.app.profile.tsx` / `client.app.checkin.tsx`.
+- Server: `client-program.functions.ts`, `programs.functions.ts`, AI auto-suggest path in `api/public/triage-query.ts`.
 
-## What changes
+## Plan
 
-**Chart type toggle (3 options)**
-- **Line** — current look (smooth line, dots).
-- **Bar** — daily bars over the same 30-day window.
-- **Rings** — the "current setup" feel: a row of compact CircularRings (one per metric) showing the latest day's values, matching the rings already used at the top of the page.
+### 1. Database
+Add `programs_feature_enabled boolean not null default true` to `platform_settings`. Single-row table, no RLS changes needed (admin-only writes already in place).
 
-**Metric toggle**
-Today only pain is charted. Practitioners also collect sleep, stress, energy. I'll add a second small toggle (Pain / Sleep / Stress / Energy) so the chosen chart type applies to whichever metric they pick. Defaults to Pain so nothing changes on first load.
+### 2. Settings read helper
+New server fn `getProgramsFeatureEnabled` (public, cached briefly) returning the boolean. Used by both practitioner and client surfaces. Default `true` if no row exists, so existing behavior is preserved.
 
-**Persistence**
-Selected chart type + metric are stored in URL search params (`?chart=line|bar|rings&metric=pain|sleep|stress|energy`) using TanStack Router `validateSearch`, so a refresh or shared link keeps the view.
+### 3. Super Admin UI
+In `admin.app.settings.tsx`, add a new section "Suggested Programs" with a single toggle bound to `programs_feature_enabled`, persisted alongside existing webhook settings. Short helper text: "When off, practitioners cannot assign programs and clients see no program suggestions."
 
-## Scope
+### 4. Practitioner enforcement
+- `practitioner.app.tsx` nav: hide the "Program Queue" link when disabled.
+- `practitioner.app.program-queue.tsx`: render a "This feature is currently disabled by the administrator" empty-state instead of the queue.
+- `add-client` and `client-detail`: hide the program picker and suggestion controls when disabled.
+- Server fns that create/approve suggestions (`approveProgramSuggestion`, any assignment writes, AI auto-suggest in `triage-query.ts`) check the flag and return `{ ok: false, error: "Programs feature disabled" }` (defense in depth so a stale UI cannot bypass).
 
-- Frontend-only change to `src/routes/practitioner.app.client-detail.$clientId.tsx`.
-- Reuses existing recharts (`BarChart`, `Bar`) and the existing `CircularRing` component — no new dependencies.
-- No backend, schema, or data-fetching changes. `last30` already contains all four metrics per day.
-- Admin and client views are untouched.
+### 5. Client enforcement
+- `client.app.index.tsx`, `client.app.profile.tsx`, `client.app.checkin.tsx`: skip rendering `ProgramSuggestionCard` / `ProgramIntroModal` when disabled.
+- `getClientProgramState` server fn returns `status: "none"` and `program: null` when disabled, so even if a card slipped through it would show nothing.
+
+### 6. Data preservation
+Existing `suggested_program_id` / `program_status` rows are left untouched. Turning the feature back on restores prior state with no data loss. Turning off does not clear anything — it only hides and blocks new writes.
+
+## Technical notes
+- One migration: `ALTER TABLE public.platform_settings ADD COLUMN programs_feature_enabled boolean NOT NULL DEFAULT true;`
+- Extend `PlatformSettings` type in `src/lib/types.ts`.
+- A single `getProgramsFeatureEnabled` serverFn shared by client + practitioner avoids duplicated logic; read once at layout level (`practitioner.app.tsx`, `client.app.tsx`) via TanStack Query and pass down through context or re-read in children.
+- Default `true` ensures zero behavioral change until the admin flips it.
 
 ## Out of scope
+- Per-practitioner overrides (could be a follow-up).
+- Migrating/archiving existing suggestions when disabled.
 
-- Date range picker (still last 30 days).
-- Exporting / printing charts.
-- Adding the toggle to the admin client detail page or the client's own progress page — say the word and I'll mirror it there too.
+Confirm and I'll implement.

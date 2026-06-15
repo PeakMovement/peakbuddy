@@ -246,26 +246,28 @@ function AddClient() {
             ))}
           </div>
         </div>
-        <div>
-          <label style={labelStyle}>Suggested Program (optional)</label>
-          <select
-            value={suggestedProgramId}
-            onChange={(e) => setSuggestedProgramId(e.target.value)}
-            style={{ ...inputStyle, appearance: "auto" }}
-          >
-            <option value="">— None —</option>
-            {programs.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <div style={{ marginTop: 6, fontSize: 12, color: "var(--white-muted)" }}>
-            If selected, the client will see a friendly intro on first sign-in.
+        {programs.length > 0 && (
+          <div>
+            <label style={labelStyle}>Suggested Program (optional)</label>
+            <select
+              value={suggestedProgramId}
+              onChange={(e) => setSuggestedProgramId(e.target.value)}
+              style={{ ...inputStyle, appearance: "auto" }}
+            >
+              <option value="">— None —</option>
+              {programs.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <div style={{ marginTop: 6, fontSize: 12, color: "var(--white-muted)" }}>
+              If selected, the client will see a friendly intro on first sign-in.
+            </div>
           </div>
-        </div>
+        )}
 
-        {suggestedProgramId && (
+        {programs.length > 0 && suggestedProgramId && (
           <div>
             <label style={labelStyle}>Personal note (optional)</label>
             <textarea
@@ -289,6 +291,7 @@ function AddClient() {
             </div>
           </div>
         )}
+
 
         <div>
           <label style={labelStyle}>Initial Password *</label>
