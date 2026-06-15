@@ -127,7 +127,7 @@ function PractitionerAppLayout() {
           zIndex: 50,
         }}
       >
-        {tabs.map(({ to, label, Icon, badge }) => {
+        {visibleTabs.map(({ to, label, Icon, badge }) => {
           const badgeCount = badge === "alerts" ? unread : badge === "queue" ? queueCount : 0;
           return (
           <Link
