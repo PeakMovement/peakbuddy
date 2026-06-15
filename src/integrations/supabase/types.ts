@@ -206,18 +206,21 @@ export type Database = {
           id: string
           new_practitioner_webhook_enabled: boolean | null
           new_practitioner_webhook_url: string | null
+          programs_feature_enabled: boolean
         }
         Insert: {
           created_at?: string | null
           id?: string
           new_practitioner_webhook_enabled?: boolean | null
           new_practitioner_webhook_url?: string | null
+          programs_feature_enabled?: boolean
         }
         Update: {
           created_at?: string | null
           id?: string
           new_practitioner_webhook_enabled?: boolean | null
           new_practitioner_webhook_url?: string | null
+          programs_feature_enabled?: boolean
         }
         Relationships: []
       }

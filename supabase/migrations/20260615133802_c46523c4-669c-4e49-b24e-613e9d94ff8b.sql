@@ -1,0 +1,1 @@
+ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS programs_feature_enabled boolean NOT NULL DEFAULT true;
