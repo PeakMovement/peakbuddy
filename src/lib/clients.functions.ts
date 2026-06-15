@@ -18,6 +18,11 @@ export const createClientAccount = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data }) => {
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { isProgramsFeatureEnabled } = await import("@/lib/client-program.functions");
+    const programsEnabled = await isProgramsFeatureEnabled();
+    const suggestedProgramId = programsEnabled ? (data.suggestedProgramId ?? null) : null;
+
+
 
     // Guard: refuse to create a second client row for the same email.
     const { data: existingClient } = await admin
