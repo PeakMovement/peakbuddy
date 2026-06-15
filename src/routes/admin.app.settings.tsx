@@ -16,8 +16,10 @@ function AdminSettings() {
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [url, setUrl] = useState("");
   const [enabled, setEnabled] = useState(false);
+  const [programsEnabled, setProgramsEnabled] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
 
   useEffect(() => {
     (async () => {
