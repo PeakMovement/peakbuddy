@@ -110,6 +110,23 @@ function ProgramQueue() {
 
       {loading ? (
         <p style={{ marginTop: 20, color: "var(--white-muted)" }}>Loading…</p>
+      ) : !featureEnabled ? (
+        <div
+          style={{
+            marginTop: 20,
+            padding: 16,
+            background: "var(--navy-card)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 12,
+            color: "var(--white-muted)",
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          Suggested Programs is currently disabled by the administrator. New suggestions
+          won't be created and you can't send programs to clients until it's re-enabled.
+        </div>
+
       ) : items.length === 0 ? (
         <p style={{ marginTop: 24, color: "var(--white-muted)" }}>
           Nothing waiting. New suggestions appear here after a client check-in.
