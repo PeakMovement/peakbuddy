@@ -5,9 +5,11 @@ import {
   listPendingProgramSuggestions,
   approveProgramSuggestion,
   rejectProgramSuggestion,
+  getProgramsFeatureEnabled,
   type PendingSuggestion,
 } from "@/lib/client-program.functions";
 import { log } from "@/lib/log";
+
 
 export const Route = createFileRoute("/practitioner/app/program-queue")({
   head: () => ({ meta: [{ title: "Program Queue — Buddy" }] }),
