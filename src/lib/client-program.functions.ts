@@ -330,8 +330,12 @@ export const approveProgramSuggestion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => PractClientSchema.parse(input))
   .handler(async ({ data, context }) => {
+    if (!(await isProgramsFeatureEnabled())) {
+      return { ok: false as const, error: "Suggested Programs is currently disabled." };
+    }
     await assertOwnsClient(context.userId, data.clientId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
     const { error } = await supabaseAdmin
       .from("clients")
       .update({
