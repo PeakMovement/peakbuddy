@@ -44,7 +44,9 @@ function AdminSettings() {
     const payload = {
       new_practitioner_webhook_url: url.trim(),
       new_practitioner_webhook_enabled: enabled,
+      programs_feature_enabled: programsEnabled,
     };
+
     let err: { message: string } | null = null;
     if (settingsId) {
       const { error } = await supabase
