@@ -266,7 +266,9 @@ export type PendingSuggestion = {
 export const listPendingProgramSuggestions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    if (!(await isProgramsFeatureEnabled())) return [] as PendingSuggestion[];
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
     const { data, error } = await supabaseAdmin
       .from("clients")
       .select(
