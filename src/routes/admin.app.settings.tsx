@@ -133,6 +133,36 @@ function AdminSettings() {
           />
         </label>
 
+        <div style={{ ...sectionTitle, marginTop: 24 }}>Suggested Programs</div>
+        <p style={{ color: "var(--white-muted)", fontSize: 12, marginTop: -8 }}>
+          When off, practitioners cannot assign or approve program suggestions, and clients see no program suggestion UI. Existing data is preserved.
+        </p>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "var(--navy-card)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 8,
+            padding: "12px 14px",
+            minHeight: 48,
+            cursor: "pointer",
+          }}
+        >
+          <span style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
+            Allow practitioners to send Suggested Programs
+          </span>
+          <input
+            type="checkbox"
+            checked={programsEnabled}
+            onChange={(e) => setProgramsEnabled(e.target.checked)}
+            style={{ width: 22, height: 22, accentColor: "var(--blue-accent)" }}
+          />
+        </label>
+
+
+
         {error && <div style={{ color: "var(--red)", fontSize: 13 }}>{error}</div>}
         {success && <div style={{ color: "var(--green)", fontSize: 13 }}>{success}</div>}
 
