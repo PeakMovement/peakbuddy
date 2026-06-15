@@ -2,7 +2,11 @@ import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-rout
 import { useEffect, useState } from "react";
 import { LayoutGrid, Bell, UserPlus, Settings as SettingsIcon, User, ClipboardCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { countPendingProgramSuggestions } from "@/lib/client-program.functions";
+import {
+  countPendingProgramSuggestions,
+  getProgramsFeatureEnabled,
+} from "@/lib/client-program.functions";
+
 
 export const Route = createFileRoute("/practitioner/app")({
   component: PractitionerAppLayout,
