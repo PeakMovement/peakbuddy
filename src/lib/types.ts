@@ -34,8 +34,10 @@ export interface PlatformSettings {
   id: string;
   new_practitioner_webhook_url: string;
   new_practitioner_webhook_enabled: boolean;
+  programs_feature_enabled: boolean;
   created_at: string;
 }
+
 
 export interface Client {
   id: string;
