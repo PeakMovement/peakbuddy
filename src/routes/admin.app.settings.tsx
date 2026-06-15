@@ -29,7 +29,9 @@ function AdminSettings() {
         setSettingsId(s.id);
         setUrl(s.new_practitioner_webhook_url ?? "");
         setEnabled(s.new_practitioner_webhook_enabled ?? false);
+        setProgramsEnabled(s.programs_feature_enabled ?? true);
       }
+
       setLoading(false);
     })();
   }, []);
