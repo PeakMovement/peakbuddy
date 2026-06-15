@@ -225,7 +225,9 @@ export const getClientProgramForPractitioner = createServerFn({ method: "POST" }
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => PractClientSchema.parse(input))
   .handler(async ({ data, context }) => {
+    if (!(await isProgramsFeatureEnabled())) return null;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
     const { data: c } = await supabaseAdmin
       .from("clients")
       .select(`${CLIENT_COLS}, practitioner_id`)
