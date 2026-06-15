@@ -32,8 +32,27 @@ const PROGRAM_COLS =
 const CLIENT_COLS =
   "id, suggested_program_id, program_status, program_decided_at, first_login_at, program_personal_note, program_reminder_snoozed_until";
 
+// Public: is the Suggested Programs feature globally enabled? Defaults to true
+// if no platform_settings row exists, preserving prior behavior.
+export async function isProgramsFeatureEnabled(): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
+    .from("platform_settings")
+    .select("programs_feature_enabled")
+    .limit(1)
+    .maybeSingle();
+  const row = data as { programs_feature_enabled?: boolean } | null;
+  if (!row) return true;
+  return row.programs_feature_enabled !== false;
+}
+
+export const getProgramsFeatureEnabled = createServerFn({ method: "GET" }).handler(
+  async () => ({ enabled: await isProgramsFeatureEnabled() }),
+);
+
 // Public: list of admin-approved + active programs (id + name) for practitioner dropdown.
 export const listActivePrograms = createServerFn({ method: "GET" }).handler(async () => {
+  if (!(await isProgramsFeatureEnabled())) return [] as { id: string; name: string }[];
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("programs")
@@ -45,6 +64,7 @@ export const listActivePrograms = createServerFn({ method: "GET" }).handler(asyn
   if (error) return [] as { id: string; name: string }[];
   return (data ?? []) as { id: string; name: string }[];
 });
+
 
 
 type ClientRow = {
