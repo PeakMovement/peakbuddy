@@ -27,10 +27,18 @@ function ProgramQueue() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [featureEnabled, setFeatureEnabled] = useState(true);
 
   const load = async () => {
     setLoading(true);
     try {
+      const flag = await getProgramsFeatureEnabled().catch(() => ({ enabled: true }));
+      const enabled = flag?.enabled !== false;
+      setFeatureEnabled(enabled);
+      if (!enabled) {
+        setItems([]);
+        return;
+      }
       const rows = await listPendingProgramSuggestions();
       setItems(rows);
     } catch (e) {
@@ -44,6 +52,7 @@ function ProgramQueue() {
   useEffect(() => {
     void load();
   }, []);
+
 
   const approve = async (clientId: string) => {
     setBusy(clientId);
