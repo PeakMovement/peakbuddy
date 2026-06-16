@@ -120,7 +120,13 @@ function ClientProfile() {
         <ProfileField label="Name" value={client?.full_name} />
         <ProfileField label="Email" value={client?.email} />
         <ProfileField label="Phone" value={client?.phone || "Not set"} />
+        <AiConsentRow
+          on={client?.yves_ai_consent === true}
+          busy={consentBusy}
+          onToggle={toggleAiConsent}
+        />
       </div>
+
 
       {programState?.program && programState.status !== "none" && (
         <MyProgramCard
