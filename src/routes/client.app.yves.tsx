@@ -917,8 +917,30 @@ function YvesScreen() {
         </>
       )}
     </div>
+    {showConsentModal && client && (
+      <ConsentModal
+        saving={consentSaving}
+        onAgree={async () => {
+          if (!client) return;
+          setConsentSaving(true);
+          const res = await saveConsent({ data: { clientId: client.id, consent: true } });
+          setConsentSaving(false);
+          if (res.ok) {
+            const now = new Date().toISOString();
+            setClient({ ...client, yves_ai_consent: true, yves_ai_consent_at: now });
+            setShowConsentModal(false);
+          }
+        }}
+        onDecline={() => {
+          setShowConsentModal(false);
+          window.history.back();
+        }}
+      />
+    )}
+    </>
   );
 }
+
 
 function PreviousQueries({
   history,
