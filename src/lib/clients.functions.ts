@@ -71,6 +71,7 @@ export const createClientAccount = createServerFn({ method: "POST" })
       .from("clients")
       .insert({
         practitioner_id: data.practitionerId,
+        auth_user_id: userId,
         full_name: data.fullName,
         email: data.email,
         primary_complaint: data.primaryComplaint,

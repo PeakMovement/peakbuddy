@@ -1,43 +1,28 @@
-## Goal
-Add a platform-wide switch in the Super Admin portal that enables or disables the entire "Suggested Programs" feature. When OFF, practitioners cannot send program suggestions to clients, and clients see no program suggestion UI. When ON, behavior is unchanged.
+## What's going wrong
 
-## Where the feature surfaces today
-- Practitioner: `practitioner.app.program-queue.tsx` (approval queue), program picker in `practitioner.app.add-client.tsx` and `practitioner.app.client-detail.$clientId.tsx`, nav entry in `practitioner.app.tsx`.
-- Client: `ProgramSuggestionCard`, `ProgramIntroModal`, rendered from `client.app.index.tsx` / `client.app.profile.tsx` / `client.app.checkin.tsx`.
-- Server: `client-program.functions.ts`, `programs.functions.ts`, AI auto-suggest path in `api/public/triage-query.ts`.
+When a practitioner adds a client, two things happen in `createClientAccount`:
 
-## Plan
+1. An auth user is created for the client's email.
+2. A row is inserted into the `clients` table.
 
-### 1. Database
-Add `programs_feature_enabled boolean not null default true` to `platform_settings`. Single-row table, no RLS changes needed (admin-only writes already in place).
+The order is the problem. The auth user is created **first**, which fires the `on_auth_user_created` trigger (`handle_new_user`). That trigger tries to link the new auth user to an existing `clients` row by matching email — but the row does not exist yet, so nothing gets linked. Then the `clients` row is inserted **without** `auth_user_id`.
 
-### 2. Settings read helper
-New server fn `getProgramsFeatureEnabled` (public, cached briefly) returning the boolean. Used by both practitioner and client surfaces. Default `true` if no row exists, so existing behavior is preserved.
+I confirmed this against the live data: the `clients` row for `justin@peakmovement.co.za` exists, the auth user exists, but `clients.auth_user_id` is `NULL`.
 
-### 3. Super Admin UI
-In `admin.app.settings.tsx`, add a new section "Suggested Programs" with a single toggle bound to `programs_feature_enabled`, persisted alongside existing webhook settings. Short helper text: "When off, practitioners cannot assign programs and clients see no program suggestions."
+The client login page then signs the user in successfully, but the follow-up lookup `select id from clients where email = ...` runs under that user's session. The clients RLS policy only lets a signed-in client see their own row via `auth_user_id = auth.uid()`. With `auth_user_id` still `NULL`, the policy filters the row out and the UI shows "No client record found for this account."
 
-### 4. Practitioner enforcement
-- `practitioner.app.tsx` nav: hide the "Program Queue" link when disabled.
-- `practitioner.app.program-queue.tsx`: render a "This feature is currently disabled by the administrator" empty-state instead of the queue.
-- `add-client` and `client-detail`: hide the program picker and suggestion controls when disabled.
-- Server fns that create/approve suggestions (`approveProgramSuggestion`, any assignment writes, AI auto-suggest in `triage-query.ts`) check the flag and return `{ ok: false, error: "Programs feature disabled" }` (defense in depth so a stale UI cannot bypass).
+## Fix
 
-### 5. Client enforcement
-- `client.app.index.tsx`, `client.app.profile.tsx`, `client.app.checkin.tsx`: skip rendering `ProgramSuggestionCard` / `ProgramIntroModal` when disabled.
-- `getClientProgramState` server fn returns `status: "none"` and `program: null` when disabled, so even if a card slipped through it would show nothing.
+One small change plus a backfill:
 
-### 6. Data preservation
-Existing `suggested_program_id` / `program_status` rows are left untouched. Turning the feature back on restores prior state with no data loss. Turning off does not clear anything — it only hides and blocks new writes.
+1. In `src/lib/clients.functions.ts` (`createClientAccount`), set `auth_user_id: userId` on the `clients` insert. This is the only behaviour change. Both the create-user and find-existing-user branches already populate `userId` before the insert runs.
 
-## Technical notes
-- One migration: `ALTER TABLE public.platform_settings ADD COLUMN programs_feature_enabled boolean NOT NULL DEFAULT true;`
-- Extend `PlatformSettings` type in `src/lib/types.ts`.
-- A single `getProgramsFeatureEnabled` serverFn shared by client + practitioner avoids duplicated logic; read once at layout level (`practitioner.app.tsx`, `client.app.tsx`) via TanStack Query and pass down through context or re-read in children.
-- Default `true` ensures zero behavioral change until the admin flips it.
+2. Backfill existing broken rows with a one-off migration that links any `clients` row whose `auth_user_id` is `NULL` to the matching `auth.users.id` by lowercased email. This unblocks Justin and any other client already added during testing.
+
+Nothing else needs to change. The login flow, RLS policies, and the email-confirmation linking trigger all stay as they are.
 
 ## Out of scope
-- Per-practitioner overrides (could be a follow-up).
-- Migrating/archiving existing suggestions when disabled.
 
-Confirm and I'll implement.
+- No changes to the login UI, the helper copy, or the practitioner add-client form.
+- No change to how passwords are set (still practitioner-set, as today).
+- No change to RLS or the existing triggers.
