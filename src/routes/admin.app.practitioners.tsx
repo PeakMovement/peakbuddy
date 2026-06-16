@@ -143,7 +143,23 @@ function PractitionerCard({
   onApproved: () => void;
 }) {
   const [approving, setApproving] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const remove = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(`Permanently remove ${row.full_name}? This deletes their account, practice, and all their clients and check-ins.`)) return;
+    setRemoving(true);
+    setErr(null);
+    try {
+      const res = await adminDeletePractitioner({ data: { id: row.practitioner_id } });
+      if (!res.ok) throw new Error(res.error);
+      onApproved();
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : "Failed to remove practitioner.");
+      setRemoving(false);
+    }
+  };
 
   const approve = async (e: React.MouseEvent) => {
     e.stopPropagation();
