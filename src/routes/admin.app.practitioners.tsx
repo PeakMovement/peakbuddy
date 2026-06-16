@@ -1,10 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Users } from "lucide-react";
+import { Trash2, Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Practice, Profile, Client } from "@/lib/types";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 import { log } from "@/lib/log";
+import { adminDeletePractitioner } from "@/lib/admin-delete.functions";
 
 export const Route = createFileRoute("/admin/app/practitioners")({
   head: () => ({ meta: [{ title: "Practitioners — Buddy Admin" }] }),
@@ -142,7 +143,23 @@ function PractitionerCard({
   onApproved: () => void;
 }) {
   const [approving, setApproving] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const remove = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(`Permanently remove ${row.full_name}? This deletes their account, practice, and all their clients and check-ins.`)) return;
+    setRemoving(true);
+    setErr(null);
+    try {
+      const res = await adminDeletePractitioner({ data: { id: row.practitioner_id } });
+      if (!res.ok) throw new Error(res.error);
+      onApproved();
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : "Failed to remove practitioner.");
+      setRemoving(false);
+    }
+  };
 
   const approve = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -252,6 +269,29 @@ function PractitionerCard({
           {approving ? "Approving…" : "Approve"}
         </button>
       )}
+      <button
+        type="button"
+        onClick={remove}
+        disabled={removing}
+        style={{
+          minHeight: 36,
+          background: "transparent",
+          color: "var(--red)",
+          border: "1px solid var(--red)",
+          borderRadius: 8,
+          fontFamily: "var(--font-ui)",
+          fontWeight: 600,
+          fontSize: 12,
+          cursor: "pointer",
+          opacity: removing ? 0.6 : 1,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+        }}
+      >
+        <Trash2 size={14} /> {removing ? "Removing…" : "Remove practitioner"}
+      </button>
       {err && <div style={{ color: "var(--red)", fontSize: 12 }}>{err}</div>}
     </div>
   );
