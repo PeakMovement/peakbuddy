@@ -123,12 +123,12 @@ function PrivacyPolicyPage() {
           </ul>
         </section>
 
-        <section className="mt-8">
+        <section className="mt-8" id="ai">
           <h2
             className="text-xl font-semibold"
             style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
           >
-            3. How We Use Your Data
+            3. How We Use Your Data (including AI)
           </h2>
           <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
             We process your personal information for the following lawful purposes under POPIA:
