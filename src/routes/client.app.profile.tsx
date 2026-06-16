@@ -26,7 +26,25 @@ function ClientProfile() {
   const [programState, setProgramState] = useState<ClientProgramState | null>(null);
   const loadProgram = useServerFn(getMyProgram);
   const respond = useServerFn(respondToSuggestedProgram);
+  const saveConsent = useServerFn(setYvesAiConsent);
   const [busy, setBusy] = useState(false);
+  const [consentBusy, setConsentBusy] = useState(false);
+
+  const toggleAiConsent = async () => {
+    if (!client || consentBusy) return;
+    const next = !client.yves_ai_consent;
+    setConsentBusy(true);
+    const res = await saveConsent({ data: { clientId: client.id, consent: next } });
+    setConsentBusy(false);
+    if (res.ok) {
+      setClient({
+        ...client,
+        yves_ai_consent: next,
+        yves_ai_consent_at: next ? new Date().toISOString() : null,
+      });
+    }
+  };
+
 
   useEffect(() => {
     const id = getClientId();
