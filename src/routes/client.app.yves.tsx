@@ -1,5 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { UserCheck, AlertTriangle, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId } from "@/lib/client-session";
@@ -13,6 +14,7 @@ import {
   type UrgencyTier,
 } from "@/lib/yves";
 import { getClientYvesAccess } from "@/lib/yves-access.functions";
+import { setYvesAiConsent } from "@/lib/yves-consent.functions";
 import type { Client, SymptomQuery } from "@/lib/types";
 import { CrosshairLogo } from "@/components/CrosshairLogo";
 import { log } from "@/lib/log";
@@ -20,6 +22,7 @@ import { log } from "@/lib/log";
 export const Route = createFileRoute("/client/app/yves")({
   component: YvesScreen,
 });
+
 
 const EXAMPLES = [
   "I have sharp pain in my lower back when I bend forward",
