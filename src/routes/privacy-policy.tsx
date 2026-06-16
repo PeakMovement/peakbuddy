@@ -385,7 +385,7 @@ function PrivacyPolicyPage() {
             className="text-xl font-semibold"
             style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
           >
-            8. Children’s Privacy
+            9. Children's Privacy
           </h2>
           <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
             The Service is not intended for individuals under the age of 18 without the involvement
