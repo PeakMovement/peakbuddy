@@ -57,6 +57,8 @@ export interface Client {
   program_status: "none" | "pending" | "accepted" | "declined";
   program_decided_at: string | null;
   first_login_at: string | null;
+  yves_ai_consent: boolean;
+  yves_ai_consent_at: string | null;
   created_at: string;
 }
 
