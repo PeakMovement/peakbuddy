@@ -10,6 +10,8 @@ import {
   respondToSuggestedProgram,
   type ClientProgramState,
 } from "@/lib/client-program.functions";
+import { setYvesAiConsent } from "@/lib/yves-consent.functions";
+
 
 export const Route = createFileRoute("/client/app/profile")({
   head: () => ({ meta: [{ title: "Profile — Buddy" }] }),
