@@ -135,7 +135,7 @@ function PrivacyPolicyPage() {
           </ul>
         </section>
 
-        <section className="mt-8" id="ai">
+        <section className="mt-8">
           <h2
             className="text-xl font-semibold"
             style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
@@ -157,7 +157,7 @@ function PrivacyPolicyPage() {
             <li>
               <strong style={{ color: "var(--white)" }}>AI-assisted pattern detection:</strong> To
               identify trends, correlations, and potential red flags in your symptom data using
-              automated analysis, which supports — but does not replace — clinical judgment.
+              automated analysis, which supports but does not replace clinical judgment.
             </li>
             <li>
               <strong style={{ color: "var(--white)" }}>Service improvement:</strong> To maintain,
@@ -175,12 +175,74 @@ function PrivacyPolicyPage() {
           </p>
         </section>
 
+        <section className="mt-8" id="ai">
+          <h2
+            className="text-xl font-semibold"
+            style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
+          >
+            4. AI features and third-party processing
+          </h2>
+          <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
+            Buddy offers an AI powered triage assistant called Yves. This section explains what
+            information Yves collects, how it is collected, how it is used, and who processes it on
+            our behalf.
+          </p>
+          <ul
+            className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed"
+            style={{ color: "var(--white-muted)" }}
+          >
+            <li>
+              <strong style={{ color: "var(--white)" }}>What we collect through Yves:</strong> When
+              you use Yves, you provide symptom details, check in responses, and free text messages
+              you type into the chat. We also store the triage assessment that Yves generates from
+              those inputs.
+            </li>
+            <li>
+              <strong style={{ color: "var(--white)" }}>How we collect it:</strong> We collect this
+              information directly from what you type or select inside the app. We do not collect
+              health information from your device or from other apps without your input.
+            </li>
+            <li>
+              <strong style={{ color: "var(--white)" }}>How we use it:</strong> We use your Yves
+              inputs to analyse your symptoms, generate a supportive response, and flag concerning
+              symptoms to your registered practitioner as an alert.
+            </li>
+            <li>
+              <strong style={{ color: "var(--white)" }}>Who we share it with:</strong> The contents
+              of your Yves conversations are sent to Anthropic, the AI model provider we use to
+              power Yves. Anthropic acts as a data processor on our behalf and does not use your
+              data to train its models. Anthropic is contractually bound to protect your information
+              to a standard equivalent to this policy. We also share alert and check in data with
+              your own practitioner so they can review flagged concerns. Where your practitioner has
+              configured one, alert data may also be sent to that practitioner's chosen webhook
+              endpoint.
+            </li>
+            <li>
+              <strong style={{ color: "var(--white)" }}>Consent:</strong> You must explicitly agree
+              before any of your information is sent to Anthropic. You can withdraw or change your
+              consent at any time in your profile. If you withdraw consent, Yves will be disabled and
+              no further data will be sent to Anthropic.
+            </li>
+            <li>
+              <strong style={{ color: "var(--white)" }}>Retention:</strong> Your Yves conversation
+              history is stored so that you and your practitioner can review it. You can request
+              deletion of this history at any time by contacting us.
+            </li>
+            <li>
+              <strong style={{ color: "var(--white)" }}>What Yves is not:</strong> Yves does not
+              provide a medical diagnosis and does not replace professional advice or emergency
+              care. If you have an urgent medical concern, contact your practitioner or emergency
+              services immediately.
+            </li>
+          </ul>
+        </section>
+
         <section className="mt-8">
           <h2
             className="text-xl font-semibold"
             style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
           >
-            4. Data Sharing and Disclosure
+            5. Data Sharing and Disclosure
           </h2>
           <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
             We do not sell, rent, or trade your personal information. Your health data is shared
@@ -215,7 +277,7 @@ function PrivacyPolicyPage() {
             className="text-xl font-semibold"
             style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
           >
-            5. Data Security and Encryption
+            6. Data Security and Encryption
           </h2>
           <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
             Protecting your health information is our highest priority. We implement appropriate
@@ -256,7 +318,7 @@ function PrivacyPolicyPage() {
             className="text-xl font-semibold"
             style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
           >
-            6. Data Retention
+            7. Data Retention
           </h2>
           <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
             We retain your personal information only for as long as necessary to fulfil the purposes
@@ -272,7 +334,7 @@ function PrivacyPolicyPage() {
             className="text-xl font-semibold"
             style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
           >
-            7. Your Rights Under POPIA
+            8. Your Rights Under POPIA
           </h2>
           <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
             As a data subject under POPIA, you have the following rights regarding your personal
@@ -338,7 +400,7 @@ function PrivacyPolicyPage() {
             className="text-xl font-semibold"
             style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
           >
-            9. Changes to This Policy
+            10. Changes to This Policy
           </h2>
           <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
             We may update this Privacy Policy from time to time to reflect changes in our practices,
@@ -353,7 +415,7 @@ function PrivacyPolicyPage() {
             className="text-xl font-semibold"
             style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
           >
-            10. Contact Us
+            11. Contact Us
           </h2>
           <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
             If you have any questions about this Privacy Policy, our data practices, or your rights
