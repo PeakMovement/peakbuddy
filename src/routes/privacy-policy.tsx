@@ -58,6 +58,18 @@ function PrivacyPolicyPage() {
           Last updated: 1 June 2026
         </p>
 
+        <div
+          className="mt-4 rounded-lg border p-4 text-sm leading-relaxed"
+          style={{
+            background: "var(--navy-card)",
+            borderColor: "var(--navy-border)",
+            color: "var(--white-muted)",
+          }}
+        >
+          We use a third-party AI provider (Anthropic) to power our Yves feature. We only send your
+          information to it after you agree.
+        </div>
+
         <section className="mt-8">
           <h2
             className="text-xl font-semibold"
