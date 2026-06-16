@@ -1,10 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { User } from "lucide-react";
+import { Trash2, User } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { CheckIn, Client, Profile } from "@/lib/types";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 import { log } from "@/lib/log";
+import { adminDeleteClient } from "@/lib/admin-delete.functions";
 
 export const Route = createFileRoute("/admin/app/clients")({
   head: () => ({ meta: [{ title: "All Clients — Buddy Admin" }] }),
