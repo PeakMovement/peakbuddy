@@ -176,6 +176,19 @@ function ClientLogin() {
           </button>
         </form>
 
+        <p
+          style={{
+            marginTop: 20,
+            color: "var(--white-muted)",
+            fontSize: 13,
+            textAlign: "center",
+            lineHeight: 1.5,
+          }}
+        >
+          Your practitioner gives you a login code. There is no charge to you and nothing to buy
+          inside the app.
+        </p>
+
         <Link
           to="/practitioner/login"
           style={{
