@@ -117,8 +117,12 @@ function YvesScreen() {
   const [exampleVisible, setExampleVisible] = useState(true);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [consentSaving, setConsentSaving] = useState(false);
+  const saveConsent = useServerFn(setYvesAiConsent);
 
   const debounceRef = useRef<number | null>(null);
+
 
   // Initial load — client, practitioner name, history
   useEffect(() => {
