@@ -269,6 +269,29 @@ function PractitionerCard({
           {approving ? "Approving…" : "Approve"}
         </button>
       )}
+      <button
+        type="button"
+        onClick={remove}
+        disabled={removing}
+        style={{
+          minHeight: 36,
+          background: "transparent",
+          color: "var(--red)",
+          border: "1px solid var(--red)",
+          borderRadius: 8,
+          fontFamily: "var(--font-ui)",
+          fontWeight: 600,
+          fontSize: 12,
+          cursor: "pointer",
+          opacity: removing ? 0.6 : 1,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+        }}
+      >
+        <Trash2 size={14} /> {removing ? "Removing…" : "Remove practitioner"}
+      </button>
       {err && <div style={{ color: "var(--red)", fontSize: 12 }}>{err}</div>}
     </div>
   );
