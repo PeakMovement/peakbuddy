@@ -247,8 +247,10 @@ function YvesScreen() {
     }
   };
 
-  const canUseYves =
+  const accessAllowed =
     !!client?.practitioner_id && practiceYvesEnabled && client?.yves_enabled !== false;
+  const hasAiConsent = client?.yves_ai_consent === true;
+  const canUseYves = accessAllowed && hasAiConsent;
 
   const accessBlockReason: string | null = !client
     ? null
@@ -262,7 +264,12 @@ function YvesScreen() {
 
   const submit = async () => {
     if (!client || text.trim().length < 3 || stage === "loading") return;
-    if (!canUseYves) return;
+    if (!accessAllowed) return;
+    if (!hasAiConsent) {
+      setShowConsentModal(true);
+      return;
+    }
+
     setError(null);
     setStage("loading");
     const queryText = text.trim();
