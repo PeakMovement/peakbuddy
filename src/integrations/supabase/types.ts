@@ -142,6 +142,8 @@ export type Database = {
           program_suggested_at: string | null
           program_suggested_by: string | null
           suggested_program_id: string | null
+          yves_ai_consent: boolean
+          yves_ai_consent_at: string | null
           yves_enabled: boolean
         }
         Insert: {
@@ -165,6 +167,8 @@ export type Database = {
           program_suggested_at?: string | null
           program_suggested_by?: string | null
           suggested_program_id?: string | null
+          yves_ai_consent?: boolean
+          yves_ai_consent_at?: string | null
           yves_enabled?: boolean
         }
         Update: {
@@ -188,6 +192,8 @@ export type Database = {
           program_suggested_at?: string | null
           program_suggested_by?: string | null
           suggested_program_id?: string | null
+          yves_ai_consent?: boolean
+          yves_ai_consent_at?: string | null
           yves_enabled?: boolean
         }
         Relationships: [
