@@ -294,6 +294,19 @@ function PractitionerSignup() {
               </button>
             </form>
 
+            <p
+              style={{
+                marginTop: 20,
+                color: "var(--white-muted)",
+                fontSize: 13,
+                textAlign: "center",
+                lineHeight: 1.5,
+              }}
+            >
+              Creating an account is free. Practice subscriptions, where applicable, are arranged
+              directly with Peak Movement outside the app. There are no purchases inside the app.
+            </p>
+
             <Link
               to="/practitioner/login"
               style={{
