@@ -158,8 +158,18 @@ function YvesScreen() {
       setHistory(((q as SymptomQuery[] | null) ?? []) as SymptomQuery[]);
       setPractitionerName((profRes.data as { full_name: string } | null)?.full_name ?? null);
       setPracticeYvesEnabled(accessRes.practiceYvesEnabled);
+      if (
+        cl &&
+        cl.practitioner_id &&
+        accessRes.practiceYvesEnabled &&
+        cl.yves_enabled !== false &&
+        cl.yves_ai_consent !== true
+      ) {
+        setShowConsentModal(true);
+      }
     })();
   }, []);
+
 
   // Rotate example prompts every 4s with 0.3s fade
   useEffect(() => {
