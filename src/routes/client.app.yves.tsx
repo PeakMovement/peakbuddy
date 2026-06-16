@@ -1193,3 +1193,193 @@ function EmergencyModal({
     </div>
   );
 }
+
+function AiDisclosureBar() {
+  return (
+    <div
+      style={{
+        background: "var(--navy-card)",
+        border: "1px solid var(--navy-border)",
+        borderRadius: 8,
+        padding: "8px 12px",
+        fontFamily: "var(--font-ui)",
+        fontSize: 12,
+        lineHeight: 1.5,
+        color: "var(--white-muted)",
+      }}
+    >
+      Yves uses AI provided by Anthropic to analyse what you share. Not a diagnosis.{" "}
+      <Link
+        to="/privacy-policy"
+        hash="ai"
+        style={{ color: "var(--blue-accent)", textDecoration: "underline" }}
+      >
+        How your data is used
+      </Link>
+    </div>
+  );
+}
+
+function ConsentModal({
+  saving,
+  onAgree,
+  onDecline,
+}: {
+  saving: boolean;
+  onAgree: () => void;
+  onDecline: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const agreeRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    agreeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Tab") {
+        const focusables = containerRef.current?.querySelectorAll<HTMLElement>(
+          "button:not([disabled])",
+        );
+        if (!focusables || focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="yves-consent-title"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.75)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+        zIndex: 1000,
+      }}
+    >
+      <div
+        ref={containerRef}
+        style={{
+          background: "var(--navy-bg, #0a1420)",
+          border: "1px solid var(--navy-border)",
+          borderRadius: 12,
+          maxWidth: 480,
+          width: "100%",
+          maxHeight: "90vh",
+          overflowY: "auto",
+          padding: 22,
+          color: "var(--white)",
+        }}
+      >
+        <h2
+          id="yves-consent-title"
+          style={{
+            fontFamily: "var(--font-hero)",
+            fontWeight: 500,
+            fontSize: 22,
+            margin: 0,
+            color: "var(--white)",
+          }}
+        >
+          Before you use Yves
+        </h2>
+
+        <div
+          style={{
+            marginTop: 14,
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            fontFamily: "var(--font-ui)",
+            fontSize: 14,
+            lineHeight: 1.55,
+            color: "var(--white)",
+          }}
+        >
+          <p style={{ margin: 0 }}>
+            <strong style={{ color: "var(--white)" }}>What is sent:</strong> The symptoms, check in
+            answers, and messages you type into Yves are sent to our AI provider to analyse your
+            symptoms and flag anything your practitioner should review.
+          </p>
+          <p style={{ margin: 0 }}>
+            <strong style={{ color: "var(--white)" }}>Who it is sent to:</strong> Your information
+            is processed by Anthropic, the company that provides the AI model behind Yves.
+            Anthropic processes this data on our behalf and does not use it to train its models.
+          </p>
+          <p style={{ margin: 0 }}>
+            <strong style={{ color: "var(--white)" }}>Why:</strong> This lets Yves give you a
+            helpful, safe response and alert your practitioner to concerning symptoms.
+          </p>
+          <p style={{ margin: 0, color: "var(--white-muted)" }}>
+            Yves is not a diagnosis and does not replace your practitioner or emergency care.
+          </p>
+          <p style={{ margin: 0, fontSize: 12, color: "var(--white-muted)" }}>
+            You can change your mind any time in Profile.{" "}
+            <Link
+              to="/privacy-policy"
+              hash="ai"
+              style={{ color: "var(--blue-accent)", textDecoration: "underline" }}
+            >
+              How your data is used
+            </Link>
+          </p>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 20 }}>
+          <button
+            ref={agreeRef}
+            type="button"
+            onClick={onAgree}
+            disabled={saving}
+            style={{
+              minHeight: 48,
+              borderRadius: 8,
+              background: "var(--blue-accent)",
+              color: "var(--white)",
+              border: "none",
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 15,
+              cursor: saving ? "default" : "pointer",
+              opacity: saving ? 0.7 : 1,
+            }}
+          >
+            {saving ? "Saving…" : "I agree, continue"}
+          </button>
+          <button
+            type="button"
+            onClick={onDecline}
+            disabled={saving}
+            style={{
+              minHeight: 44,
+              borderRadius: 8,
+              background: "transparent",
+              color: "var(--white-muted)",
+              border: "1px solid var(--navy-border)",
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: saving ? "default" : "pointer",
+            }}
+          >
+            Not now
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
