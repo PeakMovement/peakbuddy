@@ -1,5 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { UserCheck, AlertTriangle, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId } from "@/lib/client-session";
@@ -13,6 +14,7 @@ import {
   type UrgencyTier,
 } from "@/lib/yves";
 import { getClientYvesAccess } from "@/lib/yves-access.functions";
+import { setYvesAiConsent } from "@/lib/yves-consent.functions";
 import type { Client, SymptomQuery } from "@/lib/types";
 import { CrosshairLogo } from "@/components/CrosshairLogo";
 import { log } from "@/lib/log";
@@ -20,6 +22,7 @@ import { log } from "@/lib/log";
 export const Route = createFileRoute("/client/app/yves")({
   component: YvesScreen,
 });
+
 
 const EXAMPLES = [
   "I have sharp pain in my lower back when I bend forward",
@@ -114,8 +117,12 @@ function YvesScreen() {
   const [exampleVisible, setExampleVisible] = useState(true);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [consentSaving, setConsentSaving] = useState(false);
+  const saveConsent = useServerFn(setYvesAiConsent);
 
   const debounceRef = useRef<number | null>(null);
+
 
   // Initial load — client, practitioner name, history
   useEffect(() => {
@@ -151,8 +158,18 @@ function YvesScreen() {
       setHistory(((q as SymptomQuery[] | null) ?? []) as SymptomQuery[]);
       setPractitionerName((profRes.data as { full_name: string } | null)?.full_name ?? null);
       setPracticeYvesEnabled(accessRes.practiceYvesEnabled);
+      if (
+        cl &&
+        cl.practitioner_id &&
+        accessRes.practiceYvesEnabled &&
+        cl.yves_enabled !== false &&
+        cl.yves_ai_consent !== true
+      ) {
+        setShowConsentModal(true);
+      }
     })();
   }, []);
+
 
   // Rotate example prompts every 4s with 0.3s fade
   useEffect(() => {
@@ -240,8 +257,10 @@ function YvesScreen() {
     }
   };
 
-  const canUseYves =
+  const accessAllowed =
     !!client?.practitioner_id && practiceYvesEnabled && client?.yves_enabled !== false;
+  const hasAiConsent = client?.yves_ai_consent === true;
+  const canUseYves = accessAllowed && hasAiConsent;
 
   const accessBlockReason: string | null = !client
     ? null
@@ -255,7 +274,12 @@ function YvesScreen() {
 
   const submit = async () => {
     if (!client || text.trim().length < 3 || stage === "loading") return;
-    if (!canUseYves) return;
+    if (!accessAllowed) return;
+    if (!hasAiConsent) {
+      setShowConsentModal(true);
+      return;
+    }
+
     setError(null);
     setStage("loading");
     const queryText = text.trim();
@@ -679,17 +703,21 @@ function YvesScreen() {
   const realTimeTheme = realTimeShow ? REALTIME_THEME[realTime.urgency] : null;
 
   return (
+    <>
     <div style={{ padding: "24px 20px 32px" }}>
+      <AiDisclosureBar />
       <h1
         style={{
           fontFamily: "var(--font-hero)",
           fontWeight: 400,
           fontSize: 26,
           color: "var(--white)",
+          marginTop: 12,
         }}
       >
         Ask Yves
       </h1>
+
       <p
         style={{
           marginTop: 6,
@@ -889,8 +917,30 @@ function YvesScreen() {
         </>
       )}
     </div>
+    {showConsentModal && client && (
+      <ConsentModal
+        saving={consentSaving}
+        onAgree={async () => {
+          if (!client) return;
+          setConsentSaving(true);
+          const res = await saveConsent({ data: { clientId: client.id, consent: true } });
+          setConsentSaving(false);
+          if (res.ok) {
+            const now = new Date().toISOString();
+            setClient({ ...client, yves_ai_consent: true, yves_ai_consent_at: now });
+            setShowConsentModal(false);
+          }
+        }}
+        onDecline={() => {
+          setShowConsentModal(false);
+          window.history.back();
+        }}
+      />
+    )}
+    </>
   );
 }
+
 
 function PreviousQueries({
   history,
@@ -1139,6 +1189,196 @@ function EmergencyModal({
                 : `Notify ${practitionerName}`}
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+function AiDisclosureBar() {
+  return (
+    <div
+      style={{
+        background: "var(--navy-card)",
+        border: "1px solid var(--navy-border)",
+        borderRadius: 8,
+        padding: "8px 12px",
+        fontFamily: "var(--font-ui)",
+        fontSize: 12,
+        lineHeight: 1.5,
+        color: "var(--white-muted)",
+      }}
+    >
+      Yves uses AI provided by Anthropic to analyse what you share. Not a diagnosis.{" "}
+      <Link
+        to="/privacy-policy"
+        hash="ai"
+        style={{ color: "var(--blue-accent)", textDecoration: "underline" }}
+      >
+        How your data is used
+      </Link>
+    </div>
+  );
+}
+
+function ConsentModal({
+  saving,
+  onAgree,
+  onDecline,
+}: {
+  saving: boolean;
+  onAgree: () => void;
+  onDecline: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const agreeRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    agreeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Tab") {
+        const focusables = containerRef.current?.querySelectorAll<HTMLElement>(
+          "button:not([disabled])",
+        );
+        if (!focusables || focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="yves-consent-title"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.75)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+        zIndex: 1000,
+      }}
+    >
+      <div
+        ref={containerRef}
+        style={{
+          background: "var(--navy-bg, #0a1420)",
+          border: "1px solid var(--navy-border)",
+          borderRadius: 12,
+          maxWidth: 480,
+          width: "100%",
+          maxHeight: "90vh",
+          overflowY: "auto",
+          padding: 22,
+          color: "var(--white)",
+        }}
+      >
+        <h2
+          id="yves-consent-title"
+          style={{
+            fontFamily: "var(--font-hero)",
+            fontWeight: 500,
+            fontSize: 22,
+            margin: 0,
+            color: "var(--white)",
+          }}
+        >
+          Before you use Yves
+        </h2>
+
+        <div
+          style={{
+            marginTop: 14,
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            fontFamily: "var(--font-ui)",
+            fontSize: 14,
+            lineHeight: 1.55,
+            color: "var(--white)",
+          }}
+        >
+          <p style={{ margin: 0 }}>
+            <strong style={{ color: "var(--white)" }}>What is sent:</strong> The symptoms, check in
+            answers, and messages you type into Yves are sent to our AI provider to analyse your
+            symptoms and flag anything your practitioner should review.
+          </p>
+          <p style={{ margin: 0 }}>
+            <strong style={{ color: "var(--white)" }}>Who it is sent to:</strong> Your information
+            is processed by Anthropic, the company that provides the AI model behind Yves.
+            Anthropic processes this data on our behalf and does not use it to train its models.
+          </p>
+          <p style={{ margin: 0 }}>
+            <strong style={{ color: "var(--white)" }}>Why:</strong> This lets Yves give you a
+            helpful, safe response and alert your practitioner to concerning symptoms.
+          </p>
+          <p style={{ margin: 0, color: "var(--white-muted)" }}>
+            Yves is not a diagnosis and does not replace your practitioner or emergency care.
+          </p>
+          <p style={{ margin: 0, fontSize: 12, color: "var(--white-muted)" }}>
+            You can change your mind any time in Profile.{" "}
+            <Link
+              to="/privacy-policy"
+              hash="ai"
+              style={{ color: "var(--blue-accent)", textDecoration: "underline" }}
+            >
+              How your data is used
+            </Link>
+          </p>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 20 }}>
+          <button
+            ref={agreeRef}
+            type="button"
+            onClick={onAgree}
+            disabled={saving}
+            style={{
+              minHeight: 48,
+              borderRadius: 8,
+              background: "var(--blue-accent)",
+              color: "var(--white)",
+              border: "none",
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 15,
+              cursor: saving ? "default" : "pointer",
+              opacity: saving ? 0.7 : 1,
+            }}
+          >
+            {saving ? "Saving…" : "I agree, continue"}
+          </button>
+          <button
+            type="button"
+            onClick={onDecline}
+            disabled={saving}
+            style={{
+              minHeight: 44,
+              borderRadius: 8,
+              background: "transparent",
+              color: "var(--white-muted)",
+              border: "1px solid var(--navy-border)",
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: saving ? "default" : "pointer",
+            }}
+          >
+            Not now
+          </button>
+        </div>
       </div>
     </div>
   );

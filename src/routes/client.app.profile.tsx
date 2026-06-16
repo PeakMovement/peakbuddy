@@ -10,6 +10,8 @@ import {
   respondToSuggestedProgram,
   type ClientProgramState,
 } from "@/lib/client-program.functions";
+import { setYvesAiConsent } from "@/lib/yves-consent.functions";
+
 
 export const Route = createFileRoute("/client/app/profile")({
   head: () => ({ meta: [{ title: "Profile — Buddy" }] }),
@@ -24,7 +26,25 @@ function ClientProfile() {
   const [programState, setProgramState] = useState<ClientProgramState | null>(null);
   const loadProgram = useServerFn(getMyProgram);
   const respond = useServerFn(respondToSuggestedProgram);
+  const saveConsent = useServerFn(setYvesAiConsent);
   const [busy, setBusy] = useState(false);
+  const [consentBusy, setConsentBusy] = useState(false);
+
+  const toggleAiConsent = async () => {
+    if (!client || consentBusy) return;
+    const next = !client.yves_ai_consent;
+    setConsentBusy(true);
+    const res = await saveConsent({ data: { clientId: client.id, consent: next } });
+    setConsentBusy(false);
+    if (res.ok) {
+      setClient({
+        ...client,
+        yves_ai_consent: next,
+        yves_ai_consent_at: next ? new Date().toISOString() : null,
+      });
+    }
+  };
+
 
   useEffect(() => {
     const id = getClientId();
@@ -100,7 +120,13 @@ function ClientProfile() {
         <ProfileField label="Name" value={client?.full_name} />
         <ProfileField label="Email" value={client?.email} />
         <ProfileField label="Phone" value={client?.phone || "Not set"} />
+        <AiConsentRow
+          on={client?.yves_ai_consent === true}
+          busy={consentBusy}
+          onToggle={toggleAiConsent}
+        />
       </div>
+
 
       {programState?.program && programState.status !== "none" && (
         <MyProgramCard
@@ -361,3 +387,93 @@ function MyProgramCard({
   );
 }
 
+
+function AiConsentRow({
+  on,
+  busy,
+  onToggle,
+}: {
+  on: boolean;
+  busy: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div
+      style={{
+        background: "var(--navy-card)",
+        border: "1px solid var(--navy-border)",
+        borderRadius: 8,
+        padding: "12px 14px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div
+          style={{
+            color: "var(--white-muted)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 12,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+          }}
+        >
+          AI analysis (Yves)
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-label="AI analysis with Yves"
+          onClick={onToggle}
+          disabled={busy}
+          style={{
+            position: "relative",
+            width: 46,
+            height: 26,
+            borderRadius: 999,
+            background: on ? "var(--blue-accent)" : "var(--navy-border)",
+            border: "none",
+            cursor: busy ? "default" : "pointer",
+            opacity: busy ? 0.6 : 1,
+            transition: "background 0.2s",
+          }}
+        >
+          <span
+            style={{
+              position: "absolute",
+              top: 3,
+              left: on ? 23 : 3,
+              width: 20,
+              height: 20,
+              borderRadius: "50%",
+              background: "var(--white)",
+              transition: "left 0.2s",
+            }}
+          />
+        </button>
+      </div>
+      <div
+        style={{
+          marginTop: 8,
+          color: "var(--white)",
+          fontFamily: "var(--font-ui)",
+          fontSize: 14,
+        }}
+      >
+        {on ? "On" : "Off"}
+      </div>
+      <p
+        style={{
+          marginTop: 6,
+          color: "var(--white-muted)",
+          fontFamily: "var(--font-ui)",
+          fontSize: 12,
+          lineHeight: 1.5,
+        }}
+      >
+        When on, your symptom messages are sent to our AI provider (Anthropic) to power Yves. Turn
+        off to stop using AI analysis.
+      </p>
+    </div>
+  );
+}

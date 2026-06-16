@@ -431,7 +431,7 @@ export const Route = createFileRoute("/api/public/triage-query")({
 
           const { data: c, error: cErr } = await supabaseAdmin
             .from("clients")
-            .select("practitioner_id, yves_enabled, email")
+            .select("practitioner_id, yves_enabled, yves_ai_consent, email")
             .eq("id", client_id)
             .maybeSingle();
 
@@ -450,6 +450,16 @@ export const Route = createFileRoute("/api/public/triage-query")({
           }
           if (c.yves_enabled === false) {
             return json({ error: "Yves access disabled for client" }, 403);
+          }
+          if (c.yves_ai_consent !== true) {
+            return json(
+              {
+                error:
+                  "AI consent required. Please agree to share your symptom messages with our AI provider before using Yves.",
+                code: "ai_consent_required",
+              },
+              403,
+            );
           }
 
           const { data: p, error: pErr } = await supabaseAdmin
