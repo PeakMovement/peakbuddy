@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 import { z } from "zod";
 
 const ProgramSchema = z.object({
@@ -15,7 +17,7 @@ const ProgramSchema = z.object({
   priority: z.number().int().min(0).max(100).default(0),
 });
 
-async function assertSuperAdmin(supabase: any, userId: string) {
+async function assertSuperAdmin(supabase: SupabaseClient<Database>, userId: string) {
   const { data } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
   if (!data || data.role !== "super_admin") {
     throw new Error("Forbidden");

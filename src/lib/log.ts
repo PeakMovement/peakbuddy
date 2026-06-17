@@ -39,7 +39,6 @@ const isProd =
   typeof import.meta !== "undefined" &&
   Boolean((import.meta as unknown as { env?: { PROD?: boolean } }).env?.PROD);
 
-/* eslint-disable no-console */
 export const log = {
   debug: (...args: unknown[]) => {
     if (!isProd) console.debug(...args.map(sanitize));
@@ -50,4 +49,3 @@ export const log = {
   warn: (...args: unknown[]) => console.warn(...args.map(sanitize)),
   error: (...args: unknown[]) => console.error(...args.map(sanitize)),
 };
-/* eslint-enable no-console */

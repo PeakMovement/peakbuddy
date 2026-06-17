@@ -134,8 +134,8 @@ function AdminPrograms() {
       });
       setForm(null);
       await load();
-    } catch (e: any) {
-      setError(e?.message ?? "Could not save");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save");
     } finally {
       setSaving(false);
     }
@@ -146,8 +146,8 @@ function AdminPrograms() {
     try {
       await deleteProgram({ data: { id } });
       await load();
-    } catch (e: any) {
-      setError(e?.message ?? "Could not delete");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not delete");
     }
   };
 

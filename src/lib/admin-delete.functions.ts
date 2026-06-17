@@ -1,10 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 const idInput = z.object({ id: z.string().uuid() });
 
-async function assertSuperAdmin(ctx: { supabase: any; userId: string }) {
+async function assertSuperAdmin(ctx: { supabase: SupabaseClient<Database>; userId: string }) {
   const { data, error } = await ctx.supabase.rpc("is_super_admin", { _uid: ctx.userId });
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Forbidden");
