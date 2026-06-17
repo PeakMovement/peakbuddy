@@ -147,10 +147,14 @@ export const suggestProgram = createServerFn({ method: "POST" })
     // Only queue a new suggestion if the client doesn't already have one in flight.
     const { data: clientRow } = await supabaseAdmin
       .from("clients")
-      .select("program_status, suggested_program_id")
+      .select("program_status, suggested_program_id, yves_ai_consent")
       .eq("id", data.clientId)
       .maybeSingle();
-    const cur = clientRow as { program_status: string; suggested_program_id: string | null } | null;
+    const cur = clientRow as {
+      program_status: string;
+      suggested_program_id: string | null;
+      yves_ai_consent: boolean | null;
+    } | null;
     if (!cur) return null;
     const canQueue =
       cur.program_status === "none" ||
@@ -175,8 +179,10 @@ export const suggestProgram = createServerFn({ method: "POST" })
     let chosenId: string | null = ruled?.id ?? null;
     let source: "auto_rules" | "auto_ai" | null = ruled ? "auto_rules" : null;
 
-    // 2) AI fallback for high-pain check-ins
-    if (!chosenId && data.pain >= 7) {
+    // 2) AI fallback for high-pain check-ins — ONLY with the patient's explicit
+    // AI consent, since this path sends check-in data to a third-party AI
+    // provider (Google, via the Lovable AI gateway). No consent => no AI call.
+    if (!chosenId && data.pain >= 7 && cur.yves_ai_consent === true) {
       const ai = await aiFallback(programs, data);
       if (ai) {
         chosenId = ai.program.id;

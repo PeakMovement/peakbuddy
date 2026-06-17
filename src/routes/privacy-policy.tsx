@@ -212,16 +212,21 @@ function PrivacyPolicyPage() {
               of your Yves conversations are sent to Anthropic, the AI model provider we use to
               power Yves. Anthropic acts as a data processor on our behalf and does not use your
               data to train its models. Anthropic is contractually bound to protect your information
-              to a standard equivalent to this policy. We also share alert and check in data with
+              to a standard equivalent to this policy. In addition, to suggest a suitable exercise
+              program from your check-ins, the same symptom and check-in information may be processed
+              by Google through our platform provider, Lovable. Google and Lovable act as our data
+              processors and use your data only to provide this feature, not to train their own
+              models. We also share alert and check in data with
               your own practitioner so they can review flagged concerns. Where your practitioner has
               configured one, alert data may also be sent to that practitioner's chosen webhook
               endpoint.
             </li>
             <li>
               <strong style={{ color: "var(--white)" }}>Consent:</strong> You must explicitly agree
-              before any of your information is sent to Anthropic. You can withdraw or change your
-              consent at any time in your profile. If you withdraw consent, Yves will be disabled
-              and no further data will be sent to Anthropic.
+              before any of your information is sent to these AI providers (Anthropic and Google).
+              You can withdraw or change your consent at any time in your profile. If you withdraw
+              consent, Yves and AI-assisted program suggestions are disabled and no further data is
+              sent to any AI provider.
             </li>
             <li>
               <strong style={{ color: "var(--white)" }}>Retention:</strong> Your Yves conversation
@@ -355,7 +360,8 @@ function PrivacyPolicyPage() {
             <li>
               <strong style={{ color: "var(--white)" }}>Right to deletion:</strong> You may request
               deletion of your personal information, subject to legal retention requirements and
-              your practitioner’s professional obligations.
+              your practitioner’s professional obligations. You can also permanently delete your
+              account and all associated data yourself at any time from the Profile screen in the app.
             </li>
             <li>
               <strong style={{ color: "var(--white)" }}>Right to object:</strong> You may object to

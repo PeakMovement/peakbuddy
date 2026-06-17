@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, ExternalLink } from "lucide-react";
+import { LogOut, ExternalLink, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId, clearClientId } from "@/lib/client-session";
 import type { Client } from "@/lib/types";
@@ -11,6 +11,7 @@ import {
   type ClientProgramState,
 } from "@/lib/client-program.functions";
 import { setYvesAiConsent } from "@/lib/yves-consent.functions";
+import { deleteMyAccount } from "@/lib/account-delete.functions";
 
 export const Route = createFileRoute("/client/app/profile")({
   head: () => ({ meta: [{ title: "Profile — Buddy" }] }),
@@ -90,6 +91,31 @@ function ClientProfile() {
     navigate({ to: "/client/login" });
   };
 
+  const deleteAccount = useServerFn(deleteMyAccount);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDeleteAccount = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await deleteAccount();
+      if (res.ok) {
+        await supabase.auth.signOut();
+        clearClientId();
+        navigate({ to: "/client/login" });
+        return;
+      }
+      setDeleteError(res.error ?? "Could not delete your account. Please try again.");
+    } catch {
+      setDeleteError("Could not delete your account. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) return <div style={{ padding: 24, color: "var(--white-muted)" }}>Loading…</div>;
 
   return (
@@ -156,6 +182,18 @@ function ClientProfile() {
         <LogOut size={16} />
         Sign out
       </button>
+
+      <DeleteAccountSection
+        confirm={confirmDelete}
+        deleting={deleting}
+        error={deleteError}
+        onAskConfirm={() => setConfirmDelete(true)}
+        onCancel={() => {
+          setConfirmDelete(false);
+          setDeleteError(null);
+        }}
+        onConfirm={handleDeleteAccount}
+      />
     </div>
   );
 }
@@ -466,9 +504,156 @@ function AiConsentRow({
           lineHeight: 1.5,
         }}
       >
-        When on, your symptom messages are sent to our AI provider (Anthropic) to power Yves. Turn
-        off to stop using AI analysis.
+        When on, your symptom messages are sent to our AI provider (Anthropic) to power Yves, and
+        your check-ins may also be processed by Google (via our platform provider Lovable) to suggest
+        a suitable program. Turn off to stop all AI analysis.
       </p>
+    </div>
+  );
+}
+
+function DeleteAccountSection({
+  confirm,
+  deleting,
+  error,
+  onAskConfirm,
+  onCancel,
+  onConfirm,
+}: {
+  confirm: boolean;
+  deleting: boolean;
+  error: string | null;
+  onAskConfirm: () => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      style={{
+        marginTop: 28,
+        background: "var(--navy-card)",
+        border: "1px solid var(--navy-border)",
+        borderRadius: 8,
+        padding: "16px 14px",
+      }}
+    >
+      <div
+        style={{
+          color: "var(--white-muted)",
+          fontFamily: "var(--font-ui)",
+          fontSize: 12,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          marginBottom: 8,
+        }}
+      >
+        Delete account
+      </div>
+      <p
+        style={{
+          color: "var(--white-muted)",
+          fontFamily: "var(--font-ui)",
+          fontSize: 13,
+          lineHeight: 1.5,
+          margin: "0 0 14px",
+        }}
+      >
+        Permanently delete your account and all your data — check-ins, symptom notes, Yves
+        conversations and program history. This cannot be undone.
+      </p>
+
+      {error && (
+        <p
+          style={{
+            color: "var(--red, #ff6b6b)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 13,
+            margin: "0 0 12px",
+          }}
+        >
+          {error}
+        </p>
+      )}
+
+      {!confirm ? (
+        <button
+          type="button"
+          onClick={onAskConfirm}
+          style={{
+            minHeight: 44,
+            width: "100%",
+            background: "transparent",
+            color: "var(--red, #ff6b6b)",
+            border: "1px solid var(--red, #ff6b6b)",
+            borderRadius: 8,
+            fontFamily: "var(--font-ui)",
+            fontWeight: 600,
+            fontSize: 14,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+          }}
+        >
+          <Trash2 size={16} />
+          Delete my account
+        </button>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <p
+            style={{
+              color: "var(--white)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 14,
+              fontWeight: 600,
+              margin: 0,
+            }}
+          >
+            Are you sure? This permanently deletes your account and data.
+          </p>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={deleting}
+            style={{
+              minHeight: 44,
+              width: "100%",
+              background: "var(--red, #ff6b6b)",
+              color: "var(--white)",
+              border: "none",
+              borderRadius: 8,
+              fontFamily: "var(--font-ui)",
+              fontWeight: 700,
+              fontSize: 14,
+              cursor: deleting ? "default" : "pointer",
+              opacity: deleting ? 0.7 : 1,
+            }}
+          >
+            {deleting ? "Deleting…" : "Yes, permanently delete my account"}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={deleting}
+            style={{
+              minHeight: 40,
+              width: "100%",
+              background: "transparent",
+              color: "var(--white-muted)",
+              border: "1px solid var(--navy-border)",
+              borderRadius: 8,
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }
