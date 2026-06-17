@@ -31,15 +31,32 @@ function ClientLogin() {
       setError("Invalid email or password.");
       return;
     }
-    // Keep the auth session active — client-side reads rely on RLS policies
-    // that match the authenticated user's email to clients.email.
-    const { data: client, error: lookupErr } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("email", trimmedEmail)
-      .maybeSingle();
+    // Resolve the client row for the now-authenticated user. Prefer the stable
+    // auth_user_id mapping (what RLS uses); fall back to a case-insensitive email
+    // match for legacy rows. Matching the typed email exactly is fragile because
+    // stored casing may differ from what the client types.
+    const { data: authData } = await supabase.auth.getUser();
+    const authUserId = authData.user?.id ?? null;
+
+    let client: { id: string } | null = null;
+    if (authUserId) {
+      const { data } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("auth_user_id", authUserId)
+        .maybeSingle();
+      client = data ?? null;
+    }
+    if (!client) {
+      const { data } = await supabase
+        .from("clients")
+        .select("id")
+        .ilike("email", trimmedEmail)
+        .maybeSingle();
+      client = data ?? null;
+    }
     setLoading(false);
-    if (lookupErr || !client) {
+    if (!client) {
       setError("No client record found for this account. Contact your practitioner.");
       return;
     }
