@@ -4,16 +4,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { ClipboardList, List, Activity, MessageCircle, User } from "lucide-react";
 import { getClientId } from "@/lib/client-session";
 import { useOnline } from "@/hooks/use-online";
-import {
-  getClientBootstrap,
-  type ClientProgramState,
-} from "@/lib/client-program.functions";
+import { getClientBootstrap, type ClientProgramState } from "@/lib/client-program.functions";
 import { ProgramIntroModal } from "@/components/ProgramIntroModal";
 
 export const Route = createFileRoute("/client/app")({
   component: ClientAppLayout,
 });
-
 
 const tabs = [
   { to: "/client/app/checkin", label: "Check-in", Icon: ClipboardList },
@@ -148,7 +144,8 @@ function ClientAppLayout() {
           }}
         >
           <span>
-            <strong>{programState.program.name}</strong> is waiting — take another look when you're ready.
+            <strong>{programState.program.name}</strong> is waiting — take another look when you're
+            ready.
           </span>
           <span style={{ color: "var(--blue-accent)", fontWeight: 700, fontSize: 12 }}>View</span>
         </button>

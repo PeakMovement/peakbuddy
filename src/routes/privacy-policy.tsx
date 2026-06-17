@@ -220,8 +220,8 @@ function PrivacyPolicyPage() {
             <li>
               <strong style={{ color: "var(--white)" }}>Consent:</strong> You must explicitly agree
               before any of your information is sent to Anthropic. You can withdraw or change your
-              consent at any time in your profile. If you withdraw consent, Yves will be disabled and
-              no further data will be sent to Anthropic.
+              consent at any time in your profile. If you withdraw consent, Yves will be disabled
+              and no further data will be sent to Anthropic.
             </li>
             <li>
               <strong style={{ color: "var(--white)" }}>Retention:</strong> Your Yves conversation

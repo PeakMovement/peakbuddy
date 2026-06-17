@@ -9,7 +9,6 @@ import {
 } from "@/lib/admin-programs.functions";
 import { log } from "@/lib/log";
 
-
 export const Route = createFileRoute("/admin/app/programs")({
   head: () => ({ meta: [{ title: "Programs — Buddy Admin" }] }),
   component: AdminPrograms,
@@ -29,7 +28,6 @@ type Program = {
   approved_by_admin: boolean;
 };
 
-
 type ProgramForm = Omit<Program, "id" | "approved_by_admin"> & { id: string | null };
 
 const emptyForm: ProgramForm = {
@@ -44,7 +42,6 @@ const emptyForm: ProgramForm = {
   active: true,
   priority: 0,
 };
-
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -162,7 +159,6 @@ function AdminPrograms() {
       setError(e instanceof Error ? e.message : "Could not update approval.");
     }
   };
-
 
   const addTag = () => {
     const t = tagInput.trim().toLowerCase();
@@ -367,7 +363,12 @@ function AdminPrograms() {
                 </button>
                 <button
                   onClick={() => openEdit(p)}
-                  style={{ background: "transparent", border: "none", color: "var(--white-muted)", cursor: "pointer" }}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--white-muted)",
+                    cursor: "pointer",
+                  }}
                   title="Edit"
                 >
                   <Pencil size={16} />
@@ -375,7 +376,12 @@ function AdminPrograms() {
 
                 <button
                   onClick={() => remove(p.id)}
-                  style={{ background: "transparent", border: "none", color: "var(--red, #e74c3c)", cursor: "pointer" }}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--red, #e74c3c)",
+                    cursor: "pointer",
+                  }}
                   title="Delete"
                 >
                   <Trash2 size={16} />
@@ -453,7 +459,13 @@ function AdminPrograms() {
               <img
                 src={form.image_url}
                 alt=""
-                style={{ marginTop: 8, width: 120, height: 80, borderRadius: 8, objectFit: "cover" }}
+                style={{
+                  marginTop: 8,
+                  width: 120,
+                  height: 80,
+                  borderRadius: 8,
+                  objectFit: "cover",
+                }}
               />
             ) : null}
 

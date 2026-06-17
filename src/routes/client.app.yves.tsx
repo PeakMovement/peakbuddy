@@ -23,7 +23,6 @@ export const Route = createFileRoute("/client/app/yves")({
   component: YvesScreen,
 });
 
-
 const EXAMPLES = [
   "I have sharp pain in my lower back when I bend forward",
   "My neck feels stiff after sleeping and I can't turn my head",
@@ -123,7 +122,6 @@ function YvesScreen() {
 
   const debounceRef = useRef<number | null>(null);
 
-
   // Initial load — client, practitioner name, history
   useEffect(() => {
     const id = getClientId();
@@ -169,7 +167,6 @@ function YvesScreen() {
       }
     })();
   }, []);
-
 
   // Rotate example prompts every 4s with 0.3s fade
   useEffect(() => {
@@ -704,243 +701,242 @@ function YvesScreen() {
 
   return (
     <>
-    <div style={{ padding: "24px 20px 32px" }}>
-      <AiDisclosureBar />
-      <h1
-        style={{
-          fontFamily: "var(--font-hero)",
-          fontWeight: 400,
-          fontSize: 26,
-          color: "var(--white)",
-          marginTop: 12,
-        }}
-      >
-        Ask Yves
-      </h1>
-
-      <p
-        style={{
-          marginTop: 6,
-          color: "var(--white-muted)",
-          fontFamily: "var(--font-ui)",
-          fontSize: 13,
-        }}
-      >
-        Describe how you're feeling and Yves will assess what to do next
-      </p>
-
-      {/* Practitioner pill */}
-      <div style={{ marginTop: 12 }}>
-        {client?.practitioner_id ? (
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 12px",
-              borderRadius: 999,
-              background: "var(--navy-card)",
-              border: "1px solid var(--navy-border)",
-              color: "var(--white-muted)",
-              fontFamily: "var(--font-ui)",
-              fontSize: 12,
-            }}
-          >
-            <UserCheck size={14} />
-            Your practitioner: {practitionerName ?? "—"}
-          </span>
-        ) : (
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 12px",
-              borderRadius: 999,
-              background: "#1a1400",
-              border: "1px solid #7a701e",
-              color: "#f5e58a",
-              fontFamily: "var(--font-ui)",
-              fontSize: 12,
-            }}
-          >
-            <AlertTriangle size={14} />
-            No practitioner assigned — contact your clinic
-          </span>
-        )}
-      </div>
-
-      {accessBlockReason ? (
-        <div
+      <div style={{ padding: "24px 20px 32px" }}>
+        <AiDisclosureBar />
+        <h1
           style={{
-            marginTop: 20,
-            padding: 16,
-            background: "var(--navy-card)",
-            border: "1px solid var(--navy-border)",
-            borderRadius: 10,
+            fontFamily: "var(--font-hero)",
+            fontWeight: 400,
+            fontSize: 26,
+            color: "var(--white)",
+            marginTop: 12,
           }}
         >
-          <div
-            style={{
-              fontFamily: "var(--font-ui)",
-              fontWeight: 600,
-              fontSize: 13,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              color: "var(--blue-cold)",
-            }}
-          >
-            Yves unavailable
-          </div>
-          <p
-            style={{
-              marginTop: 8,
-              color: "var(--white)",
-              fontFamily: "var(--font-ui)",
-              fontSize: 14,
-              lineHeight: 1.5,
-            }}
-          >
-            {accessBlockReason}
-          </p>
-          <PreviousQueries history={history} expanded={expanded} setExpanded={setExpanded} />
-        </div>
-      ) : (
-        <>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={6}
-            maxLength={2000}
-            placeholder="Describe your symptoms in your own words..."
-            style={{
-              width: "100%",
-              marginTop: 16,
-              background: "var(--navy-card)",
-              border: "1px solid var(--navy-border)",
-              color: "var(--white)",
-              borderRadius: 8,
-              padding: 12,
-              fontFamily: "var(--font-ui)",
-              fontSize: 14,
-              resize: "vertical",
-              outline: "none",
-              minHeight: 140,
-            }}
-          />
+          Ask Yves
+        </h1>
 
-          {/* Rotating examples */}
-          <div
-            style={{
-              marginTop: 10,
-              padding: 10,
-              background: "var(--navy-card)",
-              border: "1px solid var(--navy-border)",
-              borderRadius: 8,
-              color: "var(--white-muted)",
-              fontStyle: "italic",
-              fontFamily: "var(--font-ui)",
-              fontSize: 13,
-              opacity: exampleVisible ? 1 : 0,
-              transition: "opacity 0.3s ease",
-              minHeight: 38,
-            }}
-          >
-            e.g. {EXAMPLES[exampleIdx]}
-          </div>
+        <p
+          style={{
+            marginTop: 6,
+            color: "var(--white-muted)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 13,
+          }}
+        >
+          Describe how you're feeling and Yves will assess what to do next
+        </p>
 
-          {/* Real-time alert */}
-          {realTimeShow && realTimeTheme && (
-            <div
+        {/* Practitioner pill */}
+        <div style={{ marginTop: 12 }}>
+          {client?.practitioner_id ? (
+            <span
               style={{
-                marginTop: 12,
-                padding: 12,
-                background: realTimeTheme.bg,
-                border: `1px solid ${realTimeTheme.border}`,
-                borderRadius: 8,
-                color: realTimeTheme.text,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 12px",
+                borderRadius: 999,
+                background: "var(--navy-card)",
+                border: "1px solid var(--navy-border)",
+                color: "var(--white-muted)",
                 fontFamily: "var(--font-ui)",
-                fontSize: 13,
+                fontSize: 12,
               }}
             >
-              {realTimeTheme.message}
-              {(realTime.urgency === "emergency" || realTime.urgency === "urgent") &&
-                client?.practitioner_id && (
-                  <button
-                    type="button"
-                    onClick={realTimeContact}
-                    disabled={contacting || contacted}
-                    style={{
-                      marginTop: 10,
-                      width: "100%",
-                      minHeight: 40,
-                      borderRadius: 8,
-                      background: contacted ? "transparent" : realTimeTheme.border,
-                      color: contacted ? realTimeTheme.text : "var(--white)",
-                      border: `1px solid ${realTimeTheme.border}`,
-                      fontFamily: "var(--font-ui)",
-                      fontWeight: 600,
-                      fontSize: 13,
-                      opacity: contacting ? 0.6 : 1,
-                    }}
-                  >
-                    {contacted ? "Notified" : contacting ? "Notifying…" : `Notify ${pName} now`}
-                  </button>
-                )}
-            </div>
+              <UserCheck size={14} />
+              Your practitioner: {practitionerName ?? "—"}
+            </span>
+          ) : (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 12px",
+                borderRadius: 999,
+                background: "#1a1400",
+                border: "1px solid #7a701e",
+                color: "#f5e58a",
+                fontFamily: "var(--font-ui)",
+                fontSize: 12,
+              }}
+            >
+              <AlertTriangle size={14} />
+              No practitioner assigned — contact your clinic
+            </span>
           )}
+        </div>
 
-          {error && <p style={{ color: "var(--red)", marginTop: 12, fontSize: 13 }}>{error}</p>}
-
-          <button
-            type="button"
-            onClick={submit}
-            disabled={text.trim().length < 3 || !canUseYves}
+        {accessBlockReason ? (
+          <div
             style={{
-              marginTop: 16,
-              width: "100%",
-              minHeight: 48,
-              borderRadius: 8,
-              background: "var(--blue-accent)",
-              color: "var(--white)",
-              border: "none",
-              fontFamily: "var(--font-ui)",
-              fontWeight: 600,
-              fontSize: 16,
-              opacity: text.trim().length < 3 || !canUseYves ? 0.6 : 1,
+              marginTop: 20,
+              padding: 16,
+              background: "var(--navy-card)",
+              border: "1px solid var(--navy-border)",
+              borderRadius: 10,
             }}
           >
-            {submitLabel}
-          </button>
+            <div
+              style={{
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                fontSize: 13,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "var(--blue-cold)",
+              }}
+            >
+              Yves unavailable
+            </div>
+            <p
+              style={{
+                marginTop: 8,
+                color: "var(--white)",
+                fontFamily: "var(--font-ui)",
+                fontSize: 14,
+                lineHeight: 1.5,
+              }}
+            >
+              {accessBlockReason}
+            </p>
+            <PreviousQueries history={history} expanded={expanded} setExpanded={setExpanded} />
+          </div>
+        ) : (
+          <>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={6}
+              maxLength={2000}
+              placeholder="Describe your symptoms in your own words..."
+              style={{
+                width: "100%",
+                marginTop: 16,
+                background: "var(--navy-card)",
+                border: "1px solid var(--navy-border)",
+                color: "var(--white)",
+                borderRadius: 8,
+                padding: 12,
+                fontFamily: "var(--font-ui)",
+                fontSize: 14,
+                resize: "vertical",
+                outline: "none",
+                minHeight: 140,
+              }}
+            />
 
-          <PreviousQueries history={history} expanded={expanded} setExpanded={setExpanded} />
-        </>
-      )}
-    </div>
-    {showConsentModal && client && (
-      <ConsentModal
-        saving={consentSaving}
-        onAgree={async () => {
-          if (!client) return;
-          setConsentSaving(true);
-          const res = await saveConsent({ data: { clientId: client.id, consent: true } });
-          setConsentSaving(false);
-          if (res.ok) {
-            const now = new Date().toISOString();
-            setClient({ ...client, yves_ai_consent: true, yves_ai_consent_at: now });
+            {/* Rotating examples */}
+            <div
+              style={{
+                marginTop: 10,
+                padding: 10,
+                background: "var(--navy-card)",
+                border: "1px solid var(--navy-border)",
+                borderRadius: 8,
+                color: "var(--white-muted)",
+                fontStyle: "italic",
+                fontFamily: "var(--font-ui)",
+                fontSize: 13,
+                opacity: exampleVisible ? 1 : 0,
+                transition: "opacity 0.3s ease",
+                minHeight: 38,
+              }}
+            >
+              e.g. {EXAMPLES[exampleIdx]}
+            </div>
+
+            {/* Real-time alert */}
+            {realTimeShow && realTimeTheme && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 12,
+                  background: realTimeTheme.bg,
+                  border: `1px solid ${realTimeTheme.border}`,
+                  borderRadius: 8,
+                  color: realTimeTheme.text,
+                  fontFamily: "var(--font-ui)",
+                  fontSize: 13,
+                }}
+              >
+                {realTimeTheme.message}
+                {(realTime.urgency === "emergency" || realTime.urgency === "urgent") &&
+                  client?.practitioner_id && (
+                    <button
+                      type="button"
+                      onClick={realTimeContact}
+                      disabled={contacting || contacted}
+                      style={{
+                        marginTop: 10,
+                        width: "100%",
+                        minHeight: 40,
+                        borderRadius: 8,
+                        background: contacted ? "transparent" : realTimeTheme.border,
+                        color: contacted ? realTimeTheme.text : "var(--white)",
+                        border: `1px solid ${realTimeTheme.border}`,
+                        fontFamily: "var(--font-ui)",
+                        fontWeight: 600,
+                        fontSize: 13,
+                        opacity: contacting ? 0.6 : 1,
+                      }}
+                    >
+                      {contacted ? "Notified" : contacting ? "Notifying…" : `Notify ${pName} now`}
+                    </button>
+                  )}
+              </div>
+            )}
+
+            {error && <p style={{ color: "var(--red)", marginTop: 12, fontSize: 13 }}>{error}</p>}
+
+            <button
+              type="button"
+              onClick={submit}
+              disabled={text.trim().length < 3 || !canUseYves}
+              style={{
+                marginTop: 16,
+                width: "100%",
+                minHeight: 48,
+                borderRadius: 8,
+                background: "var(--blue-accent)",
+                color: "var(--white)",
+                border: "none",
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                fontSize: 16,
+                opacity: text.trim().length < 3 || !canUseYves ? 0.6 : 1,
+              }}
+            >
+              {submitLabel}
+            </button>
+
+            <PreviousQueries history={history} expanded={expanded} setExpanded={setExpanded} />
+          </>
+        )}
+      </div>
+      {showConsentModal && client && (
+        <ConsentModal
+          saving={consentSaving}
+          onAgree={async () => {
+            if (!client) return;
+            setConsentSaving(true);
+            const res = await saveConsent({ data: { clientId: client.id, consent: true } });
+            setConsentSaving(false);
+            if (res.ok) {
+              const now = new Date().toISOString();
+              setClient({ ...client, yves_ai_consent: true, yves_ai_consent_at: now });
+              setShowConsentModal(false);
+            }
+          }}
+          onDecline={() => {
             setShowConsentModal(false);
-          }
-        }}
-        onDecline={() => {
-          setShowConsentModal(false);
-          window.history.back();
-        }}
-      />
-    )}
+            window.history.back();
+          }}
+        />
+      )}
     </>
   );
 }
-
 
 function PreviousQueries({
   history,
@@ -1236,9 +1232,8 @@ function ConsentModal({
     agreeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Tab") {
-        const focusables = containerRef.current?.querySelectorAll<HTMLElement>(
-          "button:not([disabled])",
-        );
+        const focusables =
+          containerRef.current?.querySelectorAll<HTMLElement>("button:not([disabled])");
         if (!focusables || focusables.length === 0) return;
         const first = focusables[0];
         const last = focusables[focusables.length - 1];
@@ -1317,8 +1312,8 @@ function ConsentModal({
           </p>
           <p style={{ margin: 0 }}>
             <strong style={{ color: "var(--white)" }}>Who it is sent to:</strong> Your information
-            is processed by Anthropic, the company that provides the AI model behind Yves.
-            Anthropic processes this data on our behalf and does not use it to train its models.
+            is processed by Anthropic, the company that provides the AI model behind Yves. Anthropic
+            processes this data on our behalf and does not use it to train its models.
           </p>
           <p style={{ margin: 0 }}>
             <strong style={{ color: "var(--white)" }}>Why:</strong> This lets Yves give you a

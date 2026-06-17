@@ -148,9 +148,14 @@ function AllClients() {
       ) : (
         <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
           {filtered.map((r) => (
-            <ClientRow key={r.id} r={r} onOpen={() =>
-              navigate({ to: "/admin/app/client-detail/$clientId", params: { clientId: r.id } })
-            } onDeleted={load} />
+            <ClientRow
+              key={r.id}
+              r={r}
+              onOpen={() =>
+                navigate({ to: "/admin/app/client-detail/$clientId", params: { clientId: r.id } })
+              }
+              onDeleted={load}
+            />
           ))}
         </div>
       )}
@@ -158,13 +163,26 @@ function AllClients() {
   );
 }
 
-function ClientRow({ r, onOpen, onDeleted }: { r: Row; onOpen: () => void; onDeleted: () => void }) {
+function ClientRow({
+  r,
+  onOpen,
+  onDeleted,
+}: {
+  r: Row;
+  onOpen: () => void;
+  onDeleted: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const remove = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm(`Permanently remove ${r.full_name}? This deletes their account and all check-ins.`)) return;
+    if (
+      !window.confirm(
+        `Permanently remove ${r.full_name}? This deletes their account and all check-ins.`,
+      )
+    )
+      return;
     setBusy(true);
     setErr(null);
     try {
@@ -178,21 +196,121 @@ function ClientRow({ r, onOpen, onDeleted }: { r: Row; onOpen: () => void; onDel
   };
 
   return (
-    <div style={{ background: "var(--navy-card)", border: "1px solid var(--navy-border)", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-      <button type="button" onClick={onOpen} style={{ textAlign: "left", background: "transparent", border: "none", padding: 0, cursor: "pointer", color: "inherit" }}>
+    <div
+      style={{
+        background: "var(--navy-card)",
+        border: "1px solid var(--navy-border)",
+        borderRadius: 12,
+        padding: 14,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+    >
+      <button
+        type="button"
+        onClick={onOpen}
+        style={{
+          textAlign: "left",
+          background: "transparent",
+          border: "none",
+          padding: 0,
+          cursor: "pointer",
+          color: "inherit",
+        }}
+      >
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: "var(--font-ui)", fontWeight: 700, color: "var(--white)", fontSize: 16, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.full_name}</div>
-            <div style={{ marginTop: 2, color: "var(--white-muted)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.primary_complaint || "—"}</div>
+            <div
+              style={{
+                fontFamily: "var(--font-ui)",
+                fontWeight: 700,
+                color: "var(--white)",
+                fontSize: 16,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {r.full_name}
+            </div>
+            <div
+              style={{
+                marginTop: 2,
+                color: "var(--white-muted)",
+                fontSize: 12,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {r.primary_complaint || "—"}
+            </div>
           </div>
-          <span style={{ fontFamily: "var(--font-data)", fontSize: 14, fontWeight: 700, color: "var(--white)", whiteSpace: "nowrap" }}>{r._compliance}%</span>
+          <span
+            style={{
+              fontFamily: "var(--font-data)",
+              fontSize: 14,
+              fontWeight: 700,
+              color: "var(--white)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {r._compliance}%
+          </span>
         </div>
-        <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-          <span style={{ padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: "var(--font-ui)", border: "1px solid var(--blue-cold)", color: "var(--blue-cold)" }}>{r._practitionerName}</span>
-          <span style={{ fontFamily: "var(--font-data)", fontSize: 11, color: "var(--white-muted)" }}>{r._lastCheckIn ? new Date(r._lastCheckIn).toLocaleDateString() : "Never"}</span>
+        <div
+          style={{
+            marginTop: 8,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <span
+            style={{
+              padding: "2px 8px",
+              borderRadius: 999,
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              fontFamily: "var(--font-ui)",
+              border: "1px solid var(--blue-cold)",
+              color: "var(--blue-cold)",
+            }}
+          >
+            {r._practitionerName}
+          </span>
+          <span
+            style={{ fontFamily: "var(--font-data)", fontSize: 11, color: "var(--white-muted)" }}
+          >
+            {r._lastCheckIn ? new Date(r._lastCheckIn).toLocaleDateString() : "Never"}
+          </span>
         </div>
       </button>
-      <button type="button" onClick={remove} disabled={busy} style={{ minHeight: 36, background: "transparent", color: "var(--red)", border: "1px solid var(--red)", borderRadius: 8, fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: 12, cursor: "pointer", opacity: busy ? 0.6 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+      <button
+        type="button"
+        onClick={remove}
+        disabled={busy}
+        style={{
+          minHeight: 36,
+          background: "transparent",
+          color: "var(--red)",
+          border: "1px solid var(--red)",
+          borderRadius: 8,
+          fontFamily: "var(--font-ui)",
+          fontWeight: 600,
+          fontSize: 12,
+          cursor: "pointer",
+          opacity: busy ? 0.6 : 1,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+        }}
+      >
         <Trash2 size={14} /> {busy ? "Removing…" : "Remove client"}
       </button>
       {err && <div style={{ color: "var(--red)", fontSize: 12 }}>{err}</div>}

@@ -12,12 +12,10 @@ import {
 } from "@/lib/client-program.functions";
 import { setYvesAiConsent } from "@/lib/yves-consent.functions";
 
-
 export const Route = createFileRoute("/client/app/profile")({
   head: () => ({ meta: [{ title: "Profile — Buddy" }] }),
   component: ClientProfile,
 });
-
 
 function ClientProfile() {
   const navigate = useNavigate();
@@ -44,7 +42,6 @@ function ClientProfile() {
       });
     }
   };
-
 
   useEffect(() => {
     const id = getClientId();
@@ -93,7 +90,6 @@ function ClientProfile() {
     navigate({ to: "/client/login" });
   };
 
-
   if (loading) return <div style={{ padding: 24, color: "var(--white-muted)" }}>Loading…</div>;
 
   return (
@@ -127,7 +123,6 @@ function ClientProfile() {
         />
       </div>
 
-
       {programState?.program && programState.status !== "none" && (
         <MyProgramCard
           state={programState}
@@ -136,7 +131,6 @@ function ClientProfile() {
           onDecline={handleDecline}
         />
       )}
-
 
       <button
         type="button"
@@ -387,7 +381,6 @@ function MyProgramCard({
   );
 }
 
-
 function AiConsentRow({
   on,
   busy,
@@ -406,7 +399,9 @@ function AiConsentRow({
         padding: "12px 14px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <div
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
+      >
         <div
           style={{
             color: "var(--white-muted)",

@@ -1,12 +1,18 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { LayoutGrid, Bell, UserPlus, Settings as SettingsIcon, User, ClipboardCheck } from "lucide-react";
+import {
+  LayoutGrid,
+  Bell,
+  UserPlus,
+  Settings as SettingsIcon,
+  User,
+  ClipboardCheck,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   countPendingProgramSuggestions,
   getProgramsFeatureEnabled,
 } from "@/lib/client-program.functions";
-
 
 export const Route = createFileRoute("/practitioner/app")({
   component: PractitionerAppLayout,
@@ -22,14 +28,12 @@ const tabs: Tab[] = [
   { to: "/practitioner/app/profile", label: "Profile", Icon: User },
 ];
 
-
 function PractitionerAppLayout() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | null>(null);
   const [unread, setUnread] = useState(0);
   const [queueCount, setQueueCount] = useState(0);
   const [programsEnabled, setProgramsEnabled] = useState(true);
-
 
   useEffect(() => {
     (async () => {
@@ -97,8 +101,6 @@ function PractitionerAppLayout() {
     (t) => programsEnabled || t.to !== "/practitioner/app/program-queue",
   );
 
-
-
   return (
     <div
       className="safe-area"
@@ -130,58 +132,57 @@ function PractitionerAppLayout() {
         {visibleTabs.map(({ to, label, Icon, badge }) => {
           const badgeCount = badge === "alerts" ? unread : badge === "queue" ? queueCount : 0;
           return (
-          <Link
-            key={to}
-            to={to}
-            style={{
-              flex: 1,
-              minHeight: 56,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 4,
-              textDecoration: "none",
-              color: "var(--white-muted)",
-              padding: "8px 4px",
-              position: "relative",
-            }}
-            activeProps={{ style: { color: "var(--blue-accent)" } }}
-          >
-            <div style={{ position: "relative" }}>
-              <Icon size={22} />
-              {badge && badgeCount > 0 && (
-                <span
-                  style={{
-                    position: "absolute",
-                    top: -6,
-                    right: -10,
-                    background: "var(--red)",
-                    color: "var(--white)",
-                    fontFamily: "var(--font-data)",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    minWidth: 16,
-                    height: 16,
-                    borderRadius: 8,
-                    padding: "0 4px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    lineHeight: 1,
-                  }}
-                >
-                  {badgeCount > 99 ? "99+" : badgeCount}
-                </span>
-              )}
-            </div>
-            <span style={{ fontSize: 11, fontFamily: "var(--font-ui)", fontWeight: 600 }}>
-              {label}
-            </span>
-          </Link>
+            <Link
+              key={to}
+              to={to}
+              style={{
+                flex: 1,
+                minHeight: 56,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 4,
+                textDecoration: "none",
+                color: "var(--white-muted)",
+                padding: "8px 4px",
+                position: "relative",
+              }}
+              activeProps={{ style: { color: "var(--blue-accent)" } }}
+            >
+              <div style={{ position: "relative" }}>
+                <Icon size={22} />
+                {badge && badgeCount > 0 && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: -6,
+                      right: -10,
+                      background: "var(--red)",
+                      color: "var(--white)",
+                      fontFamily: "var(--font-data)",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      minWidth: 16,
+                      height: 16,
+                      borderRadius: 8,
+                      padding: "0 4px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {badgeCount > 99 ? "99+" : badgeCount}
+                  </span>
+                )}
+              </div>
+              <span style={{ fontSize: 11, fontFamily: "var(--font-ui)", fontWeight: 600 }}>
+                {label}
+              </span>
+            </Link>
           );
         })}
-
       </nav>
     </div>
   );

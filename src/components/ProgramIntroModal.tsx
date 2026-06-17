@@ -1,6 +1,15 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { X, ExternalLink, ArrowRight, ArrowLeft, Sparkles, Clock, Target, Check } from "lucide-react";
+import {
+  X,
+  ExternalLink,
+  ArrowRight,
+  ArrowLeft,
+  Sparkles,
+  Clock,
+  Target,
+  Check,
+} from "lucide-react";
 import {
   respondToSuggestedProgram,
   type ProgramLite,
@@ -117,7 +126,9 @@ export function ProgramIntroModal({ program, personalNote, clientFirstName, onCl
           </div>
         )}
 
-        <div style={{ padding: "16px 22px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div
+          style={{ padding: "16px 22px 20px", display: "flex", flexDirection: "column", gap: 12 }}
+        >
           {step < STEPS - 1 ? (
             <button
               type="button"
@@ -134,7 +145,13 @@ export function ProgramIntroModal({ program, personalNote, clientFirstName, onCl
                 disabled={busy !== null}
                 style={{ ...primaryBtn, opacity: busy ? 0.7 : 1 }}
               >
-                {busy === "accepted" ? "Joining…" : (<>Yes, start now <ExternalLink size={16} /></>)}
+                {busy === "accepted" ? (
+                  "Joining…"
+                ) : (
+                  <>
+                    Yes, start now <ExternalLink size={16} />
+                  </>
+                )}
               </button>
               <button
                 type="button"
@@ -215,12 +232,10 @@ function StepWelcome({ firstName }: { firstName?: string | null }) {
         <Sparkles size={26} />
       </div>
       <div style={kickerStyle}>Welcome to Buddy</div>
-      <h2 style={titleStyle}>
-        {name ? `Hi ${name} 👋` : "You're in"}
-      </h2>
+      <h2 style={titleStyle}>{name ? `Hi ${name} 👋` : "You're in"}</h2>
       <p style={bodyStyle}>
-        Your practitioner has picked something for you to try alongside Buddy.
-        Take a quick look — you decide if it's a fit.
+        Your practitioner has picked something for you to try alongside Buddy. Take a quick look —
+        you decide if it's a fit.
       </p>
     </div>
   );
@@ -268,7 +283,9 @@ function StepProgram({
 
         {(program.duration_label || program.focus_area) && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-            {program.duration_label && <Tag icon={<Clock size={12} />} label={program.duration_label} />}
+            {program.duration_label && (
+              <Tag icon={<Clock size={12} />} label={program.duration_label} />
+            )}
             {program.focus_area && <Tag icon={<Target size={12} />} label={program.focus_area} />}
           </div>
         )}
@@ -289,7 +306,16 @@ function StepProgram({
             >
               What you'll get
             </div>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+            <ul
+              style={{
+                listStyle: "none",
+                padding: 0,
+                margin: 0,
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
               {outcomes.slice(0, 4).map((o) => (
                 <li
                   key={o}
@@ -340,12 +366,10 @@ function StepDecide({
   return (
     <div style={{ padding: "30px 22px 4px" }}>
       <div style={kickerStyle}>Ready when you are</div>
-      <h2 style={{ ...titleStyle, fontSize: 22, marginTop: 6 }}>
-        Want to try {program.name}?
-      </h2>
+      <h2 style={{ ...titleStyle, fontSize: 22, marginTop: 6 }}>Want to try {program.name}?</h2>
       <p style={{ ...bodyStyle, marginTop: 8 }}>
-        No pressure — you can start now, decide later, or skip it. Your choice shows
-        up on your profile either way.
+        No pressure — you can start now, decide later, or skip it. Your choice shows up on your
+        profile either way.
       </p>
 
       {personalNote && (

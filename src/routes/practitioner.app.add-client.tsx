@@ -5,7 +5,6 @@ import { supabase } from "@/lib/supabase";
 import { createClientAccount } from "@/lib/clients.functions";
 import { listActivePrograms } from "@/lib/client-program.functions";
 
-
 export const Route = createFileRoute("/practitioner/app/add-client")({
   head: () => ({ meta: [{ title: "Add Client — Buddy" }] }),
   component: AddClient,
@@ -47,7 +46,6 @@ function AddClient() {
       .then((rows) => setPrograms(rows))
       .catch(() => setPrograms([]));
   }, []);
-
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,7 +94,6 @@ function AddClient() {
     setProgramNote("");
     setSubmitting(false);
   };
-
 
   const copyCreds = async () => {
     if (!success) return;
@@ -291,7 +288,6 @@ function AddClient() {
             </div>
           </div>
         )}
-
 
         <div>
           <label style={labelStyle}>Initial Password *</label>

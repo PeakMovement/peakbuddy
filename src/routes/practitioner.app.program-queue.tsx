@@ -10,7 +10,6 @@ import {
 } from "@/lib/client-program.functions";
 import { log } from "@/lib/log";
 
-
 export const Route = createFileRoute("/practitioner/app/program-queue")({
   head: () => ({ meta: [{ title: "Program Queue — Buddy" }] }),
   component: ProgramQueue,
@@ -52,7 +51,6 @@ function ProgramQueue() {
   useEffect(() => {
     void load();
   }, []);
-
 
   const approve = async (clientId: string) => {
     setBusy(clientId);
@@ -123,10 +121,9 @@ function ProgramQueue() {
             lineHeight: 1.5,
           }}
         >
-          Suggested Programs is currently disabled by the administrator. New suggestions
-          won't be created and you can't send programs to clients until it's re-enabled.
+          Suggested Programs is currently disabled by the administrator. New suggestions won't be
+          created and you can't send programs to clients until it's re-enabled.
         </div>
-
       ) : items.length === 0 ? (
         <p style={{ marginTop: 24, color: "var(--white-muted)" }}>
           Nothing waiting. New suggestions appear here after a client check-in.
@@ -145,7 +142,14 @@ function ProgramQueue() {
                   padding: 14,
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                  }}
+                >
                   <strong style={{ fontSize: 15 }}>{item.client_name}</strong>
                   <span
                     style={{
@@ -181,7 +185,14 @@ function ProgramQueue() {
                     <>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{item.program.name}</div>
                       {item.program.description && (
-                        <p style={{ marginTop: 4, fontSize: 13, color: "var(--white-muted)", lineHeight: 1.4 }}>
+                        <p
+                          style={{
+                            marginTop: 4,
+                            fontSize: 13,
+                            color: "var(--white-muted)",
+                            lineHeight: 1.4,
+                          }}
+                        >
                           {item.program.description}
                         </p>
                       )}

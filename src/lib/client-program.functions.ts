@@ -46,9 +46,9 @@ export async function isProgramsFeatureEnabled(): Promise<boolean> {
   return row.programs_feature_enabled !== false;
 }
 
-export const getProgramsFeatureEnabled = createServerFn({ method: "GET" }).handler(
-  async () => ({ enabled: await isProgramsFeatureEnabled() }),
-);
+export const getProgramsFeatureEnabled = createServerFn({ method: "GET" }).handler(async () => ({
+  enabled: await isProgramsFeatureEnabled(),
+}));
 
 // Public: list of admin-approved + active programs (id + name) for practitioner dropdown.
 export const listActivePrograms = createServerFn({ method: "GET" }).handler(async () => {
@@ -64,8 +64,6 @@ export const listActivePrograms = createServerFn({ method: "GET" }).handler(asyn
   if (error) return [] as { id: string; name: string }[];
   return (data ?? []) as { id: string; name: string }[];
 });
-
-
 
 type ClientRow = {
   id: string;
@@ -116,7 +114,11 @@ async function loadProgram(id: string | null): Promise<ProgramLite | null> {
   };
 }
 
-function buildState(client: ClientRow | null, program: ProgramLite | null, firstLogin: boolean): ClientProgramState {
+function buildState(
+  client: ClientRow | null,
+  program: ProgramLite | null,
+  firstLogin: boolean,
+): ClientProgramState {
   if (!client) {
     return {
       client_id: "",
@@ -173,7 +175,6 @@ export const getMyProgram = createServerFn({ method: "POST" })
     const program = await loadProgram(client.suggested_program_id);
     return buildState(client, program, false);
   });
-
 
 const RespondSchema = z.object({
   decision: z.enum(["accepted", "declined", "remind_later"]),
@@ -373,4 +374,3 @@ export const rejectProgramSuggestion = createServerFn({ method: "POST" })
     if (error) return { ok: false as const, error: error.message };
     return { ok: true as const };
   });
-

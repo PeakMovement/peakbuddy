@@ -16,11 +16,7 @@ import { supabase } from "@/lib/supabase";
 import type { CheckIn, Client } from "@/lib/types";
 import { CircularRing, ringColor } from "@/components/CircularRing";
 import { useServerFn } from "@tanstack/react-start";
-import {
-  getClientProgramForPractitioner,
-  type ProgramLite,
-} from "@/lib/client-program.functions";
-
+import { getClientProgramForPractitioner, type ProgramLite } from "@/lib/client-program.functions";
 
 export const Route = createFileRoute("/practitioner/app/client-detail/$clientId")({
   head: () => ({ meta: [{ title: "Client — Buddy" }] }),
@@ -50,7 +46,6 @@ function ClientDetail() {
   const getProgram = useServerFn(getClientProgramForPractitioner);
 
   const load = async () => {
-
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
     const [{ data: c }, { data: ci }, { data: pr }] = await Promise.all([
@@ -95,7 +90,6 @@ function ClientDetail() {
       .then((res) => setProgramInfo(res))
       .catch(() => {});
   }, [clientId, getProgram]);
-
 
   const stats = useMemo(
     () => ({
@@ -227,8 +221,6 @@ function ClientDetail() {
       {programInfo?.program && programInfo.status !== "none" && (
         <ProgramStatusRow info={programInfo} />
       )}
-
-
 
       <section
         style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}
@@ -432,7 +424,6 @@ function ClientDetail() {
           )}
         </div>
       )}
-
 
       {recommendations.length > 0 && (
         <section style={{ marginTop: 24 }}>
@@ -873,8 +864,7 @@ function ProgramStatusRow({
       : status === "declined"
         ? "var(--red, #e57373)"
         : "var(--blue-accent)";
-  const label =
-    status === "accepted" ? "Accepted" : status === "declined" ? "Declined" : "Pending";
+  const label = status === "accepted" ? "Accepted" : status === "declined" ? "Declined" : "Pending";
   return (
     <section
       style={{

@@ -102,14 +102,9 @@ function Alerts() {
 
   const submitAssessment = async (id: string, assessment: "correct" | "over" | "under") => {
     setAlerts((prev) =>
-      prev.map((a) =>
-        a.id === id ? ({ ...a, practitioner_assessment: assessment } as Alert) : a,
-      ),
+      prev.map((a) => (a.id === id ? ({ ...a, practitioner_assessment: assessment } as Alert) : a)),
     );
-    await supabase
-      .from("alerts")
-      .update({ practitioner_assessment: assessment })
-      .eq("id", id);
+    await supabase.from("alerts").update({ practitioner_assessment: assessment }).eq("id", id);
   };
 
   const categoryLabel = (cat: string | null | undefined) => {

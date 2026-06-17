@@ -15,8 +15,6 @@ import type { CheckIn, Client } from "@/lib/types";
 import { log } from "@/lib/log";
 import { suggestProgram } from "@/lib/programs.functions";
 
-
-
 export const Route = createFileRoute("/client/app/checkin")({
   component: CheckInScreen,
 });
@@ -48,7 +46,6 @@ function CheckInScreen() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [savedOffline, setSavedOffline] = useState(false);
-
 
   const todayLabel = useMemo(
     () =>
@@ -261,8 +258,6 @@ function CheckInScreen() {
       log.debug("[Check-in] pattern detection skipped:", e);
     }
 
-
-
     setTodayCheckIn({
       id: insertedId,
       client_id: client.id,
@@ -292,7 +287,6 @@ function CheckInScreen() {
       },
     }).catch((e) => log.error("[Check-in] suggestProgram failed:", e));
   };
-
 
   if (loading) {
     return <div style={{ padding: 24, color: "var(--white-muted)" }}>Loading…</div>;
@@ -350,7 +344,6 @@ function CheckInScreen() {
           </p>
         )}
       </div>
-
     );
   }
 

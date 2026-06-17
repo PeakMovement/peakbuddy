@@ -186,7 +186,7 @@ When in doubt err toward higher urgency. False positive always safer than false 
 // Server-side context builder — pulls fresh data from DB so the AI gets the
 // real clinical picture, not whatever the client chose to send.
 // ─────────────────────────────────────────────────────────────────────────────
-type SupabaseAdmin = typeof import("@/integrations/supabase/client.server")["supabaseAdmin"];
+type SupabaseAdmin = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 
 interface ServerContext {
   avgPainLast3: number | null;
@@ -342,7 +342,8 @@ async function buildServerContext(
 function formatContextBlock(ctx: ServerContext): string {
   const lines: string[] = ["═══ PATIENT PROFILE ═══"];
   if (ctx.assignedProgram) lines.push(`Active program: ${ctx.assignedProgram}`);
-  if (ctx.knownConditions) lines.push(`Known notes/conditions: ${ctx.knownConditions.slice(0, 400)}`);
+  if (ctx.knownConditions)
+    lines.push(`Known notes/conditions: ${ctx.knownConditions.slice(0, 400)}`);
   lines.push(`Total check-ins logged: ${ctx.checkInCount}`);
   if (ctx.daysSinceLastCheckIn !== null) {
     lines.push(`Days since last check-in: ${ctx.daysSinceLastCheckIn}`);
@@ -478,8 +479,7 @@ export const Route = createFileRoute("/api/public/triage-query")({
           // Build context server-side so the AI sees the real clinical picture
           const ctx = await buildServerContext(supabaseAdmin, client_id, c.practitioner_id);
 
-          const userMessage =
-            `Patient symptom description:\n"${query_text}"\n\n${formatContextBlock(ctx)}`;
+          const userMessage = `Patient symptom description:\n"${query_text}"\n\n${formatContextBlock(ctx)}`;
 
           const response = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",
@@ -500,7 +500,11 @@ export const Route = createFileRoute("/api/public/triage-query")({
 
           if (!response.ok) {
             const errText = await response.text().catch(() => "");
-            log.error("[triage-query] Anthropic API error:", response.status, errText.slice(0, 200));
+            log.error(
+              "[triage-query] Anthropic API error:",
+              response.status,
+              errText.slice(0, 200),
+            );
             return json({ error: "Triage service unavailable", retryable: true }, 502);
           }
 

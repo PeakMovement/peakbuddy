@@ -38,7 +38,6 @@ export interface PlatformSettings {
   created_at: string;
 }
 
-
 export interface Client {
   id: string;
   practitioner_id: string;
@@ -105,4 +104,3 @@ export interface Alert {
   pattern?: string | null;
   practitioner_assessment?: "correct" | "over" | "under" | null;
 }
-

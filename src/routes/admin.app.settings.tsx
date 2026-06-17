@@ -20,7 +20,6 @@ function AdminSettings() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-
   useEffect(() => {
     (async () => {
       const { data } = await supabase.from("platform_settings").select("*").limit(1).maybeSingle();
@@ -135,7 +134,8 @@ function AdminSettings() {
 
         <div style={{ ...sectionTitle, marginTop: 24 }}>Suggested Programs</div>
         <p style={{ color: "var(--white-muted)", fontSize: 12, marginTop: -8 }}>
-          When off, practitioners cannot assign or approve program suggestions, and clients see no program suggestion UI. Existing data is preserved.
+          When off, practitioners cannot assign or approve program suggestions, and clients see no
+          program suggestion UI. Existing data is preserved.
         </p>
         <label
           style={{
@@ -160,8 +160,6 @@ function AdminSettings() {
             style={{ width: 22, height: 22, accentColor: "var(--blue-accent)" }}
           />
         </label>
-
-
 
         {error && <div style={{ color: "var(--red)", fontSize: 13 }}>{error}</div>}
         {success && <div style={{ color: "var(--green)", fontSize: 13 }}>{success}</div>}

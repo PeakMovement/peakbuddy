@@ -178,7 +178,12 @@ const KEYWORD_FLOOR: Array<{
   // Cauda equina
   { term: "bowel control", minUrgency: "emergency", minSeverity: 10, category: "cauda_equina" },
   { term: "bladder control", minUrgency: "emergency", minSeverity: 10, category: "cauda_equina" },
-  { term: "saddle area numbness", minUrgency: "emergency", minSeverity: 10, category: "cauda_equina" },
+  {
+    term: "saddle area numbness",
+    minUrgency: "emergency",
+    minSeverity: 10,
+    category: "cauda_equina",
+  },
 
   // Mental health
   { term: "self harm", minUrgency: "urgent", minSeverity: 8, category: "mental_health" },

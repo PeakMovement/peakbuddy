@@ -16,11 +16,7 @@ const ProgramSchema = z.object({
 });
 
 async function assertSuperAdmin(supabase: any, userId: string) {
-  const { data } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .maybeSingle();
+  const { data } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
   if (!data || data.role !== "super_admin") {
     throw new Error("Forbidden");
   }
@@ -96,7 +92,11 @@ export const setProgramApproval = createServerFn({ method: "POST" })
     await assertSuperAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const payload = data.approved
-      ? { approved_by_admin: true, approved_by: context.userId, approved_at: new Date().toISOString() }
+      ? {
+          approved_by_admin: true,
+          approved_by: context.userId,
+          approved_at: new Date().toISOString(),
+        }
       : { approved_by_admin: false, approved_by: null, approved_at: null };
     const { data: row, error } = await supabaseAdmin
       .from("programs")
@@ -107,4 +107,3 @@ export const setProgramApproval = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return row;
   });
-

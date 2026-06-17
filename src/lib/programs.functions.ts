@@ -144,16 +144,13 @@ export const suggestProgram = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-
     // Only queue a new suggestion if the client doesn't already have one in flight.
     const { data: clientRow } = await supabaseAdmin
       .from("clients")
       .select("program_status, suggested_program_id")
       .eq("id", data.clientId)
       .maybeSingle();
-    const cur = clientRow as
-      | { program_status: string; suggested_program_id: string | null }
-      | null;
+    const cur = clientRow as { program_status: string; suggested_program_id: string | null } | null;
     if (!cur) return null;
     const canQueue =
       cur.program_status === "none" ||
@@ -162,7 +159,9 @@ export const suggestProgram = createServerFn({ method: "POST" })
 
     const { data: rows, error } = await supabaseAdmin
       .from("programs")
-      .select("id, name, description, external_url, image_url, symptom_tags, pain_min, pain_max, priority")
+      .select(
+        "id, name, description, external_url, image_url, symptom_tags, pain_min, pain_max, priority",
+      )
       .eq("active", true)
       .eq("approved_by_admin", true);
     if (error || !rows || rows.length === 0) return null;
@@ -203,4 +202,3 @@ export const suggestProgram = createServerFn({ method: "POST" })
     // Client UI no longer shows a suggestion card directly — practitioner approves first.
     return null;
   });
-

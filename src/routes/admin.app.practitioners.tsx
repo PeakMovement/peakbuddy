@@ -148,7 +148,12 @@ function PractitionerCard({
 
   const remove = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm(`Permanently remove ${row.full_name}? This deletes their account, practice, and all their clients and check-ins.`)) return;
+    if (
+      !window.confirm(
+        `Permanently remove ${row.full_name}? This deletes their account, practice, and all their clients and check-ins.`,
+      )
+    )
+      return;
     setRemoving(true);
     setErr(null);
     try {

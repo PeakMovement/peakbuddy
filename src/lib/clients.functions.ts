@@ -13,7 +13,6 @@ const inputSchema = z.object({
   programPersonalNote: z.string().trim().max(280).optional().default(""),
 });
 
-
 export const createClientAccount = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data }) => {
@@ -21,8 +20,6 @@ export const createClientAccount = createServerFn({ method: "POST" })
     const { isProgramsFeatureEnabled } = await import("@/lib/client-program.functions");
     const programsEnabled = await isProgramsFeatureEnabled();
     const suggestedProgramId = programsEnabled ? (data.suggestedProgramId ?? null) : null;
-
-
 
     // Guard: refuse to create a second client row for the same email.
     const { data: existingClient } = await admin
@@ -33,7 +30,8 @@ export const createClientAccount = createServerFn({ method: "POST" })
     if (Array.isArray(existingClient) && existingClient.length > 0) {
       return {
         ok: false as const,
-        error: "A client with this email already exists. Open their record instead of adding a new one.",
+        error:
+          "A client with this email already exists. Open their record instead of adding a new one.",
       };
     }
 
@@ -85,15 +83,11 @@ export const createClientAccount = createServerFn({ method: "POST" })
         program_suggested_at: suggestedProgramId ? new Date().toISOString() : null,
         program_decided_at: suggestedProgramId ? new Date().toISOString() : null,
         program_personal_note:
-          suggestedProgramId && data.programPersonalNote
-            ? data.programPersonalNote
-            : null,
+          suggestedProgramId && data.programPersonalNote ? data.programPersonalNote : null,
       })
 
       .select("id")
       .single();
-
-
 
     if (insErr) {
       return { ok: false as const, error: insErr.message };
