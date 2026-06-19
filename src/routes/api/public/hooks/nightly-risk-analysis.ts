@@ -250,13 +250,13 @@ async function processClient(
   // 5. Draft via AI (if consented) or template fallback.
   const ai = await aiDraft({ client, recent, computed, programs });
   const draft = ai ?? templateDraft(client, computed);
-  const suggested_action: Record<string, unknown> = {};
+  const suggested_action: { program_id?: string; program_name?: string; reason?: string } = {};
   if (ai?.program_id) {
     const prog = programs.find((p) => p.id === ai.program_id);
     if (prog) {
       suggested_action.program_id = prog.id;
       suggested_action.program_name = prog.name;
-      suggested_action.reason = ai.reason;
+      if (ai.reason) suggested_action.reason = ai.reason;
     }
   }
   await supabaseAdmin.from("practitioner_drafts").insert({
