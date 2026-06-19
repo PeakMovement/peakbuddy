@@ -184,6 +184,10 @@ function Dashboard() {
         <Stat label="Alerts" value={unread} danger={unread > 0} />
       </section>
 
+      <MorningAnalysisCard />
+
+
+
       <div
         style={{
           marginTop: 24,
