@@ -75,7 +75,11 @@ export const updateDraftStatus = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const patch: Record<string, unknown> = {
+    const patch: {
+      status: "sent" | "dismissed" | "edited";
+      acted_at: string;
+      draft_body?: string;
+    } = {
       status: data.status,
       acted_at: new Date().toISOString(),
     };
