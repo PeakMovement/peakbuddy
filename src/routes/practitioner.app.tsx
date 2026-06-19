@@ -7,21 +7,24 @@ import {
   Settings as SettingsIcon,
   User,
   ClipboardCheck,
+  Sparkles,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   countPendingProgramSuggestions,
   getProgramsFeatureEnabled,
 } from "@/lib/client-program.functions";
+import { countMyDrafts } from "@/lib/practitioner-drafts.functions";
 
 export const Route = createFileRoute("/practitioner/app")({
   component: PractitionerAppLayout,
 });
 
-type Tab = { to: string; label: string; Icon: typeof LayoutGrid; badge?: "alerts" | "queue" };
+type Tab = { to: string; label: string; Icon: typeof LayoutGrid; badge?: "alerts" | "queue" | "insights" };
 const tabs: Tab[] = [
   { to: "/practitioner/app/dashboard", label: "Dashboard", Icon: LayoutGrid },
   { to: "/practitioner/app/alerts", label: "Alerts", Icon: Bell, badge: "alerts" },
+  { to: "/practitioner/app/insights", label: "Insights", Icon: Sparkles, badge: "insights" },
   { to: "/practitioner/app/program-queue", label: "Queue", Icon: ClipboardCheck, badge: "queue" },
   { to: "/practitioner/app/add-client", label: "Add", Icon: UserPlus },
   { to: "/practitioner/app/settings", label: "Settings", Icon: SettingsIcon },
