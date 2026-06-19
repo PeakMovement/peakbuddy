@@ -537,6 +537,7 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          morning_analysis_enabled: boolean
           profession: string | null
           role: string
         }
@@ -544,6 +545,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id: string
+          morning_analysis_enabled?: boolean
           profession?: string | null
           role?: string
         }
@@ -551,6 +553,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          morning_analysis_enabled?: boolean
           profession?: string | null
           role?: string
         }

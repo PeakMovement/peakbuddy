@@ -1,11 +1,16 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { Users } from "lucide-react";
+import { Users, Sparkles, AlertTriangle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Profile, Client, CheckIn } from "@/lib/types";
 import { CircularRing, ringColor } from "@/components/CircularRing";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 import { log } from "@/lib/log";
+import {
+  getMorningAnalysis,
+  setMorningAnalysisEnabled,
+  type MorningAnalysisPayload,
+} from "@/lib/morning-analysis.functions";
 
 export const Route = createFileRoute("/practitioner/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Buddy" }] }),
@@ -178,6 +183,10 @@ function Dashboard() {
         <Stat label="Active" value={rows.filter((r) => r._activeToday).length} />
         <Stat label="Alerts" value={unread} danger={unread > 0} />
       </section>
+
+      <MorningAnalysisCard />
+
+
 
       <div
         style={{
@@ -385,3 +394,188 @@ function Stat({ label, value, danger }: { label: string; value: number; danger?:
     </div>
   );
 }
+
+function MorningAnalysisCard() {
+  const [data, setData] = useState<MorningAnalysisPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<string>("all");
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getMorningAnalysis();
+      setData(res);
+    } catch (e) {
+      log.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const toggle = async (next: boolean) => {
+    setSaving(true);
+    try {
+      await setMorningAnalysisEnabled({ data: { enabled: next } });
+      await load();
+    } catch (e) {
+      log.error(e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const clientOptions = data
+    ? Array.from(new Map(data.items.map((i) => [i.client_id, i.client_name])).entries())
+    : [];
+  const filtered = data
+    ? selected === "all"
+      ? data.items
+      : data.items.filter((i) => i.client_id === selected)
+    : [];
+
+  return (
+    <section
+      style={{
+        marginTop: 20,
+        background: "var(--navy-card)",
+        border: "1px solid var(--navy-border)",
+        borderRadius: 12,
+        padding: 14,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <Sparkles size={16} color="var(--blue-accent)" />
+          <h2
+            style={{
+              fontFamily: "var(--font-ui)",
+              fontWeight: 700,
+              fontSize: 14,
+              color: "var(--white)",
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+            }}
+          >
+            Morning Analysis
+          </h2>
+        </div>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--white-muted)", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={data?.enabled ?? true}
+            disabled={saving || loading}
+            onChange={(e) => toggle(e.target.checked)}
+          />
+          {data?.enabled ? "On" : "Off"}
+        </label>
+      </div>
+
+      {loading ? (
+        <p style={{ marginTop: 10, fontSize: 12, color: "var(--white-muted)" }}>Loading…</p>
+      ) : !data?.enabled ? (
+        <p style={{ marginTop: 10, fontSize: 12, color: "var(--white-muted)" }}>
+          Daily analysis is paused. Turn on to receive AI summaries each morning.
+        </p>
+      ) : data.client_count === 0 ? (
+        <p style={{ marginTop: 10, fontSize: 12, color: "var(--white-muted)" }}>
+          Add a client to start receiving morning analysis.
+        </p>
+      ) : data.items.length === 0 ? (
+        <p style={{ marginTop: 10, fontSize: 12, color: "var(--white-muted)" }}>
+          No flags this morning — everyone looks stable.
+        </p>
+      ) : (
+        <>
+          <div style={{ marginTop: 10 }}>
+            <select
+              value={selected}
+              onChange={(e) => setSelected(e.target.value)}
+              style={{
+                width: "100%",
+                minHeight: 40,
+                background: "var(--navy)",
+                color: "var(--white)",
+                border: "1px solid var(--navy-border)",
+                borderRadius: 8,
+                padding: "0 10px",
+                fontFamily: "var(--font-ui)",
+                fontSize: 13,
+              }}
+            >
+              <option value="all">All clients ({data.items.length})</option>
+              {clientOptions.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+            {filtered.map((i) => (
+              <div
+                key={i.id}
+                style={{
+                  background: "var(--navy)",
+                  border: "1px solid var(--navy-border)",
+                  borderRadius: 10,
+                  padding: 10,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                  <strong style={{ fontSize: 13, color: "var(--white)" }}>{i.client_name}</strong>
+                  {i.risk_score !== null && (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        fontSize: 10,
+                        padding: "2px 6px",
+                        borderRadius: 999,
+                        background: i.risk_score >= 60 ? "var(--red)" : "var(--navy-border)",
+                        color: "var(--white)",
+                        fontFamily: "var(--font-data)",
+                      }}
+                    >
+                      <AlertTriangle size={10} /> {i.risk_score}
+                    </span>
+                  )}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 12, color: "var(--white)", fontWeight: 600 }}>
+                  {i.draft_title}
+                </div>
+                <p style={{ marginTop: 4, fontSize: 12, lineHeight: 1.4, color: "var(--white-muted)" }}>
+                  {i.draft_body}
+                </p>
+                {i.suggested_program && (
+                  <p style={{ marginTop: 4, fontSize: 11, color: "var(--blue-accent)" }}>
+                    Suggested: {i.suggested_program}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+          <Link
+            to="/practitioner/app/insights"
+            style={{
+              display: "block",
+              textAlign: "center",
+              marginTop: 10,
+              fontSize: 12,
+              color: "var(--blue-accent)",
+              textDecoration: "none",
+            }}
+          >
+            Review &amp; action in Insights →
+          </Link>
+        </>
+      )}
+    </section>
+  );
+}
+
