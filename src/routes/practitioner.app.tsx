@@ -36,6 +36,7 @@ function PractitionerAppLayout() {
   const [userId, setUserId] = useState<string | null>(null);
   const [unread, setUnread] = useState(0);
   const [queueCount, setQueueCount] = useState(0);
+  const [insightsCount, setInsightsCount] = useState(0);
   const [programsEnabled, setProgramsEnabled] = useState(true);
 
   useEffect(() => {
@@ -80,17 +81,19 @@ function PractitionerAppLayout() {
       if (cancelled) return;
       const enabled = flag?.enabled !== false;
       setProgramsEnabled(enabled);
-      const [{ count }, qc] = await Promise.all([
+      const [{ count }, qc, ic] = await Promise.all([
         supabase
           .from("alerts")
           .select("*", { count: "exact", head: true })
           .eq("practitioner_id", userId)
           .eq("is_read", false),
         enabled ? countPendingProgramSuggestions().catch(() => 0) : Promise.resolve(0),
+        countMyDrafts().catch(() => 0),
       ]);
       if (cancelled) return;
       setUnread(count ?? 0);
       setQueueCount(typeof qc === "number" ? qc : 0);
+      setInsightsCount(typeof ic === "number" ? ic : 0);
     };
     fetchCounts();
     const id = setInterval(fetchCounts, 30000);
