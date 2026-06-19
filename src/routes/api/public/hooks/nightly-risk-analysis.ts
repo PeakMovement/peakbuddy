@@ -160,8 +160,10 @@ function templateDraft(client: ClientRow, computed: ReturnType<typeof computeRis
   };
 }
 
+type AdminClient = typeof import("@/integrations/supabase/client.server")["supabaseAdmin"];
+
 async function processClient(
-  supabaseAdmin: ReturnType<typeof import("@/integrations/supabase/client.server")["supabaseAdmin"] extends infer T ? T : never>,
+  supabaseAdmin: AdminClient,
   client: ClientRow,
   programs: ProgramRow[],
   forDate: string,
