@@ -1,11 +1,16 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { Users } from "lucide-react";
+import { Users, Sparkles, AlertTriangle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Profile, Client, CheckIn } from "@/lib/types";
 import { CircularRing, ringColor } from "@/components/CircularRing";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 import { log } from "@/lib/log";
+import {
+  getMorningAnalysis,
+  setMorningAnalysisEnabled,
+  type MorningAnalysisPayload,
+} from "@/lib/morning-analysis.functions";
 
 export const Route = createFileRoute("/practitioner/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Buddy" }] }),
