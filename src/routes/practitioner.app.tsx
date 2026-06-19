@@ -136,7 +136,11 @@ function PractitionerAppLayout() {
         }}
       >
         {visibleTabs.map(({ to, label, Icon, badge }) => {
-          const badgeCount = badge === "alerts" ? unread : badge === "queue" ? queueCount : 0;
+          const badgeCount =
+            badge === "alerts" ? unread
+            : badge === "queue" ? queueCount
+            : badge === "insights" ? insightsCount
+            : 0;
           return (
             <Link
               key={to}
