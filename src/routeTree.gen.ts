@@ -26,6 +26,7 @@ import { Route as ClientAppIndexRouteImport } from './routes/client.app.index'
 import { Route as PractitionerAppSettingsRouteImport } from './routes/practitioner.app.settings'
 import { Route as PractitionerAppProgramQueueRouteImport } from './routes/practitioner.app.program-queue'
 import { Route as PractitionerAppProfileRouteImport } from './routes/practitioner.app.profile'
+import { Route as PractitionerAppInsightsRouteImport } from './routes/practitioner.app.insights'
 import { Route as PractitionerAppDashboardRouteImport } from './routes/practitioner.app.dashboard'
 import { Route as PractitionerAppAlertsRouteImport } from './routes/practitioner.app.alerts'
 import { Route as PractitionerAppAddClientRouteImport } from './routes/practitioner.app.add-client'
@@ -42,6 +43,7 @@ import { Route as AdminAppDashboardRouteImport } from './routes/admin.app.dashbo
 import { Route as AdminAppClientsRouteImport } from './routes/admin.app.clients'
 import { Route as AdminAppAlertsRouteImport } from './routes/admin.app.alerts'
 import { Route as PractitionerAppClientDetailClientIdRouteImport } from './routes/practitioner.app.client-detail.$clientId'
+import { Route as ApiPublicHooksNightlyRiskAnalysisRouteImport } from './routes/api/public/hooks/nightly-risk-analysis'
 import { Route as AdminAppPractitionerPractitionerIdRouteImport } from './routes/admin.app.practitioner.$practitionerId'
 import { Route as AdminAppClientDetailClientIdRouteImport } from './routes/admin.app.client-detail.$clientId'
 
@@ -131,6 +133,11 @@ const PractitionerAppProfileRoute = PractitionerAppProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => PractitionerAppRoute,
 } as any)
+const PractitionerAppInsightsRoute = PractitionerAppInsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
+  getParentRoute: () => PractitionerAppRoute,
+} as any)
 const PractitionerAppDashboardRoute =
   PractitionerAppDashboardRouteImport.update({
     id: '/dashboard',
@@ -214,6 +221,12 @@ const PractitionerAppClientDetailClientIdRoute =
     path: '/client-detail/$clientId',
     getParentRoute: () => PractitionerAppRoute,
   } as any)
+const ApiPublicHooksNightlyRiskAnalysisRoute =
+  ApiPublicHooksNightlyRiskAnalysisRouteImport.update({
+    id: '/api/public/hooks/nightly-risk-analysis',
+    path: '/api/public/hooks/nightly-risk-analysis',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AdminAppPractitionerPractitionerIdRoute =
   AdminAppPractitionerPractitionerIdRouteImport.update({
     id: '/practitioner/$practitionerId',
@@ -256,12 +269,14 @@ export interface FileRoutesByFullPath {
   '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
+  '/practitioner/app/insights': typeof PractitionerAppInsightsRoute
   '/practitioner/app/profile': typeof PractitionerAppProfileRoute
   '/practitioner/app/program-queue': typeof PractitionerAppProgramQueueRoute
   '/practitioner/app/settings': typeof PractitionerAppSettingsRoute
   '/client/app/': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
+  '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
   '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
 }
 export interface FileRoutesByTo {
@@ -292,12 +307,14 @@ export interface FileRoutesByTo {
   '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
+  '/practitioner/app/insights': typeof PractitionerAppInsightsRoute
   '/practitioner/app/profile': typeof PractitionerAppProfileRoute
   '/practitioner/app/program-queue': typeof PractitionerAppProgramQueueRoute
   '/practitioner/app/settings': typeof PractitionerAppSettingsRoute
   '/client/app': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
+  '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
   '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
 }
 export interface FileRoutesById {
@@ -330,12 +347,14 @@ export interface FileRoutesById {
   '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
+  '/practitioner/app/insights': typeof PractitionerAppInsightsRoute
   '/practitioner/app/profile': typeof PractitionerAppProfileRoute
   '/practitioner/app/program-queue': typeof PractitionerAppProgramQueueRoute
   '/practitioner/app/settings': typeof PractitionerAppSettingsRoute
   '/client/app/': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
+  '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
   '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
 }
 export interface FileRouteTypes {
@@ -369,12 +388,14 @@ export interface FileRouteTypes {
     | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
+    | '/practitioner/app/insights'
     | '/practitioner/app/profile'
     | '/practitioner/app/program-queue'
     | '/practitioner/app/settings'
     | '/client/app/'
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
+    | '/api/public/hooks/nightly-risk-analysis'
     | '/practitioner/app/client-detail/$clientId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -405,12 +426,14 @@ export interface FileRouteTypes {
     | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
+    | '/practitioner/app/insights'
     | '/practitioner/app/profile'
     | '/practitioner/app/program-queue'
     | '/practitioner/app/settings'
     | '/client/app'
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
+    | '/api/public/hooks/nightly-risk-analysis'
     | '/practitioner/app/client-detail/$clientId'
   id:
     | '__root__'
@@ -442,12 +465,14 @@ export interface FileRouteTypes {
     | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
+    | '/practitioner/app/insights'
     | '/practitioner/app/profile'
     | '/practitioner/app/program-queue'
     | '/practitioner/app/settings'
     | '/client/app/'
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
+    | '/api/public/hooks/nightly-risk-analysis'
     | '/practitioner/app/client-detail/$clientId'
   fileRoutesById: FileRoutesById
 }
@@ -466,6 +491,7 @@ export interface RootRouteChildren {
   PractitionerPendingRoute: typeof PractitionerPendingRoute
   PractitionerSignupRoute: typeof PractitionerSignupRoute
   ApiPublicTriageQueryRoute: typeof ApiPublicTriageQueryRoute
+  ApiPublicHooksNightlyRiskAnalysisRoute: typeof ApiPublicHooksNightlyRiskAnalysisRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -589,6 +615,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PractitionerAppProfileRouteImport
       parentRoute: typeof PractitionerAppRoute
     }
+    '/practitioner/app/insights': {
+      id: '/practitioner/app/insights'
+      path: '/insights'
+      fullPath: '/practitioner/app/insights'
+      preLoaderRoute: typeof PractitionerAppInsightsRouteImport
+      parentRoute: typeof PractitionerAppRoute
+    }
     '/practitioner/app/dashboard': {
       id: '/practitioner/app/dashboard'
       path: '/dashboard'
@@ -701,6 +734,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PractitionerAppClientDetailClientIdRouteImport
       parentRoute: typeof PractitionerAppRoute
     }
+    '/api/public/hooks/nightly-risk-analysis': {
+      id: '/api/public/hooks/nightly-risk-analysis'
+      path: '/api/public/hooks/nightly-risk-analysis'
+      fullPath: '/api/public/hooks/nightly-risk-analysis'
+      preLoaderRoute: typeof ApiPublicHooksNightlyRiskAnalysisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/app/practitioner/$practitionerId': {
       id: '/admin/app/practitioner/$practitionerId'
       path: '/practitioner/$practitionerId'
@@ -771,6 +811,7 @@ interface PractitionerAppRouteChildren {
   PractitionerAppAddClientRoute: typeof PractitionerAppAddClientRoute
   PractitionerAppAlertsRoute: typeof PractitionerAppAlertsRoute
   PractitionerAppDashboardRoute: typeof PractitionerAppDashboardRoute
+  PractitionerAppInsightsRoute: typeof PractitionerAppInsightsRoute
   PractitionerAppProfileRoute: typeof PractitionerAppProfileRoute
   PractitionerAppProgramQueueRoute: typeof PractitionerAppProgramQueueRoute
   PractitionerAppSettingsRoute: typeof PractitionerAppSettingsRoute
@@ -781,6 +822,7 @@ const PractitionerAppRouteChildren: PractitionerAppRouteChildren = {
   PractitionerAppAddClientRoute: PractitionerAppAddClientRoute,
   PractitionerAppAlertsRoute: PractitionerAppAlertsRoute,
   PractitionerAppDashboardRoute: PractitionerAppDashboardRoute,
+  PractitionerAppInsightsRoute: PractitionerAppInsightsRoute,
   PractitionerAppProfileRoute: PractitionerAppProfileRoute,
   PractitionerAppProgramQueueRoute: PractitionerAppProgramQueueRoute,
   PractitionerAppSettingsRoute: PractitionerAppSettingsRoute,
@@ -807,17 +849,9 @@ const rootRouteChildren: RootRouteChildren = {
   PractitionerPendingRoute: PractitionerPendingRoute,
   PractitionerSignupRoute: PractitionerSignupRoute,
   ApiPublicTriageQueryRoute: ApiPublicTriageQueryRoute,
+  ApiPublicHooksNightlyRiskAnalysisRoute:
+    ApiPublicHooksNightlyRiskAnalysisRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

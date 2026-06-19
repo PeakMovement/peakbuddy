@@ -7,21 +7,24 @@ import {
   Settings as SettingsIcon,
   User,
   ClipboardCheck,
+  Sparkles,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   countPendingProgramSuggestions,
   getProgramsFeatureEnabled,
 } from "@/lib/client-program.functions";
+import { countMyDrafts } from "@/lib/practitioner-drafts.functions";
 
 export const Route = createFileRoute("/practitioner/app")({
   component: PractitionerAppLayout,
 });
 
-type Tab = { to: string; label: string; Icon: typeof LayoutGrid; badge?: "alerts" | "queue" };
+type Tab = { to: string; label: string; Icon: typeof LayoutGrid; badge?: "alerts" | "queue" | "insights" };
 const tabs: Tab[] = [
   { to: "/practitioner/app/dashboard", label: "Dashboard", Icon: LayoutGrid },
   { to: "/practitioner/app/alerts", label: "Alerts", Icon: Bell, badge: "alerts" },
+  { to: "/practitioner/app/insights", label: "Insights", Icon: Sparkles, badge: "insights" },
   { to: "/practitioner/app/program-queue", label: "Queue", Icon: ClipboardCheck, badge: "queue" },
   { to: "/practitioner/app/add-client", label: "Add", Icon: UserPlus },
   { to: "/practitioner/app/settings", label: "Settings", Icon: SettingsIcon },
@@ -33,6 +36,7 @@ function PractitionerAppLayout() {
   const [userId, setUserId] = useState<string | null>(null);
   const [unread, setUnread] = useState(0);
   const [queueCount, setQueueCount] = useState(0);
+  const [insightsCount, setInsightsCount] = useState(0);
   const [programsEnabled, setProgramsEnabled] = useState(true);
 
   useEffect(() => {
@@ -77,17 +81,19 @@ function PractitionerAppLayout() {
       if (cancelled) return;
       const enabled = flag?.enabled !== false;
       setProgramsEnabled(enabled);
-      const [{ count }, qc] = await Promise.all([
+      const [{ count }, qc, ic] = await Promise.all([
         supabase
           .from("alerts")
           .select("*", { count: "exact", head: true })
           .eq("practitioner_id", userId)
           .eq("is_read", false),
         enabled ? countPendingProgramSuggestions().catch(() => 0) : Promise.resolve(0),
+        countMyDrafts().catch(() => 0),
       ]);
       if (cancelled) return;
       setUnread(count ?? 0);
       setQueueCount(typeof qc === "number" ? qc : 0);
+      setInsightsCount(typeof ic === "number" ? ic : 0);
     };
     fetchCounts();
     const id = setInterval(fetchCounts, 30000);
@@ -130,7 +136,11 @@ function PractitionerAppLayout() {
         }}
       >
         {visibleTabs.map(({ to, label, Icon, badge }) => {
-          const badgeCount = badge === "alerts" ? unread : badge === "queue" ? queueCount : 0;
+          const badgeCount =
+            badge === "alerts" ? unread
+            : badge === "queue" ? queueCount
+            : badge === "insights" ? insightsCount
+            : 0;
           return (
             <Link
               key={to}

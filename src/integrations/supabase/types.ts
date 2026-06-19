@@ -120,6 +120,112 @@ export type Database = {
           },
         ]
       }
+      client_baselines: {
+        Row: {
+          client_id: string
+          computed_at: string
+          energy_mean: number | null
+          energy_std: number | null
+          id: string
+          mood_mean: number | null
+          mood_std: number | null
+          pain_mean: number | null
+          pain_std: number | null
+          sample_size: number
+          sleep_mean: number | null
+          sleep_std: number | null
+          stress_mean: number | null
+          stress_std: number | null
+        }
+        Insert: {
+          client_id: string
+          computed_at?: string
+          energy_mean?: number | null
+          energy_std?: number | null
+          id?: string
+          mood_mean?: number | null
+          mood_std?: number | null
+          pain_mean?: number | null
+          pain_std?: number | null
+          sample_size?: number
+          sleep_mean?: number | null
+          sleep_std?: number | null
+          stress_mean?: number | null
+          stress_std?: number | null
+        }
+        Update: {
+          client_id?: string
+          computed_at?: string
+          energy_mean?: number | null
+          energy_std?: number | null
+          id?: string
+          mood_mean?: number | null
+          mood_std?: number | null
+          pain_mean?: number | null
+          pain_std?: number | null
+          sample_size?: number
+          sleep_mean?: number | null
+          sleep_std?: number | null
+          stress_mean?: number | null
+          stress_std?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_baselines_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_patterns: {
+        Row: {
+          active: boolean
+          avg_value: number
+          client_id: string
+          confidence: number
+          day_of_week: number
+          id: string
+          last_detected_at: string
+          metric: string
+          pattern_type: string
+          sample_size: number
+        }
+        Insert: {
+          active?: boolean
+          avg_value: number
+          client_id: string
+          confidence?: number
+          day_of_week: number
+          id?: string
+          last_detected_at?: string
+          metric: string
+          pattern_type: string
+          sample_size?: number
+        }
+        Update: {
+          active?: boolean
+          avg_value?: number
+          client_id?: string
+          confidence?: number
+          day_of_week?: number
+          id?: string
+          last_detected_at?: string
+          metric?: string
+          pattern_type?: string
+          sample_size?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_patterns_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           auth_user_id: string | null
@@ -131,9 +237,11 @@ export type Database = {
           id: string
           login_code: string
           notes: string | null
+          passive_monitoring_enabled: boolean
           phone: string | null
           popia_accepted: boolean
           practitioner_id: string
+          predictive_nudges_enabled: boolean
           primary_complaint: string | null
           program_decided_at: string | null
           program_personal_note: string | null
@@ -142,6 +250,7 @@ export type Database = {
           program_suggested_at: string | null
           program_suggested_by: string | null
           suggested_program_id: string | null
+          timezone: string
           yves_ai_consent: boolean
           yves_ai_consent_at: string | null
           yves_enabled: boolean
@@ -156,9 +265,11 @@ export type Database = {
           id?: string
           login_code: string
           notes?: string | null
+          passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean
           practitioner_id: string
+          predictive_nudges_enabled?: boolean
           primary_complaint?: string | null
           program_decided_at?: string | null
           program_personal_note?: string | null
@@ -167,6 +278,7 @@ export type Database = {
           program_suggested_at?: string | null
           program_suggested_by?: string | null
           suggested_program_id?: string | null
+          timezone?: string
           yves_ai_consent?: boolean
           yves_ai_consent_at?: string | null
           yves_enabled?: boolean
@@ -181,9 +293,11 @@ export type Database = {
           id?: string
           login_code?: string
           notes?: string | null
+          passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean
           practitioner_id?: string
+          predictive_nudges_enabled?: boolean
           primary_complaint?: string | null
           program_decided_at?: string | null
           program_personal_note?: string | null
@@ -192,6 +306,7 @@ export type Database = {
           program_suggested_at?: string | null
           program_suggested_by?: string | null
           suggested_program_id?: string | null
+          timezone?: string
           yves_ai_consent?: boolean
           yves_ai_consent_at?: string | null
           yves_enabled?: boolean
@@ -212,6 +327,8 @@ export type Database = {
           id: string
           new_practitioner_webhook_enabled: boolean | null
           new_practitioner_webhook_url: string | null
+          passive_monitoring_enabled: boolean
+          predictive_nudges_enabled: boolean
           programs_feature_enabled: boolean
         }
         Insert: {
@@ -219,6 +336,8 @@ export type Database = {
           id?: string
           new_practitioner_webhook_enabled?: boolean | null
           new_practitioner_webhook_url?: string | null
+          passive_monitoring_enabled?: boolean
+          predictive_nudges_enabled?: boolean
           programs_feature_enabled?: boolean
         }
         Update: {
@@ -226,6 +345,8 @@ export type Database = {
           id?: string
           new_practitioner_webhook_enabled?: boolean | null
           new_practitioner_webhook_url?: string | null
+          passive_monitoring_enabled?: boolean
+          predictive_nudges_enabled?: boolean
           programs_feature_enabled?: boolean
         }
         Relationships: []
@@ -289,6 +410,127 @@ export type Database = {
           yves_enabled?: boolean
         }
         Relationships: []
+      }
+      practitioner_drafts: {
+        Row: {
+          acted_at: string | null
+          client_id: string
+          created_at: string
+          draft_body: string
+          draft_title: string
+          id: string
+          kind: string
+          practitioner_id: string
+          risk_score_id: string | null
+          status: string
+          suggested_action: Json
+        }
+        Insert: {
+          acted_at?: string | null
+          client_id: string
+          created_at?: string
+          draft_body: string
+          draft_title: string
+          id?: string
+          kind: string
+          practitioner_id: string
+          risk_score_id?: string | null
+          status?: string
+          suggested_action?: Json
+        }
+        Update: {
+          acted_at?: string | null
+          client_id?: string
+          created_at?: string
+          draft_body?: string
+          draft_title?: string
+          id?: string
+          kind?: string
+          practitioner_id?: string
+          risk_score_id?: string | null
+          status?: string
+          suggested_action?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practitioner_drafts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practitioner_drafts_risk_score_id_fkey"
+            columns: ["risk_score_id"]
+            isOneToOne: false
+            referencedRelation: "risk_scores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      predictive_nudges: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          nudge_body: string
+          nudge_title: string
+          opened_at: string | null
+          pattern_id: string | null
+          program_id: string | null
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          nudge_body: string
+          nudge_title: string
+          opened_at?: string | null
+          pattern_id?: string | null
+          program_id?: string | null
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          nudge_body?: string
+          nudge_title?: string
+          opened_at?: string | null
+          pattern_id?: string | null
+          program_id?: string | null
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "predictive_nudges_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "predictive_nudges_pattern_id_fkey"
+            columns: ["pattern_id"]
+            isOneToOne: false
+            referencedRelation: "client_patterns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "predictive_nudges_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -379,6 +621,47 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      risk_scores: {
+        Row: {
+          client_id: string
+          created_at: string
+          delta_vs_baseline: Json
+          id: string
+          risk_score: number
+          score_date: string
+          summary: string | null
+          trend: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          delta_vs_baseline?: Json
+          id?: string
+          risk_score: number
+          score_date: string
+          summary?: string | null
+          trend?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          delta_vs_baseline?: Json
+          id?: string
+          risk_score?: number
+          score_date?: string
+          summary?: string | null
+          trend?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "risk_scores_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       symptom_queries: {
         Row: {
