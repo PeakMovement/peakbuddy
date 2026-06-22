@@ -65,6 +65,8 @@ function Onboarding() {
         (typeof meta.name === "string" && meta.name) ||
         "";
       setFullName(metaName);
+      const metaProfession = typeof meta.profession === "string" ? meta.profession : "";
+      if (metaProfession) setProfession(metaProfession);
     })();
   }, [navigate]);
 

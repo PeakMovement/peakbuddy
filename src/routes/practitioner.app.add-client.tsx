@@ -15,6 +15,7 @@ const FREQUENCIES: { value: string; label: string }[] = [
   { value: "every_2_days", label: "Every 2 Days" },
   { value: "every_3_days", label: "Every 3 Days" },
   { value: "weekly", label: "Weekly" },
+  { value: "as_needed", label: "When needed (client checks in on their own)" },
 ];
 
 function generatePassword() {
@@ -31,7 +32,9 @@ function AddClient() {
   const [email, setEmail] = useState("");
   const [complaint, setComplaint] = useState("");
   const [notes, setNotes] = useState("");
-  const [freq, setFreq] = useState<"daily" | "every_2_days" | "every_3_days" | "weekly">("daily");
+  const [freq, setFreq] = useState<
+    "daily" | "every_2_days" | "every_3_days" | "weekly" | "as_needed"
+  >("daily");
   const [password, setPassword] = useState(() => generatePassword());
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<{ email: string; password: string } | null>(null);

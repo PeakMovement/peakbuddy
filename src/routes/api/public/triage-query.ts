@@ -463,6 +463,25 @@ export const Route = createFileRoute("/api/public/triage-query")({
             );
           }
 
+          // Per-client daily limit: max 3 Yves questions per calendar day.
+          const dayStart = new Date();
+          dayStart.setUTCHours(0, 0, 0, 0);
+          const { count: usedToday } = await supabaseAdmin
+            .from("symptom_queries")
+            .select("id", { count: "exact", head: true })
+            .eq("client_id", client_id)
+            .gte("created_at", dayStart.toISOString());
+          if ((usedToday ?? 0) >= 3) {
+            return json(
+              {
+                error:
+                  "You've reached today's limit of 3 Yves questions. Please continue tomorrow, or contact your practitioner if this is urgent.",
+                code: "daily_limit_reached",
+              },
+              429,
+            );
+          }
+
           const { data: p, error: pErr } = await supabaseAdmin
             .from("practices")
             .select("yves_enabled")

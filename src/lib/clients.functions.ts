@@ -8,7 +8,7 @@ const inputSchema = z.object({
   password: z.string().min(8).max(72),
   primaryComplaint: z.string().trim().min(1).max(500),
   notes: z.string().trim().max(2000).optional().default(""),
-  checkInFrequency: z.enum(["daily", "every_2_days", "every_3_days", "weekly"]),
+  checkInFrequency: z.enum(["daily", "every_2_days", "every_3_days", "weekly", "as_needed"]),
   suggestedProgramId: z.string().uuid().nullable().optional(),
   programPersonalNote: z.string().trim().max(280).optional().default(""),
 });

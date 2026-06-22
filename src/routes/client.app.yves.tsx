@@ -281,6 +281,22 @@ function YvesScreen() {
     setStage("loading");
     const queryText = text.trim();
 
+    // Daily limit: 3 Yves questions per client per day (server enforces too).
+    const startToday = new Date();
+    startToday.setHours(0, 0, 0, 0);
+    const { count: usedToday } = await supabase
+      .from("symptom_queries")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", client.id)
+      .gte("created_at", startToday.toISOString());
+    if ((usedToday ?? 0) >= 3) {
+      setError(
+        "You've reached today's limit of 3 Yves questions. Please continue tomorrow, or contact your practitioner if this is urgent.",
+      );
+      setStage("input");
+      return;
+    }
+
     let triage: TriageResult;
     try {
       triage = await analyzeSymptom(queryText, undefined, pName, client.id);
