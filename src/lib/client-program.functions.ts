@@ -50,6 +50,23 @@ export const getProgramsFeatureEnabled = createServerFn({ method: "GET" }).handl
   enabled: await isProgramsFeatureEnabled(),
 }));
 
+// Per-practitioner control: is the Suggested Programs feature enabled for THIS
+// practitioner? Super admin can disable it per practice. Defaults to true when no
+// practice row is found, preserving prior behavior.
+export async function isProgramsSuggestEnabledForPractitioner(
+  practitionerId: string,
+): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
+    .from("practices")
+    .select("programs_suggest_enabled")
+    .eq("practitioner_id", practitionerId)
+    .maybeSingle();
+  const row = data as { programs_suggest_enabled?: boolean } | null;
+  if (!row) return true;
+  return row.programs_suggest_enabled !== false;
+}
+
 // Public: list of admin-approved + active programs (id + name) for practitioner dropdown.
 export const listActivePrograms = createServerFn({ method: "GET" }).handler(async () => {
   if (!(await isProgramsFeatureEnabled())) return [] as { id: string; name: string }[];

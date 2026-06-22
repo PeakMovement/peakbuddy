@@ -276,9 +276,25 @@ export const Route = createFileRoute("/api/public/hooks/nightly-risk-analysis")(
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apiKey = request.headers.get("apikey") ?? request.headers.get("Apikey");
-        if (!apiKey || apiKey !== process.env.SUPABASE_PUBLISHABLE_KEY) {
-          return new Response("Unauthorized", { status: 401 });
+        // Auth: prefer a dedicated secret (CRON_SECRET) when configured. The
+        // publishable key is shipped in the client bundle and is NOT secret, so
+        // it is only a fallback until CRON_SECRET is set in the environment and
+        // the pg_cron caller sends it via the x-cron-secret header. This keeps
+        // the existing schedule working with no downtime during the cutover.
+        const cronSecret = process.env.CRON_SECRET;
+        if (cronSecret) {
+          const provided =
+            request.headers.get("x-cron-secret") ??
+            request.headers.get("X-Cron-Secret") ??
+            (request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null);
+          if (provided !== cronSecret) {
+            return new Response("Unauthorized", { status: 401 });
+          }
+        } else {
+          const apiKey = request.headers.get("apikey") ?? request.headers.get("Apikey");
+          if (!apiKey || apiKey !== process.env.SUPABASE_PUBLISHABLE_KEY) {
+            return new Response("Unauthorized", { status: 401 });
+          }
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

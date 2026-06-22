@@ -27,6 +27,7 @@ export interface Practice {
   onboarding_complete: boolean;
   is_approved: boolean;
   yves_enabled: boolean;
+  programs_suggest_enabled: boolean;
   created_at: string;
 }
 

@@ -139,7 +139,8 @@ export const suggestProgram = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (!data.clientId) return null;
 
-    const { isProgramsFeatureEnabled } = await import("@/lib/client-program.functions");
+    const { isProgramsFeatureEnabled, isProgramsSuggestEnabledForPractitioner } =
+      await import("@/lib/client-program.functions");
     if (!(await isProgramsFeatureEnabled())) return null;
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -147,15 +148,20 @@ export const suggestProgram = createServerFn({ method: "POST" })
     // Only queue a new suggestion if the client doesn't already have one in flight.
     const { data: clientRow } = await supabaseAdmin
       .from("clients")
-      .select("program_status, suggested_program_id, yves_ai_consent")
+      .select("practitioner_id, program_status, suggested_program_id, yves_ai_consent")
       .eq("id", data.clientId)
       .maybeSingle();
     const cur = clientRow as {
+      practitioner_id: string;
       program_status: string;
       suggested_program_id: string | null;
       yves_ai_consent: boolean | null;
     } | null;
     if (!cur) return null;
+
+    // Per-practitioner gate: super admin can disable suggestions for this
+    // practitioner, which cascades to all of their clients.
+    if (!(await isProgramsSuggestEnabledForPractitioner(cur.practitioner_id))) return null;
     const canQueue =
       cur.program_status === "none" ||
       (cur.program_status === "declined" && cur.suggested_program_id == null);
