@@ -69,8 +69,10 @@ function Alerts() {
     false_alarm: number;
     already_aware: number;
   } | null>(null);
+  const [gradingMode, setGradingModeState] = useState<GradingMode>("super_admin_only");
   const setOutcomeFn = useServerFn(setAlertOutcome);
   const getAccuracyFn = useServerFn(getYvesAccuracy);
+  const getModeFn = useServerFn(getGradingMode);
 
   const refreshAccuracy = async () => {
     try {
