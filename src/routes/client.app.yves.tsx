@@ -252,6 +252,15 @@ function YvesScreen() {
         log.warn("Alert webhook_fired update failed:", e);
       }
     }
+
+    if (alertRowId) {
+      try {
+        const { notifyAlertPush } = await import("@/lib/push.functions");
+        await notifyAlertPush({ data: { alertId: alertRowId, kind: "yves" } });
+      } catch (e) {
+        log.warn("[Yves] push notify failed:", e);
+      }
+    }
   };
 
   const accessAllowed =
