@@ -58,6 +58,9 @@ function Dashboard() {
     try {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
+      void registerPushToken();
+
+
 
       const [{ data: prof }, { data: clients, error: cErr }, { count: unreadCount, error: aErr }] =
         await Promise.all([
