@@ -1,10 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { BellOff } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/lib/supabase";
 import type { Alert, Client } from "@/lib/types";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 import { log } from "@/lib/log";
+import { setAlertOutcome, getYvesAccuracy } from "@/lib/alert-outcome.functions";
+
+type Outcome = "confirmed" | "false_alarm" | "already_aware";
+const OUTCOME_LABEL: Record<Outcome, string> = {
+  confirmed: "Real concern",
+  false_alarm: "False alarm",
+  already_aware: "Already aware",
+};
+
 
 export const Route = createFileRoute("/practitioner/app/alerts")({
   head: () => ({ meta: [{ title: "Alerts — Buddy" }] }),
@@ -53,6 +63,42 @@ function Alerts() {
   const [filter, setFilter] = useState<Filter>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [accuracy, setAccuracy] = useState<{
+    confirmed: number;
+    false_alarm: number;
+    already_aware: number;
+  } | null>(null);
+  const setOutcomeFn = useServerFn(setAlertOutcome);
+  const getAccuracyFn = useServerFn(getYvesAccuracy);
+
+  const refreshAccuracy = async () => {
+    try {
+      setAccuracy(await getAccuracyFn());
+    } catch (e) {
+      log.error(e);
+    }
+  };
+
+  const submitOutcome = async (id: string, outcome: Outcome | null) => {
+    setAlerts((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? ({
+              ...a,
+              outcome,
+              outcome_at: outcome ? new Date().toISOString() : null,
+            } as Alert)
+          : a,
+      ),
+    );
+    try {
+      await setOutcomeFn({ data: { alertId: id, outcome } });
+      refreshAccuracy();
+    } catch (e) {
+      log.error(e);
+    }
+  };
+
 
   const load = async () => {
     setError(null);
@@ -82,7 +128,9 @@ function Alerts() {
 
   useEffect(() => {
     load();
+    refreshAccuracy();
   }, []);
+
 
   const filtered = useMemo(() => {
     const sorted = [...alerts].sort((a, b) => {
@@ -138,6 +186,28 @@ function Alerts() {
       >
         Alerts
       </h1>
+
+      <div
+        style={{
+          marginTop: 12,
+          padding: "10px 12px",
+          borderRadius: 10,
+          background: "var(--navy-card)",
+          border: "1px solid var(--navy-border)",
+          fontFamily: "var(--font-ui)",
+          fontSize: 13,
+          color: "var(--white-muted)",
+        }}
+      >
+        {(() => {
+          if (!accuracy) return "Yves accuracy: loading";
+          const denom = accuracy.confirmed + accuracy.false_alarm;
+          if (denom === 0) return "Yves accuracy: not enough data yet";
+          const pct = Math.round((accuracy.confirmed / denom) * 100);
+          return `Yves accuracy: ${pct}% confirmed`;
+        })()}
+      </div>
+
 
       <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
         {(["all", "unread", "red_flag"] as Filter[]).map((f) => (
@@ -355,7 +425,72 @@ function Alerts() {
                     })}
                   </div>
                 )}
+                <div
+                  style={{
+                    marginTop: 12,
+                    paddingTop: 10,
+                    borderTop: "1px solid var(--navy-border)",
+                  }}
+                >
+                  {a.outcome ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 8,
+                        fontFamily: "var(--font-ui)",
+                        fontSize: 12,
+                        color: "var(--white-muted)",
+                      }}
+                    >
+                      <span>Marked as {OUTCOME_LABEL[a.outcome]}. Thanks.</span>
+                      <button
+                        type="button"
+                        onClick={() => submitOutcome(a.id, null)}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "var(--blue-accent)",
+                          fontFamily: "var(--font-ui)",
+                          fontSize: 12,
+                          cursor: "pointer",
+                          padding: 0,
+                          textDecoration: "underline",
+                        }}
+                      >
+                        change
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {(["confirmed", "false_alarm", "already_aware"] as Outcome[]).map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => submitOutcome(a.id, opt)}
+                          style={{
+                            flex: "1 1 0",
+                            minHeight: 44,
+                            padding: "10px 12px",
+                            background: "transparent",
+                            color: "var(--white-muted)",
+                            border: "1px solid var(--navy-border)",
+                            borderRadius: 8,
+                            fontFamily: "var(--font-ui)",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {OUTCOME_LABEL[opt]}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
+
             );
           })}
         </div>

@@ -104,4 +104,7 @@ export interface Alert {
   red_flag_category?: string | null;
   pattern?: string | null;
   practitioner_assessment?: "correct" | "over" | "under" | null;
+  outcome?: "confirmed" | "false_alarm" | "already_aware" | null;
+  outcome_at?: string | null;
+  outcome_by?: string | null;
 }
