@@ -333,6 +333,27 @@ export type Database = {
           },
         ]
       }
+      grading_settings: {
+        Row: {
+          id: number
+          mode: string
+          sample_rate: number
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          mode?: string
+          sample_rate?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          mode?: string
+          sample_rate?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       platform_settings: {
         Row: {
           created_at: string | null
