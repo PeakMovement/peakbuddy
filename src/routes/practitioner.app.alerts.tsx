@@ -473,6 +473,16 @@ function Alerts() {
                         change
                       </button>
                     </div>
+                  ) : gradingMode === "super_admin_only" ? (
+                    <div
+                      style={{
+                        fontFamily: "var(--font-ui)",
+                        fontSize: 12,
+                        color: "var(--white-muted)",
+                      }}
+                    >
+                      Yves review is handled centrally.
+                    </div>
                   ) : (
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       {(["confirmed", "false_alarm", "already_aware"] as Outcome[]).map((opt) => (
