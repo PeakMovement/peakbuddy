@@ -109,6 +109,10 @@ function YvesScreen() {
   const [stage, setStage] = useState<Stage>("input");
   const [result, setResult] = useState<TriageResult | null>(null);
   const [resultText, setResultText] = useState("");
+  const [lastQueryId, setLastQueryId] = useState<string | null>(null);
+  const [feedbackUnderstood, setFeedbackUnderstood] = useState<boolean | null>(null);
+  const [feedbackHelpful, setFeedbackHelpful] = useState<boolean | null>(null);
+  const [feedbackSent, setFeedbackSent] = useState(false);
   const [realTime, setRealTime] = useState<RealTimeResult | null>(null);
   const [contacting, setContacting] = useState(false);
   const [contacted, setContacted] = useState(false);
