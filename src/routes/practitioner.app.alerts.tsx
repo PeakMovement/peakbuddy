@@ -187,6 +187,28 @@ function Alerts() {
         Alerts
       </h1>
 
+      <div
+        style={{
+          marginTop: 12,
+          padding: "10px 12px",
+          borderRadius: 10,
+          background: "var(--navy-card)",
+          border: "1px solid var(--navy-border)",
+          fontFamily: "var(--font-ui)",
+          fontSize: 13,
+          color: "var(--white-muted)",
+        }}
+      >
+        {(() => {
+          if (!accuracy) return "Yves accuracy: loading";
+          const denom = accuracy.confirmed + accuracy.false_alarm;
+          if (denom === 0) return "Yves accuracy: not enough data yet";
+          const pct = Math.round((accuracy.confirmed / denom) * 100);
+          return `Yves accuracy: ${pct}% confirmed`;
+        })()}
+      </div>
+
+
       <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
         {(["all", "unread", "red_flag"] as Filter[]).map((f) => (
           <button
