@@ -63,6 +63,42 @@ function Alerts() {
   const [filter, setFilter] = useState<Filter>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [accuracy, setAccuracy] = useState<{
+    confirmed: number;
+    false_alarm: number;
+    already_aware: number;
+  } | null>(null);
+  const setOutcomeFn = useServerFn(setAlertOutcome);
+  const getAccuracyFn = useServerFn(getYvesAccuracy);
+
+  const refreshAccuracy = async () => {
+    try {
+      setAccuracy(await getAccuracyFn());
+    } catch (e) {
+      log.error(e);
+    }
+  };
+
+  const submitOutcome = async (id: string, outcome: Outcome | null) => {
+    setAlerts((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? ({
+              ...a,
+              outcome,
+              outcome_at: outcome ? new Date().toISOString() : null,
+            } as Alert)
+          : a,
+      ),
+    );
+    try {
+      await setOutcomeFn({ data: { alertId: id, outcome } });
+      refreshAccuracy();
+    } catch (e) {
+      log.error(e);
+    }
+  };
+
 
   const load = async () => {
     setError(null);
