@@ -361,6 +361,10 @@ function YvesScreen() {
     setResult(triage);
     setResultText(queryText);
     setContacted(false);
+    setLastQueryId(insertedId);
+    setFeedbackUnderstood(null);
+    setFeedbackHelpful(null);
+    setFeedbackSent(false);
     if (insertedId) {
       setHistory((h) =>
         [
