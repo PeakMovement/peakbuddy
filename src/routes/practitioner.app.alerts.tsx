@@ -7,6 +7,7 @@ import type { Alert, Client } from "@/lib/types";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 import { log } from "@/lib/log";
 import { setAlertOutcome, getYvesAccuracy } from "@/lib/alert-outcome.functions";
+import { getGradingMode, type GradingMode } from "@/lib/grading.functions";
 
 type Outcome = "confirmed" | "false_alarm" | "already_aware";
 const OUTCOME_LABEL: Record<Outcome, string> = {
@@ -68,8 +69,10 @@ function Alerts() {
     false_alarm: number;
     already_aware: number;
   } | null>(null);
+  const [gradingMode, setGradingModeState] = useState<GradingMode>("super_admin_only");
   const setOutcomeFn = useServerFn(setAlertOutcome);
   const getAccuracyFn = useServerFn(getYvesAccuracy);
+  const getModeFn = useServerFn(getGradingMode);
 
   const refreshAccuracy = async () => {
     try {
@@ -129,6 +132,14 @@ function Alerts() {
   useEffect(() => {
     load();
     refreshAccuracy();
+    (async () => {
+      try {
+        const r = await getModeFn();
+        setGradingModeState(r.mode);
+      } catch (e) {
+        log.error(e);
+      }
+    })();
   }, []);
 
 
@@ -461,6 +472,16 @@ function Alerts() {
                       >
                         change
                       </button>
+                    </div>
+                  ) : gradingMode === "super_admin_only" ? (
+                    <div
+                      style={{
+                        fontFamily: "var(--font-ui)",
+                        fontSize: 12,
+                        color: "var(--white-muted)",
+                      }}
+                    >
+                      Yves review is handled centrally.
                     </div>
                   ) : (
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

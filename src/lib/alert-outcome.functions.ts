@@ -20,6 +20,19 @@ export const setAlertOutcome = createServerFn({ method: "POST" })
       outcome_at: data.outcome ? new Date().toISOString() : null,
       outcome_by: data.outcome ? context.userId : null,
     };
+    // Practitioners can grade their own alerts (enforced via practitioner_id).
+    // Super admins may grade any alert (used by the central grading queue).
+    const { data: prof } = await context.supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (prof?.role === "super_admin") {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { error } = await supabaseAdmin.from("alerts").update(patch).eq("id", data.alertId);
+      if (error) throw error;
+      return { ok: true };
+    }
     const { error } = await context.supabase
       .from("alerts")
       .update(patch)
