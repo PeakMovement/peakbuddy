@@ -67,36 +67,32 @@ export const getAdminGradingQueue = createServerFn({ method: "GET" })
       .limit(100);
     if (error) throw new Error(error.message);
     const rows = alerts ?? [];
+    if (rows.length === 0) return [];
     const clientIds = Array.from(new Set(rows.map((r) => r.client_id)));
     const practIds = Array.from(new Set(rows.map((r) => r.practitioner_id)));
 
-    const [{ data: clients }, { data: profs }] = await Promise.all([
-      supabaseAdmin.from("clients").select("id, full_name, practice_id").in("id", clientIds),
+    const [{ data: clients }, { data: profs }, { data: practices }] = await Promise.all([
+      supabaseAdmin.from("clients").select("id, full_name").in("id", clientIds),
       supabaseAdmin.from("profiles").select("id, full_name").in("id", practIds),
+      supabaseAdmin.from("practices").select("practitioner_id, practice_name").in("practitioner_id", practIds),
     ]);
-    const practiceIds = Array.from(
-      new Set((clients ?? []).map((c) => c.practice_id).filter(Boolean) as string[]),
-    );
-    const { data: practices } = practiceIds.length
-      ? await supabaseAdmin.from("practices").select("id, name").in("id", practiceIds)
-      : { data: [] as { id: string; name: string }[] };
 
     const cMap = new Map((clients ?? []).map((c) => [c.id, c]));
     const pMap = new Map((profs ?? []).map((p) => [p.id, p]));
-    const prMap = new Map((practices ?? []).map((p) => [p.id, p]));
+    const prMap = new Map((practices ?? []).map((p) => [p.practitioner_id, p]));
 
     return rows.map((r) => {
       const c = cMap.get(r.client_id);
       const firstName = (c?.full_name || "Unknown").trim().split(/\s+/)[0];
-      const practice = c?.practice_id ? prMap.get(c.practice_id) : null;
       const prof = pMap.get(r.practitioner_id);
+      const practice = prMap.get(r.practitioner_id);
       return {
         id: r.id,
-        message: r.message,
+        message: r.message ?? "",
         urgency: r.urgency,
         created_at: r.created_at,
         client_first_name: firstName,
-        practice_name: practice?.name ?? "Unassigned",
+        practice_name: practice?.practice_name ?? "Unassigned",
         practitioner_name: prof?.full_name ?? "Unknown",
       };
     });
