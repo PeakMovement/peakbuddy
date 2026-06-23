@@ -11,6 +11,7 @@ import {
   setMorningAnalysisEnabled,
   type MorningAnalysisPayload,
 } from "@/lib/morning-analysis.functions";
+import { registerPushToken } from "@/lib/push";
 
 export const Route = createFileRoute("/practitioner/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Buddy" }] }),
@@ -57,6 +58,9 @@ function Dashboard() {
     try {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
+      void registerPushToken();
+
+
 
       const [{ data: prof }, { data: clients, error: cErr }, { count: unreadCount, error: aErr }] =
         await Promise.all([
