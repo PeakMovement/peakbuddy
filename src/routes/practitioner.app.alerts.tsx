@@ -128,7 +128,9 @@ function Alerts() {
 
   useEffect(() => {
     load();
+    refreshAccuracy();
   }, []);
+
 
   const filtered = useMemo(() => {
     const sorted = [...alerts].sort((a, b) => {
