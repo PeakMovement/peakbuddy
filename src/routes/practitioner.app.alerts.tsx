@@ -132,6 +132,14 @@ function Alerts() {
   useEffect(() => {
     load();
     refreshAccuracy();
+    (async () => {
+      try {
+        const r = await getModeFn();
+        setGradingModeState(r.mode);
+      } catch (e) {
+        log.error(e);
+      }
+    })();
   }, []);
 
 
