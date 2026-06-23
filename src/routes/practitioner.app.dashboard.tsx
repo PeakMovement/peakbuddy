@@ -11,6 +11,7 @@ import {
   setMorningAnalysisEnabled,
   type MorningAnalysisPayload,
 } from "@/lib/morning-analysis.functions";
+import { registerPushToken } from "@/lib/push";
 
 export const Route = createFileRoute("/practitioner/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Buddy" }] }),
