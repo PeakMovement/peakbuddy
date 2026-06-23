@@ -733,6 +733,9 @@ export type Database = {
           created_at: string | null
           differential: Json | null
           id: string
+          patient_feedback_at: string | null
+          patient_helpful: boolean | null
+          patient_understood: boolean | null
           practitioner_id: string
           query_text: string
           red_flag_category: string | null
@@ -748,6 +751,9 @@ export type Database = {
           created_at?: string | null
           differential?: Json | null
           id?: string
+          patient_feedback_at?: string | null
+          patient_helpful?: boolean | null
+          patient_understood?: boolean | null
           practitioner_id: string
           query_text: string
           red_flag_category?: string | null
@@ -763,6 +769,9 @@ export type Database = {
           created_at?: string | null
           differential?: Json | null
           id?: string
+          patient_feedback_at?: string | null
+          patient_helpful?: boolean | null
+          patient_understood?: boolean | null
           practitioner_id?: string
           query_text?: string
           red_flag_category?: string | null

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { UserCheck, AlertTriangle, X } from "lucide-react";
+import { UserCheck, AlertTriangle, X, ThumbsUp, ThumbsDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId } from "@/lib/client-session";
 import { fireAlertWebhook, findRecentOpenAlert } from "@/lib/webhooks";
@@ -15,6 +15,7 @@ import {
 } from "@/lib/yves";
 import { getClientYvesAccess } from "@/lib/yves-access.functions";
 import { setYvesAiConsent } from "@/lib/yves-consent.functions";
+import { setPatientFeedback } from "@/lib/patient-feedback.functions";
 import type { Client, SymptomQuery } from "@/lib/types";
 import { CrosshairLogo } from "@/components/CrosshairLogo";
 import { log } from "@/lib/log";
@@ -108,6 +109,10 @@ function YvesScreen() {
   const [stage, setStage] = useState<Stage>("input");
   const [result, setResult] = useState<TriageResult | null>(null);
   const [resultText, setResultText] = useState("");
+  const [lastQueryId, setLastQueryId] = useState<string | null>(null);
+  const [feedbackUnderstood, setFeedbackUnderstood] = useState<boolean | null>(null);
+  const [feedbackHelpful, setFeedbackHelpful] = useState<boolean | null>(null);
+  const [feedbackSent, setFeedbackSent] = useState(false);
   const [realTime, setRealTime] = useState<RealTimeResult | null>(null);
   const [contacting, setContacting] = useState(false);
   const [contacted, setContacted] = useState(false);
@@ -356,6 +361,10 @@ function YvesScreen() {
     setResult(triage);
     setResultText(queryText);
     setContacted(false);
+    setLastQueryId(insertedId);
+    setFeedbackUnderstood(null);
+    setFeedbackHelpful(null);
+    setFeedbackSent(false);
     if (insertedId) {
       setHistory((h) =>
         [
@@ -434,7 +443,29 @@ function YvesScreen() {
     setResult(null);
     setResultText("");
     setContacted(false);
+    setLastQueryId(null);
+    setFeedbackUnderstood(null);
+    setFeedbackHelpful(null);
+    setFeedbackSent(false);
     setStage("input");
+  };
+
+  const sendFeedback = useServerFn(setPatientFeedback);
+  const submitFeedback = async (field: "understood" | "helpful", value: boolean) => {
+    if (!lastQueryId) return;
+    if (field === "understood") setFeedbackUnderstood(value);
+    else setFeedbackHelpful(value);
+    try {
+      await sendFeedback({
+        data: {
+          symptomQueryId: lastQueryId,
+          ...(field === "understood" ? { understood: value } : { helpful: value }),
+        },
+      });
+      setFeedbackSent(true);
+    } catch (e) {
+      log.error("[Yves] patient feedback failed", e);
+    }
   };
 
   const submitLabel = useMemo(() => {
@@ -684,8 +715,45 @@ function YvesScreen() {
           </button>
         )}
 
+        {/* Patient feedback: UX comprehension/helpfulness only.
+            Never feeds calibration, alert severity, urgency, or thresholds. */}
+        {lastQueryId && (
+          <div
+            style={{
+              marginTop: 16,
+              padding: "10px 12px",
+              background: "var(--navy-card)",
+              border: "1px solid var(--navy-border)",
+              borderRadius: 8,
+              fontFamily: "var(--font-ui)",
+              fontSize: 12,
+              color: "var(--white-muted)",
+            }}
+          >
+            {feedbackSent && feedbackUnderstood !== null && feedbackHelpful !== null ? (
+              <span>Thanks for the feedback.</span>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <FeedbackRow
+                  label="Did Yves understand you?"
+                  value={feedbackUnderstood}
+                  onPick={(v) => submitFeedback("understood", v)}
+                  ariaPrefix="Yves understood"
+                />
+                <FeedbackRow
+                  label="Was this helpful?"
+                  value={feedbackHelpful}
+                  onPick={(v) => submitFeedback("helpful", v)}
+                  ariaPrefix="Reply helpful"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Previous queries */}
         <PreviousQueries history={history} expanded={expanded} setExpanded={setExpanded} />
+
 
         <button
           type="button"
@@ -960,6 +1028,55 @@ function YvesScreen() {
         />
       )}
     </>
+  );
+}
+
+function FeedbackRow({
+  label,
+  value,
+  onPick,
+  ariaPrefix,
+}: {
+  label: string;
+  value: boolean | null;
+  onPick: (v: boolean) => void;
+  ariaPrefix: string;
+}) {
+  const btn = (active: boolean): React.CSSProperties => ({
+    minWidth: 44,
+    minHeight: 44,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 8,
+    borderRadius: 8,
+    background: active ? "var(--blue-accent)" : "transparent",
+    color: active ? "var(--white)" : "var(--white-muted)",
+    border: `1px solid ${active ? "var(--blue-accent)" : "var(--navy-border)"}`,
+    cursor: "pointer",
+  });
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <span style={{ flex: 1, minWidth: 0 }}>{label}</span>
+      <button
+        type="button"
+        aria-label={`${ariaPrefix}: yes`}
+        aria-pressed={value === true}
+        onClick={() => onPick(true)}
+        style={btn(value === true)}
+      >
+        <ThumbsUp size={16} />
+      </button>
+      <button
+        type="button"
+        aria-label={`${ariaPrefix}: no`}
+        aria-pressed={value === false}
+        onClick={() => onPick(false)}
+        style={btn(value === false)}
+      >
+        <ThumbsDown size={16} />
+      </button>
+    </div>
   );
 }
 
