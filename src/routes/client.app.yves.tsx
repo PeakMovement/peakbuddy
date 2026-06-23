@@ -15,6 +15,7 @@ import {
 } from "@/lib/yves";
 import { getClientYvesAccess } from "@/lib/yves-access.functions";
 import { setYvesAiConsent } from "@/lib/yves-consent.functions";
+import { setPatientFeedback } from "@/lib/patient-feedback.functions";
 import type { Client, SymptomQuery } from "@/lib/types";
 import { CrosshairLogo } from "@/components/CrosshairLogo";
 import { log } from "@/lib/log";
