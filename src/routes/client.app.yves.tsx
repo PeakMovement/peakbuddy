@@ -443,7 +443,29 @@ function YvesScreen() {
     setResult(null);
     setResultText("");
     setContacted(false);
+    setLastQueryId(null);
+    setFeedbackUnderstood(null);
+    setFeedbackHelpful(null);
+    setFeedbackSent(false);
     setStage("input");
+  };
+
+  const sendFeedback = useServerFn(setPatientFeedback);
+  const submitFeedback = async (field: "understood" | "helpful", value: boolean) => {
+    if (!lastQueryId) return;
+    if (field === "understood") setFeedbackUnderstood(value);
+    else setFeedbackHelpful(value);
+    try {
+      await sendFeedback({
+        data: {
+          symptomQueryId: lastQueryId,
+          ...(field === "understood" ? { understood: value } : { helpful: value }),
+        },
+      });
+      setFeedbackSent(true);
+    } catch (e) {
+      log.error("[Yves] patient feedback failed", e);
+    }
   };
 
   const submitLabel = useMemo(() => {
