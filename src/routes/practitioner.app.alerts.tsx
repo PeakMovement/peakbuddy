@@ -7,6 +7,7 @@ import type { Alert, Client } from "@/lib/types";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 import { log } from "@/lib/log";
 import { setAlertOutcome, getYvesAccuracy } from "@/lib/alert-outcome.functions";
+import { getGradingMode, type GradingMode } from "@/lib/grading.functions";
 
 type Outcome = "confirmed" | "false_alarm" | "already_aware";
 const OUTCOME_LABEL: Record<Outcome, string> = {
