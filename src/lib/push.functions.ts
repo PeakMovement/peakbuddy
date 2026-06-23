@@ -5,6 +5,70 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 const PLATFORMS = ["ios", "android", "web", "despia"] as const;
 type Platform = (typeof PLATFORMS)[number];
 
+type AdminClient = typeof import("@/integrations/supabase/client.server")["supabaseAdmin"];
+
+/**
+ * Core push delivery. Looks up all push_tokens for userId and attempts a send
+ * per token. Never throws — failures are collected and returned. Callable from
+ * any server context (auth'd server fn or public cron route) because it takes
+ * an explicit admin client.
+ */
+export async function sendPushCore(
+  supabaseAdmin: AdminClient,
+  args: { userId: string; title: string; body: string; data?: Record<string, unknown> },
+): Promise<{ ok: true; simulated: boolean; attempted: number; delivered: number; failures: { token_id: string; reason: string }[] }> {
+  const failures: { token_id: string; reason: string }[] = [];
+  let delivered = 0;
+
+  try {
+    const { data: tokens, error } = await supabaseAdmin
+      .from("push_tokens")
+      .select("id, token, platform")
+      .eq("user_id", args.userId);
+    if (error) {
+      return { ok: true, simulated: true, attempted: 0, delivered: 0, failures: [{ token_id: "lookup", reason: error.message }] };
+    }
+
+    const pushKey = process.env.DESPIA_PUSH_KEY;
+
+    for (const row of tokens ?? []) {
+      try {
+        // DESPIA_PUSH_SEND: replace with Despia's documented push send call or REST endpoint,
+        // using DESPIA_PUSH_KEY from Lovable Cloud secrets.
+        void pushKey;
+        void row.token;
+        void row.platform;
+        void args.data;
+        console.log(
+          `[sendPush] would notify ${args.userId}: ${args.title} - ${args.body}`,
+        );
+        delivered += 1;
+      } catch (e) {
+        failures.push({
+          token_id: row.id,
+          reason: e instanceof Error ? e.message : "unknown",
+        });
+      }
+    }
+
+    return {
+      ok: true,
+      simulated: true,
+      attempted: tokens?.length ?? 0,
+      delivered,
+      failures,
+    };
+  } catch (e) {
+    return {
+      ok: true,
+      simulated: true,
+      attempted: 0,
+      delivered: 0,
+      failures: [{ token_id: "lookup", reason: e instanceof Error ? e.message : "unknown" }],
+    };
+  }
+}
+
 export const savePushToken = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { token: string; platform: Platform }) =>
@@ -43,49 +107,66 @@ export const sendPush = createServerFn({ method: "POST" })
         })
         .parse(d),
   )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    return sendPushCore(supabaseAdmin, data);
+  });
+
+/**
+ * Patient-initiated alert push. Verifies the caller owns the client on the
+ * alert, respects push_fired so we only fire once, then sets push_fired = true.
+ * Title/body are constructed server-side from DB (lock-screen privacy: first
+ * name only, no symptom detail).
+ */
+export const notifyAlertPush = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { alertId: string; kind: "yves" | "morning" }) =>
+    z
+      .object({
+        alertId: z.string().uuid(),
+        kind: z.enum(["yves", "morning"]),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: tokens, error } = await supabaseAdmin
-      .from("push_tokens")
-      .select("id, token, platform")
-      .eq("user_id", data.userId);
-    if (error) throw error;
 
-    const pushKey = process.env.DESPIA_PUSH_KEY;
-    const failures: { token_id: string; reason: string }[] = [];
-    let delivered = 0;
+    const { data: alert, error: aErr } = await supabaseAdmin
+      .from("alerts")
+      .select("id, practitioner_id, client_id, push_fired")
+      .eq("id", data.alertId)
+      .maybeSingle();
+    if (aErr || !alert) return { ok: false as const, reason: "alert_not_found" as const };
+    if (alert.push_fired) return { ok: true as const, skipped: "already_fired" as const };
 
-    for (const row of tokens ?? []) {
-      try {
-        // DESPIA_PUSH_SEND: replace with Despia's documented push send call or REST endpoint,
-        // using DESPIA_PUSH_KEY from Lovable Cloud secrets.
-        if (!pushKey) {
-          console.log(
-            `[sendPush] would notify ${data.userId}: ${data.title} - ${data.body}`,
-          );
-        } else {
-          console.log(
-            `[sendPush] would notify ${data.userId}: ${data.title} - ${data.body}`,
-          );
-        }
-        delivered += 1;
-      } catch (e) {
-        failures.push({
-          token_id: row.id,
-          reason: e instanceof Error ? e.message : "unknown",
-        });
-      }
+    // Ownership: the caller must own the client linked to this alert.
+    const { data: client } = await supabaseAdmin
+      .from("clients")
+      .select("id, full_name, auth_user_id")
+      .eq("id", alert.client_id)
+      .maybeSingle();
+    if (!client || client.auth_user_id !== context.userId) {
+      return { ok: false as const, reason: "forbidden" as const };
     }
 
-    // suppress unused-var warning while placeholder remains
-    void context;
-    void data.data;
+    const firstName = (client.full_name || "Your client").trim().split(/\s+/)[0];
+    const title = data.kind === "yves" ? "Buddy alert" : "Buddy morning insight";
+    const body =
+      data.kind === "yves"
+        ? `${firstName} reported symptoms that may need review`
+        : `${firstName} may need a check in today`;
 
-    return {
-      ok: true,
-      simulated: true,
-      attempted: tokens?.length ?? 0,
-      delivered,
-      failures,
-    };
+    await sendPushCore(supabaseAdmin, {
+      userId: alert.practitioner_id,
+      title,
+      body,
+      data: { alertId: alert.id, clientId: alert.client_id },
+    });
+
+    await supabaseAdmin
+      .from("alerts")
+      .update({ push_fired: true })
+      .eq("id", alert.id);
+
+    return { ok: true as const };
   });

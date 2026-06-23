@@ -269,6 +269,21 @@ async function processClient(
     suggested_action,
     status: "new",
   });
+
+  // Push notify the practitioner. First name only, no symptom detail.
+  try {
+    const { sendPushCore } = await import("@/lib/push.functions");
+    const firstName = (client.full_name || "Your client").trim().split(/\s+/)[0];
+    await sendPushCore(supabaseAdmin, {
+      userId: client.practitioner_id,
+      title: "Buddy morning insight",
+      body: `${firstName} may need a check in today`,
+      data: { clientId: client.id, kind: "morning" },
+    });
+  } catch (e) {
+    log.warn(`nightly push notify failed for ${client.id}`, e);
+  }
+
   return { ok: true as const, risk_score: computed.risk_score, drafted: true };
 }
 
