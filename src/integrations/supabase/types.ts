@@ -22,9 +22,13 @@ export type Database = {
           id: string
           is_read: boolean
           message: string | null
+          outcome: string | null
+          outcome_at: string | null
+          outcome_by: string | null
           pattern: string | null
           practitioner_assessment: string | null
           practitioner_id: string
+          push_fired: boolean
           red_flag_category: string | null
           urgency: string
           webhook_fired: boolean
@@ -36,9 +40,13 @@ export type Database = {
           id?: string
           is_read?: boolean
           message?: string | null
+          outcome?: string | null
+          outcome_at?: string | null
+          outcome_by?: string | null
           pattern?: string | null
           practitioner_assessment?: string | null
           practitioner_id: string
+          push_fired?: boolean
           red_flag_category?: string | null
           urgency: string
           webhook_fired?: boolean
@@ -50,9 +58,13 @@ export type Database = {
           id?: string
           is_read?: boolean
           message?: string | null
+          outcome?: string | null
+          outcome_at?: string | null
+          outcome_by?: string | null
           pattern?: string | null
           practitioner_assessment?: string | null
           practitioner_id?: string
+          push_fired?: boolean
           red_flag_category?: string | null
           urgency?: string
           webhook_fired?: boolean
@@ -622,6 +634,33 @@ export type Database = {
           priority?: number
           symptom_tags?: string[]
           updated_at?: string
+        }
+        Relationships: []
+      }
+      push_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          last_seen: string
+          platform: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_seen?: string
+          platform?: string
+          token: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_seen?: string
+          platform?: string
+          token?: string
+          user_id?: string
         }
         Relationships: []
       }
