@@ -1031,6 +1031,55 @@ function YvesScreen() {
   );
 }
 
+function FeedbackRow({
+  label,
+  value,
+  onPick,
+  ariaPrefix,
+}: {
+  label: string;
+  value: boolean | null;
+  onPick: (v: boolean) => void;
+  ariaPrefix: string;
+}) {
+  const btn = (active: boolean): React.CSSProperties => ({
+    minWidth: 44,
+    minHeight: 44,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 8,
+    borderRadius: 8,
+    background: active ? "var(--blue-accent)" : "transparent",
+    color: active ? "var(--white)" : "var(--white-muted)",
+    border: `1px solid ${active ? "var(--blue-accent)" : "var(--navy-border)"}`,
+    cursor: "pointer",
+  });
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <span style={{ flex: 1, minWidth: 0 }}>{label}</span>
+      <button
+        type="button"
+        aria-label={`${ariaPrefix}: yes`}
+        aria-pressed={value === true}
+        onClick={() => onPick(true)}
+        style={btn(value === true)}
+      >
+        <ThumbsUp size={16} />
+      </button>
+      <button
+        type="button"
+        aria-label={`${ariaPrefix}: no`}
+        aria-pressed={value === false}
+        onClick={() => onPick(false)}
+        style={btn(value === false)}
+      >
+        <ThumbsDown size={16} />
+      </button>
+    </div>
+  );
+}
+
 function PreviousQueries({
   history,
   expanded,
