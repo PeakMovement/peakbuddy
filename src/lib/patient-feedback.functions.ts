@@ -44,7 +44,11 @@ export const setPatientFeedback = createServerFn({ method: "POST" })
       return { ok: false as const, reason: "forbidden" as const };
     }
 
-    const patch: Record<string, unknown> = { patient_feedback_at: new Date().toISOString() };
+    const patch: {
+      patient_feedback_at: string;
+      patient_understood?: boolean | null;
+      patient_helpful?: boolean | null;
+    } = { patient_feedback_at: new Date().toISOString() };
     if (data.understood !== undefined) patch.patient_understood = data.understood;
     if (data.helpful !== undefined) patch.patient_helpful = data.helpful;
 
