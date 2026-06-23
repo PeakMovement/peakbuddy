@@ -1,10 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { BellOff } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/lib/supabase";
 import type { Alert, Client } from "@/lib/types";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 import { log } from "@/lib/log";
+import { setAlertOutcome, getYvesAccuracy } from "@/lib/alert-outcome.functions";
+
+type Outcome = "confirmed" | "false_alarm" | "already_aware";
+const OUTCOME_LABEL: Record<Outcome, string> = {
+  confirmed: "Real concern",
+  false_alarm: "False alarm",
+  already_aware: "Already aware",
+};
+
 
 export const Route = createFileRoute("/practitioner/app/alerts")({
   head: () => ({ meta: [{ title: "Alerts — Buddy" }] }),
