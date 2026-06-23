@@ -715,8 +715,45 @@ function YvesScreen() {
           </button>
         )}
 
+        {/* Patient feedback: UX comprehension/helpfulness only.
+            Never feeds calibration, alert severity, urgency, or thresholds. */}
+        {lastQueryId && (
+          <div
+            style={{
+              marginTop: 16,
+              padding: "10px 12px",
+              background: "var(--navy-card)",
+              border: "1px solid var(--navy-border)",
+              borderRadius: 8,
+              fontFamily: "var(--font-ui)",
+              fontSize: 12,
+              color: "var(--white-muted)",
+            }}
+          >
+            {feedbackSent && feedbackUnderstood !== null && feedbackHelpful !== null ? (
+              <span>Thanks for the feedback.</span>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <FeedbackRow
+                  label="Did Yves understand you?"
+                  value={feedbackUnderstood}
+                  onPick={(v) => submitFeedback("understood", v)}
+                  ariaPrefix="Yves understood"
+                />
+                <FeedbackRow
+                  label="Was this helpful?"
+                  value={feedbackHelpful}
+                  onPick={(v) => submitFeedback("helpful", v)}
+                  ariaPrefix="Reply helpful"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Previous queries */}
         <PreviousQueries history={history} expanded={expanded} setExpanded={setExpanded} />
+
 
         <button
           type="button"
