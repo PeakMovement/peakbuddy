@@ -425,7 +425,72 @@ function Alerts() {
                     })}
                   </div>
                 )}
+                <div
+                  style={{
+                    marginTop: 12,
+                    paddingTop: 10,
+                    borderTop: "1px solid var(--navy-border)",
+                  }}
+                >
+                  {a.outcome ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 8,
+                        fontFamily: "var(--font-ui)",
+                        fontSize: 12,
+                        color: "var(--white-muted)",
+                      }}
+                    >
+                      <span>Marked as {OUTCOME_LABEL[a.outcome]}. Thanks.</span>
+                      <button
+                        type="button"
+                        onClick={() => submitOutcome(a.id, null)}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "var(--blue-accent)",
+                          fontFamily: "var(--font-ui)",
+                          fontSize: 12,
+                          cursor: "pointer",
+                          padding: 0,
+                          textDecoration: "underline",
+                        }}
+                      >
+                        change
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {(["confirmed", "false_alarm", "already_aware"] as Outcome[]).map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => submitOutcome(a.id, opt)}
+                          style={{
+                            flex: "1 1 0",
+                            minHeight: 44,
+                            padding: "10px 12px",
+                            background: "transparent",
+                            color: "var(--white-muted)",
+                            border: "1px solid var(--navy-border)",
+                            borderRadius: 8,
+                            fontFamily: "var(--font-ui)",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {OUTCOME_LABEL[opt]}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
+
             );
           })}
         </div>
