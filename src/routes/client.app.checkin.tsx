@@ -196,6 +196,16 @@ function CheckInScreen() {
             .eq("id", alertRowId);
         }
 
+        // Push the practitioner (best-effort, first name only — no symptom detail).
+        if (alertRowId) {
+          try {
+            const { notifyAlertPush } = await import("@/lib/push.functions");
+            await notifyAlertPush({ data: { alertId: alertRowId, kind: "checkin" } });
+          } catch (e) {
+            log.warn("[Check-in] practitioner push failed:", e);
+          }
+        }
+
         const result = await fireAlertWebhook({
           practitionerId: client.practitioner_id,
           clientName: client.full_name,

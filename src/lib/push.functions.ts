@@ -120,11 +120,11 @@ export const sendPush = createServerFn({ method: "POST" })
  */
 export const notifyAlertPush = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { alertId: string; kind: "yves" | "morning" }) =>
+  .inputValidator((d: { alertId: string; kind: "yves" | "morning" | "checkin" }) =>
     z
       .object({
         alertId: z.string().uuid(),
-        kind: z.enum(["yves", "morning"]),
+        kind: z.enum(["yves", "morning", "checkin"]),
       })
       .parse(d),
   )
@@ -150,11 +150,13 @@ export const notifyAlertPush = createServerFn({ method: "POST" })
     }
 
     const firstName = (client.full_name || "Your client").trim().split(/\s+/)[0];
-    const title = data.kind === "yves" ? "Buddy alert" : "Buddy morning insight";
+    const title = data.kind === "morning" ? "Buddy morning insight" : "Buddy alert";
     const body =
-      data.kind === "yves"
-        ? `${firstName} reported symptoms that may need review`
-        : `${firstName} may need a check in today`;
+      data.kind === "morning"
+        ? `${firstName} may need a check in today`
+        : data.kind === "checkin"
+          ? `${firstName} logged a check-in that may need review`
+          : `${firstName} reported symptoms that may need review`;
 
     await sendPushCore(supabaseAdmin, {
       userId: alert.practitioner_id,
