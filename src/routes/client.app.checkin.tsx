@@ -14,6 +14,8 @@ import {
 import type { CheckIn, Client } from "@/lib/types";
 import { log } from "@/lib/log";
 import { suggestProgram } from "@/lib/programs.functions";
+import { computeStreak, type CheckInFrequency } from "@/lib/streak";
+import { StreakCard } from "@/components/StreakCard";
 
 export const Route = createFileRoute("/client/app/checkin")({
   component: CheckInScreen,
@@ -46,6 +48,8 @@ function CheckInScreen() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [savedOffline, setSavedOffline] = useState(false);
+  const [historyStamps, setHistoryStamps] = useState<string[]>([]);
+  const [gamificationOn, setGamificationOn] = useState(true);
 
   const todayLabel = useMemo(
     () =>
@@ -58,11 +62,19 @@ function CheckInScreen() {
     [],
   );
 
+  const streak = useMemo(() => {
+    if (!client) return null;
+    const freq = ((client as unknown as { check_in_frequency?: string }).check_in_frequency ??
+      "daily") as CheckInFrequency;
+    const stamps = success ? [new Date().toISOString(), ...historyStamps] : historyStamps;
+    return computeStreak(stamps, freq);
+  }, [client, historyStamps, success]);
+
   useEffect(() => {
     const id = getClientId();
     if (!id) return;
     (async () => {
-      const [{ data: c }, { data: ci }] = await Promise.all([
+      const [{ data: c }, { data: ci }, { data: hist }] = await Promise.all([
         supabase.from("clients").select("*").eq("id", id).maybeSingle(),
         supabase
           .from("check_ins")
@@ -72,11 +84,29 @@ function CheckInScreen() {
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
+        supabase
+          .from("check_ins")
+          .select("created_at")
+          .eq("client_id", id)
+          .order("created_at", { ascending: false })
+          .limit(400),
       ]);
       const resolved = (c as Client | null) ?? getCachedClient<Client>();
       if (c) cacheClient(c);
       setClient(resolved);
       setTodayCheckIn(ci as CheckIn | null);
+      setHistoryStamps(((hist ?? []) as { created_at: string }[]).map((r) => r.created_at));
+      const practitionerId = (resolved as Client | null)?.practitioner_id;
+      if (practitionerId) {
+        const { data: prac } = await supabase
+          .from("practices")
+          .select("gamification_enabled")
+          .eq("practitioner_id", practitionerId)
+          .maybeSingle();
+        setGamificationOn(
+          (prac as { gamification_enabled?: boolean } | null)?.gamification_enabled !== false,
+        );
+      }
       setLoading(false);
     })();
     // Sync any check-ins queued while offline (now and on reconnect).
@@ -340,6 +370,11 @@ function CheckInScreen() {
           {success ? "Check-in complete. Well done." : "Already checked in today."}
         </h1>
         {!success && <p style={{ marginTop: 8, color: "var(--white-muted)" }}>See you tomorrow.</p>}
+        {gamificationOn && (
+          <div style={{ marginTop: 24, width: "100%", display: "flex", justifyContent: "center" }}>
+            <StreakCard streak={streak} />
+          </div>
+        )}
         {savedOffline && (
           <p role="status" style={{ marginTop: 12, color: "var(--amber, #f9a825)", fontSize: 14 }}>
             Saved on your device. It will sync automatically when you are back online.
@@ -379,6 +414,12 @@ function CheckInScreen() {
       >
         {todayLabel}
       </p>
+
+      {gamificationOn && (
+        <div style={{ marginTop: 16 }}>
+          <StreakCard streak={streak} />
+        </div>
+      )}
 
       {/* Pain */}
       <Section label="Pain Level">
