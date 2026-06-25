@@ -6,6 +6,7 @@ import { getClientId } from "@/lib/client-session";
 import { useOnline } from "@/hooks/use-online";
 import { getClientBootstrap, type ClientProgramState } from "@/lib/client-program.functions";
 import { ProgramIntroModal } from "@/components/ProgramIntroModal";
+import { registerPushToken } from "@/lib/push";
 
 export const Route = createFileRoute("/client/app")({
   component: ClientAppLayout,
@@ -69,6 +70,10 @@ function ClientAppLayout() {
       cancelled = true;
     };
   }, [navigate, bootstrap]);
+
+  useEffect(() => {
+    void registerPushToken();
+  }, []);
 
   useEffect(() => {
     const id = getClientId();

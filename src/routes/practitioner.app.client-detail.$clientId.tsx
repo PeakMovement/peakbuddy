@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ClientRewardsSection } from "@/components/ClientRewardsSection";
+import { RequestCheckInButton } from "@/components/RequestCheckInButton";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, X } from "lucide-react";
 import {
@@ -223,6 +224,7 @@ function ClientDetail() {
         <ProgramStatusRow info={programInfo} />
       )}
 
+      <RequestCheckInButton clientId={client.id} />
       <ClientRewardsSection clientId={client.id} />
 
       <section

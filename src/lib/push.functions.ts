@@ -172,3 +172,39 @@ export const notifyAlertPush = createServerFn({ method: "POST" })
 
     return { ok: true as const };
   });
+
+// Practitioner asks a client to check in -> push the client.
+export const sendCheckInNudge = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { clientId: string }) =>
+    z.object({ clientId: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: client } = await supabaseAdmin
+      .from("clients")
+      .select("id, practitioner_id, auth_user_id")
+      .eq("id", data.clientId)
+      .maybeSingle();
+    if (!client) return { ok: false as const, reason: "not_found" as const };
+
+    let allowed = client.practitioner_id === context.userId;
+    if (!allowed) {
+      const { data: prof } = await context.supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", context.userId)
+        .maybeSingle();
+      allowed = prof?.role === "super_admin";
+    }
+    if (!allowed) return { ok: false as const, reason: "forbidden" as const };
+    if (!client.auth_user_id) return { ok: false as const, reason: "no_account" as const };
+
+    await sendPushCore(supabaseAdmin, {
+      userId: client.auth_user_id,
+      title: "Buddy check-in",
+      body: "Your practitioner is checking in. Tap to log how you're doing.",
+      data: { type: "checkin_request" },
+    });
+    return { ok: true as const };
+  });
