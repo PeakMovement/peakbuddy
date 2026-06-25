@@ -16,6 +16,7 @@ import { log } from "@/lib/log";
 import { suggestProgram } from "@/lib/programs.functions";
 import { computeStreak, type CheckInFrequency } from "@/lib/streak";
 import { StreakCard } from "@/components/StreakCard";
+import { MyRewards } from "@/components/MyRewards";
 
 export const Route = createFileRoute("/client/app/checkin")({
   component: CheckInScreen,
@@ -371,8 +372,17 @@ function CheckInScreen() {
         </h1>
         {!success && <p style={{ marginTop: 8, color: "var(--white-muted)" }}>See you tomorrow.</p>}
         {gamificationOn && (
-          <div style={{ marginTop: 24, width: "100%", display: "flex", justifyContent: "center" }}>
+          <div
+            style={{
+              marginTop: 24,
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
             <StreakCard streak={streak} />
+            <MyRewards />
           </div>
         )}
         {savedOffline && (
@@ -418,6 +428,7 @@ function CheckInScreen() {
       {gamificationOn && (
         <div style={{ marginTop: 16 }}>
           <StreakCard streak={streak} />
+          <MyRewards />
         </div>
       )}
 

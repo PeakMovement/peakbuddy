@@ -86,3 +86,128 @@ export const deleteReward = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
+
+// ---- Stage 2/3: issuance + viewing ----
+
+export type IssuedReward = {
+  id: string;
+  status: string;
+  earned_at: string;
+  reward: {
+    name: string;
+    voucher_code: string;
+    description: string;
+    maps_url: string | null;
+  } | null;
+};
+
+const ISSUED_SELECT =
+  "id, status, earned_at, reward:rewards(name, voucher_code, description, maps_url)";
+
+// Practitioner (or super admin) approves: issue a random ACTIVE reward to the client.
+export const approveClientReward = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ clientId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as SupabaseClient;
+
+    const { data: client } = await db
+      .from("clients")
+      .select("id, practitioner_id")
+      .eq("id", data.clientId)
+      .maybeSingle();
+    if (!client) throw new Error("Client not found");
+
+    let allowed = client.practitioner_id === context.userId;
+    if (!allowed) {
+      const { data: prof } = await context.supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", context.userId)
+        .maybeSingle();
+      allowed = prof?.role === "super_admin";
+    }
+    if (!allowed) throw new Error("Forbidden");
+
+    // Respect the per-practitioner gamification switch.
+    const { data: prac } = await db
+      .from("practices")
+      .select("gamification_enabled")
+      .eq("practitioner_id", client.practitioner_id)
+      .maybeSingle();
+    if (prac && prac.gamification_enabled === false) {
+      throw new Error("Gamification is turned off for this practice.");
+    }
+
+    const { data: pool } = await db.from("rewards").select("id").eq("active", true);
+    const list = (pool ?? []) as { id: string }[];
+    if (list.length === 0) throw new Error("No active rewards available. Add rewards first.");
+    const chosen = list[Math.floor(Math.random() * list.length)];
+
+    const { data: issued, error } = await db
+      .from("client_rewards")
+      .insert({
+        client_id: data.clientId,
+        reward_id: chosen.id,
+        practitioner_id: context.userId,
+        status: "earned",
+      })
+      .select(ISSUED_SELECT)
+      .single();
+    if (error) throw new Error(error.message);
+    return issued as IssuedReward;
+  });
+
+// Issued rewards for a client (practitioner / super admin view).
+export const listClientRewards = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ clientId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as SupabaseClient;
+    const { data: client } = await db
+      .from("clients")
+      .select("practitioner_id")
+      .eq("id", data.clientId)
+      .maybeSingle();
+    if (!client) return [] as IssuedReward[];
+    if (client.practitioner_id !== context.userId) {
+      const { data: prof } = await context.supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", context.userId)
+        .maybeSingle();
+      if (prof?.role !== "super_admin") throw new Error("Forbidden");
+    }
+    const { data: rows } = await db
+      .from("client_rewards")
+      .select(ISSUED_SELECT)
+      .eq("client_id", data.clientId)
+      .order("earned_at", { ascending: false });
+    return (rows ?? []) as IssuedReward[];
+  });
+
+// The signed-in client's own earned vouchers.
+export const listMyRewards = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as SupabaseClient;
+    const { data: client } = await db
+      .from("clients")
+      .select("id")
+      .eq("auth_user_id", context.userId)
+      .maybeSingle();
+    if (!client) return [] as IssuedReward[];
+    const { data: rows } = await db
+      .from("client_rewards")
+      .select(ISSUED_SELECT)
+      .eq("client_id", client.id)
+      .order("earned_at", { ascending: false });
+    return (rows ?? []) as IssuedReward[];
+  });

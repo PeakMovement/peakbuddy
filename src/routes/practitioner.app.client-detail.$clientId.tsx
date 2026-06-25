@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { ClientRewardsSection } from "@/components/ClientRewardsSection";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, X } from "lucide-react";
 import {
@@ -221,6 +222,8 @@ function ClientDetail() {
       {programInfo?.program && programInfo.status !== "none" && (
         <ProgramStatusRow info={programInfo} />
       )}
+
+      <ClientRewardsSection clientId={client.id} />
 
       <section
         style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}
