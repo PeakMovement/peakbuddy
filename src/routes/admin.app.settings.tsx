@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
+import { RewardsManager } from "@/components/RewardsManager";
 import { supabase } from "@/lib/supabase";
 import type { PlatformSettings } from "@/lib/types";
 
@@ -185,6 +186,8 @@ function AdminSettings() {
           {saving ? "Saving…" : "Save"}
         </button>
       </form>
+
+      <RewardsManager />
 
       <button
         type="button"
