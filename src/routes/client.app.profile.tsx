@@ -127,6 +127,12 @@ function ClientProfile() {
   const [phoneBusy, setPhoneBusy] = useState(false);
   const [phoneError, setPhoneError] = useState<string | null>(null);
 
+  const saveEmail = useServerFn(updateMyEmail);
+  const [emailEdit, setEmailEdit] = useState(false);
+  const [emailValue, setEmailValue] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
   const handleDeleteAccount = async () => {
     if (deleting) return;
     setDeleting(true);
@@ -171,9 +177,62 @@ function ClientProfile() {
         }}
       >
         <ProfileField label="Name" value={client?.full_name} />
-        <ProfileField label="Email" value={client?.email} />
-        <EditablePhoneField
-          phone={client?.phone}
+        <EditableTextField
+          label="Email"
+          icon={<Mail size={12} />}
+          type="email"
+          placeholder="Enter email address"
+          emptyText="Tap to add your email"
+          currentValue={client?.email}
+          edit={emailEdit}
+          value={emailValue}
+          busy={emailBusy}
+          error={emailError}
+          onStartEdit={() => {
+            setEmailValue(client?.email || "");
+            setEmailEdit(true);
+            setEmailError(null);
+          }}
+          onCancel={() => setEmailEdit(false)}
+          onChange={setEmailValue}
+          onSave={async (val) => {
+            if (!client) return;
+            const next = val.trim();
+            if (!next) {
+              setEmailError("Email is required.");
+              return;
+            }
+            setEmailBusy(true);
+            setEmailError(null);
+            try {
+              const res = await saveEmail({ data: { email: next } });
+              setClient({ ...client, email: res.email });
+              setEmailEdit(false);
+            } catch (e: any) {
+              setEmailError(e?.message || "Could not save email.");
+            } finally {
+              setEmailBusy(false);
+            }
+          }}
+        />
+        <EditableTextField
+          label="Phone"
+          icon={<Phone size={12} />}
+          type="tel"
+          placeholder="Enter phone number"
+          emptyText="Tap to add your phone number"
+          currentValue={client?.phone}
+          edit={phoneEdit}
+          value={phoneValue}
+          busy={phoneBusy}
+          error={phoneError}
+          onStartEdit={() => {
+            setPhoneValue(client?.phone || "");
+            setPhoneEdit(true);
+            setPhoneError(null);
+          }}
+          onCancel={() => setPhoneEdit(false)}
+          onChange={setPhoneValue}
           onSave={async (val) => {
             if (!client) return;
             setPhoneBusy(true);
@@ -188,22 +247,6 @@ function ClientProfile() {
               setPhoneBusy(false);
             }
           }}
-          edit={phoneEdit}
-          value={phoneValue}
-          busy={phoneBusy}
-          error={phoneError}
-          onStartEdit={() => {
-            setPhoneValue(client?.phone || "");
-            setPhoneEdit(true);
-            setPhoneError(null);
-          }}
-          onCancel={() => setPhoneEdit(false)}
-          onChange={setPhoneValue}
-        />
-        <AiConsentRow
-          on={client?.yves_ai_consent === true}
-          busy={consentBusy}
-          onToggle={toggleAiConsent}
         />
       </div>
 
