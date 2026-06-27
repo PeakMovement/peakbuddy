@@ -139,6 +139,12 @@ function ClientProfile() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  const savePhone = useServerFn(updateClientPhone);
+  const [phoneEdit, setPhoneEdit] = useState(false);
+  const [phoneValue, setPhoneValue] = useState("");
+  const [phoneBusy, setPhoneBusy] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+
   const handleDeleteAccount = async () => {
     if (deleting) return;
     setDeleting(true);
