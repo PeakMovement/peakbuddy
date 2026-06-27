@@ -14,7 +14,6 @@ export const Route = createFileRoute("/client/app")({
 
 const tabs = [
   { to: "/client/app/checkin", label: "Check-in", Icon: ClipboardList },
-  { to: "/client/app/timeline", label: "Timeline", Icon: List },
   { to: "/client/app/progress", label: "Progress", Icon: Activity },
   { to: "/client/app/yves", label: "Yves", Icon: MessageCircle },
   { to: "/client/app/profile", label: "Profile", Icon: User },
