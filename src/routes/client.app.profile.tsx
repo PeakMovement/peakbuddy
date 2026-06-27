@@ -840,8 +840,13 @@ function DetailRow({ k, v }: { k: string; v: React.ReactNode }) {
   );
 }
 
-function EditablePhoneField({
-  phone,
+export function EditableTextField({
+  label,
+  icon,
+  type,
+  placeholder,
+  emptyText,
+  currentValue,
   onSave,
   edit,
   value,
@@ -851,8 +856,13 @@ function EditablePhoneField({
   onCancel,
   onChange,
 }: {
-  phone?: string | null;
-  onSave: (val: string) => Promise<void>;
+  label: string;
+  icon?: React.ReactNode;
+  type: "text" | "email" | "tel";
+  placeholder: string;
+  emptyText: string;
+  currentValue?: string | null;
+  onSave: (val: string) => Promise<void> | void;
   edit: boolean;
   value: string;
   busy: boolean;
@@ -891,8 +901,8 @@ function EditablePhoneField({
             gap: 6,
           }}
         >
-          <Phone size={12} />
-          Phone
+          {icon}
+          {label}
         </div>
         <div
           style={{
@@ -902,7 +912,7 @@ function EditablePhoneField({
             wordBreak: "break-word",
           }}
         >
-          {phone || "Tap to add your phone number"}
+          {currentValue || emptyText}
         </div>
       </button>
     );
@@ -931,16 +941,18 @@ function EditablePhoneField({
           gap: 6,
         }}
       >
-        <Phone size={12} />
-        Phone
+        {icon}
+        {label}
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <input
-          type="tel"
+          type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Enter phone number"
+          placeholder={placeholder}
           disabled={busy}
+          autoCapitalize="off"
+          autoCorrect="off"
           style={{
             flex: 1,
             background: "var(--navy-bg, #0a0f1c)",
@@ -998,3 +1010,4 @@ function EditablePhoneField({
     </div>
   );
 }
+
