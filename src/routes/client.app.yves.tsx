@@ -1100,94 +1100,116 @@ function PreviousQueries({
   expanded: string | null;
   setExpanded: (id: string | null) => void;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
   if (history.length === 0) return null;
   return (
-    <div style={{ marginTop: 32 }}>
-      <h2
+    <div style={{ marginTop: 24 }}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((v) => !v)}
         style={{
-          fontFamily: "var(--font-ui)",
-          fontWeight: 600,
-          fontSize: 12,
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          padding: "10px 12px",
+          background: "var(--navy-card)",
+          border: "1px solid var(--navy-border)",
+          borderRadius: 8,
           color: "var(--white-muted)",
-          marginBottom: 12,
+          cursor: "pointer",
+          fontFamily: "var(--font-ui)",
+          fontSize: 12,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          fontWeight: 600,
         }}
       >
-        Previous queries
-      </h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {history.slice(0, 5).map((q) => {
-          const u = (q.urgency as UrgencyTier) ?? "routine";
-          const theme = BANNER_THEME[u];
-          const isOpen = expanded === q.id;
-          return (
-            <button
-              key={q.id}
-              type="button"
-              onClick={() => setExpanded(isOpen ? null : q.id)}
-              style={{
-                background: "var(--navy-card)",
-                border: "1px solid var(--navy-border)",
-                borderRadius: 8,
-                padding: 12,
-                textAlign: "left",
-                color: "var(--white)",
-                cursor: "pointer",
-              }}
-            >
-              <div
+        <span>Previous queries ({history.length})</span>
+        <ChevronDown
+          size={16}
+          style={{
+            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.2s ease",
+          }}
+        />
+      </button>
+
+      {isOpen && (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+          {history.slice(0, 5).map((q) => {
+            const u = (q.urgency as UrgencyTier) ?? "routine";
+            const theme = BANNER_THEME[u];
+            const itemOpen = expanded === q.id;
+            return (
+              <button
+                key={q.id}
+                type="button"
+                onClick={() => setExpanded(itemOpen ? null : q.id)}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
+                  background: "var(--navy-card)",
+                  border: "1px solid var(--navy-border)",
+                  borderRadius: 8,
+                  padding: 12,
+                  textAlign: "left",
+                  color: "var(--white)",
+                  cursor: "pointer",
                 }}
               >
                 <div
                   style={{
-                    fontFamily: "var(--font-data)",
-                    fontSize: 11,
-                    color: "var(--white-muted)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
                   }}
                 >
-                  {new Date(q.created_at).toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
+                  <div
+                    style={{
+                      fontFamily: "var(--font-data)",
+                      fontSize: 11,
+                      color: "var(--white-muted)",
+                    }}
+                  >
+                    {new Date(q.created_at).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </div>
+                  <span
+                    style={{
+                      fontFamily: "var(--font-data)",
+                      fontWeight: 700,
+                      fontSize: 10,
+                      padding: "3px 8px",
+                      border: `1px solid ${theme.border}`,
+                      color: theme.text,
+                      borderRadius: 999,
+                    }}
+                  >
+                    {URGENCY_LABEL[u]}
+                  </span>
                 </div>
-                <span
+                <div
                   style={{
-                    fontFamily: "var(--font-data)",
-                    fontWeight: 700,
-                    fontSize: 10,
-                    padding: "3px 8px",
-                    border: `1px solid ${theme.border}`,
-                    color: theme.text,
-                    borderRadius: 999,
+                    marginTop: 6,
+                    fontSize: 13,
+                    lineHeight: 1.45,
+                    color: "var(--white)",
+                    overflow: itemOpen ? "visible" : "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: itemOpen ? "normal" : "nowrap",
                   }}
                 >
-                  {URGENCY_LABEL[u]}
-                </span>
-              </div>
-              <div
-                style={{
-                  marginTop: 6,
-                  fontSize: 13,
-                  lineHeight: 1.45,
-                  color: "var(--white)",
-                  overflow: isOpen ? "visible" : "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: isOpen ? "normal" : "nowrap",
-                }}
-              >
-                {q.query_text}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+                  {q.query_text}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
