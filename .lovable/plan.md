@@ -1,33 +1,49 @@
-## Why the badge is there
+## Goal
 
-The "Runtime by Despia" pill in your screenshot is a **watermark Despia overlays on every screen** of apps built on the free / trial tier. It's drawn by the Despia native shell *on top of* your web view — your code can't hide or move it. It sits in the bottom-left corner and, in your current layout, lands right on top of the first tab's icon + label (Check-in).
+Let clients (and optionally practitioners) sign in without typing a password every time. Two complementary pieces:
 
-There are two real fixes. They aren't mutually exclusive.
+1. **Remember me** — keep the user signed in across app launches by default, with an opt-out.
+2. **Magic link** — "Email me a sign-in link" button so a user who *did* get signed out doesn't have to remember a password at all; they tap the link in their email and land back in the app already signed in.
 
-## Option A — Remove the badge at the source (best fix)
+Both work the same in Safari and inside the Despia WebView — no iOS-specific APIs.
 
-Upgrade the Despia plan / toggle "remove branding" in the Despia dashboard for this app, then rebuild and resubmit the iOS build. Once the watermark is gone, the tab bar is fine as-is. This is the only way to get a clean, professional look — every other workaround is just dodging the badge.
+## What changes for the user
 
-## Option B — Reflow the UI so the badge doesn't cover anything
+On `/client/login` (and `/practitioner/login`):
 
-If you want to keep the free tier (or until the upgrade is live), reshape the bottom tab bar so the Check-in tab isn't underneath the watermark:
+- The existing email + password form stays.
+- A new **"Email me a sign-in link"** button appears below the password field. Tapping it sends a one-time link to the entered email and shows a "Check your inbox" confirmation.
+- A **"Keep me signed in on this device"** checkbox, checked by default. Unchecking it means the session is cleared when the app/tab closes.
+- Tapping the link in the email opens the app at `/auth/callback`, which finishes the sign-in and routes the user to the right home screen (client → Check-in, practitioner → Dashboard).
 
-1. **Lift the tab bar** — add extra bottom padding (~44px on top of the existing safe-area inset) inside `src/routes/client.app.tsx` so the entire nav sits above the badge instead of behind it.
-2. **Add matching bottom padding to `<main>`** so the last row of content (the Energy / Mood rings on the progress page) isn't hidden under the now-taller tab bar.
-3. **Re-center the four tabs** — once the bar is lifted, the badge sits in the empty space below the nav, not on top of a label.
-4. **Apply the same treatment to the practitioner tab bar** if it exists, so admin/practitioner views on iOS don't have the same clipping.
+Existing password login keeps working exactly as today.
 
-No other screens or business logic change.
+## What changes under the hood
 
-### Technical notes
+- New route `/auth/callback` — public, handles the Supabase magic-link redirect, resolves the user's role, and forwards to `/client/app/checkin` or `/practitioner/app/dashboard`.
+- New "send magic link" action on both login screens calling `supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: '<origin>/auth/callback' } })`.
+- "Remember me" toggle switches the Supabase client's session storage between `localStorage` (persistent — current behavior) and `sessionStorage` (cleared on app close).
+- The Supabase **Magic Link** email template needs to point at `https://peakbuddy.lovable.app/auth/callback` (and the preview URL) in the allow-list. I'll scaffold the auth email templates with `email_domain--scaffold_auth_email_templates` so the magic-link email is branded to PeakBuddy instead of the generic Supabase default.
 
-- File: `src/routes/client.app.tsx`, the `<nav>` at lines ~162–213 and the `<main>` at line 158.
-- Change `paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)"` → `"calc(env(safe-area-inset-bottom) + 60px)"` on the nav.
-- Change `paddingBottom: 80` → `120` on `<main>`.
-- The Despia watermark height is ~48px; 44–60px of extra padding clears it on all current iPhones.
+## Edge cases handled
 
-## Recommendation
+- **Unknown email** — Supabase still returns success (so attackers can't enumerate users). UI says "If that email is registered, a link is on the way."
+- **Client vs practitioner** — `/auth/callback` looks up the user's `profiles.role` and routes accordingly, same logic as today's password login.
+- **Despia WebView opens the link in Safari, not the app** — common with iOS WebViews. Mitigation: the callback page detects this and shows a "Return to the PeakBuddy app and you're signed in" message; the session is already saved in browser storage that the WebView shares for the same domain. (If users report it doesn't carry over, the fallback is a one-time 6-digit OTP code emailed instead of a link — I can add that next.)
+- **Rate limiting** — disable the button for 60 seconds after a send to avoid spam.
 
-Do **Option A** if you can — the watermark also appears on other screens (Yves chat, Profile) and only removing it actually solves the problem. Use **Option B** as a same-day mitigation so Check-in is usable in the meantime.
+## Files I'll touch
 
-Want me to apply Option B now?
+- `src/routes/auth.callback.tsx` (new) — handles the magic-link return.
+- `src/routes/client.login.tsx` — add magic-link button + remember-me checkbox.
+- `src/routes/practitioner.login.tsx` — same additions.
+- `src/lib/supabase.ts` / `src/integrations/supabase/client.ts` — switchable session storage based on the remember-me preference (stored in `localStorage` itself).
+- Auth email templates via `email_domain--scaffold_auth_email_templates` so the magic-link email is branded.
+
+## Out of scope (ask if you want them)
+
+- Sign in with Apple / Google (one-tap, no email at all — different but related).
+- 6-digit OTP code as a fallback to magic links.
+- Practitioner magic links (I'll include them by default; say if you want clients only).
+
+Shall I build this for both client and practitioner logins?

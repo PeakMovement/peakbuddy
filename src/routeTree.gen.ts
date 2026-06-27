@@ -20,6 +20,7 @@ import { Route as PractitionerLoginRouteImport } from './routes/practitioner.log
 import { Route as PractitionerAppRouteImport } from './routes/practitioner.app'
 import { Route as ClientLoginRouteImport } from './routes/client.login'
 import { Route as ClientAppRouteImport } from './routes/client.app'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as AdminAppRouteImport } from './routes/admin.app'
 import { Route as ClientAppIndexRouteImport } from './routes/client.app.index'
@@ -101,6 +102,11 @@ const ClientLoginRoute = ClientLoginRouteImport.update({
 const ClientAppRoute = ClientAppRouteImport.update({
   id: '/client/app',
   path: '/client/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminLoginRoute = AdminLoginRouteImport.update({
@@ -253,6 +259,7 @@ export interface FileRoutesByFullPath {
   '/support': typeof SupportRoute
   '/admin/app': typeof AdminAppRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/client/app': typeof ClientAppRouteWithChildren
   '/client/login': typeof ClientLoginRoute
   '/practitioner/app': typeof PractitionerAppRouteWithChildren
@@ -293,6 +300,7 @@ export interface FileRoutesByTo {
   '/support': typeof SupportRoute
   '/admin/app': typeof AdminAppRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/client/login': typeof ClientLoginRoute
   '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
@@ -333,6 +341,7 @@ export interface FileRoutesById {
   '/support': typeof SupportRoute
   '/admin/app': typeof AdminAppRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/client/app': typeof ClientAppRouteWithChildren
   '/client/login': typeof ClientLoginRoute
   '/practitioner/app': typeof PractitionerAppRouteWithChildren
@@ -375,6 +384,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/admin/app'
     | '/admin/login'
+    | '/auth/callback'
     | '/client/app'
     | '/client/login'
     | '/practitioner/app'
@@ -415,6 +425,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/admin/app'
     | '/admin/login'
+    | '/auth/callback'
     | '/client/login'
     | '/practitioner/app'
     | '/practitioner/login'
@@ -454,6 +465,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/admin/app'
     | '/admin/login'
+    | '/auth/callback'
     | '/client/app'
     | '/client/login'
     | '/practitioner/app'
@@ -495,6 +507,7 @@ export interface RootRouteChildren {
   SupportRoute: typeof SupportRoute
   AdminAppRoute: typeof AdminAppRouteWithChildren
   AdminLoginRoute: typeof AdminLoginRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   ClientAppRoute: typeof ClientAppRouteWithChildren
   ClientLoginRoute: typeof ClientLoginRoute
   PractitionerAppRoute: typeof PractitionerAppRouteWithChildren
@@ -583,6 +596,13 @@ declare module '@tanstack/react-router' {
       path: '/client/app'
       fullPath: '/client/app'
       preLoaderRoute: typeof ClientAppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/login': {
@@ -862,6 +882,7 @@ const rootRouteChildren: RootRouteChildren = {
   SupportRoute: SupportRoute,
   AdminAppRoute: AdminAppRouteWithChildren,
   AdminLoginRoute: AdminLoginRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   ClientAppRoute: ClientAppRouteWithChildren,
   ClientLoginRoute: ClientLoginRoute,
   PractitionerAppRoute: PractitionerAppRouteWithChildren,
