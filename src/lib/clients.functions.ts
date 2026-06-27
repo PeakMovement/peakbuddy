@@ -93,5 +93,29 @@ export const createClientAccount = createServerFn({ method: "POST" })
       return { ok: false as const, error: insErr.message };
     }
 
+    // Fire welcome email (best effort — never fail account creation on email issues).
+    try {
+      const { sendTransactionalEmailServer } = await import("@/lib/email/send-server");
+      const { data: practitioner } = await admin
+        .from("profiles")
+        .select("full_name")
+        .eq("id", data.practitionerId)
+        .maybeSingle();
+      await sendTransactionalEmailServer({
+        templateName: "client-welcome",
+        recipientEmail: data.email,
+        idempotencyKey: `client-welcome-${inserted.id}`,
+        templateData: {
+          clientName: data.fullName,
+          practitionerName: practitioner?.full_name ?? null,
+          email: data.email,
+          loginUrl: "https://peakbuddy.lovable.app/client/login",
+        },
+      });
+    } catch (e) {
+      const { log } = await import("@/lib/log");
+      log.error("client welcome email failed", e);
+    }
+
     return { ok: true as const, clientId: inserted.id };
   });
