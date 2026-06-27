@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, ExternalLink, Trash2, ChevronDown, Phone, Check } from "lucide-react";
+import { LogOut, ExternalLink, Trash2, ChevronDown, Phone, Check, Mail } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId, clearClientId } from "@/lib/client-session";
 import type { CheckIn, Client } from "@/lib/types";
@@ -10,9 +10,8 @@ import {
   respondToSuggestedProgram,
   type ClientProgramState,
 } from "@/lib/client-program.functions";
-import { setYvesAiConsent } from "@/lib/yves-consent.functions";
 import { deleteMyAccount } from "@/lib/account-delete.functions";
-import { updateClientPhone } from "@/lib/client-profile.functions";
+import { updateClientPhone, updateMyEmail } from "@/lib/client-profile.functions";
 
 export const Route = createFileRoute("/client/app/profile")({
   head: () => ({ meta: [{ title: "Profile — Buddy" }] }),
@@ -43,28 +42,11 @@ function ClientProfile() {
   const [programState, setProgramState] = useState<ClientProgramState | null>(null);
   const loadProgram = useServerFn(getMyProgram);
   const respond = useServerFn(respondToSuggestedProgram);
-  const saveConsent = useServerFn(setYvesAiConsent);
   const [busy, setBusy] = useState(false);
-  const [consentBusy, setConsentBusy] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [timelineItems, setTimelineItems] = useState<CheckIn[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [openCheckInId, setOpenCheckInId] = useState<string | null>(null);
-
-  const toggleAiConsent = async () => {
-    if (!client || consentBusy) return;
-    const next = !client.yves_ai_consent;
-    setConsentBusy(true);
-    const res = await saveConsent({ data: { clientId: client.id, consent: next } });
-    setConsentBusy(false);
-    if (res.ok) {
-      setClient({
-        ...client,
-        yves_ai_consent: next,
-        yves_ai_consent_at: next ? new Date().toISOString() : null,
-      });
-    }
-  };
 
   useEffect(() => {
     const id = getClientId();
@@ -145,6 +127,12 @@ function ClientProfile() {
   const [phoneBusy, setPhoneBusy] = useState(false);
   const [phoneError, setPhoneError] = useState<string | null>(null);
 
+  const saveEmail = useServerFn(updateMyEmail);
+  const [emailEdit, setEmailEdit] = useState(false);
+  const [emailValue, setEmailValue] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
   const handleDeleteAccount = async () => {
     if (deleting) return;
     setDeleting(true);
@@ -189,9 +177,62 @@ function ClientProfile() {
         }}
       >
         <ProfileField label="Name" value={client?.full_name} />
-        <ProfileField label="Email" value={client?.email} />
-        <EditablePhoneField
-          phone={client?.phone}
+        <EditableTextField
+          label="Email"
+          icon={<Mail size={12} />}
+          type="email"
+          placeholder="Enter email address"
+          emptyText="Tap to add your email"
+          currentValue={client?.email}
+          edit={emailEdit}
+          value={emailValue}
+          busy={emailBusy}
+          error={emailError}
+          onStartEdit={() => {
+            setEmailValue(client?.email || "");
+            setEmailEdit(true);
+            setEmailError(null);
+          }}
+          onCancel={() => setEmailEdit(false)}
+          onChange={setEmailValue}
+          onSave={async (val) => {
+            if (!client) return;
+            const next = val.trim();
+            if (!next) {
+              setEmailError("Email is required.");
+              return;
+            }
+            setEmailBusy(true);
+            setEmailError(null);
+            try {
+              const res = await saveEmail({ data: { email: next } });
+              setClient({ ...client, email: res.email });
+              setEmailEdit(false);
+            } catch (e: any) {
+              setEmailError(e?.message || "Could not save email.");
+            } finally {
+              setEmailBusy(false);
+            }
+          }}
+        />
+        <EditableTextField
+          label="Phone"
+          icon={<Phone size={12} />}
+          type="tel"
+          placeholder="Enter phone number"
+          emptyText="Tap to add your phone number"
+          currentValue={client?.phone}
+          edit={phoneEdit}
+          value={phoneValue}
+          busy={phoneBusy}
+          error={phoneError}
+          onStartEdit={() => {
+            setPhoneValue(client?.phone || "");
+            setPhoneEdit(true);
+            setPhoneError(null);
+          }}
+          onCancel={() => setPhoneEdit(false)}
+          onChange={setPhoneValue}
           onSave={async (val) => {
             if (!client) return;
             setPhoneBusy(true);
@@ -206,22 +247,6 @@ function ClientProfile() {
               setPhoneBusy(false);
             }
           }}
-          edit={phoneEdit}
-          value={phoneValue}
-          busy={phoneBusy}
-          error={phoneError}
-          onStartEdit={() => {
-            setPhoneValue(client?.phone || "");
-            setPhoneEdit(true);
-            setPhoneError(null);
-          }}
-          onCancel={() => setPhoneEdit(false)}
-          onChange={setPhoneValue}
-        />
-        <AiConsentRow
-          on={client?.yves_ai_consent === true}
-          busy={consentBusy}
-          onToggle={toggleAiConsent}
         />
       </div>
 
@@ -659,98 +684,6 @@ function MyProgramCard({
   );
 }
 
-function AiConsentRow({
-  on,
-  busy,
-  onToggle,
-}: {
-  on: boolean;
-  busy: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div
-      style={{
-        background: "var(--navy-card)",
-        border: "1px solid var(--navy-border)",
-        borderRadius: 8,
-        padding: "12px 14px",
-      }}
-    >
-      <div
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
-      >
-        <div
-          style={{
-            color: "var(--white-muted)",
-            fontFamily: "var(--font-ui)",
-            fontSize: 12,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-          }}
-        >
-          AI analysis (Yves)
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={on}
-          aria-label="AI analysis with Yves"
-          onClick={onToggle}
-          disabled={busy}
-          style={{
-            position: "relative",
-            width: 46,
-            height: 26,
-            borderRadius: 999,
-            background: on ? "var(--blue-accent)" : "var(--navy-border)",
-            border: "none",
-            cursor: busy ? "default" : "pointer",
-            opacity: busy ? 0.6 : 1,
-            transition: "background 0.2s",
-          }}
-        >
-          <span
-            style={{
-              position: "absolute",
-              top: 3,
-              left: on ? 23 : 3,
-              width: 20,
-              height: 20,
-              borderRadius: "50%",
-              background: "var(--white)",
-              transition: "left 0.2s",
-            }}
-          />
-        </button>
-      </div>
-      <div
-        style={{
-          marginTop: 8,
-          color: "var(--white)",
-          fontFamily: "var(--font-ui)",
-          fontSize: 14,
-        }}
-      >
-        {on ? "On" : "Off"}
-      </div>
-      <p
-        style={{
-          marginTop: 6,
-          color: "var(--white-muted)",
-          fontFamily: "var(--font-ui)",
-          fontSize: 12,
-          lineHeight: 1.5,
-        }}
-      >
-        When on, your symptom messages are sent to our AI provider (Anthropic) to power Yves, and
-        your check-ins may also be processed by Google (via our platform provider Lovable) to suggest
-        a suitable program. Turn off to stop all AI analysis.
-      </p>
-    </div>
-  );
-}
 
 function DeleteAccountSection({
   confirm,
@@ -907,8 +840,13 @@ function DetailRow({ k, v }: { k: string; v: React.ReactNode }) {
   );
 }
 
-function EditablePhoneField({
-  phone,
+export function EditableTextField({
+  label,
+  icon,
+  type,
+  placeholder,
+  emptyText,
+  currentValue,
   onSave,
   edit,
   value,
@@ -918,8 +856,13 @@ function EditablePhoneField({
   onCancel,
   onChange,
 }: {
-  phone?: string | null;
-  onSave: (val: string) => Promise<void>;
+  label: string;
+  icon?: React.ReactNode;
+  type: "text" | "email" | "tel";
+  placeholder: string;
+  emptyText: string;
+  currentValue?: string | null;
+  onSave: (val: string) => Promise<void> | void;
   edit: boolean;
   value: string;
   busy: boolean;
@@ -958,8 +901,8 @@ function EditablePhoneField({
             gap: 6,
           }}
         >
-          <Phone size={12} />
-          Phone
+          {icon}
+          {label}
         </div>
         <div
           style={{
@@ -969,7 +912,7 @@ function EditablePhoneField({
             wordBreak: "break-word",
           }}
         >
-          {phone || "Tap to add your phone number"}
+          {currentValue || emptyText}
         </div>
       </button>
     );
@@ -998,16 +941,18 @@ function EditablePhoneField({
           gap: 6,
         }}
       >
-        <Phone size={12} />
-        Phone
+        {icon}
+        {label}
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <input
-          type="tel"
+          type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Enter phone number"
+          placeholder={placeholder}
           disabled={busy}
+          autoCapitalize="off"
+          autoCorrect="off"
           style={{
             flex: 1,
             background: "var(--navy-bg, #0a0f1c)",
@@ -1065,3 +1010,4 @@ function EditablePhoneField({
     </div>
   );
 }
+
