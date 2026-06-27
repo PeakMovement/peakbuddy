@@ -1,9 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, Trash2 } from "lucide-react";
+import { LogOut, Trash2, Mail, Phone } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { deleteMyAccount } from "@/lib/account-delete.functions";
+import { updateMyEmail, updatePractitionerPhone } from "@/lib/client-profile.functions";
+import { EditableTextField } from "@/routes/client.app.profile";
 import type { Profile } from "@/lib/types";
 
 export const Route = createFileRoute("/practitioner/app/profile")({
@@ -41,6 +43,18 @@ function PractitionerProfile() {
     await supabase.auth.signOut();
     navigate({ to: "/practitioner/login" });
   };
+
+  const saveEmail = useServerFn(updateMyEmail);
+  const [emailEdit, setEmailEdit] = useState(false);
+  const [emailValue, setEmailValue] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  const savePhone = useServerFn(updatePractitionerPhone);
+  const [phoneEdit, setPhoneEdit] = useState(false);
+  const [phoneValue, setPhoneValue] = useState("");
+  const [phoneBusy, setPhoneBusy] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   const deleteAccount = useServerFn(deleteMyAccount);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -90,8 +104,75 @@ function PractitionerProfile() {
         }}
       >
         <ProfileField label="Name" value={profile?.full_name} />
-        <ProfileField label="Email" value={email} />
-        <ProfileField label="Phone" value={phone || "Not set"} />
+        <EditableTextField
+          label="Email"
+          icon={<Mail size={12} />}
+          type="email"
+          placeholder="Enter email address"
+          emptyText="Tap to add your email"
+          currentValue={email}
+          edit={emailEdit}
+          value={emailValue}
+          busy={emailBusy}
+          error={emailError}
+          onStartEdit={() => {
+            setEmailValue(email || "");
+            setEmailEdit(true);
+            setEmailError(null);
+          }}
+          onCancel={() => setEmailEdit(false)}
+          onChange={setEmailValue}
+          onSave={async (val) => {
+            const next = val.trim();
+            if (!next) {
+              setEmailError("Email is required.");
+              return;
+            }
+            setEmailBusy(true);
+            setEmailError(null);
+            try {
+              const res = await saveEmail({ data: { email: next } });
+              setEmail(res.email);
+              setEmailEdit(false);
+            } catch (e: any) {
+              setEmailError(e?.message || "Could not save email.");
+            } finally {
+              setEmailBusy(false);
+            }
+          }}
+        />
+        <EditableTextField
+          label="Phone"
+          icon={<Phone size={12} />}
+          type="tel"
+          placeholder="Enter phone number"
+          emptyText="Tap to add your phone number"
+          currentValue={phone}
+          edit={phoneEdit}
+          value={phoneValue}
+          busy={phoneBusy}
+          error={phoneError}
+          onStartEdit={() => {
+            setPhoneValue(phone || "");
+            setPhoneEdit(true);
+            setPhoneError(null);
+          }}
+          onCancel={() => setPhoneEdit(false)}
+          onChange={setPhoneValue}
+          onSave={async (val) => {
+            setPhoneBusy(true);
+            setPhoneError(null);
+            try {
+              await savePhone({ data: { phone: val.trim() || null } });
+              setPhone(val.trim() || null);
+              setPhoneEdit(false);
+            } catch (e: any) {
+              setPhoneError(e?.message || "Could not save phone number.");
+            } finally {
+              setPhoneBusy(false);
+            }
+          }}
+        />
       </div>
 
       <button
