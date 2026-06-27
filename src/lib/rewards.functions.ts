@@ -104,6 +104,23 @@ export type IssuedReward = {
 const ISSUED_SELECT =
   "id, status, earned_at, reward:rewards(name, voucher_code, description, maps_url)";
 
+function normalizeReward(row: any): IssuedReward {
+  const r = Array.isArray(row.reward) ? row.reward[0] ?? null : row.reward ?? null;
+  return {
+    id: row.id,
+    status: row.status,
+    earned_at: row.earned_at,
+    reward: r
+      ? {
+          name: r.name,
+          voucher_code: r.voucher_code,
+          description: r.description,
+          maps_url: r.maps_url ?? null,
+        }
+      : null,
+  };
+}
+
 // Practitioner (or super admin) approves: issue a random ACTIVE reward to the client.
 export const approveClientReward = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -158,7 +175,7 @@ export const approveClientReward = createServerFn({ method: "POST" })
       .select(ISSUED_SELECT)
       .single();
     if (error) throw new Error(error.message);
-    return issued as IssuedReward;
+    return normalizeReward(issued);
   });
 
 // Issued rewards for a client (practitioner / super admin view).
@@ -189,7 +206,7 @@ export const listClientRewards = createServerFn({ method: "POST" })
       .select(ISSUED_SELECT)
       .eq("client_id", data.clientId)
       .order("earned_at", { ascending: false });
-    return (rows ?? []) as IssuedReward[];
+    return (rows ?? []).map(normalizeReward);
   });
 
 // The signed-in client's own earned vouchers.
@@ -209,5 +226,5 @@ export const listMyRewards = createServerFn({ method: "GET" })
       .select(ISSUED_SELECT)
       .eq("client_id", client.id)
       .order("earned_at", { ascending: false });
-    return (rows ?? []) as IssuedReward[];
+    return (rows ?? []).map(normalizeReward);
   });
