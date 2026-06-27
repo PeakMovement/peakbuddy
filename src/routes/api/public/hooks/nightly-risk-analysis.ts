@@ -347,7 +347,26 @@ export const Route = createFileRoute("/api/public/hooks/nightly-risk-analysis")(
           }
           const rows = (clients ?? []) as ClientRow[];
           if (rows.length === 0) break;
+          // Pre-fetch which practitioners have AI features enabled so we can
+          // skip clients whose practice has the master switch off.
+          const practitionerIds = Array.from(
+            new Set(rows.map((r) => r.practitioner_id).filter(Boolean)),
+          );
+          const { data: practiceRows } = await supabaseAdmin
+            .from("practices")
+            .select("practitioner_id, ai_features_enabled")
+            .in("practitioner_id", practitionerIds);
+          const aiEnabledByPractitioner = new Map<string, boolean>(
+            ((practiceRows ?? []) as Array<{
+              practitioner_id: string;
+              ai_features_enabled: boolean;
+            }>).map((p) => [p.practitioner_id, p.ai_features_enabled === true]),
+          );
           for (const c of rows) {
+            if (!aiEnabledByPractitioner.get(c.practitioner_id)) {
+              stats.skipped += 1;
+              continue;
+            }
             try {
               const r = await processClient(supabaseAdmin, c, programRows, forDate);
               stats.processed += 1;

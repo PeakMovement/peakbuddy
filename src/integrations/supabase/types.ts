@@ -386,6 +386,7 @@ export type Database = {
       }
       practices: {
         Row: {
+          ai_features_enabled: boolean
           alert_sensitivity: string
           contact_webhook_enabled: boolean
           contact_webhook_url: string | null
@@ -405,6 +406,7 @@ export type Database = {
           yves_enabled: boolean
         }
         Insert: {
+          ai_features_enabled?: boolean
           alert_sensitivity?: string
           contact_webhook_enabled?: boolean
           contact_webhook_url?: string | null
@@ -424,6 +426,7 @@ export type Database = {
           yves_enabled?: boolean
         }
         Update: {
+          ai_features_enabled?: boolean
           alert_sensitivity?: string
           contact_webhook_enabled?: boolean
           contact_webhook_url?: string | null

@@ -28,6 +28,7 @@ export interface Practice {
   is_approved: boolean;
   yves_enabled: boolean;
   programs_suggest_enabled: boolean;
+  ai_features_enabled: boolean;
   gamification_enabled: boolean;
   created_at: string;
 }

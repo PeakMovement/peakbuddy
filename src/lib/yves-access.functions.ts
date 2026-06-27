@@ -28,10 +28,15 @@ export const getClientYvesAccess = createServerFn({ method: "POST" })
     if (c.practitioner_id) {
       const { data: p } = await supabaseAdmin
         .from("practices")
-        .select("yves_enabled")
+        .select("yves_enabled, ai_features_enabled")
         .eq("practitioner_id", c.practitioner_id)
         .maybeSingle();
-      if (p && p.yves_enabled === false) practiceYvesEnabled = false;
+      // Master AI switch must be ON; legacy yves_enabled kept as fine-grained
+      // additional gate.
+      if (!p || p.ai_features_enabled !== true) practiceYvesEnabled = false;
+      else if (p.yves_enabled === false) practiceYvesEnabled = false;
+    } else {
+      practiceYvesEnabled = false;
     }
 
     return {
