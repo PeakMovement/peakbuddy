@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as MarketingRouteImport } from './routes/marketing'
@@ -18,6 +19,7 @@ import { Route as PractitionerPendingRouteImport } from './routes/practitioner.p
 import { Route as PractitionerOnboardingRouteImport } from './routes/practitioner.onboarding'
 import { Route as PractitionerLoginRouteImport } from './routes/practitioner.login'
 import { Route as PractitionerAppRouteImport } from './routes/practitioner.app'
+import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as ClientLoginRouteImport } from './routes/client.login'
 import { Route as ClientAppRouteImport } from './routes/client.app'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
@@ -31,6 +33,7 @@ import { Route as PractitionerAppInsightsRouteImport } from './routes/practition
 import { Route as PractitionerAppDashboardRouteImport } from './routes/practitioner.app.dashboard'
 import { Route as PractitionerAppAlertsRouteImport } from './routes/practitioner.app.alerts'
 import { Route as PractitionerAppAddClientRouteImport } from './routes/practitioner.app.add-client'
+import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as ClientAppYvesRouteImport } from './routes/client.app.yves'
 import { Route as ClientAppTimelineRouteImport } from './routes/client.app.timeline'
 import { Route as ClientAppProgressRouteImport } from './routes/client.app.progress'
@@ -45,6 +48,8 @@ import { Route as AdminAppDashboardRouteImport } from './routes/admin.app.dashbo
 import { Route as AdminAppClientsRouteImport } from './routes/admin.app.clients'
 import { Route as AdminAppAlertsRouteImport } from './routes/admin.app.alerts'
 import { Route as PractitionerAppClientDetailClientIdRouteImport } from './routes/practitioner.app.client-detail.$clientId'
+import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
+import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
@@ -52,6 +57,11 @@ import { Route as ApiPublicHooksNightlyRiskAnalysisRouteImport } from './routes/
 import { Route as AdminAppPractitionerPractitionerIdRouteImport } from './routes/admin.app.practitioner.$practitionerId'
 import { Route as AdminAppClientDetailClientIdRouteImport } from './routes/admin.app.client-detail.$clientId'
 
+const UnsubscribeRoute = UnsubscribeRouteImport.update({
+  id: '/unsubscribe',
+  path: '/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SupportRoute = SupportRouteImport.update({
   id: '/support',
   path: '/support',
@@ -95,6 +105,11 @@ const PractitionerLoginRoute = PractitionerLoginRouteImport.update({
 const PractitionerAppRoute = PractitionerAppRouteImport.update({
   id: '/practitioner/app',
   path: '/practitioner/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
+  id: '/email/unsubscribe',
+  path: '/email/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientLoginRoute = ClientLoginRouteImport.update({
@@ -165,6 +180,11 @@ const PractitionerAppAddClientRoute =
     path: '/add-client',
     getParentRoute: () => PractitionerAppRoute,
   } as any)
+const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
+  id: '/lovable/email/suppression',
+  path: '/lovable/email/suppression',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientAppYvesRoute = ClientAppYvesRouteImport.update({
   id: '/yves',
   path: '/yves',
@@ -236,6 +256,18 @@ const PractitionerAppClientDetailClientIdRoute =
     path: '/client-detail/$clientId',
     getParentRoute: () => PractitionerAppRoute,
   } as any)
+const LovableEmailTransactionalSendRoute =
+  LovableEmailTransactionalSendRouteImport.update({
+    id: '/lovable/email/transactional/send',
+    path: '/lovable/email/transactional/send',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LovableEmailTransactionalPreviewRoute =
+  LovableEmailTransactionalPreviewRouteImport.update({
+    id: '/lovable/email/transactional/preview',
+    path: '/lovable/email/transactional/preview',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const LovableEmailQueueProcessRoute =
   LovableEmailQueueProcessRouteImport.update({
     id: '/lovable/email/queue/process',
@@ -276,11 +308,13 @@ export interface FileRoutesByFullPath {
   '/marketing': typeof MarketingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/support': typeof SupportRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/admin/app': typeof AdminAppRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/client/app': typeof ClientAppRouteWithChildren
   '/client/login': typeof ClientLoginRoute
+  '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
   '/practitioner/onboarding': typeof PractitionerOnboardingRoute
@@ -299,6 +333,7 @@ export interface FileRoutesByFullPath {
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
+  '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
@@ -313,6 +348,8 @@ export interface FileRoutesByFullPath {
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
+  '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
 }
 export interface FileRoutesByTo {
@@ -320,10 +357,12 @@ export interface FileRoutesByTo {
   '/marketing': typeof MarketingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/support': typeof SupportRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/admin/app': typeof AdminAppRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/client/login': typeof ClientLoginRoute
+  '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
   '/practitioner/onboarding': typeof PractitionerOnboardingRoute
@@ -342,6 +381,7 @@ export interface FileRoutesByTo {
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
+  '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
@@ -356,6 +396,8 @@ export interface FileRoutesByTo {
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
+  '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
 }
 export interface FileRoutesById {
@@ -364,11 +406,13 @@ export interface FileRoutesById {
   '/marketing': typeof MarketingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/support': typeof SupportRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/admin/app': typeof AdminAppRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/client/app': typeof ClientAppRouteWithChildren
   '/client/login': typeof ClientLoginRoute
+  '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
   '/practitioner/onboarding': typeof PractitionerOnboardingRoute
@@ -387,6 +431,7 @@ export interface FileRoutesById {
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
+  '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
@@ -401,6 +446,8 @@ export interface FileRoutesById {
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
+  '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
 }
 export interface FileRouteTypes {
@@ -410,11 +457,13 @@ export interface FileRouteTypes {
     | '/marketing'
     | '/privacy-policy'
     | '/support'
+    | '/unsubscribe'
     | '/admin/app'
     | '/admin/login'
     | '/auth/callback'
     | '/client/app'
     | '/client/login'
+    | '/email/unsubscribe'
     | '/practitioner/app'
     | '/practitioner/login'
     | '/practitioner/onboarding'
@@ -433,6 +482,7 @@ export interface FileRouteTypes {
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
+    | '/lovable/email/suppression'
     | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
@@ -447,6 +497,8 @@ export interface FileRouteTypes {
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
+    | '/lovable/email/transactional/preview'
+    | '/lovable/email/transactional/send'
     | '/practitioner/app/client-detail/$clientId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -454,10 +506,12 @@ export interface FileRouteTypes {
     | '/marketing'
     | '/privacy-policy'
     | '/support'
+    | '/unsubscribe'
     | '/admin/app'
     | '/admin/login'
     | '/auth/callback'
     | '/client/login'
+    | '/email/unsubscribe'
     | '/practitioner/app'
     | '/practitioner/login'
     | '/practitioner/onboarding'
@@ -476,6 +530,7 @@ export interface FileRouteTypes {
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
+    | '/lovable/email/suppression'
     | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
@@ -490,6 +545,8 @@ export interface FileRouteTypes {
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
+    | '/lovable/email/transactional/preview'
+    | '/lovable/email/transactional/send'
     | '/practitioner/app/client-detail/$clientId'
   id:
     | '__root__'
@@ -497,11 +554,13 @@ export interface FileRouteTypes {
     | '/marketing'
     | '/privacy-policy'
     | '/support'
+    | '/unsubscribe'
     | '/admin/app'
     | '/admin/login'
     | '/auth/callback'
     | '/client/app'
     | '/client/login'
+    | '/email/unsubscribe'
     | '/practitioner/app'
     | '/practitioner/login'
     | '/practitioner/onboarding'
@@ -520,6 +579,7 @@ export interface FileRouteTypes {
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
+    | '/lovable/email/suppression'
     | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
@@ -534,6 +594,8 @@ export interface FileRouteTypes {
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
+    | '/lovable/email/transactional/preview'
+    | '/lovable/email/transactional/send'
     | '/practitioner/app/client-detail/$clientId'
   fileRoutesById: FileRoutesById
 }
@@ -542,25 +604,37 @@ export interface RootRouteChildren {
   MarketingRoute: typeof MarketingRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   SupportRoute: typeof SupportRoute
+  UnsubscribeRoute: typeof UnsubscribeRoute
   AdminAppRoute: typeof AdminAppRouteWithChildren
   AdminLoginRoute: typeof AdminLoginRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   ClientAppRoute: typeof ClientAppRouteWithChildren
   ClientLoginRoute: typeof ClientLoginRoute
+  EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   PractitionerAppRoute: typeof PractitionerAppRouteWithChildren
   PractitionerLoginRoute: typeof PractitionerLoginRoute
   PractitionerOnboardingRoute: typeof PractitionerOnboardingRoute
   PractitionerPendingRoute: typeof PractitionerPendingRoute
   PractitionerSignupRoute: typeof PractitionerSignupRoute
   ApiPublicTriageQueryRoute: typeof ApiPublicTriageQueryRoute
+  LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicHooksNightlyRiskAnalysisRoute: typeof ApiPublicHooksNightlyRiskAnalysisRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
+  LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
+  LovableEmailTransactionalSendRoute: typeof LovableEmailTransactionalSendRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/unsubscribe': {
+      id: '/unsubscribe'
+      path: '/unsubscribe'
+      fullPath: '/unsubscribe'
+      preLoaderRoute: typeof UnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/support': {
       id: '/support'
       path: '/support'
@@ -622,6 +696,13 @@ declare module '@tanstack/react-router' {
       path: '/practitioner/app'
       fullPath: '/practitioner/app'
       preLoaderRoute: typeof PractitionerAppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/email/unsubscribe': {
+      id: '/email/unsubscribe'
+      path: '/email/unsubscribe'
+      fullPath: '/email/unsubscribe'
+      preLoaderRoute: typeof EmailUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/client/login': {
@@ -714,6 +795,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/practitioner/app/add-client'
       preLoaderRoute: typeof PractitionerAppAddClientRouteImport
       parentRoute: typeof PractitionerAppRoute
+    }
+    '/lovable/email/suppression': {
+      id: '/lovable/email/suppression'
+      path: '/lovable/email/suppression'
+      fullPath: '/lovable/email/suppression'
+      preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/client/app/yves': {
       id: '/client/app/yves'
@@ -812,6 +900,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/practitioner/app/client-detail/$clientId'
       preLoaderRoute: typeof PractitionerAppClientDetailClientIdRouteImport
       parentRoute: typeof PractitionerAppRoute
+    }
+    '/lovable/email/transactional/send': {
+      id: '/lovable/email/transactional/send'
+      path: '/lovable/email/transactional/send'
+      fullPath: '/lovable/email/transactional/send'
+      preLoaderRoute: typeof LovableEmailTransactionalSendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/transactional/preview': {
+      id: '/lovable/email/transactional/preview'
+      path: '/lovable/email/transactional/preview'
+      fullPath: '/lovable/email/transactional/preview'
+      preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/lovable/email/queue/process': {
       id: '/lovable/email/queue/process'
@@ -941,33 +1043,28 @@ const rootRouteChildren: RootRouteChildren = {
   MarketingRoute: MarketingRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   SupportRoute: SupportRoute,
+  UnsubscribeRoute: UnsubscribeRoute,
   AdminAppRoute: AdminAppRouteWithChildren,
   AdminLoginRoute: AdminLoginRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   ClientAppRoute: ClientAppRouteWithChildren,
   ClientLoginRoute: ClientLoginRoute,
+  EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   PractitionerAppRoute: PractitionerAppRouteWithChildren,
   PractitionerLoginRoute: PractitionerLoginRoute,
   PractitionerOnboardingRoute: PractitionerOnboardingRoute,
   PractitionerPendingRoute: PractitionerPendingRoute,
   PractitionerSignupRoute: PractitionerSignupRoute,
   ApiPublicTriageQueryRoute: ApiPublicTriageQueryRoute,
+  LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicHooksNightlyRiskAnalysisRoute:
     ApiPublicHooksNightlyRiskAnalysisRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
+  LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
+  LovableEmailTransactionalSendRoute: LovableEmailTransactionalSendRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
