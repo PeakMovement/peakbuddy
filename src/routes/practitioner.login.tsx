@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { BuddyLogo } from "@/components/CrosshairLogo";
@@ -9,17 +9,47 @@ export const Route = createFileRoute("/practitioner/login")({
   component: PractitionerLogin,
 });
 
+const REMEMBER_KEY = "buddy.remember_me";
+
 function PractitionerLogin() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [magicLoading, setMagicLoading] = useState(false);
+  const [magicNotice, setMagicNotice] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(REMEMBER_KEY);
+    if (stored === "false") setRemember(false);
+  }, []);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(REMEMBER_KEY, remember ? "true" : "false");
+    if (remember) return;
+    const handler = () => {
+      void supabase.auth.signOut();
+    };
+    window.addEventListener("pagehide", handler);
+    return () => window.removeEventListener("pagehide", handler);
+  }, [remember]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setMagicNotice(null);
     setLoading(true);
 
     const { data: signIn, error: authErr } = await supabase.auth.signInWithPassword({
@@ -63,6 +93,31 @@ function PractitionerLogin() {
       navigate({ to: "/practitioner/onboarding" });
     }
   };
+
+  const onMagicLink = async () => {
+    setError(null);
+    setMagicNotice(null);
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError("Enter your email above, then tap 'Email me a sign-in link'.");
+      return;
+    }
+    setMagicLoading(true);
+    const redirectTo =
+      typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined;
+    const { error: otpErr } = await supabase.auth.signInWithOtp({
+      email: trimmedEmail,
+      options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
+    });
+    setMagicLoading(false);
+    if (otpErr) {
+      setMagicNotice("If that email is registered, a sign-in link is on its way.");
+    } else {
+      setMagicNotice("Check your inbox — tap the link to sign in. It expires in 15 minutes.");
+    }
+    setCooldown(60);
+  };
+
 
   return (
     <main
