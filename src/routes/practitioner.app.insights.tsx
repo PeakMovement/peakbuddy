@@ -11,7 +11,6 @@ import {
   type PractitionerDraft,
 } from "@/lib/practitioner-drafts.functions";
 import { log } from "@/lib/log";
-import { InsightsOverview } from "@/components/InsightsOverview";
 
 export const Route = createFileRoute("/practitioner/app/insights")({
   head: () => ({ meta: [{ title: "Insights — Buddy" }] }),
