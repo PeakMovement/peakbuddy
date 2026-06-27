@@ -424,6 +424,18 @@ function CheckInScreen() {
       >
         {todayLabel}
       </p>
+      <p
+        style={{
+          marginTop: 8,
+          fontFamily: "var(--font-data)",
+          fontSize: 12,
+          color: "var(--white-muted)",
+          lineHeight: 1.5,
+        }}
+      >
+        Pain level is the most important field. Sleep, stress, energy and mood
+        are optional.
+      </p>
 
       {gamificationOn && (
         <div style={{ marginTop: 16 }}>
