@@ -18,6 +18,23 @@ export const Route = createFileRoute("/client/app/profile")({
   component: ClientProfile,
 });
 
+const moodLabels = ["—", "Very Low", "Low", "Okay", "Good", "Great"];
+
+function painColor(p: number | null | undefined) {
+  if (p == null) return "var(--white-muted)";
+  if (p <= 3) return "var(--green)";
+  if (p <= 6) return "var(--amber)";
+  return "var(--red)";
+}
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 function ClientProfile() {
   const navigate = useNavigate();
   const [client, setClient] = useState<Client | null>(null);
@@ -28,6 +45,10 @@ function ClientProfile() {
   const saveConsent = useServerFn(setYvesAiConsent);
   const [busy, setBusy] = useState(false);
   const [consentBusy, setConsentBusy] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
+  const [timelineItems, setTimelineItems] = useState<CheckIn[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [openCheckInId, setOpenCheckInId] = useState<string | null>(null);
 
   const toggleAiConsent = async () => {
     if (!client || consentBusy) return;
