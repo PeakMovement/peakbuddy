@@ -175,7 +175,7 @@ export const approveClientReward = createServerFn({ method: "POST" })
       .select(ISSUED_SELECT)
       .single();
     if (error) throw new Error(error.message);
-    return issued as IssuedReward;
+    return normalizeReward(issued);
   });
 
 // Issued rewards for a client (practitioner / super admin view).
