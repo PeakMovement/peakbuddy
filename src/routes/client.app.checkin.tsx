@@ -575,24 +575,24 @@ function CheckInScreen() {
         </button>
       </div>
 
-      {/* Notes */}
-      <Section label="Anything else to add?">
-        <textarea
+      {/* Symptoms */}
+      <Section label="New or changed symptoms?">
+        <input
+          type="text"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          rows={4}
           maxLength={1000}
-          placeholder="Describe how you're feeling in your own words..."
+          placeholder="Describe any new or changed symptoms..."
           style={{
             width: "100%",
+            minHeight: 44,
             background: "var(--navy-card)",
             border: "1px solid var(--navy-border)",
             color: "var(--white)",
             borderRadius: 8,
-            padding: 12,
+            padding: "0 12px",
             fontFamily: "var(--font-ui)",
             fontSize: 14,
-            resize: "vertical",
             outline: "none",
           }}
         />
