@@ -546,3 +546,110 @@ function YvesAccessRow({
     </div>
   );
 }
+
+function AIFeaturesRow({
+  practice,
+  onChange,
+}: {
+  practice: Practice | null;
+  onChange: (p: Practice) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const enabled = practice?.ai_features_enabled === true;
+  const toggle = async () => {
+    if (!practice || saving) return;
+    setSaving(true);
+    setErr(null);
+    const next = !enabled;
+    const { data, error } = await supabase
+      .from("practices")
+      .update({
+        ai_features_enabled: next,
+        // Keep legacy flags in sync so older code paths stay consistent
+        yves_enabled: next,
+        programs_suggest_enabled: next,
+      })
+      .eq("practitioner_id", practice.practitioner_id)
+      .select("ai_features_enabled, yves_enabled, programs_suggest_enabled")
+      .maybeSingle();
+    if (error) {
+      setErr(error.message);
+    } else if (!data) {
+      setErr("Update was blocked (no rows changed). Check permissions.");
+    } else {
+      onChange({
+        ...practice,
+        ai_features_enabled: (data as { ai_features_enabled: boolean }).ai_features_enabled,
+        yves_enabled: (data as { yves_enabled: boolean }).yves_enabled,
+        programs_suggest_enabled: (data as { programs_suggest_enabled: boolean })
+          .programs_suggest_enabled,
+      });
+    }
+    setSaving(false);
+  };
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div
+          style={{
+            fontFamily: "var(--font-ui)",
+            fontSize: 12,
+            color: "var(--white-muted)",
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+          }}
+        >
+          AI Features
+        </div>
+        <div
+          style={{
+            marginTop: 4,
+            color: "var(--white-muted)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 11,
+            lineHeight: 1.4,
+          }}
+        >
+          Master switch. When on, unlocks Yves (Anthropic, 3 questions/day per client),
+          program suggestions (Google), morning analysis and insights. When off, all AI
+          processing is blocked for this practitioner and their clients.
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={toggle}
+        disabled={!practice || saving}
+        style={{
+          minWidth: 72,
+          minHeight: 32,
+          borderRadius: 999,
+          border: "1px solid var(--blue-accent)",
+          background: enabled ? "var(--blue-accent)" : "transparent",
+          color: enabled ? "var(--white)" : "var(--blue-accent)",
+          fontFamily: "var(--font-ui)",
+          fontWeight: 600,
+          fontSize: 13,
+          cursor: !practice || saving ? "not-allowed" : "pointer",
+          opacity: saving ? 0.6 : 1,
+        }}
+      >
+        {enabled ? "On" : "Off"}
+      </button>
+      {err && (
+        <div
+          role="alert"
+          style={{
+            flexBasis: "100%",
+            marginTop: 8,
+            color: "var(--red, #ef4444)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 12,
+          }}
+        >
+          {err}
+        </div>
+      )}
+    </div>
+  );
+}
