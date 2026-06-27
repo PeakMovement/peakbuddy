@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, ExternalLink, Trash2 } from "lucide-react";
+import { LogOut, ExternalLink, Trash2, ChevronDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId, clearClientId } from "@/lib/client-session";
-import type { Client } from "@/lib/types";
+import type { CheckIn, Client } from "@/lib/types";
 import {
   getMyProgram,
   respondToSuggestedProgram,
@@ -18,6 +18,23 @@ export const Route = createFileRoute("/client/app/profile")({
   component: ClientProfile,
 });
 
+const moodLabels = ["—", "Very Low", "Low", "Okay", "Good", "Great"];
+
+function painColor(p: number | null | undefined) {
+  if (p == null) return "var(--white-muted)";
+  if (p <= 3) return "var(--green)";
+  if (p <= 6) return "var(--amber)";
+  return "var(--red)";
+}
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 function ClientProfile() {
   const navigate = useNavigate();
   const [client, setClient] = useState<Client | null>(null);
@@ -28,6 +45,10 @@ function ClientProfile() {
   const saveConsent = useServerFn(setYvesAiConsent);
   const [busy, setBusy] = useState(false);
   const [consentBusy, setConsentBusy] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
+  const [timelineItems, setTimelineItems] = useState<CheckIn[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [openCheckInId, setOpenCheckInId] = useState<string | null>(null);
 
   const toggleAiConsent = async () => {
     if (!client || consentBusy) return;
@@ -84,6 +105,27 @@ function ClientProfile() {
       setProgramState(fresh);
     }
   };
+
+  useEffect(() => {
+    if (!timelineOpen) return;
+    const id = getClientId();
+    if (!id) return;
+    let cancelled = false;
+    setTimelineLoading(true);
+    supabase
+      .from("check_ins")
+      .select("*")
+      .eq("client_id", id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setTimelineItems((data as CheckIn[]) ?? []);
+        setTimelineLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [timelineOpen]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -157,6 +199,170 @@ function ClientProfile() {
           onDecline={handleDecline}
         />
       )}
+
+      {/* Collapsible Timeline */}
+      <div style={{ marginTop: 28 }}>
+        <button
+          type="button"
+          onClick={() => setTimelineOpen((o) => !o)}
+          style={{
+            width: "100%",
+            background: "var(--navy-card)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 12,
+            padding: "14px 16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            color: "var(--white)",
+            fontFamily: "var(--font-ui)",
+            fontWeight: 600,
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          <span>Your Timeline</span>
+          <ChevronDown
+            size={18}
+            style={{
+              transform: timelineOpen ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform 0.2s",
+              color: "var(--white-muted)",
+            }}
+          />
+        </button>
+
+        {timelineOpen && (
+          <div style={{ marginTop: 12 }}>
+            {timelineLoading ? (
+              <p style={{ color: "var(--white-muted)", fontSize: 13 }}>Loading…</p>
+            ) : timelineItems.length === 0 ? (
+              <p style={{ color: "var(--white-muted)", fontSize: 13 }}>
+                No check-ins yet. Complete your first check-in to get started.
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {timelineItems.map((ci) => {
+                  const open = openCheckInId === ci.id;
+                  return (
+                    <button
+                      key={ci.id}
+                      type="button"
+                      onClick={() => setOpenCheckInId(open ? null : ci.id)}
+                      style={{
+                        textAlign: "left",
+                        background: "var(--navy-card)",
+                        borderRadius: 12,
+                        border: "1px solid var(--navy-border)",
+                        borderLeftWidth: 3,
+                        borderLeftColor: painColor(ci.pain_level),
+                        padding: 16,
+                        color: "var(--white)",
+                        width: "100%",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontFamily: "var(--font-data)",
+                            fontSize: 12,
+                            color: "var(--white-muted)",
+                          }}
+                        >
+                          {fmtDate(ci.created_at)}
+                        </span>
+                        {ci.flagged && (
+                          <span
+                            style={{
+                              background: "var(--red)",
+                              color: "var(--white)",
+                              fontSize: 10,
+                              padding: "2px 8px",
+                              borderRadius: 999,
+                              fontWeight: 700,
+                              letterSpacing: "0.05em",
+                            }}
+                          >
+                            FLAGGED
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "baseline",
+                          gap: 12,
+                          marginTop: 8,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontFamily: "var(--font-data)",
+                            fontSize: 32,
+                            fontWeight: 700,
+                            color: painColor(ci.pain_level),
+                            lineHeight: 1,
+                          }}
+                        >
+                          {ci.pain_level ?? "—"}
+                        </span>
+                        <span style={{ fontSize: 12, color: "var(--white-muted)" }}>pain</span>
+                        {ci.mood != null && (
+                          <span
+                            style={{
+                              marginLeft: "auto",
+                              fontSize: 13,
+                              color: "var(--white)",
+                            }}
+                          >
+                            {moodLabels[ci.mood] ?? ""}
+                          </span>
+                        )}
+                      </div>
+                      {open && (
+                        <div
+                          style={{
+                            marginTop: 12,
+                            paddingTop: 12,
+                            borderTop: "1px solid var(--navy-border)",
+                            display: "grid",
+                            gap: 6,
+                            fontSize: 13,
+                          }}
+                        >
+                          <DetailRow k="Sleep" v={ci.sleep_quality} />
+                          <DetailRow k="Stress" v={ci.stress_level} />
+                          <DetailRow k="Energy" v={ci.energy_level} />
+                          <DetailRow k="Mood" v={ci.mood} />
+                          <DetailRow k="Medication" v={ci.medication_taken ? "Yes" : "No"} />
+                          {ci.notes && (
+                            <div
+                              style={{
+                                marginTop: 8,
+                                color: "var(--white-muted)",
+                                fontStyle: "italic",
+                              }}
+                            >
+                              “{ci.notes}”
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <button
         type="button"
@@ -654,6 +860,15 @@ function DeleteAccountSection({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function DetailRow({ k, v }: { k: string; v: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", color: "var(--white-muted)" }}>
+      <span>{k}</span>
+      <span style={{ color: "var(--white)", fontFamily: "var(--font-data)" }}>{v ?? "—"}</span>
     </div>
   );
 }
