@@ -45,6 +45,7 @@ import { Route as AdminAppDashboardRouteImport } from './routes/admin.app.dashbo
 import { Route as AdminAppClientsRouteImport } from './routes/admin.app.clients'
 import { Route as AdminAppAlertsRouteImport } from './routes/admin.app.alerts'
 import { Route as PractitionerAppClientDetailClientIdRouteImport } from './routes/practitioner.app.client-detail.$clientId'
+import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as ApiPublicHooksNightlyRiskAnalysisRouteImport } from './routes/api/public/hooks/nightly-risk-analysis'
 import { Route as AdminAppPractitionerPractitionerIdRouteImport } from './routes/admin.app.practitioner.$practitionerId'
 import { Route as AdminAppClientDetailClientIdRouteImport } from './routes/admin.app.client-detail.$clientId'
@@ -233,6 +234,12 @@ const PractitionerAppClientDetailClientIdRoute =
     path: '/client-detail/$clientId',
     getParentRoute: () => PractitionerAppRoute,
   } as any)
+const LovableEmailQueueProcessRoute =
+  LovableEmailQueueProcessRouteImport.update({
+    id: '/lovable/email/queue/process',
+    path: '/lovable/email/queue/process',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksNightlyRiskAnalysisRoute =
   ApiPublicHooksNightlyRiskAnalysisRouteImport.update({
     id: '/api/public/hooks/nightly-risk-analysis',
@@ -291,6 +298,7 @@ export interface FileRoutesByFullPath {
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
 }
 export interface FileRoutesByTo {
@@ -331,6 +339,7 @@ export interface FileRoutesByTo {
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
 }
 export interface FileRoutesById {
@@ -373,6 +382,7 @@ export interface FileRoutesById {
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
 }
 export interface FileRouteTypes {
@@ -416,6 +426,7 @@ export interface FileRouteTypes {
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
     | '/api/public/hooks/nightly-risk-analysis'
+    | '/lovable/email/queue/process'
     | '/practitioner/app/client-detail/$clientId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -456,6 +467,7 @@ export interface FileRouteTypes {
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
     | '/api/public/hooks/nightly-risk-analysis'
+    | '/lovable/email/queue/process'
     | '/practitioner/app/client-detail/$clientId'
   id:
     | '__root__'
@@ -497,6 +509,7 @@ export interface FileRouteTypes {
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
     | '/api/public/hooks/nightly-risk-analysis'
+    | '/lovable/email/queue/process'
     | '/practitioner/app/client-detail/$clientId'
   fileRoutesById: FileRoutesById
 }
@@ -517,6 +530,7 @@ export interface RootRouteChildren {
   PractitionerSignupRoute: typeof PractitionerSignupRoute
   ApiPublicTriageQueryRoute: typeof ApiPublicTriageQueryRoute
   ApiPublicHooksNightlyRiskAnalysisRoute: typeof ApiPublicHooksNightlyRiskAnalysisRoute
+  LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -773,6 +787,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PractitionerAppClientDetailClientIdRouteImport
       parentRoute: typeof PractitionerAppRoute
     }
+    '/lovable/email/queue/process': {
+      id: '/lovable/email/queue/process'
+      path: '/lovable/email/queue/process'
+      fullPath: '/lovable/email/queue/process'
+      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/nightly-risk-analysis': {
       id: '/api/public/hooks/nightly-risk-analysis'
       path: '/api/public/hooks/nightly-risk-analysis'
@@ -893,6 +914,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicTriageQueryRoute: ApiPublicTriageQueryRoute,
   ApiPublicHooksNightlyRiskAnalysisRoute:
     ApiPublicHooksNightlyRiskAnalysisRoute,
+  LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
