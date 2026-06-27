@@ -200,6 +200,170 @@ function ClientProfile() {
         />
       )}
 
+      {/* Collapsible Timeline */}
+      <div style={{ marginTop: 28 }}>
+        <button
+          type="button"
+          onClick={() => setTimelineOpen((o) => !o)}
+          style={{
+            width: "100%",
+            background: "var(--navy-card)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 12,
+            padding: "14px 16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            color: "var(--white)",
+            fontFamily: "var(--font-ui)",
+            fontWeight: 600,
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          <span>Your Timeline</span>
+          <ChevronDown
+            size={18}
+            style={{
+              transform: timelineOpen ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform 0.2s",
+              color: "var(--white-muted)",
+            }}
+          />
+        </button>
+
+        {timelineOpen && (
+          <div style={{ marginTop: 12 }}>
+            {timelineLoading ? (
+              <p style={{ color: "var(--white-muted)", fontSize: 13 }}>Loading…</p>
+            ) : timelineItems.length === 0 ? (
+              <p style={{ color: "var(--white-muted)", fontSize: 13 }}>
+                No check-ins yet. Complete your first check-in to get started.
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {timelineItems.map((ci) => {
+                  const open = openCheckInId === ci.id;
+                  return (
+                    <button
+                      key={ci.id}
+                      type="button"
+                      onClick={() => setOpenCheckInId(open ? null : ci.id)}
+                      style={{
+                        textAlign: "left",
+                        background: "var(--navy-card)",
+                        borderRadius: 12,
+                        border: "1px solid var(--navy-border)",
+                        borderLeftWidth: 3,
+                        borderLeftColor: painColor(ci.pain_level),
+                        padding: 16,
+                        color: "var(--white)",
+                        width: "100%",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontFamily: "var(--font-data)",
+                            fontSize: 12,
+                            color: "var(--white-muted)",
+                          }}
+                        >
+                          {fmtDate(ci.created_at)}
+                        </span>
+                        {ci.flagged && (
+                          <span
+                            style={{
+                              background: "var(--red)",
+                              color: "var(--white)",
+                              fontSize: 10,
+                              padding: "2px 8px",
+                              borderRadius: 999,
+                              fontWeight: 700,
+                              letterSpacing: "0.05em",
+                            }}
+                          >
+                            FLAGGED
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "baseline",
+                          gap: 12,
+                          marginTop: 8,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontFamily: "var(--font-data)",
+                            fontSize: 32,
+                            fontWeight: 700,
+                            color: painColor(ci.pain_level),
+                            lineHeight: 1,
+                          }}
+                        >
+                          {ci.pain_level ?? "—"}
+                        </span>
+                        <span style={{ fontSize: 12, color: "var(--white-muted)" }}>pain</span>
+                        {ci.mood != null && (
+                          <span
+                            style={{
+                              marginLeft: "auto",
+                              fontSize: 13,
+                              color: "var(--white)",
+                            }}
+                          >
+                            {moodLabels[ci.mood] ?? ""}
+                          </span>
+                        )}
+                      </div>
+                      {open && (
+                        <div
+                          style={{
+                            marginTop: 12,
+                            paddingTop: 12,
+                            borderTop: "1px solid var(--navy-border)",
+                            display: "grid",
+                            gap: 6,
+                            fontSize: 13,
+                          }}
+                        >
+                          <DetailRow k="Sleep" v={ci.sleep_quality} />
+                          <DetailRow k="Stress" v={ci.stress_level} />
+                          <DetailRow k="Energy" v={ci.energy_level} />
+                          <DetailRow k="Mood" v={ci.mood} />
+                          <DetailRow k="Medication" v={ci.medication_taken ? "Yes" : "No"} />
+                          {ci.notes && (
+                            <div
+                              style={{
+                                marginTop: 8,
+                                color: "var(--white-muted)",
+                                fontStyle: "italic",
+                              }}
+                            >
+                              “{ci.notes}”
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <button
         type="button"
         onClick={signOut}
