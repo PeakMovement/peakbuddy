@@ -830,6 +830,7 @@ export type Database = {
         Returns: string
       }
       is_super_admin: { Args: { _uid: string }; Returns: boolean }
+      update_client_phone: { Args: { p_phone: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
