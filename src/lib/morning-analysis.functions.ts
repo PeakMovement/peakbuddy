@@ -26,19 +26,26 @@ export const getMorningAnalysis = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<MorningAnalysisPayload> => {
     const { supabase, userId } = context;
 
-    const [{ data: prof }, { count: clientCount }] = await Promise.all([
-      supabase
-        .from("profiles")
-        .select("morning_analysis_enabled")
-        .eq("id", userId)
-        .maybeSingle(),
-      supabase
-        .from("clients")
-        .select("*", { count: "exact", head: true })
-        .eq("practitioner_id", userId),
-    ]);
+    const [{ data: prof }, { count: clientCount }, { data: practice }] =
+      await Promise.all([
+        supabase
+          .from("profiles")
+          .select("morning_analysis_enabled")
+          .eq("id", userId)
+          .maybeSingle(),
+        supabase
+          .from("clients")
+          .select("*", { count: "exact", head: true })
+          .eq("practitioner_id", userId),
+        supabase
+          .from("practices")
+          .select("ai_features_enabled")
+          .eq("practitioner_id", userId)
+          .maybeSingle(),
+      ]);
 
-    const enabled = prof?.morning_analysis_enabled ?? true;
+    const aiEnabled = practice?.ai_features_enabled === true;
+    const enabled = aiEnabled && (prof?.morning_analysis_enabled ?? true);
     const client_count = clientCount ?? 0;
     const today = new Date();
     const startOfDay = new Date(
