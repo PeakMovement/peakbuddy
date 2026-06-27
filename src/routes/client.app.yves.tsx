@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { UserCheck, AlertTriangle, X, ThumbsUp, ThumbsDown } from "lucide-react";
+import { UserCheck, AlertTriangle, X, ThumbsUp, ThumbsDown, ChevronDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId } from "@/lib/client-session";
 import { fireAlertWebhook, findRecentOpenAlert } from "@/lib/webhooks";
