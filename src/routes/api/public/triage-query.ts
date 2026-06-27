@@ -484,15 +484,38 @@ export const Route = createFileRoute("/api/public/triage-query")({
 
           const { data: p, error: pErr } = await supabaseAdmin
             .from("practices")
-            .select("yves_enabled")
+            .select("yves_enabled, ai_features_enabled")
             .eq("practitioner_id", c.practitioner_id)
             .maybeSingle();
           if (pErr) {
             log.warn("[triage-query] practice lookup failed, failing closed:", pErr.code);
             return json({ error: "Access check unavailable, try again", retryable: true }, 503);
           }
-          if (p && p.yves_enabled === false) {
+          if (!p || p.ai_features_enabled !== true) {
+            return json(
+              {
+                error:
+                  "AI features are not enabled for your clinic. Please contact your practitioner.",
+                code: "ai_disabled",
+              },
+              403,
+            );
+          }
+          if (p.yves_enabled === false) {
             return json({ error: "Yves access disabled for practice" }, 403);
+          }
+
+          // Global kill switch
+          const { data: platform } = await supabaseAdmin
+            .from("platform_settings")
+            .select("programs_feature_enabled")
+            .limit(1)
+            .maybeSingle();
+          if (platform && platform.programs_feature_enabled === false) {
+            return json(
+              { error: "AI features are temporarily unavailable.", code: "ai_disabled" },
+              503,
+            );
           }
 
           // Build context server-side so the AI sees the real clinical picture
