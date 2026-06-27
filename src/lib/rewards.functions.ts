@@ -226,5 +226,5 @@ export const listMyRewards = createServerFn({ method: "GET" })
       .select(ISSUED_SELECT)
       .eq("client_id", client.id)
       .order("earned_at", { ascending: false });
-    return (rows ?? []) as IssuedReward[];
+    return (rows ?? []).map(normalizeReward);
   });
