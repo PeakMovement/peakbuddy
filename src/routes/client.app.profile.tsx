@@ -906,3 +906,162 @@ function DetailRow({ k, v }: { k: string; v: React.ReactNode }) {
     </div>
   );
 }
+
+function EditablePhoneField({
+  phone,
+  onSave,
+  edit,
+  value,
+  busy,
+  error,
+  onStartEdit,
+  onCancel,
+  onChange,
+}: {
+  phone?: string | null;
+  onSave: (val: string) => Promise<void>;
+  edit: boolean;
+  value: string;
+  busy: boolean;
+  error: string | null;
+  onStartEdit: () => void;
+  onCancel: () => void;
+  onChange: (v: string) => void;
+}) {
+  if (!edit) {
+    return (
+      <button
+        type="button"
+        onClick={onStartEdit}
+        style={{
+          width: "100%",
+          textAlign: "left",
+          background: "var(--navy-card)",
+          border: "1px solid var(--navy-border)",
+          borderRadius: 8,
+          padding: "12px 14px",
+          cursor: "pointer",
+          color: "inherit",
+        }}
+      >
+        <div
+          style={{
+            color: "var(--white-muted)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 12,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            marginBottom: 4,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <Phone size={12} />
+          Phone
+        </div>
+        <div
+          style={{
+            color: "var(--white)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 16,
+            wordBreak: "break-word",
+          }}
+        >
+          {phone || "Tap to add your phone number"}
+        </div>
+      </button>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        background: "var(--navy-card)",
+        border: "1px solid var(--navy-border)",
+        borderRadius: 8,
+        padding: "12px 14px",
+      }}
+    >
+      <div
+        style={{
+          color: "var(--white-muted)",
+          fontFamily: "var(--font-ui)",
+          fontSize: 12,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          marginBottom: 8,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        <Phone size={12} />
+        Phone
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          type="tel"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Enter phone number"
+          disabled={busy}
+          style={{
+            flex: 1,
+            background: "var(--navy-bg, #0a0f1c)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 6,
+            padding: "10px 12px",
+            color: "var(--white)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 15,
+            outline: "none",
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => onSave(value)}
+          disabled={busy}
+          style={{
+            minWidth: 44,
+            minHeight: 44,
+            background: "var(--blue-accent)",
+            border: "none",
+            borderRadius: 6,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: busy ? "default" : "pointer",
+            opacity: busy ? 0.7 : 1,
+          }}
+        >
+          <Check size={18} color="#fff" />
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={busy}
+          style={{
+            minWidth: 44,
+            minHeight: 44,
+            background: "transparent",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 6,
+            color: "var(--white-muted)",
+            fontFamily: "var(--font-ui)",
+            fontWeight: 600,
+            fontSize: 13,
+            cursor: "pointer",
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+      {error && (
+        <p style={{ marginTop: 8, color: "var(--red)", fontSize: 13 }}>{error}</p>
+      )}
+    </div>
+  );
+}
