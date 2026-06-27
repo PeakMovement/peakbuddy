@@ -818,6 +818,17 @@ function YvesScreen() {
         >
           Describe how you're feeling and Yves will assess what to do next
         </p>
+        <p
+          style={{
+            marginTop: 6,
+            color: "var(--white-muted)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 12,
+            opacity: 0.7,
+          }}
+        >
+          You can ask up to 3 questions per day.
+        </p>
 
         {/* Practitioner pill */}
         <div style={{ marginTop: 12 }}>
