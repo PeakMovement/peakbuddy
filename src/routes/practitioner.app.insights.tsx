@@ -61,6 +61,12 @@ function Insights() {
         Drafted notes from nightly passive monitoring. Review, send to your records, or dismiss.
       </p>
 
+      <DemoOverview />
+
+      <h2 style={{ marginTop: 28, fontFamily: "var(--font-hero)", fontSize: 18, fontWeight: 400 }}>
+        Drafted notes
+      </h2>
+
       {error && (
         <div
           role="alert"
