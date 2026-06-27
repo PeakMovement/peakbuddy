@@ -106,6 +106,27 @@ function ClientProfile() {
     }
   };
 
+  useEffect(() => {
+    if (!timelineOpen) return;
+    const id = getClientId();
+    if (!id) return;
+    let cancelled = false;
+    setTimelineLoading(true);
+    supabase
+      .from("check_ins")
+      .select("*")
+      .eq("client_id", id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setTimelineItems((data as CheckIn[]) ?? []);
+        setTimelineLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [timelineOpen]);
+
   const signOut = async () => {
     await supabase.auth.signOut();
     clearClientId();
