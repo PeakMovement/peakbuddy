@@ -206,7 +206,7 @@ export const listClientRewards = createServerFn({ method: "POST" })
       .select(ISSUED_SELECT)
       .eq("client_id", data.clientId)
       .order("earned_at", { ascending: false });
-    return (rows ?? []) as IssuedReward[];
+    return (rows ?? []).map(normalizeReward);
   });
 
 // The signed-in client's own earned vouchers.
