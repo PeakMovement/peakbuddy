@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, ExternalLink, Trash2, ChevronDown } from "lucide-react";
+import { LogOut, ExternalLink, Trash2, ChevronDown, Phone, Check } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId, clearClientId } from "@/lib/client-session";
 import type { CheckIn, Client } from "@/lib/types";
@@ -12,6 +12,7 @@ import {
 } from "@/lib/client-program.functions";
 import { setYvesAiConsent } from "@/lib/yves-consent.functions";
 import { deleteMyAccount } from "@/lib/account-delete.functions";
+import { updateClientPhone } from "@/lib/client-profile.functions";
 
 export const Route = createFileRoute("/client/app/profile")({
   head: () => ({ meta: [{ title: "Profile — Buddy" }] }),
