@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, ExternalLink, Trash2 } from "lucide-react";
+import { LogOut, ExternalLink, Trash2, ChevronDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId, clearClientId } from "@/lib/client-session";
-import type { Client } from "@/lib/types";
+import type { CheckIn, Client } from "@/lib/types";
 import {
   getMyProgram,
   respondToSuggestedProgram,
