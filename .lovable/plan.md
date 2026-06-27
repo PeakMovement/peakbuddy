@@ -1,69 +1,33 @@
-# Cascade AI feature control
+## Why the badge is there
 
-Today's gating is split across several flags (`platform_settings.programs_feature_enabled`, `practices.yves_enabled`, `practices.programs_suggest_enabled`, per-client `yves_ai_consent`). You want one clear cascade:
+The "Runtime by Despia" pill in your screenshot is a **watermark Despia overlays on every screen** of apps built on the free / trial tier. It's drawn by the Despia native shell *on top of* your web view — your code can't hide or move it. It sits in the bottom-left corner and, in your current layout, lands right on top of the first tab's icon + label (Check-in).
 
-```text
-Super Admin ──(per practitioner toggle)──► Practitioner ──(unlocked features)──► Clients
-                                                │
-                                                ├─ Practitioner: client summaries, insights, morning analysis
-                                                └─ Clients: Anthropic-powered Yves (3 questions/day cap)
-                                                              + Google-powered program suggestions
-```
+There are two real fixes. They aren't mutually exclusive.
 
-## What changes
+## Option A — Remove the badge at the source (best fix)
 
-### 1. One master switch per practitioner
-- Add `practices.ai_features_enabled boolean default false` (off by default — super admin must turn it on).
-- Retire the split between `yves_enabled` and `programs_suggest_enabled` for gating purposes; both will read from the new master flag. Columns stay in DB to avoid breaking history, but server code stops checking them.
-- Keep `platform_settings.programs_feature_enabled` as a global kill switch (super admin can disable platform-wide in emergencies); the cascade is: global ON AND practice ON.
+Upgrade the Despia plan / toggle "remove branding" in the Despia dashboard for this app, then rebuild and resubmit the iOS build. Once the watermark is gone, the tab bar is fine as-is. This is the only way to get a clean, professional look — every other workaround is just dodging the badge.
 
-### 2. Super Admin UI
-On `admin.app.practitioner-detail.$id.tsx`: a single "AI Features" toggle card with copy explaining that turning it on unlocks Yves (3 questions/day) + program suggestions for all of this practitioner's clients, plus AI summaries/insights for the practitioner.
+## Option B — Reflow the UI so the badge doesn't cover anything
 
-### 3. Practitioner UI
-- If practice has `ai_features_enabled = false`: hide Insights tab, Morning Analysis widget, Program Suggestions queue, and show a small "AI features are not enabled for your practice" note in the dashboard.
-- If true: everything works as today.
+If you want to keep the free tier (or until the upgrade is live), reshape the bottom tab bar so the Check-in tab isn't underneath the watermark:
 
-### 4. Client UI (Yves page)
-- If `ai_features_enabled = false` on their practice: show a friendly "Yves is not available for your clinic yet" empty state; hide the composer, consent modal, and disclosure bar.
-- If true: existing consent flow runs, daily cap of 3 questions stays as-is (already enforced).
+1. **Lift the tab bar** — add extra bottom padding (~44px on top of the existing safe-area inset) inside `src/routes/client.app.tsx` so the entire nav sits above the badge instead of behind it.
+2. **Add matching bottom padding to `<main>`** so the last row of content (the Energy / Mood rings on the progress page) isn't hidden under the now-taller tab bar.
+3. **Re-center the four tabs** — once the bar is lifted, the badge sits in the empty space below the nav, not on top of a label.
+4. **Apply the same treatment to the practitioner tab bar** if it exists, so admin/practitioner views on iOS don't have the same clipping.
 
-### 5. Server enforcement (hard gate)
-- `triage-query.ts`: load the client's practice, refuse with `ai_disabled` error if `ai_features_enabled = false`. Daily limit (3/day) stays.
-- `client-program.functions.ts` + auto-suggest path: refuse to insert suggestions if practice flag is off.
-- Morning analysis / nightly risk analysis: skip practices with the flag off.
+No other screens or business logic change.
 
-### 6. Default for existing practices
-Existing practices get `ai_features_enabled = true` in the migration (so current users don't suddenly lose Yves). New practices default to `false` and must be enabled by super admin.
+### Technical notes
 
-## Technical section
+- File: `src/routes/client.app.tsx`, the `<nav>` at lines ~162–213 and the `<main>` at line 158.
+- Change `paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)"` → `"calc(env(safe-area-inset-bottom) + 60px)"` on the nav.
+- Change `paddingBottom: 80` → `120` on `<main>`.
+- The Despia watermark height is ~48px; 44–60px of extra padding clears it on all current iPhones.
 
-**Migration**
-```sql
-ALTER TABLE public.practices
-  ADD COLUMN IF NOT EXISTS ai_features_enabled boolean NOT NULL DEFAULT false;
--- Grandfather existing practices
-UPDATE public.practices SET ai_features_enabled = true WHERE created_at < now();
--- New practices default false from here on
-ALTER TABLE public.practices ALTER COLUMN ai_features_enabled SET DEFAULT false;
-```
+## Recommendation
 
-**Helper** `src/lib/ai-gate.functions.ts` — `isPracticeAiEnabled(practiceId)` returns `global_enabled AND practice.ai_features_enabled`. All gates call this.
+Do **Option A** if you can — the watermark also appears on other screens (Yves chat, Profile) and only removing it actually solves the problem. Use **Option B** as a same-day mitigation so Check-in is usable in the meantime.
 
-**Files touched**
-- `supabase/migrations/<new>.sql`
-- `src/lib/ai-gate.functions.ts` (new)
-- `src/routes/api/public/triage-query.ts` (gate before Anthropic call)
-- `src/lib/client-program.functions.ts`, `src/lib/programs.functions.ts` (gate suggestion writes)
-- `src/routes/api/public/hooks/nightly-risk-analysis.ts` (skip disabled practices)
-- `src/lib/morning-analysis.functions.ts` (skip disabled practices)
-- `src/routes/admin.app.practitioner-detail.$id.tsx` (add toggle)
-- `src/routes/practitioner.app.dashboard.tsx`, `practitioner.app.insights.tsx`, `practitioner.app.program-queue.tsx` (conditional rendering)
-- `src/routes/client.app.yves.tsx` (empty state when disabled)
-
-Daily question cap of 3 is already enforced in `triage-query.ts` and surfaces in the Yves UI — no change needed there.
-
-## Questions before I build
-
-1. Confirm: for existing practices currently using Yves, grandfather them to `enabled = true`? (Otherwise they'd lose access until you toggle each one.)
-2. Confirm: keep the per-client `yves_ai_consent` consent modal on top of the practice-level gate? (Recommended for POPIA; you said yes earlier.)
+Want me to apply Option B now?

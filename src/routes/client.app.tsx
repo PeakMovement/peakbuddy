@@ -155,7 +155,7 @@ function ClientAppLayout() {
         </button>
       )}
 
-      <main style={{ flex: 1, paddingBottom: 80, overflowX: "hidden" }}>
+      <main style={{ flex: 1, paddingBottom: 120, overflowX: "hidden" }}>
         <Outlet />
       </main>
 
