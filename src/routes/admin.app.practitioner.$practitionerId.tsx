@@ -110,8 +110,7 @@ function PractitionerDetail() {
         <Row label="Profession" value={practice?.profession ?? profile?.profession ?? "—"} />
         <Row label="Onboarding" value={practice?.onboarding_complete ? "Complete" : "Pending"} />
         <Row label="POPIA Agreed" value={practice?.popia_agreed ? "Yes" : "No"} />
-        <YvesAccessRow practice={practice} onChange={(p) => setPractice(p)} />
-        <ProgramSuggestRow practice={practice} onChange={(p) => setPractice(p)} />
+        <AIFeaturesRow practice={practice} onChange={(p) => setPractice(p)} />
         <GamificationRow practice={practice} onChange={(p) => setPractice(p)} />
       </Card>
 
