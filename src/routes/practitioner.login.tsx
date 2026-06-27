@@ -216,6 +216,26 @@ function PractitionerLogin() {
             </div>
           </Field>
 
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              color: "var(--white-muted)",
+              fontSize: 13,
+              fontFamily: "var(--font-ui)",
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              style={{ width: 18, height: 18, accentColor: "var(--blue-accent)" }}
+            />
+            Keep me signed in on this device
+          </label>
+
           {error && (
             <p role="alert" style={{ color: "var(--red)", fontSize: 13, textAlign: "center" }}>
               {error}
@@ -241,7 +261,64 @@ function PractitionerLogin() {
           >
             {loading ? "Signing in…" : "Log in"}
           </button>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              margin: "6px 0 2px",
+              color: "var(--white-muted)",
+              fontSize: 11,
+              fontFamily: "var(--font-ui)",
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+            }}
+          >
+            <span style={{ flex: 1, height: 1, background: "var(--navy-border)" }} />
+            or
+            <span style={{ flex: 1, height: 1, background: "var(--navy-border)" }} />
+          </div>
+
+          <button
+            type="button"
+            onClick={onMagicLink}
+            disabled={magicLoading || cooldown > 0}
+            style={{
+              width: "100%",
+              minHeight: 48,
+              borderRadius: 8,
+              background: "transparent",
+              color: "var(--white)",
+              border: "1px solid var(--navy-border)",
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 15,
+              opacity: magicLoading || cooldown > 0 ? 0.6 : 1,
+            }}
+          >
+            {magicLoading
+              ? "Sending…"
+              : cooldown > 0
+                ? `Email a sign-in link (${cooldown}s)`
+                : "Email me a sign-in link"}
+          </button>
+
+          {magicNotice && (
+            <p
+              style={{
+                color: "var(--white)",
+                fontSize: 13,
+                textAlign: "center",
+                lineHeight: 1.5,
+                marginTop: 4,
+              }}
+            >
+              {magicNotice}
+            </p>
+          )}
         </form>
+
 
         <Link
           to="/practitioner/signup"
