@@ -863,3 +863,12 @@ function DeleteAccountSection({
     </div>
   );
 }
+
+function DetailRow({ k, v }: { k: string; v: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", color: "var(--white-muted)" }}>
+      <span>{k}</span>
+      <span style={{ color: "var(--white)", fontFamily: "var(--font-data)" }}>{v ?? "—"}</span>
+    </div>
+  );
+}
