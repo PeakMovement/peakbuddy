@@ -1,11 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { getClientId } from "@/lib/client-session";
-import type { CheckIn } from "@/lib/types";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/client/app/timeline")({
-  component: Timeline,
+  component: () => <Navigate to="/client/app/profile" />,
 });
 
 const moodLabels = ["—", "Very Low", "Low", "Okay", "Good", "Great"];
