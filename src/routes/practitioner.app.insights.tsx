@@ -1,12 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Sparkles, Send, X, AlertTriangle } from "lucide-react";
+import { Sparkles, Send, X, AlertTriangle, Users, TrendingUp, TrendingDown, PhoneCall, Activity, Flame } from "lucide-react";
+import {
+  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Line, LineChart,
+  Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from "recharts";
 import {
   listMyDrafts,
   updateDraftStatus,
   type PractitionerDraft,
 } from "@/lib/practitioner-drafts.functions";
 import { log } from "@/lib/log";
+import { InsightsOverview } from "@/components/InsightsOverview";
 
 export const Route = createFileRoute("/practitioner/app/insights")({
   head: () => ({ meta: [{ title: "Insights — Buddy" }] }),
