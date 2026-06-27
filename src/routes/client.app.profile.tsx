@@ -190,7 +190,34 @@ function ClientProfile() {
       >
         <ProfileField label="Name" value={client?.full_name} />
         <ProfileField label="Email" value={client?.email} />
-        <ProfileField label="Phone" value={client?.phone || "Not set"} />
+        <EditablePhoneField
+          phone={client?.phone}
+          onSave={async (val) => {
+            if (!client) return;
+            setPhoneBusy(true);
+            setPhoneError(null);
+            try {
+              await savePhone({ data: { phone: val || null } });
+              setClient({ ...client, phone: val || null });
+              setPhoneEdit(false);
+            } catch (e: any) {
+              setPhoneError(e?.message || "Could not save phone number.");
+            } finally {
+              setPhoneBusy(false);
+            }
+          }}
+          edit={phoneEdit}
+          value={phoneValue}
+          busy={phoneBusy}
+          error={phoneError}
+          onStartEdit={() => {
+            setPhoneValue(client?.phone || "");
+            setPhoneEdit(true);
+            setPhoneError(null);
+          }}
+          onCancel={() => setPhoneEdit(false)}
+          onChange={setPhoneValue}
+        />
         <AiConsentRow
           on={client?.yves_ai_consent === true}
           busy={consentBusy}
