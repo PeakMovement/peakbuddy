@@ -246,3 +246,48 @@ export const listMyRewards = createServerFn({ method: "GET" })
       .order("earned_at", { ascending: false });
     return (rows ?? []).map(normalizeReward);
   });
+
+// ---- Super-admin: global rewards availability schedule ----
+
+export type RewardsSchedule = { enabled: boolean; allowedDays: number[] };
+
+export const getRewardsSchedule = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<RewardsSchedule> => {
+    await assertSuperAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as SupabaseClient;
+    const { data } = await db
+      .from("platform_settings")
+      .select("rewards_enabled, rewards_allowed_days")
+      .maybeSingle();
+    return {
+      enabled: (data as any)?.rewards_enabled ?? true,
+      allowedDays: ((data as any)?.rewards_allowed_days ?? [0, 1, 2, 3, 4, 5, 6]) as number[],
+    };
+  });
+
+export const updateRewardsSchedule = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        enabled: z.boolean(),
+        allowedDays: z.array(z.number().int().min(0).max(6)).max(7),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }): Promise<RewardsSchedule> => {
+    await assertSuperAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as SupabaseClient;
+    const days = Array.from(new Set(data.allowedDays)).sort();
+    const { data: existing } = await db.from("platform_settings").select("id").maybeSingle();
+    const payload = { rewards_enabled: data.enabled, rewards_allowed_days: days };
+    if (existing?.id) {
+      await db.from("platform_settings").update(payload).eq("id", existing.id);
+    } else {
+      await db.from("platform_settings").insert(payload);
+    }
+    return { enabled: data.enabled, allowedDays: days };
+  });
