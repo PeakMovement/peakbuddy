@@ -382,7 +382,6 @@ function CheckInScreen() {
             }}
           >
             <StreakCard streak={streak} />
-            <MyRewards />
           </div>
         )}
         {savedOffline && (
