@@ -450,6 +450,8 @@ export type Database = {
           passive_monitoring_enabled: boolean
           predictive_nudges_enabled: boolean
           programs_feature_enabled: boolean
+          rewards_allowed_days: number[]
+          rewards_enabled: boolean
         }
         Insert: {
           created_at?: string | null
@@ -459,6 +461,8 @@ export type Database = {
           passive_monitoring_enabled?: boolean
           predictive_nudges_enabled?: boolean
           programs_feature_enabled?: boolean
+          rewards_allowed_days?: number[]
+          rewards_enabled?: boolean
         }
         Update: {
           created_at?: string | null
@@ -468,6 +472,8 @@ export type Database = {
           passive_monitoring_enabled?: boolean
           predictive_nudges_enabled?: boolean
           programs_feature_enabled?: boolean
+          rewards_allowed_days?: number[]
+          rewards_enabled?: boolean
         }
         Relationships: []
       }

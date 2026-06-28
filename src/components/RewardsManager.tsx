@@ -1,7 +1,14 @@
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
-import { listAllRewards, upsertReward, deleteReward, type Reward } from "@/lib/rewards.functions";
+import {
+  listAllRewards,
+  upsertReward,
+  deleteReward,
+  getRewardsSchedule,
+  updateRewardsSchedule,
+  type Reward,
+} from "@/lib/rewards.functions";
 
 type FormState = {
   id: string | null;
@@ -33,9 +40,17 @@ export function RewardsManager() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const [schedEnabled, setSchedEnabled] = useState(true);
+  const [schedDays, setSchedDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
+  const [schedSaving, setSchedSaving] = useState(false);
+  const [schedMsg, setSchedMsg] = useState<string | null>(null);
+
   const load = async () => {
     try {
-      setRewards(await listAllRewards());
+      const [list, sched] = await Promise.all([listAllRewards(), getRewardsSchedule()]);
+      setRewards(list);
+      setSchedEnabled(sched.enabled);
+      setSchedDays(sched.allowedDays);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to load rewards");
     } finally {
@@ -46,6 +61,30 @@ export function RewardsManager() {
   useEffect(() => {
     void load();
   }, []);
+
+  const toggleDay = (d: number) => {
+    setSchedDays((cur) =>
+      cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d].sort(),
+    );
+  };
+
+  const saveSchedule = async () => {
+    setSchedSaving(true);
+    setSchedMsg(null);
+    try {
+      const next = await updateRewardsSchedule({
+        data: { enabled: schedEnabled, allowedDays: schedDays },
+      });
+      setSchedEnabled(next.enabled);
+      setSchedDays(next.allowedDays);
+      setSchedMsg("Saved.");
+    } catch (e) {
+      setSchedMsg(e instanceof Error ? e.message : "Could not save schedule");
+    } finally {
+      setSchedSaving(false);
+    }
+  };
+
 
   const reset = () => {
     setForm({ ...EMPTY });
@@ -109,6 +148,59 @@ export function RewardsManager() {
         Discount vouchers clients can earn. When a practitioner approves a reward, a random active
         reward is given.
       </p>
+
+      <div style={{ ...cardStyle, marginTop: 12 }}>
+        <div style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 600 }}>
+          Reward availability
+        </div>
+        <label style={toggleRow}>
+          <span style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
+            Rewards enabled
+          </span>
+          <input
+            type="checkbox"
+            checked={schedEnabled}
+            onChange={(e) => setSchedEnabled(e.target.checked)}
+            style={{ width: 22, height: 22, accentColor: "var(--blue-accent)" }}
+          />
+        </label>
+        <div style={{ color: "var(--white-muted)", fontSize: 12 }}>
+          Days practitioners can approve rewards (UTC):
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label, idx) => {
+            const on = schedDays.includes(idx);
+            return (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => toggleDay(idx)}
+                style={{
+                  minWidth: 56,
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid var(--navy-border)",
+                  background: on ? "var(--blue-accent)" : "var(--navy)",
+                  color: "var(--white)",
+                  fontFamily: "var(--font-ui)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        {schedMsg && (
+          <div style={{ color: "var(--white-muted)", fontSize: 12 }}>{schedMsg}</div>
+        )}
+        <button type="button" onClick={saveSchedule} disabled={schedSaving} style={primaryBtn}>
+          {schedSaving ? "Saving…" : "Save availability"}
+        </button>
+      </div>
+
 
       <div style={cardStyle}>
         <input
