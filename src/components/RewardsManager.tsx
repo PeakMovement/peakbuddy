@@ -149,6 +149,59 @@ export function RewardsManager() {
         reward is given.
       </p>
 
+      <div style={{ ...cardStyle, marginTop: 12 }}>
+        <div style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 600 }}>
+          Reward availability
+        </div>
+        <label style={toggleRow}>
+          <span style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
+            Rewards enabled
+          </span>
+          <input
+            type="checkbox"
+            checked={schedEnabled}
+            onChange={(e) => setSchedEnabled(e.target.checked)}
+            style={{ width: 22, height: 22, accentColor: "var(--blue-accent)" }}
+          />
+        </label>
+        <div style={{ color: "var(--white-muted)", fontSize: 12 }}>
+          Days practitioners can approve rewards (UTC):
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label, idx) => {
+            const on = schedDays.includes(idx);
+            return (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => toggleDay(idx)}
+                style={{
+                  minWidth: 56,
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid var(--navy-border)",
+                  background: on ? "var(--blue-accent)" : "var(--navy)",
+                  color: "var(--white)",
+                  fontFamily: "var(--font-ui)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        {schedMsg && (
+          <div style={{ color: "var(--white-muted)", fontSize: 12 }}>{schedMsg}</div>
+        )}
+        <button type="button" onClick={saveSchedule} disabled={schedSaving} style={primaryBtn}>
+          {schedSaving ? "Saving…" : "Save availability"}
+        </button>
+      </div>
+
+
       <div style={cardStyle}>
         <input
           style={inp}
