@@ -12,6 +12,7 @@ import {
 } from "@/lib/client-program.functions";
 import { deleteMyAccount } from "@/lib/account-delete.functions";
 import { updateClientPhone, updateMyEmail } from "@/lib/client-profile.functions";
+import { MyRewards } from "@/components/MyRewards";
 
 export const Route = createFileRoute("/client/app/profile")({
   head: () => ({ meta: [{ title: "Profile — Buddy" }] }),
@@ -250,13 +251,21 @@ function ClientProfile() {
         />
       </div>
 
+      {/* Rewards */}
+      <SectionHeader>Rewards</SectionHeader>
+      <MyRewards />
+
+      {/* Plan */}
       {programState?.program && programState.status !== "none" && (
-        <MyProgramCard
-          state={programState}
-          busy={busy}
-          onAccept={handleAccept}
-          onDecline={handleDecline}
-        />
+        <>
+          <SectionHeader>Your plan</SectionHeader>
+          <MyProgramCard
+            state={programState}
+            busy={busy}
+            onAccept={handleAccept}
+            onDecline={handleDecline}
+          />
+        </>
       )}
 
       {/* Collapsible Timeline */}
@@ -1008,6 +1017,25 @@ export function EditableTextField({
         <p style={{ marginTop: 8, color: "var(--red)", fontSize: 13 }}>{error}</p>
       )}
     </div>
+  );
+}
+
+function SectionHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <h2
+      style={{
+        marginTop: 28,
+        marginBottom: 4,
+        fontFamily: "var(--font-ui)",
+        fontSize: 12,
+        fontWeight: 700,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        color: "var(--white-muted)",
+      }}
+    >
+      {children}
+    </h2>
   );
 }
 

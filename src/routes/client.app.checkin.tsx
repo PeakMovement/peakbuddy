@@ -16,7 +16,7 @@ import { log } from "@/lib/log";
 import { suggestProgram } from "@/lib/programs.functions";
 import { computeStreak, type CheckInFrequency } from "@/lib/streak";
 import { StreakCard } from "@/components/StreakCard";
-import { MyRewards } from "@/components/MyRewards";
+// MyRewards now lives in the Profile page so rewards + plan sit together.
 
 export const Route = createFileRoute("/client/app/checkin")({
   component: CheckInScreen,
@@ -382,7 +382,6 @@ function CheckInScreen() {
             }}
           >
             <StreakCard streak={streak} />
-            <MyRewards />
           </div>
         )}
         {savedOffline && (
@@ -440,7 +439,6 @@ function CheckInScreen() {
       {gamificationOn && (
         <div style={{ marginTop: 16 }}>
           <StreakCard streak={streak} />
-          <MyRewards />
         </div>
       )}
 
