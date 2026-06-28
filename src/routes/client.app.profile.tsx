@@ -12,6 +12,7 @@ import {
 } from "@/lib/client-program.functions";
 import { deleteMyAccount } from "@/lib/account-delete.functions";
 import { updateClientPhone, updateMyEmail } from "@/lib/client-profile.functions";
+import { MyRewards } from "@/components/MyRewards";
 
 export const Route = createFileRoute("/client/app/profile")({
   head: () => ({ meta: [{ title: "Profile — Buddy" }] }),
