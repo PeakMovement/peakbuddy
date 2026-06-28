@@ -439,7 +439,6 @@ function CheckInScreen() {
       {gamificationOn && (
         <div style={{ marginTop: 16 }}>
           <StreakCard streak={streak} />
-          <MyRewards />
         </div>
       )}
 
