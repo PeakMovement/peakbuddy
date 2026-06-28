@@ -292,6 +292,7 @@ export const getClientProgramForPractitioner = createServerFn({ method: "POST" }
       allowed = (prof as { role?: string } | null)?.role === "super_admin";
     }
     if (!allowed) return null;
+    if (!(await isProgramsSuggestEnabledForPractitioner(row.practitioner_id))) return null;
     const program = await loadProgram(row.suggested_program_id);
     return {
       program,
@@ -300,6 +301,7 @@ export const getClientProgramForPractitioner = createServerFn({ method: "POST" }
       personal_note: row.program_personal_note,
     };
   });
+
 
 // Practitioner: list of clients waiting for a program-suggestion decision.
 export type PendingSuggestion = {
