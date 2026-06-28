@@ -74,6 +74,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "Buddy Tracker by Peak Movement" },
+      { name: "theme-color", content: "#1a2952" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
       {
         name: "description",
         content:
