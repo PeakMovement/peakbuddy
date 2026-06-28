@@ -1020,3 +1020,22 @@ export function EditableTextField({
   );
 }
 
+function SectionHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <h2
+      style={{
+        marginTop: 28,
+        marginBottom: 4,
+        fontFamily: "var(--font-ui)",
+        fontSize: 12,
+        fontWeight: 700,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        color: "var(--white-muted)",
+      }}
+    >
+      {children}
+    </h2>
+  );
+}
+
