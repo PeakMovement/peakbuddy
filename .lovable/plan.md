@@ -1,42 +1,35 @@
-## Answering your questions
+## What's already in place
 
-**1. Where you manage the rewards pool today**
-Super Admin portal → **Settings** page → **Rewards** section (powered by `RewardsManager`). You can add, edit, deactivate, and delete vouchers there. This is already super-admin only (server-side `assertSuperAdmin` guards every call) — no change needed for that part.
+- **Global kill switch** lives on `platform_settings.programs_feature_enabled` (super admin only via Admin → Settings).
+- **Per-practitioner toggle** lives on `practices.ai_features_enabled` (master) + `practices.programs_suggest_enabled` (legacy narrow gate). Both are editable **only** from `admin.app.practitioner.$practitionerId.tsx`, which is a super-admin-only route. No practitioner or client surface mutates these flags.
+- `suggestProgram` (the engine that picks a program after check-in) already calls `isProgramsSuggestEnabledForPractitioner(practitioner_id)` before writing a suggestion, so disabled practitioners stop getting *new* suggestions.
 
-**2. What's missing — global kill switch + day-of-week schedule**
-Right now there's only a per-practitioner `gamification_enabled` toggle. There is no platform-wide on/off and no schedule. I'll add both, controlled only by the super admin.
+## The gap
 
----
+The per-practitioner gate is **not** re-checked on the client-facing read/respond paths or on the practitioner queue paths. So if a super admin turns Programs OFF for a practitioner after suggestions already exist:
+- Their clients still see the suggestion card in the app and can accept it.
+- The practitioner still sees a Program Queue and can approve.
 
-## Plan
+Only the global kill switch currently short-circuits those.
 
-### Database (migration)
-Add two columns to `platform_settings`:
-- `rewards_enabled` (boolean, default `true`) — global kill switch.
-- `rewards_allowed_days` (smallint[], default `{0,1,2,3,4,5,6}`) — days of the week (0 = Sunday … 6 = Saturday) practitioners are allowed to approve a reward.
+## Fix (single file: `src/lib/client-program.functions.ts`)
 
-### Server logic (`src/lib/rewards.functions.ts`)
-In `approveClientReward`, before issuing:
-- Load `platform_settings`. If `rewards_enabled = false`, reject with "Rewards are currently disabled."
-- Check today's weekday (in UTC) against `rewards_allowed_days`. If not allowed, reject with "Rewards can only be approved on: Mon, Wed, Fri" (humanised list).
-- Existing per-practice `gamification_enabled` check stays as a second gate.
+Add `isProgramsSuggestEnabledForPractitioner(practitioner_id)` gating to each of these handlers. When disabled, return the same empty/disabled shape they already return when the global flag is off:
 
-Add two new super-admin-only server fns:
-- `getRewardsSchedule()` — returns `{ enabled, allowedDays }`.
-- `updateRewardsSchedule({ enabled, allowedDays })` — validates and writes.
+1. `getClientBootstrap` — load `client.practitioner_id`; if practitioner is disabled, return `buildState(client, null, wasFirstLogin)` (no program shown).
+2. `getMyProgram` — same gate, return `buildState(client, null, false)`.
+3. `respondToSuggestedProgram` — refuse with `{ ok: false, error: "Suggested Programs is currently unavailable." }` if practitioner is disabled.
+4. `getClientProgramForPractitioner` — return `null` when disabled.
+5. `listPendingProgramSuggestions` — return `[]` when the calling practitioner is disabled.
+6. `countPendingProgramSuggestions` — return `0` when disabled.
+7. `approveProgramSuggestion` — refuse with the same disabled error.
 
-### UI (`src/components/RewardsManager.tsx`, rendered in Admin → Settings)
-Add a **Reward availability** card above the existing pool list:
-- Master toggle: **Rewards enabled** (on/off).
-- Day picker: seven small chips (Sun–Sat) the super admin taps to allow/disallow each day.
-- Save button + inline status.
+`listActivePrograms` is shared (super-admin-curated catalogue) and stays gated only by the global flag — it's used by Admin and as a dropdown source; gating it per practitioner here would over-block.
 
-### Practitioner-side feedback (`src/components/ClientRewardsSection.tsx`)
-- Catch the new rejection messages and show them in the existing error slot (no layout change), so a practitioner who tries to approve on a disallowed day sees a clear reason.
+No DB migration, no UI changes, no new tools — the toggles, routes, and admin UI already exist and already restrict to super admin.
 
-### Out of scope (flag if you want it)
-- Time-of-day windows (e.g. only between 9am–5pm).
-- Per-practitioner overrides of the global schedule.
-- Timezone-aware day calculation (plan uses UTC; happy to switch to practitioner's local TZ if you'd rather).
+## Verification after the edit
 
-Want me to go ahead with this?
+- Sign in as a client whose practitioner has Programs disabled → no suggestion card, profile shows no program.
+- Sign in as that practitioner → Program Queue empty, badge count 0.
+- Re-enable in admin → existing suggestion reappears for both sides (the data wasn't deleted, only hidden).

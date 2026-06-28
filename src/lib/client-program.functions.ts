@@ -112,6 +112,16 @@ async function loadClientByAuth(email: string | null): Promise<ClientRow | null>
   return (row as ClientRow | null) ?? null;
 }
 
+async function loadClientPractitionerId(clientId: string): Promise<string | null> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
+    .from("clients")
+    .select("practitioner_id")
+    .eq("id", clientId)
+    .maybeSingle();
+  return (data as { practitioner_id?: string } | null)?.practitioner_id ?? null;
+}
+
 async function loadProgram(id: string | null): Promise<ProgramLite | null> {
   if (!id) return null;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -181,6 +191,10 @@ export const getClientBootstrap = createServerFn({ method: "POST" })
     }
 
     if (!(await isProgramsFeatureEnabled())) return buildState(client, null, wasFirstLogin);
+    const practitionerId = await loadClientPractitionerId(client.id);
+    if (practitionerId && !(await isProgramsSuggestEnabledForPractitioner(practitionerId))) {
+      return buildState(client, null, wasFirstLogin);
+    }
     const program = await loadProgram(client.suggested_program_id);
     return buildState(client, program, wasFirstLogin);
   });
@@ -193,9 +207,14 @@ export const getMyProgram = createServerFn({ method: "POST" })
     const client = await loadClientByAuth(email);
     if (!client) return buildState(null, null, false);
     if (!(await isProgramsFeatureEnabled())) return buildState(client, null, false);
+    const practitionerId = await loadClientPractitionerId(client.id);
+    if (practitionerId && !(await isProgramsSuggestEnabledForPractitioner(practitionerId))) {
+      return buildState(client, null, false);
+    }
     const program = await loadProgram(client.suggested_program_id);
     return buildState(client, program, false);
   });
+
 
 const RespondSchema = z.object({
   decision: z.enum(["accepted", "declined", "remind_later"]),
@@ -212,7 +231,12 @@ export const respondToSuggestedProgram = createServerFn({ method: "POST" })
     if (!client || !client.suggested_program_id) {
       return { ok: false as const, error: "No suggested program." };
     }
+    const practitionerId = await loadClientPractitionerId(client.id);
+    if (practitionerId && !(await isProgramsSuggestEnabledForPractitioner(practitionerId))) {
+      return { ok: false as const, error: "Suggested Programs is currently unavailable." };
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
 
     if (data.decision === "remind_later") {
       const snoozeUntil = new Date(Date.now() + SNOOZE_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -268,6 +292,7 @@ export const getClientProgramForPractitioner = createServerFn({ method: "POST" }
       allowed = (prof as { role?: string } | null)?.role === "super_admin";
     }
     if (!allowed) return null;
+    if (!(await isProgramsSuggestEnabledForPractitioner(row.practitioner_id))) return null;
     const program = await loadProgram(row.suggested_program_id);
     return {
       program,
@@ -276,6 +301,7 @@ export const getClientProgramForPractitioner = createServerFn({ method: "POST" }
       personal_note: row.program_personal_note,
     };
   });
+
 
 // Practitioner: list of clients waiting for a program-suggestion decision.
 export type PendingSuggestion = {
@@ -291,7 +317,11 @@ export const listPendingProgramSuggestions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     if (!(await isProgramsFeatureEnabled())) return [] as PendingSuggestion[];
+    if (!(await isProgramsSuggestEnabledForPractitioner(context.userId))) {
+      return [] as PendingSuggestion[];
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
 
     const { data, error } = await supabaseAdmin
       .from("clients")
@@ -327,7 +357,9 @@ export const countPendingProgramSuggestions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     if (!(await isProgramsFeatureEnabled())) return 0;
+    if (!(await isProgramsSuggestEnabledForPractitioner(context.userId))) return 0;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
 
     const { count } = await supabaseAdmin
       .from("clients")
@@ -357,8 +389,12 @@ export const approveProgramSuggestion = createServerFn({ method: "POST" })
     if (!(await isProgramsFeatureEnabled())) {
       return { ok: false as const, error: "Suggested Programs is currently disabled." };
     }
+    if (!(await isProgramsSuggestEnabledForPractitioner(context.userId))) {
+      return { ok: false as const, error: "Suggested Programs is disabled for your practice." };
+    }
     await assertOwnsClient(context.userId, data.clientId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
 
     const { error } = await supabaseAdmin
       .from("clients")
