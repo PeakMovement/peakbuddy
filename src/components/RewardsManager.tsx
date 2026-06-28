@@ -1,7 +1,14 @@
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
-import { listAllRewards, upsertReward, deleteReward, type Reward } from "@/lib/rewards.functions";
+import {
+  listAllRewards,
+  upsertReward,
+  deleteReward,
+  getRewardsSchedule,
+  updateRewardsSchedule,
+  type Reward,
+} from "@/lib/rewards.functions";
 
 type FormState = {
   id: string | null;
