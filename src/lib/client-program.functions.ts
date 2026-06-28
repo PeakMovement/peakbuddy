@@ -112,6 +112,16 @@ async function loadClientByAuth(email: string | null): Promise<ClientRow | null>
   return (row as ClientRow | null) ?? null;
 }
 
+async function loadClientPractitionerId(clientId: string): Promise<string | null> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
+    .from("clients")
+    .select("practitioner_id")
+    .eq("id", clientId)
+    .maybeSingle();
+  return (data as { practitioner_id?: string } | null)?.practitioner_id ?? null;
+}
+
 async function loadProgram(id: string | null): Promise<ProgramLite | null> {
   if (!id) return null;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
