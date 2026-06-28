@@ -149,6 +149,24 @@ export const approveClientReward = createServerFn({ method: "POST" })
     }
     if (!allowed) throw new Error("Forbidden");
 
+    // Global super-admin gate: enabled + allowed weekday.
+    const { data: settings } = await db
+      .from("platform_settings")
+      .select("rewards_enabled, rewards_allowed_days")
+      .maybeSingle();
+    if (settings && (settings as any).rewards_enabled === false) {
+      throw new Error("Rewards are currently disabled by the administrator.");
+    }
+    const allowedDays: number[] = ((settings as any)?.rewards_allowed_days ?? [0, 1, 2, 3, 4, 5, 6]) as number[];
+    const today = new Date().getUTCDay();
+    if (!allowedDays.includes(today)) {
+      const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const list = allowedDays.length === 0
+        ? "no days"
+        : allowedDays.slice().sort().map((d) => names[d]).join(", ");
+      throw new Error(`Rewards can only be approved on: ${list}.`);
+    }
+
     // Respect the per-practitioner gamification switch.
     const { data: prac } = await db
       .from("practices")
