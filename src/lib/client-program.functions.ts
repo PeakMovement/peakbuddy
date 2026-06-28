@@ -231,7 +231,12 @@ export const respondToSuggestedProgram = createServerFn({ method: "POST" })
     if (!client || !client.suggested_program_id) {
       return { ok: false as const, error: "No suggested program." };
     }
+    const practitionerId = await loadClientPractitionerId(client.id);
+    if (practitionerId && !(await isProgramsSuggestEnabledForPractitioner(practitionerId))) {
+      return { ok: false as const, error: "Suggested Programs is currently unavailable." };
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
 
     if (data.decision === "remind_later") {
       const snoozeUntil = new Date(Date.now() + SNOOZE_DAYS * 24 * 60 * 60 * 1000).toISOString();
