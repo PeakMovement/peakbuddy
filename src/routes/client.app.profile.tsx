@@ -250,13 +250,21 @@ function ClientProfile() {
         />
       </div>
 
+      {/* Rewards */}
+      <SectionHeader>Rewards</SectionHeader>
+      <MyRewards />
+
+      {/* Plan */}
       {programState?.program && programState.status !== "none" && (
-        <MyProgramCard
-          state={programState}
-          busy={busy}
-          onAccept={handleAccept}
-          onDecline={handleDecline}
-        />
+        <>
+          <SectionHeader>Your plan</SectionHeader>
+          <MyProgramCard
+            state={programState}
+            busy={busy}
+            onAccept={handleAccept}
+            onDecline={handleDecline}
+          />
+        </>
       )}
 
       {/* Collapsible Timeline */}
