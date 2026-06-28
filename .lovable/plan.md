@@ -1,49 +1,42 @@
-## Goal
+## Answering your questions
 
-Let clients (and optionally practitioners) sign in without typing a password every time. Two complementary pieces:
+**1. Where you manage the rewards pool today**
+Super Admin portal → **Settings** page → **Rewards** section (powered by `RewardsManager`). You can add, edit, deactivate, and delete vouchers there. This is already super-admin only (server-side `assertSuperAdmin` guards every call) — no change needed for that part.
 
-1. **Remember me** — keep the user signed in across app launches by default, with an opt-out.
-2. **Magic link** — "Email me a sign-in link" button so a user who *did* get signed out doesn't have to remember a password at all; they tap the link in their email and land back in the app already signed in.
+**2. What's missing — global kill switch + day-of-week schedule**
+Right now there's only a per-practitioner `gamification_enabled` toggle. There is no platform-wide on/off and no schedule. I'll add both, controlled only by the super admin.
 
-Both work the same in Safari and inside the Despia WebView — no iOS-specific APIs.
+---
 
-## What changes for the user
+## Plan
 
-On `/client/login` (and `/practitioner/login`):
+### Database (migration)
+Add two columns to `platform_settings`:
+- `rewards_enabled` (boolean, default `true`) — global kill switch.
+- `rewards_allowed_days` (smallint[], default `{0,1,2,3,4,5,6}`) — days of the week (0 = Sunday … 6 = Saturday) practitioners are allowed to approve a reward.
 
-- The existing email + password form stays.
-- A new **"Email me a sign-in link"** button appears below the password field. Tapping it sends a one-time link to the entered email and shows a "Check your inbox" confirmation.
-- A **"Keep me signed in on this device"** checkbox, checked by default. Unchecking it means the session is cleared when the app/tab closes.
-- Tapping the link in the email opens the app at `/auth/callback`, which finishes the sign-in and routes the user to the right home screen (client → Check-in, practitioner → Dashboard).
+### Server logic (`src/lib/rewards.functions.ts`)
+In `approveClientReward`, before issuing:
+- Load `platform_settings`. If `rewards_enabled = false`, reject with "Rewards are currently disabled."
+- Check today's weekday (in UTC) against `rewards_allowed_days`. If not allowed, reject with "Rewards can only be approved on: Mon, Wed, Fri" (humanised list).
+- Existing per-practice `gamification_enabled` check stays as a second gate.
 
-Existing password login keeps working exactly as today.
+Add two new super-admin-only server fns:
+- `getRewardsSchedule()` — returns `{ enabled, allowedDays }`.
+- `updateRewardsSchedule({ enabled, allowedDays })` — validates and writes.
 
-## What changes under the hood
+### UI (`src/components/RewardsManager.tsx`, rendered in Admin → Settings)
+Add a **Reward availability** card above the existing pool list:
+- Master toggle: **Rewards enabled** (on/off).
+- Day picker: seven small chips (Sun–Sat) the super admin taps to allow/disallow each day.
+- Save button + inline status.
 
-- New route `/auth/callback` — public, handles the Supabase magic-link redirect, resolves the user's role, and forwards to `/client/app/checkin` or `/practitioner/app/dashboard`.
-- New "send magic link" action on both login screens calling `supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: '<origin>/auth/callback' } })`.
-- "Remember me" toggle switches the Supabase client's session storage between `localStorage` (persistent — current behavior) and `sessionStorage` (cleared on app close).
-- The Supabase **Magic Link** email template needs to point at `https://peakbuddy.lovable.app/auth/callback` (and the preview URL) in the allow-list. I'll scaffold the auth email templates with `email_domain--scaffold_auth_email_templates` so the magic-link email is branded to PeakBuddy instead of the generic Supabase default.
+### Practitioner-side feedback (`src/components/ClientRewardsSection.tsx`)
+- Catch the new rejection messages and show them in the existing error slot (no layout change), so a practitioner who tries to approve on a disallowed day sees a clear reason.
 
-## Edge cases handled
+### Out of scope (flag if you want it)
+- Time-of-day windows (e.g. only between 9am–5pm).
+- Per-practitioner overrides of the global schedule.
+- Timezone-aware day calculation (plan uses UTC; happy to switch to practitioner's local TZ if you'd rather).
 
-- **Unknown email** — Supabase still returns success (so attackers can't enumerate users). UI says "If that email is registered, a link is on the way."
-- **Client vs practitioner** — `/auth/callback` looks up the user's `profiles.role` and routes accordingly, same logic as today's password login.
-- **Despia WebView opens the link in Safari, not the app** — common with iOS WebViews. Mitigation: the callback page detects this and shows a "Return to the PeakBuddy app and you're signed in" message; the session is already saved in browser storage that the WebView shares for the same domain. (If users report it doesn't carry over, the fallback is a one-time 6-digit OTP code emailed instead of a link — I can add that next.)
-- **Rate limiting** — disable the button for 60 seconds after a send to avoid spam.
-
-## Files I'll touch
-
-- `src/routes/auth.callback.tsx` (new) — handles the magic-link return.
-- `src/routes/client.login.tsx` — add magic-link button + remember-me checkbox.
-- `src/routes/practitioner.login.tsx` — same additions.
-- `src/lib/supabase.ts` / `src/integrations/supabase/client.ts` — switchable session storage based on the remember-me preference (stored in `localStorage` itself).
-- Auth email templates via `email_domain--scaffold_auth_email_templates` so the magic-link email is branded.
-
-## Out of scope (ask if you want them)
-
-- Sign in with Apple / Google (one-tap, no email at all — different but related).
-- 6-digit OTP code as a fallback to magic links.
-- Practitioner magic links (I'll include them by default; say if you want clients only).
-
-Shall I build this for both client and practitioner logins?
+Want me to go ahead with this?
