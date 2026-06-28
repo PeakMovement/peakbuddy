@@ -389,8 +389,12 @@ export const approveProgramSuggestion = createServerFn({ method: "POST" })
     if (!(await isProgramsFeatureEnabled())) {
       return { ok: false as const, error: "Suggested Programs is currently disabled." };
     }
+    if (!(await isProgramsSuggestEnabledForPractitioner(context.userId))) {
+      return { ok: false as const, error: "Suggested Programs is disabled for your practice." };
+    }
     await assertOwnsClient(context.userId, data.clientId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
 
     const { error } = await supabaseAdmin
       .from("clients")
