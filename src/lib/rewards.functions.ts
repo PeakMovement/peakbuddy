@@ -193,7 +193,30 @@ export const approveClientReward = createServerFn({ method: "POST" })
       .select(ISSUED_SELECT)
       .single();
     if (error) throw new Error(error.message);
-    return normalizeReward(issued);
+    const normalized = normalizeReward(issued);
+
+    // Notify the client (push) that they earned a reward. Non-fatal.
+    try {
+      const { data: clientRow } = await db
+        .from("clients")
+        .select("auth_user_id, full_name")
+        .eq("id", data.clientId)
+        .maybeSingle();
+      if (clientRow?.auth_user_id) {
+        const { sendPushCore } = await import("@/lib/push.functions");
+        const firstName = (clientRow.full_name || "").trim().split(/\s+/)[0] || "Hey";
+        await sendPushCore(db as any, {
+          userId: clientRow.auth_user_id,
+          title: "🎁 You earned a reward",
+          body: `${firstName}, a new voucher is waiting in your Buddy profile.`,
+          data: { type: "reward_earned", rewardId: normalized.id },
+        });
+      }
+    } catch {
+      /* push is best-effort */
+    }
+
+    return normalized;
   });
 
 // Issued rewards for a client (practitioner / super admin view).
