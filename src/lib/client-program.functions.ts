@@ -357,7 +357,9 @@ export const countPendingProgramSuggestions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     if (!(await isProgramsFeatureEnabled())) return 0;
+    if (!(await isProgramsSuggestEnabledForPractitioner(context.userId))) return 0;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
 
     const { count } = await supabaseAdmin
       .from("clients")
