@@ -19,7 +19,16 @@ const RewardSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(1000).default(""),
   voucher_code: z.string().min(1).max(100),
-  maps_url: z.string().url().max(500).nullable().optional(),
+  maps_url: z
+    .string()
+    .max(500)
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.trim() ? v.trim() : null))
+    .refine(
+      (v) => v === null || /^https?:\/\/\S+$/i.test(v),
+      { message: "Enter a full URL starting with http:// or https://, or leave blank." },
+    ),
   active: z.boolean().default(true),
 });
 

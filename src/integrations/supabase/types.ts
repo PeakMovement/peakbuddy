@@ -238,6 +238,48 @@ export type Database = {
           },
         ]
       }
+      client_rewards: {
+        Row: {
+          client_id: string
+          earned_at: string
+          id: string
+          practitioner_id: string | null
+          reward_id: string
+          status: string
+        }
+        Insert: {
+          client_id: string
+          earned_at?: string
+          id?: string
+          practitioner_id?: string | null
+          reward_id: string
+          status?: string
+        }
+        Update: {
+          client_id?: string
+          earned_at?: string
+          id?: string
+          practitioner_id?: string | null
+          reward_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_rewards_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_rewards_reward_id_fkey"
+            columns: ["reward_id"]
+            isOneToOne: false
+            referencedRelation: "rewards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           auth_user_id: string | null
@@ -778,6 +820,39 @@ export type Database = {
           platform?: string
           token?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      rewards: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string
+          id: string
+          maps_url: string | null
+          name: string
+          updated_at: string
+          voucher_code: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          id?: string
+          maps_url?: string | null
+          name: string
+          updated_at?: string
+          voucher_code: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          id?: string
+          maps_url?: string | null
+          name?: string
+          updated_at?: string
+          voucher_code?: string
         }
         Relationships: []
       }

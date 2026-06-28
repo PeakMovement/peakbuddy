@@ -223,7 +223,7 @@ export function RewardsManager() {
         />
         <input
           style={inp}
-          placeholder="Google Maps link (https://maps.app.goo.gl/…)"
+          placeholder="Google Maps link or website URL (https://…) — optional"
           value={form.maps_url}
           onChange={(e) => setForm({ ...form, maps_url: e.target.value })}
           inputMode="url"
