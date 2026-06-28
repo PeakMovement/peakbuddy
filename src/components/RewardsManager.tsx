@@ -40,9 +40,17 @@ export function RewardsManager() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const [schedEnabled, setSchedEnabled] = useState(true);
+  const [schedDays, setSchedDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
+  const [schedSaving, setSchedSaving] = useState(false);
+  const [schedMsg, setSchedMsg] = useState<string | null>(null);
+
   const load = async () => {
     try {
-      setRewards(await listAllRewards());
+      const [list, sched] = await Promise.all([listAllRewards(), getRewardsSchedule()]);
+      setRewards(list);
+      setSchedEnabled(sched.enabled);
+      setSchedDays(sched.allowedDays);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to load rewards");
     } finally {
@@ -53,6 +61,30 @@ export function RewardsManager() {
   useEffect(() => {
     void load();
   }, []);
+
+  const toggleDay = (d: number) => {
+    setSchedDays((cur) =>
+      cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d].sort(),
+    );
+  };
+
+  const saveSchedule = async () => {
+    setSchedSaving(true);
+    setSchedMsg(null);
+    try {
+      const next = await updateRewardsSchedule({
+        data: { enabled: schedEnabled, allowedDays: schedDays },
+      });
+      setSchedEnabled(next.enabled);
+      setSchedDays(next.allowedDays);
+      setSchedMsg("Saved.");
+    } catch (e) {
+      setSchedMsg(e instanceof Error ? e.message : "Could not save schedule");
+    } finally {
+      setSchedSaving(false);
+    }
+  };
+
 
   const reset = () => {
     setForm({ ...EMPTY });
