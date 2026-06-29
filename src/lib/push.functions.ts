@@ -123,17 +123,15 @@ export async function sendPushCore(
       : [];
     const responseJson = json as unknown as JsonValue;
 
-    if (!res.ok || (json.errors && !json.id)) {
+    if (!res.ok || (errors && !id)) {
       const reason =
-        typeof json.errors === "string"
-          ? json.errors
-          : JSON.stringify(json.errors ?? { status: res.status });
+        typeof errors === "string" ? errors : JSON.stringify(errors ?? { status: res.status });
       await supabaseAdmin.from("push_send_log").insert({
         ...logRow,
         status: "failed",
         attempted: playerIds.length,
         delivered: 0,
-        response: json,
+        response: responseJson,
         error_message: reason,
       });
       return {
@@ -142,15 +140,13 @@ export async function sendPushCore(
         attempted: playerIds.length,
         delivered: 0,
         failures: [{ token_id: "onesignal", reason }],
-        response: json,
+        response: responseJson,
       };
     }
 
-    const delivered = json.recipients ?? playerIds.length;
-    if (json.invalid_player_ids?.length) {
-      for (const bad of json.invalid_player_ids) {
-        failures.push({ token_id: bad, reason: "invalid_player_id" });
-      }
+    const delivered = recipients ?? playerIds.length;
+    for (const bad of invalidIds) {
+      failures.push({ token_id: bad, reason: "invalid_player_id" });
     }
 
     await supabaseAdmin.from("push_send_log").insert({
@@ -158,7 +154,7 @@ export async function sendPushCore(
       status: "delivered",
       attempted: playerIds.length,
       delivered,
-      response: json,
+      response: responseJson,
     });
 
     return {
@@ -167,7 +163,7 @@ export async function sendPushCore(
       attempted: playerIds.length,
       delivered,
       failures,
-      response: json,
+      response: responseJson,
     };
   } catch (e) {
     const reason = e instanceof Error ? e.message : "unknown";
