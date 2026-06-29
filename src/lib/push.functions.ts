@@ -7,64 +7,179 @@ type Platform = (typeof PLATFORMS)[number];
 
 type AdminClient = typeof import("@/integrations/supabase/client.server")["supabaseAdmin"];
 
+type JsonValue = string | number | boolean | null | { [k: string]: JsonValue } | JsonValue[];
+
+type PushResult = {
+  ok: true;
+  simulated: boolean;
+  attempted: number;
+  delivered: number;
+  failures: { token_id: string; reason: string }[];
+  response?: JsonValue | null;
+};
+
 /**
- * Core push delivery. Looks up all push_tokens for userId and attempts a send
- * per token. Never throws — failures are collected and returned. Callable from
- * any server context (auth'd server fn or public cron route) because it takes
- * an explicit admin client.
+ * Core push delivery. Looks up all push_tokens for userId and dispatches one
+ * OneSignal REST call with include_player_ids (tokens stored from the Despia
+ * bridge ARE OneSignal player_ids). Returns delivery counts and writes a row
+ * to push_send_log so a super admin can audit attempts without device access.
+ *
+ * Falls back to "simulated" mode (logs only) when ONESIGNAL_APP_ID or
+ * ONESIGNAL_REST_API_KEY are missing so dev preview never explodes.
  */
 export async function sendPushCore(
   supabaseAdmin: AdminClient,
-  args: { userId: string; title: string; body: string; data?: Record<string, unknown> },
-): Promise<{ ok: true; simulated: boolean; attempted: number; delivered: number; failures: { token_id: string; reason: string }[] }> {
+  args: {
+    userId: string;
+    title: string;
+    body: string;
+    data?: Record<string, unknown>;
+    sentBy?: string | null;
+  },
+): Promise<PushResult> {
   const failures: { token_id: string; reason: string }[] = [];
-  let delivered = 0;
+  const logRow = {
+    recipient_user_id: args.userId,
+    sent_by: args.sentBy ?? null,
+    title: args.title,
+    body: args.body,
+    provider: "onesignal" as const,
+  };
 
-  try {
-    const { data: tokens, error } = await supabaseAdmin
-      .from("push_tokens")
-      .select("id, token, platform")
-      .eq("user_id", args.userId);
-    if (error) {
-      return { ok: true, simulated: true, attempted: 0, delivered: 0, failures: [{ token_id: "lookup", reason: error.message }] };
-    }
+  const { data: tokens, error } = await supabaseAdmin
+    .from("push_tokens")
+    .select("id, token, platform")
+    .eq("user_id", args.userId);
 
-    const pushKey = process.env.DESPIA_PUSH_KEY;
-
-    for (const row of tokens ?? []) {
-      try {
-        // DESPIA_PUSH_SEND: replace with Despia's documented push send call or REST endpoint,
-        // using DESPIA_PUSH_KEY from Lovable Cloud secrets.
-        void pushKey;
-        void row.token;
-        void row.platform;
-        void args.data;
-        console.log(
-          `[sendPush] would notify ${args.userId}: ${args.title} - ${args.body}`,
-        );
-        delivered += 1;
-      } catch (e) {
-        failures.push({
-          token_id: row.id,
-          reason: e instanceof Error ? e.message : "unknown",
-        });
-      }
-    }
-
+  if (error) {
+    await supabaseAdmin.from("push_send_log").insert({
+      ...logRow,
+      status: "error",
+      error_message: `token lookup: ${error.message}`,
+    });
     return {
       ok: true,
-      simulated: true,
-      attempted: tokens?.length ?? 0,
-      delivered,
-      failures,
-    };
-  } catch (e) {
-    return {
-      ok: true,
-      simulated: true,
+      simulated: false,
       attempted: 0,
       delivered: 0,
-      failures: [{ token_id: "lookup", reason: e instanceof Error ? e.message : "unknown" }],
+      failures: [{ token_id: "lookup", reason: error.message }],
+    };
+  }
+
+  const playerIds = (tokens ?? []).map((t) => t.token).filter(Boolean);
+  if (playerIds.length === 0) {
+    await supabaseAdmin.from("push_send_log").insert({
+      ...logRow,
+      status: "no_tokens",
+      attempted: 0,
+      delivered: 0,
+    });
+    return { ok: true, simulated: false, attempted: 0, delivered: 0, failures: [] };
+  }
+
+  const appId = process.env.ONESIGNAL_APP_ID;
+  const apiKey = process.env.ONESIGNAL_REST_API_KEY;
+
+  if (!appId || !apiKey) {
+    console.log(`[sendPush:SIM] ${args.userId} :: ${args.title} — ${args.body}`);
+    await supabaseAdmin.from("push_send_log").insert({
+      ...logRow,
+      status: "simulated",
+      attempted: playerIds.length,
+      delivered: 0,
+      error_message: "ONESIGNAL_APP_ID or ONESIGNAL_REST_API_KEY not configured",
+    });
+    return {
+      ok: true,
+      simulated: true,
+      attempted: playerIds.length,
+      delivered: 0,
+      failures: [{ token_id: "config", reason: "OneSignal credentials missing" }],
+    };
+  }
+
+  try {
+    const res = await fetch("https://onesignal.com/api/v1/notifications", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Basic ${apiKey}`,
+      },
+      body: JSON.stringify({
+        app_id: appId,
+        include_player_ids: playerIds,
+        headings: { en: args.title },
+        contents: { en: args.body },
+        data: args.data ?? {},
+      }),
+    });
+
+    const json = ((await res.json().catch(() => ({}))) as Record<string, unknown>) ?? {};
+    const id = typeof json.id === "string" ? json.id : undefined;
+    const recipients = typeof json.recipients === "number" ? json.recipients : undefined;
+    const errors = json.errors;
+    const invalidIds = Array.isArray(json.invalid_player_ids)
+      ? (json.invalid_player_ids as string[])
+      : [];
+    const responseJson = json as unknown as JsonValue;
+
+    if (!res.ok || (errors && !id)) {
+      const reason =
+        typeof errors === "string" ? errors : JSON.stringify(errors ?? { status: res.status });
+      await supabaseAdmin.from("push_send_log").insert({
+        ...logRow,
+        status: "failed",
+        attempted: playerIds.length,
+        delivered: 0,
+        response: responseJson,
+        error_message: reason,
+      });
+      return {
+        ok: true,
+        simulated: false,
+        attempted: playerIds.length,
+        delivered: 0,
+        failures: [{ token_id: "onesignal", reason }],
+        response: responseJson,
+      };
+    }
+
+    const delivered = recipients ?? playerIds.length;
+    for (const bad of invalidIds) {
+      failures.push({ token_id: bad, reason: "invalid_player_id" });
+    }
+
+    await supabaseAdmin.from("push_send_log").insert({
+      ...logRow,
+      status: "delivered",
+      attempted: playerIds.length,
+      delivered,
+      response: responseJson,
+    });
+
+    return {
+      ok: true,
+      simulated: false,
+      attempted: playerIds.length,
+      delivered,
+      failures,
+      response: responseJson,
+    };
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : "unknown";
+    await supabaseAdmin.from("push_send_log").insert({
+      ...logRow,
+      status: "error",
+      attempted: playerIds.length,
+      delivered: 0,
+      error_message: reason,
+    });
+    return {
+      ok: true,
+      simulated: false,
+      attempted: playerIds.length,
+      delivered: 0,
+      failures: [{ token_id: "fetch", reason }],
     };
   }
 }
@@ -107,16 +222,75 @@ export const sendPush = createServerFn({ method: "POST" })
         })
         .parse(d),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    return sendPushCore(supabaseAdmin, data);
+    return sendPushCore(supabaseAdmin, { ...data, sentBy: context.userId });
+  });
+
+/** Super-admin only: send a test push to myself or any user, with detailed result. */
+export const sendTestPush = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { userId?: string; title?: string; body?: string }) =>
+    z
+      .object({
+        userId: z.string().uuid().optional(),
+        title: z.string().min(1).max(200).optional(),
+        body: z.string().min(1).max(2000).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: prof } = await context.supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (prof?.role !== "super_admin") {
+      return {
+        ok: false as const,
+        reason: "forbidden" as const,
+      };
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const target = data.userId ?? context.userId;
+
+    // Quick token snapshot so the UI can explain "no token registered yet".
+    const { data: tokens } = await supabaseAdmin
+      .from("push_tokens")
+      .select("id, platform, last_seen")
+      .eq("user_id", target);
+
+    const result = await sendPushCore(supabaseAdmin, {
+      userId: target,
+      title: data.title ?? "Buddy test notification",
+      body: data.body ?? "If you see this, push delivery is working ✅",
+      data: { type: "test" },
+      sentBy: context.userId,
+    });
+
+    return {
+      ok: true as const,
+      target,
+      tokens: tokens ?? [],
+      result,
+    };
+  });
+
+/** Patient-or-admin: snapshot of my push tokens so I can debug delivery. */
+export const getMyPushTokens = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data } = await context.supabase
+      .from("push_tokens")
+      .select("id, platform, last_seen")
+      .eq("user_id", context.userId)
+      .order("last_seen", { ascending: false });
+    return { userId: context.userId, tokens: data ?? [] };
   });
 
 /**
  * Patient-initiated alert push. Verifies the caller owns the client on the
  * alert, respects push_fired so we only fire once, then sets push_fired = true.
- * Title/body are constructed server-side from DB (lock-screen privacy: first
- * name only, no symptom detail).
  */
 export const notifyAlertPush = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -139,7 +313,6 @@ export const notifyAlertPush = createServerFn({ method: "POST" })
     if (aErr || !alert) return { ok: false as const, reason: "alert_not_found" as const };
     if (alert.push_fired) return { ok: true as const, skipped: "already_fired" as const };
 
-    // Ownership: the caller must own the client linked to this alert.
     const { data: client } = await supabaseAdmin
       .from("clients")
       .select("id, full_name, auth_user_id")
@@ -163,6 +336,7 @@ export const notifyAlertPush = createServerFn({ method: "POST" })
       title,
       body,
       data: { alertId: alert.id, clientId: alert.client_id },
+      sentBy: context.userId,
     });
 
     await supabaseAdmin
@@ -173,7 +347,6 @@ export const notifyAlertPush = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-// Practitioner asks a client to check in -> push the client.
 export const sendCheckInNudge = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { clientId: string }) =>
@@ -205,6 +378,7 @@ export const sendCheckInNudge = createServerFn({ method: "POST" })
       title: "Buddy check-in",
       body: "Your practitioner is checking in. Tap to log how you're doing.",
       data: { type: "checkin_request" },
+      sentBy: context.userId,
     });
     return { ok: true as const };
   });

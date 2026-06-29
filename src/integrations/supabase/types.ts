@@ -796,6 +796,51 @@ export type Database = {
         }
         Relationships: []
       }
+      push_send_log: {
+        Row: {
+          attempted: number
+          body: string
+          created_at: string
+          delivered: number
+          error_message: string | null
+          id: string
+          provider: string
+          recipient_user_id: string
+          response: Json | null
+          sent_by: string | null
+          status: string
+          title: string
+        }
+        Insert: {
+          attempted?: number
+          body: string
+          created_at?: string
+          delivered?: number
+          error_message?: string | null
+          id?: string
+          provider?: string
+          recipient_user_id: string
+          response?: Json | null
+          sent_by?: string | null
+          status: string
+          title: string
+        }
+        Update: {
+          attempted?: number
+          body?: string
+          created_at?: string
+          delivered?: number
+          error_message?: string | null
+          id?: string
+          provider?: string
+          recipient_user_id?: string
+          response?: Json | null
+          sent_by?: string | null
+          status?: string
+          title?: string
+        }
+        Relationships: []
+      }
       push_tokens: {
         Row: {
           created_at: string
