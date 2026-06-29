@@ -1,0 +1,21 @@
+{
+  "webcredentials": {
+    "apps": [
+      "REPLACE_TEAMID.REPLACE_BUNDLE_ID"
+    ]
+  },
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "REPLACE_TEAMID.REPLACE_BUNDLE_ID",
+        "paths": [
+          "/auth/callback",
+          "/auth/callback/*",
+          "/client/app/*",
+          "/practitioner/app/*"
+        ]
+      }
+    ]
+  }
+}
