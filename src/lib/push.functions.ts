@@ -7,13 +7,15 @@ type Platform = (typeof PLATFORMS)[number];
 
 type AdminClient = typeof import("@/integrations/supabase/client.server")["supabaseAdmin"];
 
+type JsonValue = string | number | boolean | null | { [k: string]: JsonValue } | JsonValue[];
+
 type PushResult = {
   ok: true;
   simulated: boolean;
   attempted: number;
   delivered: number;
   failures: { token_id: string; reason: string }[];
-  response?: unknown;
+  response?: JsonValue | null;
 };
 
 /**
