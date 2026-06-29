@@ -114,12 +114,14 @@ export async function sendPushCore(
       }),
     });
 
-    const json = (await res.json().catch(() => ({}))) as {
-      id?: string;
-      recipients?: number;
-      errors?: unknown;
-      invalid_player_ids?: string[];
-    };
+    const json = ((await res.json().catch(() => ({}))) as Record<string, unknown>) ?? {};
+    const id = typeof json.id === "string" ? json.id : undefined;
+    const recipients = typeof json.recipients === "number" ? json.recipients : undefined;
+    const errors = json.errors;
+    const invalidIds = Array.isArray(json.invalid_player_ids)
+      ? (json.invalid_player_ids as string[])
+      : [];
+    const responseJson = json as unknown as JsonValue;
 
     if (!res.ok || (json.errors && !json.id)) {
       const reason =
