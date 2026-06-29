@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
 import { RewardsManager } from "@/components/RewardsManager";
+import { PushTestPanel } from "@/components/PushTestPanel";
 import { supabase } from "@/lib/supabase";
 import type { PlatformSettings } from "@/lib/types";
 
@@ -188,6 +189,10 @@ function AdminSettings() {
       </form>
 
       <RewardsManager />
+
+      <PushTestPanel />
+
+
 
       <button
         type="button"
