@@ -56,6 +56,11 @@ import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/em
 import { Route as ApiPublicHooksNightlyRiskAnalysisRouteImport } from './routes/api/public/hooks/nightly-risk-analysis'
 import { Route as AdminAppPractitionerPractitionerIdRouteImport } from './routes/admin.app.practitioner.$practitionerId'
 import { Route as AdminAppClientDetailClientIdRouteImport } from './routes/admin.app.client-detail.$clientId'
+import { Route as ApiPublicWearablesPolarCallbackRouteImport } from './routes/api/public/wearables/polar/callback'
+import { Route as ApiPublicWearablesOuraWebhookRouteImport } from './routes/api/public/wearables/oura/webhook'
+import { Route as ApiPublicWearablesOuraCallbackRouteImport } from './routes/api/public/wearables/oura/callback'
+import { Route as ApiPublicWearablesGarminWebhookRouteImport } from './routes/api/public/wearables/garmin/webhook'
+import { Route as ApiPublicWearablesGarminCallbackRouteImport } from './routes/api/public/wearables/garmin/callback'
 
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
@@ -302,6 +307,36 @@ const AdminAppClientDetailClientIdRoute =
     path: '/client-detail/$clientId',
     getParentRoute: () => AdminAppRoute,
   } as any)
+const ApiPublicWearablesPolarCallbackRoute =
+  ApiPublicWearablesPolarCallbackRouteImport.update({
+    id: '/api/public/wearables/polar/callback',
+    path: '/api/public/wearables/polar/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWearablesOuraWebhookRoute =
+  ApiPublicWearablesOuraWebhookRouteImport.update({
+    id: '/api/public/wearables/oura/webhook',
+    path: '/api/public/wearables/oura/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWearablesOuraCallbackRoute =
+  ApiPublicWearablesOuraCallbackRouteImport.update({
+    id: '/api/public/wearables/oura/callback',
+    path: '/api/public/wearables/oura/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWearablesGarminWebhookRoute =
+  ApiPublicWearablesGarminWebhookRouteImport.update({
+    id: '/api/public/wearables/garmin/webhook',
+    path: '/api/public/wearables/garmin/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWearablesGarminCallbackRoute =
+  ApiPublicWearablesGarminCallbackRouteImport.update({
+    id: '/api/public/wearables/garmin/callback',
+    path: '/api/public/wearables/garmin/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -351,6 +386,11 @@ export interface FileRoutesByFullPath {
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
+  '/api/public/wearables/garmin/callback': typeof ApiPublicWearablesGarminCallbackRoute
+  '/api/public/wearables/garmin/webhook': typeof ApiPublicWearablesGarminWebhookRoute
+  '/api/public/wearables/oura/callback': typeof ApiPublicWearablesOuraCallbackRoute
+  '/api/public/wearables/oura/webhook': typeof ApiPublicWearablesOuraWebhookRoute
+  '/api/public/wearables/polar/callback': typeof ApiPublicWearablesPolarCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -399,6 +439,11 @@ export interface FileRoutesByTo {
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
+  '/api/public/wearables/garmin/callback': typeof ApiPublicWearablesGarminCallbackRoute
+  '/api/public/wearables/garmin/webhook': typeof ApiPublicWearablesGarminWebhookRoute
+  '/api/public/wearables/oura/callback': typeof ApiPublicWearablesOuraCallbackRoute
+  '/api/public/wearables/oura/webhook': typeof ApiPublicWearablesOuraWebhookRoute
+  '/api/public/wearables/polar/callback': typeof ApiPublicWearablesPolarCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -449,6 +494,11 @@ export interface FileRoutesById {
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
+  '/api/public/wearables/garmin/callback': typeof ApiPublicWearablesGarminCallbackRoute
+  '/api/public/wearables/garmin/webhook': typeof ApiPublicWearablesGarminWebhookRoute
+  '/api/public/wearables/oura/callback': typeof ApiPublicWearablesOuraCallbackRoute
+  '/api/public/wearables/oura/webhook': typeof ApiPublicWearablesOuraWebhookRoute
+  '/api/public/wearables/polar/callback': typeof ApiPublicWearablesPolarCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -500,6 +550,11 @@ export interface FileRouteTypes {
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
     | '/practitioner/app/client-detail/$clientId'
+    | '/api/public/wearables/garmin/callback'
+    | '/api/public/wearables/garmin/webhook'
+    | '/api/public/wearables/oura/callback'
+    | '/api/public/wearables/oura/webhook'
+    | '/api/public/wearables/polar/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -548,6 +603,11 @@ export interface FileRouteTypes {
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
     | '/practitioner/app/client-detail/$clientId'
+    | '/api/public/wearables/garmin/callback'
+    | '/api/public/wearables/garmin/webhook'
+    | '/api/public/wearables/oura/callback'
+    | '/api/public/wearables/oura/webhook'
+    | '/api/public/wearables/polar/callback'
   id:
     | '__root__'
     | '/'
@@ -597,6 +657,11 @@ export interface FileRouteTypes {
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
     | '/practitioner/app/client-detail/$clientId'
+    | '/api/public/wearables/garmin/callback'
+    | '/api/public/wearables/garmin/webhook'
+    | '/api/public/wearables/oura/callback'
+    | '/api/public/wearables/oura/webhook'
+    | '/api/public/wearables/polar/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -624,6 +689,11 @@ export interface RootRouteChildren {
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
   LovableEmailTransactionalSendRoute: typeof LovableEmailTransactionalSendRoute
+  ApiPublicWearablesGarminCallbackRoute: typeof ApiPublicWearablesGarminCallbackRoute
+  ApiPublicWearablesGarminWebhookRoute: typeof ApiPublicWearablesGarminWebhookRoute
+  ApiPublicWearablesOuraCallbackRoute: typeof ApiPublicWearablesOuraCallbackRoute
+  ApiPublicWearablesOuraWebhookRoute: typeof ApiPublicWearablesOuraWebhookRoute
+  ApiPublicWearablesPolarCallbackRoute: typeof ApiPublicWearablesPolarCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -957,6 +1027,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppClientDetailClientIdRouteImport
       parentRoute: typeof AdminAppRoute
     }
+    '/api/public/wearables/polar/callback': {
+      id: '/api/public/wearables/polar/callback'
+      path: '/api/public/wearables/polar/callback'
+      fullPath: '/api/public/wearables/polar/callback'
+      preLoaderRoute: typeof ApiPublicWearablesPolarCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/wearables/oura/webhook': {
+      id: '/api/public/wearables/oura/webhook'
+      path: '/api/public/wearables/oura/webhook'
+      fullPath: '/api/public/wearables/oura/webhook'
+      preLoaderRoute: typeof ApiPublicWearablesOuraWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/wearables/oura/callback': {
+      id: '/api/public/wearables/oura/callback'
+      path: '/api/public/wearables/oura/callback'
+      fullPath: '/api/public/wearables/oura/callback'
+      preLoaderRoute: typeof ApiPublicWearablesOuraCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/wearables/garmin/webhook': {
+      id: '/api/public/wearables/garmin/webhook'
+      path: '/api/public/wearables/garmin/webhook'
+      fullPath: '/api/public/wearables/garmin/webhook'
+      preLoaderRoute: typeof ApiPublicWearablesGarminWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/wearables/garmin/callback': {
+      id: '/api/public/wearables/garmin/callback'
+      path: '/api/public/wearables/garmin/callback'
+      fullPath: '/api/public/wearables/garmin/callback'
+      preLoaderRoute: typeof ApiPublicWearablesGarminCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1064,6 +1169,11 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
   LovableEmailTransactionalSendRoute: LovableEmailTransactionalSendRoute,
+  ApiPublicWearablesGarminCallbackRoute: ApiPublicWearablesGarminCallbackRoute,
+  ApiPublicWearablesGarminWebhookRoute: ApiPublicWearablesGarminWebhookRoute,
+  ApiPublicWearablesOuraCallbackRoute: ApiPublicWearablesOuraCallbackRoute,
+  ApiPublicWearablesOuraWebhookRoute: ApiPublicWearablesOuraWebhookRoute,
+  ApiPublicWearablesPolarCallbackRoute: ApiPublicWearablesPolarCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

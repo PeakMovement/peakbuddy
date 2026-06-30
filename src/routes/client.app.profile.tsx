@@ -14,6 +14,7 @@ import { deleteMyAccount } from "@/lib/account-delete.functions";
 import { updateClientPhone, updateMyEmail } from "@/lib/client-profile.functions";
 import { MyRewards } from "@/components/MyRewards";
 import { MyNotificationStatus } from "@/components/MyNotificationStatus";
+import { WearablesPanel } from "@/components/wearables/WearablesPanel";
 
 export const Route = createFileRoute("/client/app/profile")({
   head: () => ({ meta: [{ title: "Profile — Buddy" }] }),
@@ -258,6 +259,10 @@ function ClientProfile() {
       {/* Rewards */}
       <SectionHeader>Rewards</SectionHeader>
       <MyRewards />
+
+      {/* Wearables — self-contained panel; move this block to relocate the section. */}
+      <SectionHeader>Wearables</SectionHeader>
+      <WearablesPanel />
 
       {/* Plan */}
       {programState?.program && programState.status !== "none" && (
