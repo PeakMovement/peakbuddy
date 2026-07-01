@@ -166,31 +166,48 @@ export async function fetchGarminUserId(accessToken: string): Promise<string | n
 }
 
 /**
- * Request a backfill of the last `days` (1–90) of history. Garmin accepts (202/200/409)
- * and pushes the data asynchronously to our webhook.
+ * Request a backfill of the last `days` (1–90) of history. Garmin accepts
+ * (202/200/409) and pushes the data asynchronously to our webhook.
+ *
+ * Throws `GarminError('consent_required')` when Garmin rejects every attempt
+ * with 403 — that means the user hasn't granted the required data scopes in
+ * Garmin Connect, so no push data will ever arrive.
  */
 export async function requestGarminBackfill(args: {
   accessToken: string;
   days?: number;
-}): Promise<void> {
+}): Promise<{ attempted: number; accepted: number; forbidden: number }> {
   const days = Math.min(90, Math.max(1, args.days ?? 30));
   const nowS = Math.floor(Date.now() / 1000);
+  let attempted = 0;
+  let accepted = 0;
+  let forbidden = 0;
   for (const endpoint of GARMIN.BACKFILL_ENDPOINTS) {
     for (let d = 0; d < days; d++) {
       const end = nowS - d * 86400;
       const start = end - 86400;
       const url = `${GARMIN.API_BASE}/backfill/${endpoint}?summaryStartTimeInSeconds=${start}&summaryEndTimeInSeconds=${end}`;
+      attempted++;
       try {
-        await fetch(url, {
+        const res = await fetch(url, {
           method: "POST",
           headers: { Authorization: `Bearer ${args.accessToken}` },
         });
+        if (res.status === 403) forbidden++;
+        else if (res.ok || res.status === 409) accepted++;
       } catch {
         /* best effort */
       }
       await new Promise((r) => setTimeout(r, 120)); // pace requests
     }
   }
+  if (attempted > 0 && accepted === 0 && forbidden / attempted > 0.9) {
+    throw new GarminError(
+      "consent_required",
+      "Garmin denied backfill — user consent / scopes missing",
+    );
+  }
+  return { attempted, accepted, forbidden };
 }
 
 // ---------------------------------------------------------------------------
