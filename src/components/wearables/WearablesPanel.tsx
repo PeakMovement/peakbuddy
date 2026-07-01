@@ -216,8 +216,31 @@ export function WearablesPanel({
           const expired = conn?.status === "token_expired";
           return (
             <div key={provider} style={rowStyle}>
-              <span style={{ fontFamily: "var(--font-ui)", fontSize: 14, color: "var(--white)" }}>
+              <span
+                style={{
+                  fontFamily: "var(--font-ui)",
+                  fontSize: 14,
+                  color: "var(--white)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
                 {PROVIDER_LABEL[provider]}
+                {live && (
+                  <StatusPill
+                    tone={connected ? "success" : expired ? "warn" : "muted"}
+                    label={
+                      busy === provider
+                        ? "…"
+                        : connected
+                          ? "Connected"
+                          : expired
+                            ? "Expired"
+                            : "Not connected"
+                    }
+                  />
+                )}
               </span>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 {!live ? (
