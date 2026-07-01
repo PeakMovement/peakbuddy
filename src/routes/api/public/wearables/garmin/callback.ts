@@ -3,6 +3,7 @@ import { log } from "@/lib/log";
 import {
   exchangeGarminCode,
   fetchGarminUserId,
+  GarminError,
   requestGarminBackfill,
 } from "@/lib/wearables/garmin";
 import { garminCreds, garminRedirectUri, upsertToken } from "@/lib/wearables/tokens";
@@ -64,13 +65,23 @@ export const Route = createFileRoute("/api/public/wearables/garmin/callback")({
 
           // Request history; Garmin pushes it to our webhook asynchronously.
           try {
-            await requestGarminBackfill({ accessToken: tokens.access_token, days: 30 });
+            const result = await requestGarminBackfill({
+              accessToken: tokens.access_token,
+              days: 30,
+            });
+            log.info(
+              `Garmin backfill for client ${clientId}: attempted=${result.attempted} accepted=${result.accepted} forbidden=${result.forbidden}`,
+            );
           } catch (e) {
+            if (e instanceof GarminError && e.code === "consent_required") {
+              return back("consent");
+            }
             log.warn(`Garmin backfill request failed for client ${clientId}`, e);
           }
 
           return back("connected");
         } catch (e) {
+          if (e instanceof GarminError && e.code === "consent_required") return back("consent");
           log.warn("Garmin callback failed", e);
           return back("error");
         }

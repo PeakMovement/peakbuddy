@@ -136,16 +136,20 @@ export function WearablesPanel({
       const status = params.get("status");
       const provider = params.get("wearable");
       if (provider && status) {
+        const label = PROVIDER_LABEL[provider as WearableProvider] ?? provider;
         if (status === "connected") {
-          setMessage({
-            kind: "success",
-            text: `${PROVIDER_LABEL[provider as WearableProvider] ?? provider} connected — syncing your data…`,
-          });
+          setMessage({ kind: "success", text: `${label} connected — syncing your data…` });
           setPostConnectPolling(true);
         } else if (status === "consent") {
-          setMessage({ kind: "error", text: "Please grant data access in your device's app, then reconnect." });
+          const hint =
+            provider === "polar"
+              ? "Open the Polar Flow app, grant AccessLink data permission, then tap Connect again."
+              : provider === "garmin"
+                ? "Open Garmin Connect → Settings → Connected Apps and enable data sharing for Buddy, then reconnect."
+                : "Please grant data access in your device's app, then reconnect.";
+          setMessage({ kind: "error", text: `${label}: ${hint}` });
         } else {
-          setMessage({ kind: "error", text: "Couldn't connect your device. Please try again." });
+          setMessage({ kind: "error", text: `Couldn't connect ${label}. Please try again.` });
         }
         window.history.replaceState({}, "", window.location.pathname);
       }
