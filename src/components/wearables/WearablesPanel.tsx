@@ -50,7 +50,7 @@ const MUTED = "var(--white-muted)";
 const WHITE = "var(--white)";
 const CARD = "var(--navy-card)";
 const BORDER = "var(--navy-border)";
-const RED = "#ef4444";
+const RED = "var(--red, #ef4444)";
 
 function ProviderMark({ provider }: { provider: WearableProvider }) {
   const common = { width: 22, height: 22, fill: "currentColor" } as const;
@@ -274,7 +274,7 @@ export function WearablesPanel({
                 : message.kind === "success"
                   ? "rgba(79,141,240,0.5)"
                   : BORDER,
-            color: message.kind === "error" ? "#fecaca" : WHITE,
+            color: message.kind === "error" ? "var(--red-soft, #fecaca)" : WHITE,
           }}
         >
           {message.text}
@@ -351,7 +351,7 @@ export function WearablesPanel({
                     )}
                   </>
                 ) : expired ? (
-                  <p style={{ ...emptyTextStyle, color: "#fecaca" }}>
+                  <p style={{ ...emptyTextStyle, color: "var(--red-soft, #fecaca)" }}>
                     Provider credentials have expired. Reconnect to resume the data feed.
                   </p>
                 ) : (
@@ -388,7 +388,7 @@ export function WearablesPanel({
                   </>
                 ) : expired ? (
                   <button
-                    style={{ ...primaryBtn, background: "rgba(239,68,68,0.12)", color: "#fecaca", border: "1px solid rgba(239,68,68,0.5)" }}
+                    style={{ ...primaryBtn, background: "rgba(239,68,68,0.12)", color: "var(--red-soft, #fecaca)", border: "1px solid rgba(239,68,68,0.5)" }}
                     disabled={isBusy}
                     onClick={() => onConnect(provider)}
                   >
