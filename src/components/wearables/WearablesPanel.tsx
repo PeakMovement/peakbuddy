@@ -349,6 +349,41 @@ export function WearablesPanel({
   );
 }
 
+function StatusPill({ tone, label }: { tone: "success" | "warn" | "muted"; label: string }) {
+  const color =
+    tone === "success" ? "#22c55e" : tone === "warn" ? "#f59e0b" : "var(--white-muted)";
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        fontFamily: "var(--font-ui)",
+        fontSize: 10.5,
+        fontWeight: 600,
+        letterSpacing: "0.06em",
+        textTransform: "uppercase",
+        color,
+        border: `1px solid ${tone === "muted" ? "var(--navy-border)" : color}`,
+        borderRadius: 999,
+        padding: "2px 8px",
+        lineHeight: 1.4,
+      }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: color,
+          display: "inline-block",
+        }}
+      />
+      {label}
+    </span>
+  );
+}
+
 function Metric({ label, value, unit }: { label: string; value: number | null; unit?: string }) {
   return (
     <div style={metricCell}>
