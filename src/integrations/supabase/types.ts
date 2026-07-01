@@ -14,189 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      wearable_tokens: {
-        Row: {
-          access_token: string
-          client_id: string
-          created_at: string
-          expires_at: string | null
-          provider: string
-          provider_user_id: string | null
-          refresh_token: string | null
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          access_token: string
-          client_id: string
-          created_at?: string
-          expires_at?: string | null
-          provider: string
-          provider_user_id?: string | null
-          refresh_token?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          access_token?: string
-          client_id?: string
-          created_at?: string
-          expires_at?: string | null
-          provider?: string
-          provider_user_id?: string | null
-          refresh_token?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "wearable_tokens_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      wearable_sessions: {
-        Row: {
-          active_calories: number | null
-          activity_score: number | null
-          avg_heart_rate: number | null
-          body_battery_max: number | null
-          body_battery_min: number | null
-          client_id: string
-          date: string
-          deep_sleep_duration: number | null
-          duration_minutes: number | null
-          fetched_at: string
-          hrv_avg: number | null
-          id: string
-          light_sleep_duration: number | null
-          max_heart_rate: number | null
-          readiness_score: number | null
-          rem_sleep_duration: number | null
-          respiration_rate_avg: number | null
-          resting_hr: number | null
-          session_type: string | null
-          sleep_efficiency: number | null
-          sleep_score: number | null
-          source: string
-          spo2_avg: number | null
-          stress_avg: number | null
-          total_calories: number | null
-          total_distance_km: number | null
-          total_sleep_duration: number | null
-          total_steps: number | null
-          training_load: number | null
-          vo2_max: number | null
-        }
-        Insert: {
-          active_calories?: number | null
-          activity_score?: number | null
-          avg_heart_rate?: number | null
-          body_battery_max?: number | null
-          body_battery_min?: number | null
-          client_id: string
-          date: string
-          deep_sleep_duration?: number | null
-          duration_minutes?: number | null
-          fetched_at?: string
-          hrv_avg?: number | null
-          id?: string
-          light_sleep_duration?: number | null
-          max_heart_rate?: number | null
-          readiness_score?: number | null
-          rem_sleep_duration?: number | null
-          respiration_rate_avg?: number | null
-          resting_hr?: number | null
-          session_type?: string | null
-          sleep_efficiency?: number | null
-          sleep_score?: number | null
-          source: string
-          spo2_avg?: number | null
-          stress_avg?: number | null
-          total_calories?: number | null
-          total_distance_km?: number | null
-          total_sleep_duration?: number | null
-          total_steps?: number | null
-          training_load?: number | null
-          vo2_max?: number | null
-        }
-        Update: {
-          active_calories?: number | null
-          activity_score?: number | null
-          avg_heart_rate?: number | null
-          body_battery_max?: number | null
-          body_battery_min?: number | null
-          client_id?: string
-          date?: string
-          deep_sleep_duration?: number | null
-          duration_minutes?: number | null
-          fetched_at?: string
-          hrv_avg?: number | null
-          id?: string
-          light_sleep_duration?: number | null
-          max_heart_rate?: number | null
-          readiness_score?: number | null
-          rem_sleep_duration?: number | null
-          respiration_rate_avg?: number | null
-          resting_hr?: number | null
-          session_type?: string | null
-          sleep_efficiency?: number | null
-          sleep_score?: number | null
-          source?: string
-          spo2_avg?: number | null
-          stress_avg?: number | null
-          total_calories?: number | null
-          total_distance_km?: number | null
-          total_sleep_duration?: number | null
-          total_steps?: number | null
-          training_load?: number | null
-          vo2_max?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "wearable_sessions_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      garmin_oauth_state: {
-        Row: {
-          client_id: string
-          code_verifier: string
-          created_at: string
-          expires_at: string
-          state: string
-        }
-        Insert: {
-          client_id: string
-          code_verifier: string
-          created_at?: string
-          expires_at: string
-          state: string
-        }
-        Update: {
-          client_id?: string
-          code_verifier?: string
-          created_at?: string
-          expires_at?: string
-          state?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "garmin_oauth_state_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       alerts: {
         Row: {
           alert_type: string
@@ -644,6 +461,38 @@ export type Database = {
           used_at?: string | null
         }
         Relationships: []
+      }
+      garmin_oauth_state: {
+        Row: {
+          client_id: string
+          code_verifier: string
+          created_at: string
+          expires_at: string
+          state: string
+        }
+        Insert: {
+          client_id: string
+          code_verifier: string
+          created_at?: string
+          expires_at: string
+          state: string
+        }
+        Update: {
+          client_id?: string
+          code_verifier?: string
+          created_at?: string
+          expires_at?: string
+          state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "garmin_oauth_state_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       grading_settings: {
         Row: {
@@ -1217,6 +1066,157 @@ export type Database = {
             columns: ["practitioner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wearable_sessions: {
+        Row: {
+          active_calories: number | null
+          activity_score: number | null
+          avg_heart_rate: number | null
+          body_battery_max: number | null
+          body_battery_min: number | null
+          client_id: string
+          date: string
+          deep_sleep_duration: number | null
+          duration_minutes: number | null
+          fetched_at: string
+          hrv_avg: number | null
+          id: string
+          light_sleep_duration: number | null
+          max_heart_rate: number | null
+          readiness_score: number | null
+          rem_sleep_duration: number | null
+          respiration_rate_avg: number | null
+          resting_hr: number | null
+          session_type: string | null
+          sleep_efficiency: number | null
+          sleep_score: number | null
+          source: string
+          spo2_avg: number | null
+          stress_avg: number | null
+          total_calories: number | null
+          total_distance_km: number | null
+          total_sleep_duration: number | null
+          total_steps: number | null
+          training_load: number | null
+          vo2_max: number | null
+        }
+        Insert: {
+          active_calories?: number | null
+          activity_score?: number | null
+          avg_heart_rate?: number | null
+          body_battery_max?: number | null
+          body_battery_min?: number | null
+          client_id: string
+          date: string
+          deep_sleep_duration?: number | null
+          duration_minutes?: number | null
+          fetched_at?: string
+          hrv_avg?: number | null
+          id?: string
+          light_sleep_duration?: number | null
+          max_heart_rate?: number | null
+          readiness_score?: number | null
+          rem_sleep_duration?: number | null
+          respiration_rate_avg?: number | null
+          resting_hr?: number | null
+          session_type?: string | null
+          sleep_efficiency?: number | null
+          sleep_score?: number | null
+          source: string
+          spo2_avg?: number | null
+          stress_avg?: number | null
+          total_calories?: number | null
+          total_distance_km?: number | null
+          total_sleep_duration?: number | null
+          total_steps?: number | null
+          training_load?: number | null
+          vo2_max?: number | null
+        }
+        Update: {
+          active_calories?: number | null
+          activity_score?: number | null
+          avg_heart_rate?: number | null
+          body_battery_max?: number | null
+          body_battery_min?: number | null
+          client_id?: string
+          date?: string
+          deep_sleep_duration?: number | null
+          duration_minutes?: number | null
+          fetched_at?: string
+          hrv_avg?: number | null
+          id?: string
+          light_sleep_duration?: number | null
+          max_heart_rate?: number | null
+          readiness_score?: number | null
+          rem_sleep_duration?: number | null
+          respiration_rate_avg?: number | null
+          resting_hr?: number | null
+          session_type?: string | null
+          sleep_efficiency?: number | null
+          sleep_score?: number | null
+          source?: string
+          spo2_avg?: number | null
+          stress_avg?: number | null
+          total_calories?: number | null
+          total_distance_km?: number | null
+          total_sleep_duration?: number | null
+          total_steps?: number | null
+          training_load?: number | null
+          vo2_max?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wearable_sessions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wearable_tokens: {
+        Row: {
+          access_token: string
+          client_id: string
+          created_at: string
+          expires_at: string | null
+          provider: string
+          provider_user_id: string | null
+          refresh_token: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          client_id: string
+          created_at?: string
+          expires_at?: string | null
+          provider: string
+          provider_user_id?: string | null
+          refresh_token?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          client_id?: string
+          created_at?: string
+          expires_at?: string | null
+          provider?: string
+          provider_user_id?: string | null
+          refresh_token?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wearable_tokens_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
