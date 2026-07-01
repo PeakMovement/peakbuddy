@@ -55,7 +55,8 @@ export function WearablesPanel({
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<WearableProvider | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ kind: "info" | "success" | "error"; text: string } | null>(null);
+  const [postConnectPolling, setPostConnectPolling] = useState(false);
 
   const refresh = useCallback(async () => {
     const clientId = getClientId();
@@ -82,18 +83,45 @@ export function WearablesPanel({
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const status = params.get("status");
-      if (params.get("wearable") && status) {
-        setMessage(
-          status === "connected"
-            ? "Device connected — syncing your data…"
-            : status === "consent"
-              ? "Please grant data access in your device's app, then reconnect."
-              : "Couldn't connect your device. Please try again.",
-        );
+      const provider = params.get("wearable");
+      if (provider && status) {
+        if (status === "connected") {
+          setMessage({ kind: "success", text: `${provider === "oura" ? "Oura Ring" : provider} connected — syncing your data…` });
+          setPostConnectPolling(true);
+        } else if (status === "consent") {
+          setMessage({ kind: "error", text: "Please grant data access in your device's app, then reconnect." });
+        } else {
+          setMessage({ kind: "error", text: "Couldn't connect your device. Please try again." });
+        }
         window.history.replaceState({}, "", window.location.pathname);
       }
     }
   }, [refresh]);
+
+  // After a successful OAuth return, poll for the first batch of session data
+  // so the panel flips from "syncing…" to real numbers without a manual reload.
+  useEffect(() => {
+    if (!postConnectPolling) return;
+    let cancelled = false;
+    const started = Date.now();
+    const tick = async () => {
+      if (cancelled) return;
+      await refresh();
+      if (cancelled) return;
+      if (sessions.length > 0 || Date.now() - started > 45_000) {
+        setPostConnectPolling(false);
+        if (sessions.length > 0) setMessage({ kind: "success", text: "Your latest data is ready." });
+        return;
+      }
+      setTimeout(tick, 3000);
+    };
+    const t = setTimeout(tick, 2000);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postConnectPolling]);
 
   const onConnect = async (provider: WearableProvider) => {
     setBusy(provider);
