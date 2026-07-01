@@ -262,7 +262,9 @@ function ClientProfile() {
 
       {/* Wearables — self-contained panel; move this block to relocate the section. */}
       <SectionHeader>Wearables</SectionHeader>
-      <WearablesPanel />
+      <div id="wearables" style={{ scrollMarginTop: 80 }}>
+        <WearablesPanel />
+      </div>
 
       {/* Plan */}
       {programState?.program && programState.status !== "none" && (
