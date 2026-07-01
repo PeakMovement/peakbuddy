@@ -189,11 +189,12 @@ function Dashboard() {
       </header>
 
       <section
-        style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}
+        style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}
       >
         <Stat label="Clients" value={rows.length} />
         <Stat label="Active" value={rows.filter((r) => r._activeToday).length} />
         <Stat label="Alerts" value={unread} danger={unread > 0} />
+        <Stat label="Devices" value={wearableCount} icon={<Watch size={14} />} />
       </section>
 
       <MorningAnalysisCard />
