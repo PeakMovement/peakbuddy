@@ -372,7 +372,7 @@ function Dashboard() {
   );
 }
 
-function Stat({ label, value, danger }: { label: string; value: number; danger?: boolean }) {
+function Stat({ label, value, danger, icon }: { label: string; value: number; danger?: boolean; icon?: React.ReactNode }) {
   return (
     <div
       style={{
@@ -394,6 +394,9 @@ function Stat({ label, value, danger }: { label: string; value: number; danger?:
       </div>
       <div
         style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
           fontFamily: "var(--font-ui)",
           fontSize: 11,
           color: "var(--white-muted)",
@@ -402,6 +405,7 @@ function Stat({ label, value, danger }: { label: string; value: number; danger?:
           textTransform: "uppercase",
         }}
       >
+        {icon}
         {label}
       </div>
     </div>
