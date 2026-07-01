@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { Users, Sparkles, AlertTriangle } from "lucide-react";
+import { Users, Sparkles, AlertTriangle, Watch } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Profile, Client, CheckIn } from "@/lib/types";
 import { CircularRing, ringColor } from "@/components/CircularRing";
