@@ -3,6 +3,7 @@ import { log } from "@/lib/log";
 import {
   exchangeGarminCode,
   fetchGarminUserId,
+  GarminError,
   requestGarminBackfill,
 } from "@/lib/wearables/garmin";
 import { garminCreds, garminRedirectUri, upsertToken } from "@/lib/wearables/tokens";
