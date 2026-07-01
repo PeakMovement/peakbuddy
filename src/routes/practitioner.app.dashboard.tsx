@@ -50,6 +50,7 @@ function Dashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [rows, setRows] = useState<ClientRow[]>([]);
   const [unread, setUnread] = useState(0);
+  const [wearableCount, setWearableCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
