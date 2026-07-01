@@ -443,6 +443,8 @@ function CheckInScreen() {
         </div>
       )}
 
+      <WearablePromptCard />
+
       {/* Pain */}
       <Section label="Pain Level">
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
