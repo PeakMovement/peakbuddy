@@ -129,7 +129,7 @@ export function WearablesPanel({
       const { authUrl } = await startConnect({ data: { provider } });
       window.location.href = authUrl;
     } catch {
-      setMessage("Couldn't start the connection. Please try again.");
+      setMessage({ kind: "error", text: "Couldn't start the connection. Please try again." });
       setBusy(null);
     }
   };
@@ -149,22 +149,26 @@ export function WearablesPanel({
     try {
       const res = await runSync({ data: { provider } });
       if (res.ok) {
-        setMessage(
-          provider === "garmin"
-            ? "Requested a sync — Garmin data appears shortly."
-            : res.synced > 0
-              ? `Synced ${res.synced} day(s).`
-              : "Up to date.",
-        );
+        setMessage({
+          kind: "success",
+          text:
+            provider === "garmin"
+              ? "Requested a sync — Garmin data appears shortly."
+              : res.synced > 0
+                ? `Synced ${res.synced} day(s).`
+                : "Up to date.",
+        });
         await refresh();
       } else {
-        setMessage(
-          res.error === "reconnect"
-            ? "Connection expired — please reconnect."
-            : res.error === "consent"
-              ? "Please grant data access in your device's app."
-              : "Sync failed.",
-        );
+        setMessage({
+          kind: "error",
+          text:
+            res.error === "reconnect"
+              ? "Connection expired — please reconnect."
+              : res.error === "consent"
+                ? "Please grant data access in your device's app."
+                : "Sync failed.",
+        });
       }
     } finally {
       setBusy(null);
@@ -187,7 +191,21 @@ export function WearablesPanel({
         Connect a device to track sleep, recovery and activity automatically.
       </p>
 
-      {message && <div style={noticeStyle}>{message}</div>}
+      {message && (
+        <div
+          style={{
+            ...noticeStyle,
+            borderColor:
+              message.kind === "error"
+                ? "rgba(239,68,68,0.5)"
+                : message.kind === "success"
+                  ? "rgba(34,197,94,0.5)"
+                  : "var(--navy-border)",
+          }}
+        >
+          {message.text}
+        </div>
+      )}
 
       {/* Connection rows */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
