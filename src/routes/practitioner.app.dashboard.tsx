@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { Users, Sparkles, AlertTriangle } from "lucide-react";
+import { Users, Sparkles, AlertTriangle, Watch } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Profile, Client, CheckIn } from "@/lib/types";
 import { CircularRing, ringColor } from "@/components/CircularRing";
@@ -12,6 +12,7 @@ import {
   type MorningAnalysisPayload,
 } from "@/lib/morning-analysis.functions";
 import { registerPushToken } from "@/lib/push";
+import { countActiveWearableConnections } from "@/lib/wearables.functions";
 
 export const Route = createFileRoute("/practitioner/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Buddy" }] }),
@@ -49,6 +50,7 @@ function Dashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [rows, setRows] = useState<ClientRow[]>([]);
   const [unread, setUnread] = useState(0);
+  const [wearableCount, setWearableCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,24 +64,30 @@ function Dashboard() {
 
 
 
-      const [{ data: prof }, { data: clients, error: cErr }, { count: unreadCount, error: aErr }] =
-        await Promise.all([
-          supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
-          supabase
-            .from("clients")
-            .select("*")
-            .eq("practitioner_id", u.user.id)
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("alerts")
-            .select("*", { count: "exact", head: true })
-            .eq("practitioner_id", u.user.id)
-            .eq("is_read", false),
-        ]);
+      const [
+        { data: prof },
+        { data: clients, error: cErr },
+        { count: unreadCount, error: aErr },
+        wc,
+      ] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
+        supabase
+          .from("clients")
+          .select("*")
+          .eq("practitioner_id", u.user.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("alerts")
+          .select("*", { count: "exact", head: true })
+          .eq("practitioner_id", u.user.id)
+          .eq("is_read", false),
+        countActiveWearableConnections().catch(() => 0),
+      ]);
       if (cErr || aErr) throw cErr || aErr;
 
       setProfile(prof as Profile | null);
       setUnread(unreadCount ?? 0);
+      setWearableCount(typeof wc === "number" ? wc : 0);
 
       const list = (clients as Client[]) ?? [];
       if (list.length === 0) {
@@ -181,11 +189,12 @@ function Dashboard() {
       </header>
 
       <section
-        style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}
+        style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}
       >
         <Stat label="Clients" value={rows.length} />
         <Stat label="Active" value={rows.filter((r) => r._activeToday).length} />
         <Stat label="Alerts" value={unread} danger={unread > 0} />
+        <Stat label="Devices" value={wearableCount} icon={<Watch size={14} />} />
       </section>
 
       <MorningAnalysisCard />
@@ -363,7 +372,7 @@ function Dashboard() {
   );
 }
 
-function Stat({ label, value, danger }: { label: string; value: number; danger?: boolean }) {
+function Stat({ label, value, danger, icon }: { label: string; value: number; danger?: boolean; icon?: React.ReactNode }) {
   return (
     <div
       style={{
@@ -385,6 +394,9 @@ function Stat({ label, value, danger }: { label: string; value: number; danger?:
       </div>
       <div
         style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
           fontFamily: "var(--font-ui)",
           fontSize: 11,
           color: "var(--white-muted)",
@@ -393,6 +405,7 @@ function Stat({ label, value, danger }: { label: string; value: number; danger?:
           textTransform: "uppercase",
         }}
       >
+        {icon}
         {label}
       </div>
     </div>
