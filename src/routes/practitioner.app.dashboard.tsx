@@ -64,20 +64,25 @@ function Dashboard() {
 
 
 
-      const [{ data: prof }, { data: clients, error: cErr }, { count: unreadCount, error: aErr }] =
-        await Promise.all([
-          supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
-          supabase
-            .from("clients")
-            .select("*")
-            .eq("practitioner_id", u.user.id)
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("alerts")
-            .select("*", { count: "exact", head: true })
-            .eq("practitioner_id", u.user.id)
-            .eq("is_read", false),
-        ]);
+      const [
+        { data: prof },
+        { data: clients, error: cErr },
+        { count: unreadCount, error: aErr },
+        wc,
+      ] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
+        supabase
+          .from("clients")
+          .select("*")
+          .eq("practitioner_id", u.user.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("alerts")
+          .select("*", { count: "exact", head: true })
+          .eq("practitioner_id", u.user.id)
+          .eq("is_read", false),
+        countActiveWearableConnections().catch(() => 0),
+      ]);
       if (cErr || aErr) throw cErr || aErr;
 
       setProfile(prof as Profile | null);
