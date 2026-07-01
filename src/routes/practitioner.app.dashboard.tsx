@@ -87,6 +87,7 @@ function Dashboard() {
 
       setProfile(prof as Profile | null);
       setUnread(unreadCount ?? 0);
+      setWearableCount(typeof wc === "number" ? wc : 0);
 
       const list = (clients as Client[]) ?? [];
       if (list.length === 0) {
