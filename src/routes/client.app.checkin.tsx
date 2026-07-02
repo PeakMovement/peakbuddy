@@ -756,3 +756,157 @@ function NumberRow({ value, onChange }: { value: number | null; onChange: (n: nu
     </div>
   );
 }
+
+function RepeatCheckInModal({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: (ctx: "same" | "different", note: string) => void;
+}) {
+  const [choice, setChoice] = useState<"same" | "different" | null>(null);
+  const [note, setNote] = useState("");
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onCancel}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.6)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+        zIndex: 60,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--navy)",
+          border: "1px solid var(--navy-border)",
+          borderRadius: 14,
+          padding: 20,
+          maxWidth: 420,
+          width: "100%",
+          textAlign: "left",
+        }}
+      >
+        <h2
+          style={{
+            fontFamily: "var(--font-hero)",
+            fontSize: 20,
+            color: "var(--white)",
+            marginBottom: 6,
+          }}
+        >
+          Another check-in
+        </h2>
+        <p style={{ color: "var(--white-muted)", fontSize: 13, marginBottom: 16 }}>
+          Is this for the same condition as earlier today, or something new?
+        </p>
+
+        <div style={{ display: "grid", gap: 10 }}>
+          {(["same", "different"] as const).map((k) => {
+            const active = choice === k;
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setChoice(k)}
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  border: `1px solid ${active ? "var(--blue-cold)" : "var(--navy-border)"}`,
+                  background: active ? "var(--blue-cold)" : "var(--navy-card)",
+                  color: active ? "var(--navy)" : "var(--white)",
+                  textAlign: "left",
+                  fontFamily: "var(--font-data)",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 14 }}>
+                  {k === "same" ? "Same condition" : "Different / new condition"}
+                </div>
+                <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>
+                  {k === "same"
+                    ? "An update on how the earlier issue is going."
+                    : "A new symptom or a different area / concern."}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <label
+          style={{
+            display: "block",
+            marginTop: 16,
+            fontSize: 12,
+            color: "var(--white-muted)",
+            fontFamily: "var(--font-data)",
+          }}
+        >
+          Short description (optional)
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            placeholder={
+              choice === "different"
+                ? "e.g. sharp pain in left knee since this afternoon"
+                : "e.g. worse after physio session"
+            }
+            style={{
+              marginTop: 6,
+              width: "100%",
+              background: "var(--navy-card)",
+              border: "1px solid var(--navy-border)",
+              borderRadius: 8,
+              padding: 10,
+              color: "var(--white)",
+              fontFamily: "var(--font-data)",
+              fontSize: 13,
+              resize: "vertical",
+            }}
+          />
+        </label>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              border: "1px solid var(--navy-border)",
+              background: "transparent",
+              color: "var(--white)",
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!choice}
+            onClick={() => choice && onConfirm(choice, note.trim())}
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              border: "none",
+              background: choice ? "var(--green)" : "var(--navy-card)",
+              color: choice ? "var(--navy)" : "var(--white-muted)",
+              fontWeight: 700,
+              cursor: choice ? "pointer" : "not-allowed",
+            }}
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
