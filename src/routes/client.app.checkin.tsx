@@ -411,9 +411,48 @@ function CheckInScreen() {
             </span>
           </p>
         )}
+
+        <button
+          type="button"
+          onClick={() => setShowRepeatModal(true)}
+          style={{
+            marginTop: 32,
+            background: "transparent",
+            border: "1px solid var(--navy-border)",
+            color: "var(--white)",
+            padding: "12px 20px",
+            borderRadius: 10,
+            fontFamily: "var(--font-data)",
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          Check in again
+        </button>
+        <p style={{ marginTop: 8, fontSize: 11, color: "var(--white-muted)", maxWidth: 320 }}>
+          Something changed since your last check-in? Log another entry.
+        </p>
+
+        {showRepeatModal && (
+          <RepeatCheckInModal
+            onCancel={() => setShowRepeatModal(false)}
+            onConfirm={(ctx, note) => {
+              setConditionContext(ctx);
+              setConditionNote(note);
+              setShowRepeatModal(false);
+              // Reset the "already checked in" view so the form shows again.
+              setTodayCheckIn(null);
+              setSuccess(false);
+              setSavedOffline(false);
+              setNotes(note); // seed notes with the description if provided
+            }}
+          />
+        )}
       </div>
     );
   }
+
+
 
   return (
     <div style={{ padding: "24px 20px 32px" }}>
