@@ -187,7 +187,10 @@ function CheckInScreen() {
       p_notes: notes,
       p_medication_taken: med,
       p_flagged: flagged,
+      p_condition_context: conditionContext,
+      p_condition_note: conditionNote.trim() || null,
     });
+
 
     if (insErr || !newId) {
       const msg = insErr?.message?.toLowerCase() ?? "";
