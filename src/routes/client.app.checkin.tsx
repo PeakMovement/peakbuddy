@@ -17,6 +17,7 @@ import { suggestProgram } from "@/lib/programs.functions";
 import { computeStreak, type CheckInFrequency } from "@/lib/streak";
 import { StreakCard } from "@/components/StreakCard";
 import { WearablePromptCard } from "@/components/wearables/WearablePromptCard";
+import { RemindMeButton } from "@/components/checkin/RemindMeButton";
 // MyRewards now lives in the Profile page so rewards + plan sit together.
 
 export const Route = createFileRoute("/client/app/checkin")({
@@ -404,26 +405,31 @@ function CheckInScreen() {
 
   return (
     <div style={{ padding: "24px 20px 32px" }}>
-      <h1
-        style={{
-          fontFamily: "var(--font-hero)",
-          fontWeight: 400,
-          fontSize: 24,
-          color: "var(--white)",
-        }}
-      >
-        How are you feeling today?
-      </h1>
-      <p
-        style={{
-          marginTop: 6,
-          fontFamily: "var(--font-data)",
-          fontSize: 12,
-          color: "var(--white-muted)",
-        }}
-      >
-        {todayLabel}
-      </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1
+            style={{
+              fontFamily: "var(--font-hero)",
+              fontWeight: 400,
+              fontSize: 24,
+              color: "var(--white)",
+            }}
+          >
+            How are you feeling today?
+          </h1>
+          <p
+            style={{
+              marginTop: 6,
+              fontFamily: "var(--font-data)",
+              fontSize: 12,
+              color: "var(--white-muted)",
+            }}
+          >
+            {todayLabel}
+          </p>
+        </div>
+        <RemindMeButton />
+      </div>
       <p
         style={{
           marginTop: 8,
