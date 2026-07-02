@@ -54,6 +54,12 @@ function CheckInScreen() {
   const [historyStamps, setHistoryStamps] = useState<string[]>([]);
   const [gamificationOn, setGamificationOn] = useState(true);
 
+  // Repeat same-day check-in flow
+  const [showRepeatModal, setShowRepeatModal] = useState(false);
+  const [conditionContext, setConditionContext] = useState<"same" | "different" | null>(null);
+  const [conditionNote, setConditionNote] = useState("");
+
+
   const todayLabel = useMemo(
     () =>
       new Date().toLocaleDateString(undefined, {
