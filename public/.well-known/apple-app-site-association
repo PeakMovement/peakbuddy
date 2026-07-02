@@ -1,14 +1,14 @@
 {
   "webcredentials": {
     "apps": [
-      "REPLACE_TEAMID.REPLACE_BUNDLE_ID"
+      "QUKG38WD3T.com.despia.peakbuddy"
     ]
   },
   "applinks": {
     "apps": [],
     "details": [
       {
-        "appID": "REPLACE_TEAMID.REPLACE_BUNDLE_ID",
+        "appID": "QUKG38WD3T.com.despia.peakbuddy",
         "paths": [
           "/auth/callback",
           "/auth/callback/*",
