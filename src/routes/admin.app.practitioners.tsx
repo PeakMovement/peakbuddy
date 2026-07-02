@@ -106,6 +106,12 @@ function PractitionersList() {
         All Practitioners
       </h1>
 
+      <div style={{ marginTop: 16 }}>
+        <InvitePractitionerCard onInvited={load} />
+      </div>
+
+
+
       {loading ? (
         <div style={{ marginTop: 16 }}>
           <SkeletonList count={3} height={84} />
