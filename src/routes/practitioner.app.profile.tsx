@@ -1,11 +1,15 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, Trash2, Mail, Phone } from "lucide-react";
+import { LogOut, Trash2, Mail, Phone, ClipboardCheck, Settings as SettingsIcon, ChevronRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { deleteMyAccount } from "@/lib/account-delete.functions";
 import { updateMyEmail, updatePractitionerPhone } from "@/lib/client-profile.functions";
 import { EditableTextField } from "@/routes/client.app.profile";
+import {
+  countPendingProgramSuggestions,
+  getProgramsFeatureEnabled,
+} from "@/lib/client-program.functions";
 import type { Profile } from "@/lib/types";
 
 export const Route = createFileRoute("/practitioner/app/profile")({
@@ -19,6 +23,21 @@ function PractitionerProfile() {
   const [email, setEmail] = useState<string | null>(null);
   const [phone, setPhone] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [queueCount, setQueueCount] = useState(0);
+  const [programsEnabled, setProgramsEnabled] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const flag = await getProgramsFeatureEnabled();
+        setProgramsEnabled(flag?.enabled !== false);
+        if (flag?.enabled !== false) {
+          const c = await countPendingProgramSuggestions().catch(() => 0);
+          setQueueCount(typeof c === "number" ? c : 0);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, []);
 
   useEffect(() => {
     (async () => {
