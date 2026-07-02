@@ -1,11 +1,21 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Trash2, Users } from "lucide-react";
+import { Trash2, Users, UserPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Practice, Profile, Client } from "@/lib/types";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 import { log } from "@/lib/log";
 import { adminDeletePractitioner } from "@/lib/admin-delete.functions";
+import { adminInvitePractitioner } from "@/lib/admin-invite-practitioner.functions";
+
+const PROFESSIONS = [
+  "Physiotherapist",
+  "Chiropractor",
+  "Osteopath",
+  "Biokineticist",
+  "Strength & Conditioning Coach",
+  "Other",
+];
 
 export const Route = createFileRoute("/admin/app/practitioners")({
   head: () => ({ meta: [{ title: "Practitioners — Buddy Admin" }] }),
