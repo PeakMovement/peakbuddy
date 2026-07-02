@@ -1,11 +1,15 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, Trash2, Mail, Phone } from "lucide-react";
+import { LogOut, Trash2, Mail, Phone, ClipboardCheck, Settings as SettingsIcon, ChevronRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { deleteMyAccount } from "@/lib/account-delete.functions";
 import { updateMyEmail, updatePractitionerPhone } from "@/lib/client-profile.functions";
 import { EditableTextField } from "@/routes/client.app.profile";
+import {
+  countPendingProgramSuggestions,
+  getProgramsFeatureEnabled,
+} from "@/lib/client-program.functions";
 import type { Profile } from "@/lib/types";
 
 export const Route = createFileRoute("/practitioner/app/profile")({
@@ -19,6 +23,21 @@ function PractitionerProfile() {
   const [email, setEmail] = useState<string | null>(null);
   const [phone, setPhone] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [queueCount, setQueueCount] = useState(0);
+  const [programsEnabled, setProgramsEnabled] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const flag = await getProgramsFeatureEnabled();
+        setProgramsEnabled(flag?.enabled !== false);
+        if (flag?.enabled !== false) {
+          const c = await countPendingProgramSuggestions().catch(() => 0);
+          setQueueCount(typeof c === "number" ? c : 0);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -175,6 +194,10 @@ function PractitionerProfile() {
         />
       </div>
 
+      <MoreSection queueCount={queueCount} showQueue={programsEnabled} />
+
+
+
       <button
         type="button"
         onClick={signOut}
@@ -214,6 +237,100 @@ function PractitionerProfile() {
     </div>
   );
 }
+
+function MoreSection({ queueCount, showQueue }: { queueCount: number; showQueue: boolean }) {
+  const items: { to: string; label: string; desc: string; Icon: typeof SettingsIcon; badge?: number }[] = [];
+  if (showQueue) {
+    items.push({
+      to: "/practitioner/app/program-queue",
+      label: "Program Queue",
+      desc: "Approve suggested programs for your clients",
+      Icon: ClipboardCheck,
+      badge: queueCount,
+    });
+  }
+  items.push({
+    to: "/practitioner/app/settings",
+    label: "Settings",
+    desc: "Notifications, webhooks and practice preferences",
+    Icon: SettingsIcon,
+  });
+
+  return (
+    <div style={{ marginTop: 28 }}>
+      <div
+        style={{
+          color: "var(--white-muted)",
+          fontFamily: "var(--font-ui)",
+          fontSize: 12,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          marginBottom: 10,
+        }}
+      >
+        More
+      </div>
+      <div
+        style={{
+          background: "var(--navy-card)",
+          border: "1px solid var(--navy-border)",
+          borderRadius: 8,
+          overflow: "hidden",
+        }}
+      >
+        {items.map((it, i) => (
+          <Link
+            key={it.to}
+            to={it.to}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "14px 14px",
+              textDecoration: "none",
+              color: "var(--white)",
+              borderTop: i === 0 ? "none" : "1px solid var(--navy-border)",
+            }}
+          >
+            <it.Icon size={18} color="var(--blue-accent)" />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600 }}>
+                {it.label}
+              </div>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--white-muted)" }}>
+                {it.desc}
+              </div>
+            </div>
+            {it.badge && it.badge > 0 ? (
+              <span
+                style={{
+                  background: "var(--red)",
+                  color: "var(--white)",
+                  fontFamily: "var(--font-data)",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  minWidth: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  padding: "0 6px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {it.badge > 99 ? "99+" : it.badge}
+              </span>
+            ) : null}
+            <ChevronRight size={16} color="var(--white-muted)" />
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 
 function ProfileField({ label, value }: { label: string; value?: string | null }) {
   return (
