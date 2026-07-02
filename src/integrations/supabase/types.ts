@@ -132,6 +132,53 @@ export type Database = {
           },
         ]
       }
+      checkin_reminders: {
+        Row: {
+          client_id: string
+          created_at: string
+          days_of_week: number[]
+          enabled: boolean
+          frequency: string
+          id: string
+          last_sent_on: string | null
+          time_of_day: string
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          days_of_week?: number[]
+          enabled?: boolean
+          frequency?: string
+          id?: string
+          last_sent_on?: string | null
+          time_of_day?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          days_of_week?: number[]
+          enabled?: boolean
+          frequency?: string
+          id?: string
+          last_sent_on?: string | null
+          time_of_day?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkin_reminders_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_baselines: {
         Row: {
           client_id: string
