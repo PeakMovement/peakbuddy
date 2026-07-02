@@ -494,6 +494,28 @@ function CheckInScreen() {
         are optional.
       </p>
 
+      {conditionContext && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: "10px 12px",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 10,
+            background: "var(--navy-card)",
+            fontSize: 12,
+            color: "var(--white-muted)",
+            fontFamily: "var(--font-data)",
+          }}
+        >
+          Repeat check-in tagged as{" "}
+          <strong style={{ color: "var(--white)" }}>
+            {conditionContext === "same" ? "same condition" : "different condition"}
+          </strong>
+          . This will be shown to your practitioner.
+        </div>
+      )}
+
+
       {gamificationOn && (
         <div style={{ marginTop: 16 }}>
           <StreakCard streak={streak} />
