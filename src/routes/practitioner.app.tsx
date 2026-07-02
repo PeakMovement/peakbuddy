@@ -4,9 +4,7 @@ import {
   LayoutGrid,
   Bell,
   UserPlus,
-  Settings as SettingsIcon,
   User,
-  ClipboardCheck,
   Sparkles,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -25,10 +23,8 @@ const tabs: Tab[] = [
   { to: "/practitioner/app/dashboard", label: "Dashboard", Icon: LayoutGrid },
   { to: "/practitioner/app/alerts", label: "Alerts", Icon: Bell, badge: "alerts" },
   { to: "/practitioner/app/insights", label: "Insights", Icon: Sparkles, badge: "insights" },
-  { to: "/practitioner/app/program-queue", label: "Queue", Icon: ClipboardCheck, badge: "queue" },
   { to: "/practitioner/app/add-client", label: "Add", Icon: UserPlus },
-  { to: "/practitioner/app/settings", label: "Settings", Icon: SettingsIcon },
-  { to: "/practitioner/app/profile", label: "Profile", Icon: User },
+  { to: "/practitioner/app/profile", label: "Profile", Icon: User, badge: "queue" },
 ];
 
 function PractitionerAppLayout() {
@@ -103,9 +99,7 @@ function PractitionerAppLayout() {
     };
   }, [userId]);
 
-  const visibleTabs = tabs.filter(
-    (t) => programsEnabled || t.to !== "/practitioner/app/program-queue",
-  );
+  const visibleTabs = tabs;
 
   return (
     <div
