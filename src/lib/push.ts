@@ -23,25 +23,27 @@ function detectPlatform(): "ios" | "android" | "despia" | "web" {
 export async function registerPushToken(): Promise<void> {
   try {
     if (typeof window === "undefined") return;
-    const bridge = window.despia;
-    if (!bridge || typeof bridge.requestPushToken !== "function") {
+    if (!window.despia) {
       log.info("Push bridge not available (web preview)");
       return;
     }
 
-    // DESPIA_PUSH_REGISTER: replace with Despia's documented bridge call that requests
-    // notification permission and returns a device token string.
-    // e.g. const token = await window.despia?.requestPushToken();
-    const token = await bridge.requestPushToken();
-    if (!token) {
-      log.info("Push bridge returned no token");
-      return;
-    }
+    // Despia + OneSignal use the external_id model (docs: setup.despia.com):
+    // Despia auto-registers the device with OneSignal at launch. We link that
+    // device to our signed-in user by invoking the setonesignalplayerid:// scheme
+    // with the user id. The backend then targets include_external_user_ids.
+    const { supabase } = await import("@/lib/supabase");
+    const { data } = await supabase.auth.getUser();
+    const uid = data.user?.id;
+    if (!uid) return;
 
     const platform = detectPlatform();
+    window.location.href = `setonesignalplayerid://${uid}`;
+
+    // Lightweight registration marker so status UIs know the device is linked.
     await savePushToken({
-      data: { token, platform: platform === "web" ? "despia" : platform },
-    });
+      data: { token: `external:${uid}`, platform: platform === "web" ? "despia" : platform },
+    }).catch(() => {});
   } catch (e) {
     log.error("registerPushToken failed", e);
   }
