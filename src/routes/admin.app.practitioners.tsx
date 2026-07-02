@@ -332,10 +332,6 @@ function PractitionerCard({
   onOpen,
   onApproved,
 }: {
-  row,
-  onOpen,
-  onApproved,
-}: {
   row: Row;
   onOpen: () => void;
   onApproved: () => void;
