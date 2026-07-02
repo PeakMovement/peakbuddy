@@ -1,11 +1,21 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Trash2, Users } from "lucide-react";
+import { Trash2, Users, UserPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Practice, Profile, Client } from "@/lib/types";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 import { log } from "@/lib/log";
 import { adminDeletePractitioner } from "@/lib/admin-delete.functions";
+import { adminInvitePractitioner } from "@/lib/admin-invite-practitioner.functions";
+
+const PROFESSIONS = [
+  "Physiotherapist",
+  "Chiropractor",
+  "Osteopath",
+  "Biokineticist",
+  "Strength & Conditioning Coach",
+  "Other",
+];
 
 export const Route = createFileRoute("/admin/app/practitioners")({
   head: () => ({ meta: [{ title: "Practitioners — Buddy Admin" }] }),
@@ -96,6 +106,12 @@ function PractitionersList() {
         All Practitioners
       </h1>
 
+      <div style={{ marginTop: 16 }}>
+        <InvitePractitionerCard onInvited={load} />
+      </div>
+
+
+
       {loading ? (
         <div style={{ marginTop: 16 }}>
           <SkeletonList count={3} height={84} />
@@ -130,6 +146,184 @@ function PractitionersList() {
         </div>
       )}
     </div>
+  );
+}
+
+function InvitePractitionerCard({ onInvited }: { onInvited: () => void }) {
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [profession, setProfession] = useState(PROFESSIONS[0]);
+  const [practiceName, setPracticeName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [msg, setMsg] = useState<{ tone: "success" | "info" | "error"; text: string } | null>(
+    null,
+  );
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMsg(null);
+    setSubmitting(true);
+    try {
+      const res = await adminInvitePractitioner({
+        data: { email, fullName, profession, practiceName },
+      });
+      if (!res.ok) {
+        setMsg({ tone: "error", text: res.error });
+      } else if (res.alreadyExisted) {
+        setMsg({
+          tone: "info",
+          text: "This email was already registered — profile updated to practitioner.",
+        });
+        setFullName("");
+        setEmail("");
+        setPracticeName("");
+        onInvited();
+      } else {
+        setMsg({ tone: "success", text: `Invite sent to ${email}.` });
+        setFullName("");
+        setEmail("");
+        setPracticeName("");
+        onInvited();
+      }
+    } catch (err) {
+      setMsg({
+        tone: "error",
+        text: err instanceof Error ? err.message : "Something went wrong.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    minHeight: 40,
+    padding: "8px 12px",
+    background: "var(--navy)",
+    border: "1px solid var(--navy-border)",
+    borderRadius: 8,
+    color: "var(--white)",
+    fontFamily: "var(--font-ui)",
+    fontSize: 14,
+  };
+  const labelStyle: React.CSSProperties = {
+    display: "block",
+    fontFamily: "var(--font-ui)",
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+    color: "var(--white-muted)",
+    marginBottom: 6,
+  };
+
+  const msgColor =
+    msg?.tone === "success"
+      ? "var(--green)"
+      : msg?.tone === "error"
+        ? "var(--red)"
+        : "var(--amber)";
+
+  return (
+    <form
+      onSubmit={submit}
+      style={{
+        background: "var(--navy-card)",
+        border: "1px solid var(--navy-border)",
+        borderRadius: 12,
+        padding: 16,
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <UserPlus size={18} color="var(--blue-accent)" />
+        <div
+          style={{
+            fontFamily: "var(--font-ui)",
+            fontWeight: 700,
+            fontSize: 15,
+            color: "var(--white)",
+          }}
+        >
+          Invite a practitioner
+        </div>
+      </div>
+      <div
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
+      >
+        <div>
+          <label style={labelStyle}>Full name</label>
+          <input
+            required
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="Jane Doe"
+            style={inputStyle}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>Email</label>
+          <input
+            required
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="jane@example.com"
+            style={inputStyle}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>Profession</label>
+          <select
+            value={profession}
+            onChange={(e) => setProfession(e.target.value)}
+            style={inputStyle}
+          >
+            {PROFESSIONS.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>Practice name (optional)</label>
+          <input
+            value={practiceName}
+            onChange={(e) => setPracticeName(e.target.value)}
+            placeholder="Peak Movement"
+            style={inputStyle}
+          />
+        </div>
+      </div>
+      <button
+        type="submit"
+        disabled={submitting}
+        style={{
+          minHeight: 44,
+          background: "var(--blue-accent)",
+          color: "var(--navy)",
+          border: "none",
+          borderRadius: 8,
+          fontFamily: "var(--font-ui)",
+          fontWeight: 700,
+          fontSize: 13,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          cursor: "pointer",
+          opacity: submitting ? 0.6 : 1,
+        }}
+      >
+        {submitting ? "Sending invite…" : "Send invite"}
+      </button>
+      {msg && (
+        <div style={{ color: msgColor, fontSize: 12, fontFamily: "var(--font-ui)" }}>
+          {msg.text}
+        </div>
+      )}
+    </form>
   );
 }
 
