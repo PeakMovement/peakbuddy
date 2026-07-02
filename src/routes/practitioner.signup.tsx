@@ -167,6 +167,18 @@ function PractitionerSignup() {
               Check your email to confirm your account. Once confirmed, log in to complete your
               setup.
             </p>
+            <p
+              style={{
+                color: "var(--cold-blue)",
+                fontSize: 13,
+                marginTop: 8,
+                textAlign: "center",
+                lineHeight: 1.5,
+                fontStyle: "italic",
+              }}
+            >
+              If it doesn't show up in your inbox, please check your spam or junk folder.
+            </p>
             <Link
               to="/practitioner/login"
               style={{
