@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BellRing } from "lucide-react";
-import { sendTestPush } from "@/lib/push.functions";
+import { sendTestPush, listPushUsers } from "@/lib/push.functions";
 
 type TokenRow = { id: string; platform: string | null; last_seen: string | null };
 type Result = {
@@ -24,6 +24,13 @@ export function PushTestPanel() {
   const [body, setBody] = useState("If you see this, push delivery is working ✅");
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<Result | null>(null);
+  const [users, setUsers] = useState<{ id: string; label: string }[]>([]);
+
+  useEffect(() => {
+    listPushUsers()
+      .then(setUsers)
+      .catch(() => {});
+  }, []);
 
   const fire = async (toSelf: boolean) => {
     setBusy(true);
@@ -49,14 +56,16 @@ export function PushTestPanel() {
       </p>
 
       <label style={label}>
-        Recipient user id (auth_user_id) — leave blank to send to yourself
+        Recipient — choose a user, or leave blank to send to yourself
       </label>
-      <input
-        value={userId}
-        onChange={(e) => setUserId(e.target.value)}
-        placeholder="00000000-0000-0000-0000-000000000000"
-        style={input}
-      />
+      <select value={userId} onChange={(e) => setUserId(e.target.value)} style={input}>
+        <option value="">— Send to myself —</option>
+        {users.map((u) => (
+          <option key={u.id} value={u.id}>
+            {u.label}
+          </option>
+        ))}
+      </select>
 
       <label style={label}>Title</label>
       <input value={title} onChange={(e) => setTitle(e.target.value)} style={input} />
@@ -79,7 +88,7 @@ export function PushTestPanel() {
           onClick={() => fire(false)}
           style={btn}
         >
-          <BellRing size={14} /> Send to user above
+          <BellRing size={14} /> Send to selected user
         </button>
       </div>
 

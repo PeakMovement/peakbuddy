@@ -377,3 +377,37 @@ export const sendCheckInNudge = createServerFn({ method: "POST" })
     });
     return { ok: true as const };
   });
+
+// Super-admin: list every user that can receive a push (practitioners + clients),
+// with a friendly label, for the push test picker.
+export const listPushUsers = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ id: string; label: string }[]> => {
+    const { data: me } = await context.supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (me?.role !== "super_admin") throw new Error("Forbidden");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [{ data: profs }, { data: clients }] = await Promise.all([
+      supabaseAdmin.from("profiles").select("id, full_name, role"),
+      supabaseAdmin.from("clients").select("auth_user_id, full_name, email"),
+    ]);
+
+    const out: { id: string; label: string }[] = [];
+    for (const p of (profs ?? []) as { id: string; full_name: string | null; role: string | null }[]) {
+      out.push({ id: p.id, label: `${p.full_name || "Unnamed"} · ${p.role || "user"}` });
+    }
+    for (const c of (clients ?? []) as {
+      auth_user_id: string | null;
+      full_name: string | null;
+      email: string | null;
+    }[]) {
+      if (!c.auth_user_id) continue;
+      out.push({ id: c.auth_user_id, label: `${c.full_name || c.email || "Client"} · client` });
+    }
+    out.sort((a, b) => a.label.localeCompare(b.label));
+    return out;
+  });
