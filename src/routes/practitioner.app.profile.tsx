@@ -194,6 +194,10 @@ function PractitionerProfile() {
         />
       </div>
 
+      <MoreSection queueCount={queueCount} showQueue={programsEnabled} />
+
+
+
       <button
         type="button"
         onClick={signOut}
