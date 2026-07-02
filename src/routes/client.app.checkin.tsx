@@ -145,7 +145,10 @@ function CheckInScreen() {
       notes,
       medication_taken: med,
       flagged,
+      condition_context: conditionContext,
+      condition_note: conditionNote.trim() || null,
     };
+
 
     const saveOffline = () => {
       queueCheckIn(queuePayload);
