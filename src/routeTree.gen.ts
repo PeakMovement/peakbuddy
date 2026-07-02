@@ -54,6 +54,7 @@ import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/e
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as ApiPublicHooksNightlyRiskAnalysisRouteImport } from './routes/api/public/hooks/nightly-risk-analysis'
+import { Route as ApiPublicHooksCheckinRemindersRouteImport } from './routes/api/public/hooks/checkin-reminders'
 import { Route as AdminAppPractitionerPractitionerIdRouteImport } from './routes/admin.app.practitioner.$practitionerId'
 import { Route as AdminAppClientDetailClientIdRouteImport } from './routes/admin.app.client-detail.$clientId'
 import { Route as ApiPublicWearablesPolarCallbackRouteImport } from './routes/api/public/wearables/polar/callback'
@@ -295,6 +296,12 @@ const ApiPublicHooksNightlyRiskAnalysisRoute =
     path: '/api/public/hooks/nightly-risk-analysis',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksCheckinRemindersRoute =
+  ApiPublicHooksCheckinRemindersRouteImport.update({
+    id: '/api/public/hooks/checkin-reminders',
+    path: '/api/public/hooks/checkin-reminders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AdminAppPractitionerPractitionerIdRoute =
   AdminAppPractitionerPractitionerIdRouteImport.update({
     id: '/practitioner/$practitionerId',
@@ -379,6 +386,7 @@ export interface FileRoutesByFullPath {
   '/client/app/': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
+  '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -432,6 +440,7 @@ export interface FileRoutesByTo {
   '/client/app': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
+  '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -487,6 +496,7 @@ export interface FileRoutesById {
   '/client/app/': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
+  '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -543,6 +553,7 @@ export interface FileRouteTypes {
     | '/client/app/'
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
+    | '/api/public/hooks/checkin-reminders'
     | '/api/public/hooks/nightly-risk-analysis'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -596,6 +607,7 @@ export interface FileRouteTypes {
     | '/client/app'
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
+    | '/api/public/hooks/checkin-reminders'
     | '/api/public/hooks/nightly-risk-analysis'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -650,6 +662,7 @@ export interface FileRouteTypes {
     | '/client/app/'
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
+    | '/api/public/hooks/checkin-reminders'
     | '/api/public/hooks/nightly-risk-analysis'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -683,6 +696,7 @@ export interface RootRouteChildren {
   PractitionerSignupRoute: typeof PractitionerSignupRoute
   ApiPublicTriageQueryRoute: typeof ApiPublicTriageQueryRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
+  ApiPublicHooksCheckinRemindersRoute: typeof ApiPublicHooksCheckinRemindersRoute
   ApiPublicHooksNightlyRiskAnalysisRoute: typeof ApiPublicHooksNightlyRiskAnalysisRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
@@ -1013,6 +1027,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksNightlyRiskAnalysisRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/checkin-reminders': {
+      id: '/api/public/hooks/checkin-reminders'
+      path: '/api/public/hooks/checkin-reminders'
+      fullPath: '/api/public/hooks/checkin-reminders'
+      preLoaderRoute: typeof ApiPublicHooksCheckinRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/app/practitioner/$practitionerId': {
       id: '/admin/app/practitioner/$practitionerId'
       path: '/practitioner/$practitionerId'
@@ -1162,6 +1183,7 @@ const rootRouteChildren: RootRouteChildren = {
   PractitionerSignupRoute: PractitionerSignupRoute,
   ApiPublicTriageQueryRoute: ApiPublicTriageQueryRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
+  ApiPublicHooksCheckinRemindersRoute: ApiPublicHooksCheckinRemindersRoute,
   ApiPublicHooksNightlyRiskAnalysisRoute:
     ApiPublicHooksNightlyRiskAnalysisRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
