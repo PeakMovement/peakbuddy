@@ -34,6 +34,31 @@ function Landing() {
         padding: "32px 24px",
       }}
     >
+      {/* TEMP ADMIN ACCESS — remove this entire block (Link + comments) to disable the admin shortcut on the homepage. Added so the admin portal is reachable from the iOS app until a permanent entry point exists. */}
+      <Link
+        to="/admin/login"
+        aria-label="Admin login"
+        style={{
+          position: "fixed",
+          top: "calc(env(safe-area-inset-top, 0px) + 12px)",
+          right: 16,
+          zIndex: 50,
+          padding: "8px 14px",
+          borderRadius: 999,
+          background: "var(--navy-card)",
+          color: "var(--white-muted)",
+          border: "1px solid var(--navy-border)",
+          fontFamily: "var(--font-ui)",
+          fontWeight: 600,
+          fontSize: 13,
+          letterSpacing: "0.04em",
+          textDecoration: "none",
+        }}
+      >
+        Admin
+      </Link>
+      {/* END TEMP ADMIN ACCESS */}
+
       <div
         style={{
           width: "100%",
