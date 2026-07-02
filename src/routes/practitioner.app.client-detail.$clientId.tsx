@@ -525,11 +525,43 @@ function ClientDetail() {
                     </span>
                   )}
                 </div>
+                {(() => {
+                  const cc = (ci as unknown as { condition_context?: string | null })
+                    .condition_context;
+                  const cn = (ci as unknown as { condition_note?: string | null }).condition_note;
+                  if (!cc) return null;
+                  return (
+                    <div
+                      style={{
+                        marginTop: 6,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "3px 8px",
+                        borderRadius: 999,
+                        fontSize: 11,
+                        fontFamily: "var(--font-data)",
+                        background:
+                          cc === "different" ? "rgba(249,168,37,0.15)" : "rgba(96,165,250,0.15)",
+                        color: cc === "different" ? "var(--amber, #f9a825)" : "var(--blue-cold)",
+                        border: `1px solid ${
+                          cc === "different"
+                            ? "rgba(249,168,37,0.35)"
+                            : "rgba(96,165,250,0.35)"
+                        }`,
+                      }}
+                    >
+                      Repeat · {cc === "different" ? "different condition" : "same condition"}
+                      {cn ? ` — ${cn}` : ""}
+                    </div>
+                  );
+                })()}
                 {ci.notes && (
                   <div style={{ marginTop: 6, color: "var(--white)", fontSize: 13 }}>
                     {ci.notes}
                   </div>
                 )}
+
               </div>
             ))}
           </div>

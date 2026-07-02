@@ -82,6 +82,8 @@ export type Database = {
       check_ins: {
         Row: {
           client_id: string
+          condition_context: string | null
+          condition_note: string | null
           created_at: string
           energy_level: number | null
           flagged: boolean
@@ -96,6 +98,8 @@ export type Database = {
         }
         Insert: {
           client_id: string
+          condition_context?: string | null
+          condition_note?: string | null
           created_at?: string
           energy_level?: number | null
           flagged?: boolean
@@ -110,6 +114,8 @@ export type Database = {
         }
         Update: {
           client_id?: string
+          condition_context?: string | null
+          condition_note?: string | null
           created_at?: string
           energy_level?: number | null
           flagged?: boolean
@@ -1293,21 +1299,39 @@ export type Database = {
         }
         Returns: string
       }
-      insert_check_in: {
-        Args: {
-          p_client_id: string
-          p_energy_level: number
-          p_flagged: boolean
-          p_medication_taken: boolean
-          p_mood: string
-          p_notes: string
-          p_pain_level: number
-          p_practitioner_id: string
-          p_sleep_quality: number
-          p_stress_level: number
-        }
-        Returns: string
-      }
+      insert_check_in:
+        | {
+            Args: {
+              p_client_id: string
+              p_energy_level: number
+              p_flagged: boolean
+              p_medication_taken: boolean
+              p_mood: string
+              p_notes: string
+              p_pain_level: number
+              p_practitioner_id: string
+              p_sleep_quality: number
+              p_stress_level: number
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_client_id: string
+              p_condition_context?: string
+              p_condition_note?: string
+              p_energy_level: number
+              p_flagged: boolean
+              p_medication_taken: boolean
+              p_mood: string
+              p_notes: string
+              p_pain_level: number
+              p_practitioner_id: string
+              p_sleep_quality: number
+              p_stress_level: number
+            }
+            Returns: string
+          }
       is_super_admin: { Args: { _uid: string }; Returns: boolean }
       move_to_dlq: {
         Args: {
