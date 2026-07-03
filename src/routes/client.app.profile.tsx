@@ -14,6 +14,7 @@ import { deleteMyAccount } from "@/lib/account-delete.functions";
 import { updateClientPhone, updateMyEmail } from "@/lib/client-profile.functions";
 import { MyRewards } from "@/components/MyRewards";
 import { MyNotificationStatus } from "@/components/MyNotificationStatus";
+import { BodyForecastBeta } from "@/components/BodyForecastBeta";
 import { WearablesPanel } from "@/components/wearables/WearablesPanel";
 
 export const Route = createFileRoute("/client/app/profile")({
@@ -255,6 +256,7 @@ function ClientProfile() {
 
       {/* Notification status */}
       <MyNotificationStatus />
+      {client && <BodyForecastBeta client={client} />}
 
       {/* Rewards */}
       <SectionHeader>Rewards</SectionHeader>
