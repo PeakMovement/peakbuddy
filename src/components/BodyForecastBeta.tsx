@@ -1,10 +1,10 @@
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, ChevronDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { computeForecast, type ForecastResult } from "@/lib/body-forecast";
 
-// BETA GATE — this feature only shows for these accounts. Remove/expand later.
+// BETA GATE — only shows for these accounts. Expand/remove later.
 const BETA_EMAILS = ["justin15muller@gmail.com"];
 const BETA_NAMES = ["justin muller"];
 
@@ -16,7 +16,7 @@ function isBetaClient(c: BetaClient): boolean {
   return BETA_EMAILS.includes(email) || BETA_NAMES.includes(name);
 }
 
-const LEVEL_COLOR: Record<string, string> = {
+const DOT: Record<string, string> = {
   strong: "var(--green)",
   moderate: "var(--blue-accent)",
   low: "var(--red)",
@@ -26,6 +26,7 @@ const LEVEL_COLOR: Record<string, string> = {
 /** Beta "Your Body Forecast" card. Renders nothing unless the client is in the beta gate. */
 export function BodyForecastBeta({ client }: { client: BetaClient }) {
   const [result, setResult] = useState<ForecastResult | null>(null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (!isBetaClient(client)) return;
@@ -61,33 +62,25 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
 
   if (!isBetaClient(client) || !result) return null;
 
-  const accent = LEVEL_COLOR[result.level] ?? "var(--blue-accent)";
+  const dot = DOT[result.level] ?? "var(--blue-accent)";
 
   return (
     <div style={{ marginTop: 8 }}>
       <div style={card}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Sparkles size={18} color={accent} aria-hidden />
+            <Sparkles size={17} color="var(--blue-accent)" aria-hidden />
             <span style={eyebrow}>Your Body Forecast</span>
           </div>
           <span style={betaTag}>Beta</span>
         </div>
 
-        <div style={{ ...headline, color: accent }}>{result.headline}</div>
-        <p style={outlook}>{result.outlook}</p>
+        {/* Hero: symptom-relatable message */}
+        <div style={{ display: "flex", gap: 10, marginTop: 16, alignItems: "flex-start" }}>
+          <span style={{ ...statusDot, background: dot }} aria-hidden />
+          <p style={message}>{result.message}</p>
+        </div>
         {result.action && <p style={action}>{result.action}</p>}
-
-        {result.snapshot.length > 0 && (
-          <div style={grid}>
-            {result.snapshot.map((s) => (
-              <div key={s.label} style={cell}>
-                <div style={cellVal}>{s.value}</div>
-                <div style={cellLabel}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-        )}
 
         {result.personalNote && (
           <div style={noteBox}>
@@ -95,7 +88,39 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
           </div>
         )}
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12, gap: 8 }}>
+        {/* Reveal */}
+        {result.factors.length > 0 && (
+          <>
+            <button type="button" onClick={() => setOpen((v) => !v)} style={revealBtn} aria-expanded={open}>
+              How was this decided?
+              <ChevronDown
+                size={15}
+                style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s ease" }}
+                aria-hidden
+              />
+            </button>
+            {open && (
+              <div style={panel}>
+                <p style={reasoning}>{result.reasoning}</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
+                  {result.factors.map((f) => (
+                    <div key={f.label} style={factorRow}>
+                      <span style={{ color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 13 }}>
+                        {f.label}
+                      </span>
+                      <span style={{ fontFamily: "var(--font-ui)", fontSize: 13, color: "var(--white)" }}>
+                        <span style={{ fontFamily: "var(--font-data)", fontWeight: 700 }}>{f.value}</span>{" "}
+                        <span style={{ color: "var(--white-muted)" }}>· {f.read}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 8 }}>
           {result.confidence && <span style={confChip}>{result.confidence}</span>}
         </div>
 
@@ -134,47 +159,22 @@ const betaTag: CSSProperties = {
   borderRadius: 999,
   padding: "3px 8px",
 };
-const headline: CSSProperties = {
+const statusDot: CSSProperties = { width: 10, height: 10, borderRadius: "50%", marginTop: 8, flex: "0 0 auto" };
+const message: CSSProperties = {
   fontFamily: "var(--font-hero)",
-  fontSize: 26,
+  fontSize: 23,
+  lineHeight: 1.25,
   fontWeight: 600,
-  marginTop: 14,
-};
-const outlook: CSSProperties = {
-  fontFamily: "var(--font-ui)",
-  fontSize: 15,
-  lineHeight: 1.5,
   color: "var(--white)",
-  marginTop: 6,
+  margin: 0,
 };
 const action: CSSProperties = {
   fontFamily: "var(--font-ui)",
   fontSize: 14,
   lineHeight: 1.5,
   color: "var(--white-muted)",
-  marginTop: 8,
-};
-const grid: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(4, 1fr)",
-  gap: 6,
-  marginTop: 14,
-};
-const cell: CSSProperties = {
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid var(--navy-border)",
-  borderRadius: 10,
-  padding: "10px 4px",
-  textAlign: "center",
-};
-const cellVal: CSSProperties = { fontFamily: "var(--font-data)", fontSize: 18, fontWeight: 700, color: "var(--white)" };
-const cellLabel: CSSProperties = {
-  fontFamily: "var(--font-ui)",
-  fontSize: 10,
-  letterSpacing: "0.04em",
-  textTransform: "uppercase",
-  color: "var(--white-muted)",
-  marginTop: 2,
+  marginTop: 10,
+  marginLeft: 20,
 };
 const noteBox: CSSProperties = {
   marginTop: 14,
@@ -186,6 +186,41 @@ const noteBox: CSSProperties = {
   fontSize: 13.5,
   lineHeight: 1.5,
   color: "var(--white-muted)",
+};
+const revealBtn: CSSProperties = {
+  marginTop: 14,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  background: "transparent",
+  border: "none",
+  color: "var(--blue-accent)",
+  fontFamily: "var(--font-ui)",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+  padding: 0,
+};
+const panel: CSSProperties = {
+  marginTop: 10,
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid var(--navy-border)",
+  borderRadius: 12,
+  padding: "12px 14px",
+};
+const reasoning: CSSProperties = {
+  fontFamily: "var(--font-ui)",
+  fontSize: 13,
+  lineHeight: 1.5,
+  color: "var(--white-muted)",
+  margin: 0,
+};
+const factorRow: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  paddingTop: 6,
+  borderTop: "1px solid rgba(255,255,255,0.06)",
 };
 const confChip: CSSProperties = {
   fontFamily: "var(--font-ui)",
