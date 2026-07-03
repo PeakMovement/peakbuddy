@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const InputSchema = z.object({
   pain: z.number().min(0).max(10),
@@ -135,8 +136,9 @@ Respond ONLY with strict JSON: {"program_id": "<id or null>", "reason": "<one sh
 }
 
 export const suggestProgram = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => InputSchema.parse(input))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     if (!data.clientId) return null;
 
     const { isProgramsFeatureEnabled, isProgramsSuggestEnabledForPractitioner } =
@@ -148,16 +150,27 @@ export const suggestProgram = createServerFn({ method: "POST" })
     // Only queue a new suggestion if the client doesn't already have one in flight.
     const { data: clientRow } = await supabaseAdmin
       .from("clients")
-      .select("practitioner_id, program_status, suggested_program_id, yves_ai_consent")
+      .select("auth_user_id, practitioner_id, program_status, suggested_program_id, yves_ai_consent")
       .eq("id", data.clientId)
       .maybeSingle();
     const cur = clientRow as {
+      auth_user_id: string | null;
       practitioner_id: string;
       program_status: string;
       suggested_program_id: string | null;
       yves_ai_consent: boolean | null;
     } | null;
     if (!cur) return null;
+
+    // Authz: only the client themselves, their practitioner, or a super admin.
+    if (cur.auth_user_id !== context.userId && cur.practitioner_id !== context.userId) {
+      const { data: prof } = await supabaseAdmin
+        .from("profiles")
+        .select("role")
+        .eq("id", context.userId)
+        .maybeSingle();
+      if ((prof as { role?: string } | null)?.role !== "super_admin") return null;
+    }
 
     // Per-practitioner gate: super admin can disable suggestions for this
     // practitioner, which cascades to all of their clients.

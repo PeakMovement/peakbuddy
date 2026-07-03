@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { log } from "@/lib/log";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
@@ -73,8 +74,9 @@ This is not an emergency channel.`;
 }
 
 export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => inputSchema.parse(input))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const serviceKey = process.env.SEED_SERVICE_ROLE_KEY;
     const lovableKey = process.env.LOVABLE_API_KEY;
     const resendKey = process.env.RESEND_API_KEY;
@@ -90,12 +92,27 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
     // Load client
     const { data: client, error: clErr } = await admin
       .from("clients")
-      .select("id, full_name, practitioner_id")
+      .select("id, full_name, practitioner_id, auth_user_id")
       .eq("id", data.clientId)
       .maybeSingle();
     if (clErr || !client) return { ok: false as const, error: "Client not found" };
     if (!client.practitioner_id) {
       return { ok: false as const, error: "No practitioner assigned" };
+    }
+
+    // Authz: only the client themselves, their practitioner, or a super admin.
+    if (
+      client.auth_user_id !== context.userId &&
+      client.practitioner_id !== context.userId
+    ) {
+      const { data: prof } = await admin
+        .from("profiles")
+        .select("role")
+        .eq("id", context.userId)
+        .maybeSingle();
+      if ((prof as { role?: string } | null)?.role !== "super_admin") {
+        return { ok: false as const, error: "Not authorized" };
+      }
     }
 
     // Practitioner profile (name) + auth user (email)

@@ -18,6 +18,18 @@ export const registerPractitioner = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    // Authz: bind registration to the real auth user. Reject if the userId does
+    // not exist or its email does not match the submitted email — prevents
+    // creating a practitioner profile/practice for an arbitrary user id.
+    const { data: authUser, error: authLookupErr } =
+      await supabaseAdmin.auth.admin.getUserById(data.userId);
+    if (authLookupErr || !authUser?.user) {
+      return { ok: false as const, error: "Invalid account." };
+    }
+    if ((authUser.user.email ?? "").toLowerCase() !== data.email.toLowerCase()) {
+      return { ok: false as const, error: "Account and email do not match." };
+    }
+
     const { error: profErr } = await supabaseAdmin.from("profiles").upsert(
       {
         id: data.userId,
