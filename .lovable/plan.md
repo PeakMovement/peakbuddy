@@ -1,32 +1,39 @@
-## Add "Remind Me To Check In" on the Check-In page
+## Goal
+Create 3 high-quality Instagram post images that showcase Buddy's key features in a bright, social-friendly aesthetic — plus a simple on-site gallery page where they can be previewed and downloaded.
 
-### UI (top-right of `src/routes/client.app.checkin.tsx`)
-- Small on-brand card/button labeled **"Remind Me To Check In"** with a bell icon (Void Navy + Cold Blue). Shows current schedule ("Daily at 8:00 AM") once set, or "Off".
-- Click opens a modal (`ReminderScheduleModal.tsx`) with:
-  - **Frequency**: Daily / Morning / Evening / Custom
-  - **Time picker** (defaults: Morning 8:00, Evening 7:00)
-  - **Day selector** (Mon–Sun chips) — only shown for Custom
-  - Save / Disable buttons
+## Deliverables
 
-### Permission flow
-1. On Save → request notification permission via OneSignal (already integrated through `src/lib/push.ts`).
-2. If granted → register player ID (existing `linkPushToken` path) and persist schedule.
-3. If denied → inline message explaining how to enable in iOS Settings (Despia wrapper).
+### 1. Three Instagram post images (1080 × 1080)
+Each post highlights a different feature cluster with bold, minimal typography on a bright, modern health-tech aesthetic (NOT the app's dark navy theme).
 
-### Persistence
-- New table `public.checkin_reminders` (per client): `client_id`, `enabled`, `frequency` (daily/morning/evening/custom), `time_of_day` (time), `days_of_week` (int[]), `timezone`, `updated_at`.
-- Grants + RLS: client can select/update own row; service_role full access.
-- Server fns in `src/lib/checkin-reminders.functions.ts`: `getMyReminder`, `upsertMyReminder`, `disableMyReminder` (all `requireSupabaseAuth`).
+| Post | Theme | Visual Concept |
+|------|-------|----------------|
+| **01** | Daily Check-In | Split-screen or layered UI-mockup feel showing the 5 sliders (pain, sleep, stress, energy, mood) with a bold "30 seconds" headline. Bright gradient background (soft teal → lavender or warm coral → peach). |
+| **02** | AI Insights / Yves | Abstract data-pattern visualization — gentle waveforms, rising trend lines, soft glows. Headline: "Catch it before it flares." Calm, intelligent palette (soft blue → cream). |
+| **03** | Practitioner Connected | Two converging paths or a shared dashboard metaphor. Warm, supportive palette (soft green → sand). Headline: "Your clinician sees what you see." |
 
-### Delivery (nightly + minute-tick)
-- pg_cron job every 5 minutes hits `/api/public/hooks/checkin-reminders` (auth via `apikey` header).
-- Handler selects reminders whose local time (based on `timezone`) falls in the current 5-min window AND today's weekday matches, then calls `sendPushCore` with title "Time for your check-in" and deep link to `/client/app/checkin`.
-- Skip if a check-in already exists for that client today.
+All images will be generated with the `imagegen` tool at 1080×1080, premium quality for crisp text and UI details. Prompts will specify: bright background, minimal bold sans-serif typography, clean health-tech aesthetic, no dark navy, Instagram-square format.
 
-### Files
-- New: `src/components/checkin/ReminderScheduleModal.tsx`, `src/components/checkin/RemindMeButton.tsx`, `src/lib/checkin-reminders.functions.ts`, `src/routes/api/public/hooks/checkin-reminders.ts`, migration.
-- Edit: `src/routes/client.app.checkin.tsx` (mount button top-right of header).
+### 2. Gallery page (`/social`)
+A lightweight new route at `src/routes/social.tsx` that:
+- Displays the 3 generated images in a responsive grid
+- Shows suggested caption copy beneath each image
+- Offers a "Download" link for each image (using `<a download>`)
+- Uses the existing app fonts (Cormorant Garamond for headings, Rajdhani for UI) but on a light background to match the social aesthetic
+- Links back to `/marketing`
 
-### Out of scope
-- No changes to the Wearables prompt card or other check-in fields.
-- No email reminders (push only for now).
+### 3. Caption copy
+Three ready-to-paste Instagram captions written in Buddy's voice (clinical but warm, confident but not jargon-heavy).
+
+## Technical approach
+- `imagegen--generate_image` for the 3 assets → `public/social/post-01.jpg`, `post-02.jpg`, `post-03.jpg`
+- New route file `src/routes/social.tsx` with static gallery layout
+- Add `<Link to="/social">` from the existing `/marketing` page (optional, can be skipped if you prefer it unlinked)
+
+## Out of scope
+- No carousel/Reel animations (static images only for this test)
+- No scheduling or social-media API integration
+- No dark-theme versions (bright social style only)
+
+---
+Approve and I'll generate the images and build the gallery page.

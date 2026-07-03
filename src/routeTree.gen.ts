@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as SupportRouteImport } from './routes/support'
+import { Route as SocialRouteImport } from './routes/social'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as MarketingRouteImport } from './routes/marketing'
 import { Route as IndexRouteImport } from './routes/index'
@@ -71,6 +72,11 @@ const UnsubscribeRoute = UnsubscribeRouteImport.update({
 const SupportRoute = SupportRouteImport.update({
   id: '/support',
   path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SocialRoute = SocialRouteImport.update({
+  id: '/social',
+  path: '/social',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
@@ -349,6 +355,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/marketing': typeof MarketingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/social': typeof SocialRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/admin/app': typeof AdminAppRouteWithChildren
@@ -404,6 +411,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/marketing': typeof MarketingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/social': typeof SocialRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/admin/app': typeof AdminAppRouteWithChildren
@@ -459,6 +467,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/marketing': typeof MarketingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/social': typeof SocialRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/admin/app': typeof AdminAppRouteWithChildren
@@ -516,6 +525,7 @@ export interface FileRouteTypes {
     | '/'
     | '/marketing'
     | '/privacy-policy'
+    | '/social'
     | '/support'
     | '/unsubscribe'
     | '/admin/app'
@@ -571,6 +581,7 @@ export interface FileRouteTypes {
     | '/'
     | '/marketing'
     | '/privacy-policy'
+    | '/social'
     | '/support'
     | '/unsubscribe'
     | '/admin/app'
@@ -625,6 +636,7 @@ export interface FileRouteTypes {
     | '/'
     | '/marketing'
     | '/privacy-policy'
+    | '/social'
     | '/support'
     | '/unsubscribe'
     | '/admin/app'
@@ -681,6 +693,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   MarketingRoute: typeof MarketingRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
+  SocialRoute: typeof SocialRoute
   SupportRoute: typeof SupportRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   AdminAppRoute: typeof AdminAppRouteWithChildren
@@ -724,6 +737,13 @@ declare module '@tanstack/react-router' {
       path: '/support'
       fullPath: '/support'
       preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/social': {
+      id: '/social'
+      path: '/social'
+      fullPath: '/social'
+      preLoaderRoute: typeof SocialRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy-policy': {
@@ -1168,6 +1188,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MarketingRoute: MarketingRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
+  SocialRoute: SocialRoute,
   SupportRoute: SupportRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   AdminAppRoute: AdminAppRouteWithChildren,
@@ -1200,13 +1221,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
