@@ -9,7 +9,7 @@ import * as React from 'react'
 import { render } from 'react-email'
 import { TEMPLATES } from '@/lib/email-templates/registry'
 
-const SITE_NAME = 'peakbuddy'
+const SITE_NAME = 'Buddy'
 const SENDER_DOMAIN = 'notify.buddy-health.co.za'
 const FROM_DOMAIN = 'buddy-health.co.za'
 
