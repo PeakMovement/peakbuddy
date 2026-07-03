@@ -8,7 +8,23 @@ import { createFileRoute } from "@tanstack/react-router";
 export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        // Auth: prefer CRON_SECRET; fall back to the publishable key (same pattern
+        // as the nightly risk cron). Closes this previously-unauthenticated endpoint.
+        const cronSecret = process.env.CRON_SECRET;
+        if (cronSecret) {
+          const provided =
+            request.headers.get("x-cron-secret") ??
+            request.headers.get("X-Cron-Secret") ??
+            (request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null);
+          if (provided !== cronSecret) return new Response("Unauthorized", { status: 401 });
+        } else {
+          const apiKey = request.headers.get("apikey") ?? request.headers.get("Apikey");
+          if (!apiKey || apiKey !== process.env.SUPABASE_PUBLISHABLE_KEY) {
+            return new Response("Unauthorized", { status: 401 });
+          }
+        }
+
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { sendPushCore } = await import("@/lib/push.functions");
 

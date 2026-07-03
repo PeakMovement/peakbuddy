@@ -3,7 +3,7 @@ import { log } from "@/lib/log";
 
 const ALLOWED_ORIGINS = (
   process.env.ALLOWED_ORIGINS ??
-  "https://peakbuddy.lovable.app,https://buddy.peakmovement.co.za,http://localhost:3000,http://localhost:5173"
+  "https://buddytracker.netlify.app,https://peakbuddy.lovable.app,https://buddy.peakmovement.co.za,http://localhost:3000,http://localhost:5173"
 )
   .split(",")
   .map((s) => s.trim())
