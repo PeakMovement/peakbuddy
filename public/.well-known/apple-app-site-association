@@ -1,14 +1,14 @@
 {
   "webcredentials": {
     "apps": [
-      "QUKG38WD3T.com.despia.peakbuddy"
+      "QUKG38WD3T.co.za.peakmovement.buddy"
     ]
   },
   "applinks": {
     "apps": [],
     "details": [
       {
-        "appID": "QUKG38WD3T.com.despia.peakbuddy",
+        "appID": "QUKG38WD3T.co.za.peakmovement.buddy",
         "paths": [
           "/auth/callback",
           "/auth/callback/*",
