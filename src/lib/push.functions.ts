@@ -66,10 +66,16 @@ export async function sendPushCore(
     };
   }
 
-  // With Despia we target OneSignal external_user_ids (our user id), so a missing
-  // push_tokens row does not block sending — the device is linked to the user via
-  // setonesignalplayerid:// on the native side.
   const playerIds = (tokens ?? []).map((t) => t.token).filter(Boolean);
+  if (playerIds.length === 0) {
+    await supabaseAdmin.from("push_send_log").insert({
+      ...logRow,
+      status: "no_tokens",
+      attempted: 0,
+      delivered: 0,
+    });
+    return { ok: true, simulated: false, attempted: 0, delivered: 0, failures: [] };
+  }
 
   const appId = process.env.ONESIGNAL_APP_ID;
   const apiKey = process.env.ONESIGNAL_REST_API_KEY;
@@ -79,14 +85,14 @@ export async function sendPushCore(
     await supabaseAdmin.from("push_send_log").insert({
       ...logRow,
       status: "simulated",
-      attempted: 1,
+      attempted: playerIds.length,
       delivered: 0,
       error_message: "ONESIGNAL_APP_ID or ONESIGNAL_REST_API_KEY not configured",
     });
     return {
       ok: true,
       simulated: true,
-      attempted: 1,
+      attempted: playerIds.length,
       delivered: 0,
       failures: [{ token_id: "config", reason: "OneSignal credentials missing" }],
     };
@@ -101,8 +107,7 @@ export async function sendPushCore(
       },
       body: JSON.stringify({
         app_id: appId,
-        include_external_user_ids: [args.userId],
-        channel_for_external_user_ids: "push",
+        include_player_ids: playerIds,
         headings: { en: args.title },
         contents: { en: args.body },
         data: args.data ?? {},

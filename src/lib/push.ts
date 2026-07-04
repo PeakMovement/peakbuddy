@@ -1,12 +1,6 @@
+import despia from "despia-native";
 import { log } from "@/lib/log";
 import { savePushToken } from "@/lib/push.functions";
-
-declare global {
-  interface Window {
-    // Despia injects a global `despia()` bridge; commands are protocol strings.
-    despia?: (command: string) => void;
-  }
-}
 
 // Despia sets "despia" in the user agent when running inside the native runtime.
 function isDespia(): boolean {
@@ -31,26 +25,30 @@ export async function registerPushToken(): Promise<void> {
       return;
     }
 
-    // Despia + OneSignal external_id model (docs: setup.despia.com): Despia
-    // auto-registers the device with OneSignal at launch. We link that device to
-    // our signed-in user via the despia() bridge with the setonesignalplayerid
-    // command (?user_id=...). The backend then targets include_external_user_ids.
-    const { supabase } = await import("@/lib/supabase");
-    const { data } = await supabase.auth.getUser();
-    const uid = data.user?.id;
-    if (!uid) return;
-
-    const platform = detectPlatform();
-    const cmd = `setonesignalplayerid://?user_id=${encodeURIComponent(uid)}`;
-    if (typeof window.despia === "function") {
-      window.despia(cmd);
-    } else {
-      window.location.href = cmd;
+    // Step 5 (Despia guide): fetch the device's OneSignal Player ID via the
+    // despia-native bridge and store it against the signed-in user, so the
+    // backend can target this device with include_player_ids.
+    let playerId: string | null = null;
+    try {
+      const data = (await despia("getonesignalplayerid://", ["onesignalplayerid"])) as
+        | Record<string, unknown>
+        | undefined;
+      if (data && typeof data.onesignalplayerid === "string") playerId = data.onesignalplayerid;
+    } catch {
+      /* fall through to direct property access */
+    }
+    if (!playerId) {
+      const direct = (despia as unknown as { onesignalplayerid?: string }).onesignalplayerid;
+      if (typeof direct === "string" && direct) playerId = direct;
+    }
+    if (!playerId) {
+      log.info("No OneSignal player id available from Despia yet");
+      return;
     }
 
-    // Lightweight registration marker so status UIs know the device is linked.
+    const platform = detectPlatform();
     await savePushToken({
-      data: { token: `external:${uid}`, platform: platform === "web" ? "despia" : platform },
+      data: { token: playerId, platform: platform === "web" ? "despia" : platform },
     }).catch(() => {});
   } catch (e) {
     log.error("registerPushToken failed", e);
