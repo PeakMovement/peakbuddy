@@ -15,10 +15,10 @@ export const Route = createFileRoute("/privacy-policy")({
         content:
           "How Buddy protects your personal and health information under South African privacy law.",
       },
-      { property: "og:url", content: "https://peakbuddy.lovable.app/privacy-policy" },
+      { property: "og:url", content: "https://buddytracker.netlify.app/privacy-policy" },
       { property: "og:type", content: "article" },
     ],
-    links: [{ rel: "canonical", href: "https://peakbuddy.lovable.app/privacy-policy" }],
+    links: [{ rel: "canonical", href: "https://buddytracker.netlify.app/privacy-policy" }],
   }),
   component: PrivacyPolicyPage,
 });
@@ -451,11 +451,11 @@ function PrivacyPolicyPage() {
             <p className="mt-1">
               <strong style={{ color: "var(--white)" }}>Website:</strong>{" "}
               <a
-                href="https://peakbuddy.lovable.app"
+                href="https://buddytracker.netlify.app"
                 className="underline underline-offset-2"
                 style={{ color: "var(--blue-accent)" }}
               >
-                peakbuddy.lovable.app
+                buddytracker.netlify.app
               </a>
             </p>
           </div>

@@ -11,7 +11,7 @@ interface Props {
 }
 
 const ClientWelcomeEmail = ({ clientName, practitionerName, loginUrl, email }: Props) => {
-  const url = loginUrl || 'https://buddy-health.co.za/client/login'
+  const url = loginUrl || 'https://buddytracker.netlify.app/client/login'
   return (
     <EmailShell preview="Your Buddy account is ready. Sign in to get started.">
       <Text style={styles.h1}>Welcome to Buddy{clientName ? `, ${clientName}` : ''}</Text>
@@ -48,7 +48,7 @@ export const template = {
     clientName: 'Alex',
     practitionerName: 'Dr. Smith',
     email: 'alex@example.com',
-    loginUrl: 'https://buddy-health.co.za/client/login',
+    loginUrl: 'https://buddytracker.netlify.app/client/login',
   },
 } satisfies TemplateEntry
 

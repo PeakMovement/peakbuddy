@@ -14,9 +14,9 @@ export const Route = createFileRoute("/support")({
       },
       { property: "og:title", content: "Support — Buddy Symptom Tracker" },
       { property: "og:description", content: "Submit a support request to the Buddy team." },
-      { property: "og:url", content: "https://peakbuddy.lovable.app/support" },
+      { property: "og:url", content: "https://buddytracker.netlify.app/support" },
     ],
-    links: [{ rel: "canonical", href: "https://peakbuddy.lovable.app/support" }],
+    links: [{ rel: "canonical", href: "https://buddytracker.netlify.app/support" }],
   }),
   component: SupportPage,
 });

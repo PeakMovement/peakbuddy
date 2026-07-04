@@ -17,10 +17,10 @@ export const Route = createFileRoute("/marketing")({
         property: "og:description",
         content: "Track symptoms, share with your practitioner, catch issues early with AI.",
       },
-      { property: "og:url", content: "https://peakbuddy.lovable.app/marketing" },
+      { property: "og:url", content: "https://buddytracker.netlify.app/marketing" },
       { property: "og:type", content: "website" },
     ],
-    links: [{ rel: "canonical", href: "https://peakbuddy.lovable.app/marketing" }],
+    links: [{ rel: "canonical", href: "https://buddytracker.netlify.app/marketing" }],
   }),
   component: MarketingPage,
 });
