@@ -35,7 +35,11 @@ const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.le
 const sleepRead = (s: number) => (s >= 80 ? "well rested" : s >= 70 ? "decent sleep" : "short sleep");
 const readinessRead = (r: number) => (r >= 72 ? "recovered" : r >= 58 ? "moderate" : "under-recovered");
 
-export function computeForecast(wearables: WearableDay[], checkins: CheckinDay[]): ForecastResult {
+export function computeForecast(
+  wearables: WearableDay[],
+  checkins: CheckinDay[],
+  now: Date = new Date(),
+): ForecastResult {
   const w = [...wearables].sort((a, b) => (a.date < b.date ? 1 : -1));
 
   if (w.length === 0) {
@@ -53,6 +57,35 @@ export function computeForecast(wearables: WearableDay[], checkins: CheckinDay[]
   }
 
   const latest = w[0];
+
+  const dayIndex = (d: string | Date) => {
+    const t = typeof d === "string" ? new Date(`${d}T00:00:00`) : d;
+    return Math.floor(new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime() / 86_400_000);
+  };
+
+  // Staleness guard: never present old wearable data as "last night".
+  const daysStale = dayIndex(now) - dayIndex(latest.date);
+  if (daysStale > 2) {
+    return {
+      hasWearable: true,
+      level: "unknown",
+      message: `Your ring hasn't synced in ${daysStale} days, so your forecast is on hold. Open the Oura app to refresh it and Buddy will pick right back up.`,
+      action: "",
+      confidence: "",
+      reasoning: "",
+      factors: [],
+      personalNote: null,
+      prompt: null,
+    };
+  }
+
+  // Recent symptoms (last ~8 days) so the forecast relates body data to how they feel.
+  const nowIdx = dayIndex(now);
+  const recentPain = nums(checkins.filter((c) => nowIdx - dayIndex(c.date) <= 8).map((c) => c.pain_level));
+  const painAvg = avg(recentPain);
+  const painHigh = !Number.isNaN(painAvg) && painAvg >= 6;
+  const painSettled = !Number.isNaN(painAvg) && painAvg <= 3;
+
   const recent = w.slice(0, 3);
   const prior = w.slice(3, 14);
 
@@ -100,20 +133,38 @@ export function computeForecast(wearables: WearableDay[], checkins: CheckinDay[]
   let action: string;
   if (level === "strong") {
     const lead = sleepPhrase() ?? "Your body's well recovered";
-    message = `${lead}, and your body's bounced back. Nothing's pointing to a flare today, so it's a good one to push a little.`;
-    action = "A good day to make progress on your program.";
+    if (painHigh) {
+      message = `${lead}, and your body's recovered, though your pain's still been running higher than usual this week. Ease into today and see how it holds up.`;
+      action = "Move, but keep an eye on how your symptoms respond.";
+    } else if (painSettled) {
+      message = `${lead}, and your body's bounced back with your symptoms settled too. Nothing's pointing to a flare, so it's a good day to push a little.`;
+      action = "A good day to make progress on your program.";
+    } else {
+      message = `${lead}, and your body's bounced back. Nothing's pointing to a flare today, so it's a good one to push a little.`;
+      action = "A good day to make progress on your program.";
+    }
   } else if (level === "low") {
     const neg: string[] = [];
     if (s != null && (Number.isNaN(sAvg) ? s < 70 : s <= sAvg - 8)) neg.push(`your sleep's run short (${Math.round(s)})`);
     if (hrvFalling) neg.push("your HRV's been sliding");
     if (rhrRising) neg.push("your resting heart rate's up");
     const lead = neg.length ? cap(joinNat(neg)) : "Your body's a bit run down right now";
-    message = `${lead}, and that's usually the setup for a flare. Take it easier today and you'll likely stay ahead of it.`;
+    if (painHigh) {
+      message = `${lead}, and your pain's been up this week too, which is a classic flare setup. Go gentle today and protect your recovery.`;
+    } else {
+      message = `${lead}, and that's usually the setup for a flare. Take it easier today and you'll likely stay ahead of it.`;
+    }
     action = "Go gentle, and aim for a solid night's sleep tonight.";
   } else {
     const lead = sleepPhrase() ?? "Your recovery's holding steady";
     const t = trendBits.length ? `, though ${trendBits.join(" and ")}` : "";
-    message = `${lead}${t}. Nothing's really flaring, so keep to your normal pace and see how you feel.`;
+    if (painHigh) {
+      message = `${lead}${t}. Your pain's been a touch higher this week, so keep things easy and steady.`;
+    } else if (painSettled) {
+      message = `${lead}${t}, and your symptoms have been quiet. Keep to your normal pace and see how you feel.`;
+    } else {
+      message = `${lead}${t}. Nothing's really flaring, so keep to your normal pace and see how you feel.`;
+    }
     action = "Steady as you go today.";
   }
 
