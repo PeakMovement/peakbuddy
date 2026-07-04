@@ -71,19 +71,51 @@ export function computeForecast(wearables: WearableDay[], checkins: CheckinDay[]
   else if ((readiness != null && readiness <= 58) || hrvFalling || rhrRising) level = "low";
   else level = "moderate";
 
-  const message =
-    level === "strong"
-      ? "Your body and activity are looking good, with low risk of a flare or setback today."
-      : level === "low"
-        ? "Your recovery is down, and this is often when symptoms flare. Take it easier today to stay ahead of a setback."
-        : "You're in a steady zone. Your recovery and symptoms look balanced, so keep to your usual pace.";
+  // Build a specific, human line from the client's own numbers and trends —
+  // not a generic per-level template.
+  const s = latest.sleep_score;
+  const sAvg = avg(nums(w.slice(1, 11).map((d) => d.sleep_score)));
+  const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+  const joinNat = (xs: string[]) =>
+    xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
+  const sleepPhrase = (): string | null => {
+    if (s == null) return null;
+    const r = Math.round(s);
+    if (!Number.isNaN(sAvg)) {
+      if (s >= sAvg + 8) return `You slept well last night, ${r}, one of your better nights`;
+      if (s <= sAvg - 8) return `Your sleep dipped to ${r} last night, below your usual`;
+      return `You slept about your usual last night (${r})`;
+    }
+    return s >= 80
+      ? `You slept well last night (${r})`
+      : s >= 70
+        ? `You had a decent night (${r})`
+        : `Your sleep ran short last night (${r})`;
+  };
+  const trendBits: string[] = [];
+  if (hrvFalling) trendBits.push("your HRV's been sliding the last few days");
+  if (rhrRising) trendBits.push("your resting heart rate's crept up");
 
-  const action =
-    level === "strong"
-      ? "A good day to make progress on your program."
-      : level === "low"
-        ? "Prioritise rest and good sleep tonight, and ease off any hard sessions."
-        : "Keep things steady and listen to how you feel.";
+  let message: string;
+  let action: string;
+  if (level === "strong") {
+    const lead = sleepPhrase() ?? "Your body's well recovered";
+    message = `${lead}, and your body's bounced back. Nothing's pointing to a flare today, so it's a good one to push a little.`;
+    action = "A good day to make progress on your program.";
+  } else if (level === "low") {
+    const neg: string[] = [];
+    if (s != null && (Number.isNaN(sAvg) ? s < 70 : s <= sAvg - 8)) neg.push(`your sleep's run short (${Math.round(s)})`);
+    if (hrvFalling) neg.push("your HRV's been sliding");
+    if (rhrRising) neg.push("your resting heart rate's up");
+    const lead = neg.length ? cap(joinNat(neg)) : "Your body's a bit run down right now";
+    message = `${lead}, and that's usually the setup for a flare. Take it easier today and you'll likely stay ahead of it.`;
+    action = "Go gentle, and aim for a solid night's sleep tonight.";
+  } else {
+    const lead = sleepPhrase() ?? "Your recovery's holding steady";
+    const t = trendBits.length ? `, though ${trendBits.join(" and ")}` : "";
+    message = `${lead}${t}. Nothing's really flaring, so keep to your normal pace and see how you feel.`;
+    action = "Steady as you go today.";
+  }
 
   const factors: Factor[] = [];
   if (latest.sleep_score != null)
