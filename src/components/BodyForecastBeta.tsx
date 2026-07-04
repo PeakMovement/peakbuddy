@@ -26,41 +26,73 @@ const DOT: Record<string, string> = {
 /** Beta "Your Body Forecast" card. Renders nothing unless the client is in the beta gate. */
 export function BodyForecastBeta({ client }: { client: BetaClient }) {
   const [result, setResult] = useState<ForecastResult | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (!isBetaClient(client)) return;
+    let cancelled = false;
+    setStatus("loading");
     (async () => {
-      const [{ data: w }, { data: c }] = await Promise.all([
-        supabase
-          .from("wearable_sessions")
-          .select("date, sleep_score, readiness_score, resting_hr, hrv_avg")
-          .eq("client_id", client.id)
-          .order("date", { ascending: false })
-          .limit(30),
-        supabase
-          .from("check_ins")
-          .select("created_at, pain_level")
-          .eq("client_id", client.id)
-          .order("created_at", { ascending: false })
-          .limit(60),
-      ]);
-      const wearables = ((w ?? []) as Record<string, unknown>[]).map((r) => ({
-        date: String(r.date),
-        sleep_score: (r.sleep_score as number | null) ?? null,
-        readiness_score: (r.readiness_score as number | null) ?? null,
-        resting_hr: (r.resting_hr as number | null) ?? null,
-        hrv_avg: (r.hrv_avg as number | null) ?? null,
-      }));
-      const checkins = ((c ?? []) as { created_at: string; pain_level: number | null }[]).map((r) => ({
-        date: String(r.created_at).slice(0, 10),
-        pain_level: r.pain_level ?? null,
-      }));
-      setResult(computeForecast(wearables, checkins));
+      try {
+        const [wr, cr] = await Promise.all([
+          supabase
+            .from("wearable_sessions")
+            .select("date, sleep_score, readiness_score, resting_hr, hrv_avg")
+            .eq("client_id", client.id)
+            .order("date", { ascending: false })
+            .limit(30),
+          supabase
+            .from("check_ins")
+            .select("created_at, pain_level")
+            .eq("client_id", client.id)
+            .order("created_at", { ascending: false })
+            .limit(60),
+        ]);
+        if (wr.error || cr.error) throw wr.error ?? cr.error;
+        if (cancelled) return;
+        const wearables = ((wr.data ?? []) as Record<string, unknown>[]).map((r) => ({
+          date: String(r.date),
+          sleep_score: (r.sleep_score as number | null) ?? null,
+          readiness_score: (r.readiness_score as number | null) ?? null,
+          resting_hr: (r.resting_hr as number | null) ?? null,
+          hrv_avg: (r.hrv_avg as number | null) ?? null,
+        }));
+        const checkins = ((cr.data ?? []) as { created_at: string; pain_level: number | null }[]).map((r) => ({
+          date: String(r.created_at).slice(0, 10),
+          pain_level: r.pain_level ?? null,
+        }));
+        setResult(computeForecast(wearables, checkins));
+        setStatus("ready");
+      } catch {
+        if (!cancelled) setStatus("error");
+      }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [client]);
 
-  if (!isBetaClient(client) || !result) return null;
+  if (!isBetaClient(client)) return null;
+
+  if (status === "loading") {
+    return (
+      <div style={{ marginTop: 8 }}>
+        <div role="status" aria-live="polite" style={{ ...card, color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
+          Reading your latest data…
+        </div>
+      </div>
+    );
+  }
+  if (status === "error" || !result) {
+    return (
+      <div style={{ marginTop: 8 }}>
+        <div role="status" aria-live="polite" style={{ ...card, color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
+          Couldn't load your forecast just now. Pull to refresh or check back shortly.
+        </div>
+      </div>
+    );
+  }
 
   const dot = DOT[result.level] ?? "var(--blue-accent)";
 
