@@ -15,6 +15,7 @@ import { updateClientPhone, updateMyEmail } from "@/lib/client-profile.functions
 import { MyRewards } from "@/components/MyRewards";
 import { MyNotificationStatus } from "@/components/MyNotificationStatus";
 import { BodyForecastBeta } from "@/components/BodyForecastBeta";
+import { CalendarFeedCard } from "@/components/CalendarFeedCard";
 import { WearablesPanel } from "@/components/wearables/WearablesPanel";
 
 export const Route = createFileRoute("/client/app/profile")({
@@ -266,6 +267,10 @@ function ClientProfile() {
       <SectionHeader>Wearables</SectionHeader>
       <div id="wearables" style={{ scrollMarginTop: 80 }}>
         <WearablesPanel />
+      </div>
+
+      <div style={{ marginTop: 20 }}>
+        <CalendarFeedCard />
       </div>
 
       {/* Plan */}
