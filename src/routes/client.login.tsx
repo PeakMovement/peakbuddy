@@ -10,6 +10,7 @@ export const Route = createFileRoute("/client/login")({
 });
 
 const REMEMBER_KEY = "buddy.remember_me";
+const EMAIL_KEY = "buddy.remember_email";
 
 function ClientLogin() {
   const navigate = useNavigate();
@@ -27,6 +28,8 @@ function ClientLogin() {
     if (typeof window === "undefined") return;
     const stored = window.localStorage.getItem(REMEMBER_KEY);
     if (stored === "false") setRemember(false);
+    const savedEmail = window.localStorage.getItem(EMAIL_KEY);
+    if (savedEmail) setEmail(savedEmail);
   }, []);
 
   // Cooldown tick for the magic-link button
@@ -40,6 +43,7 @@ function ClientLogin() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(REMEMBER_KEY, remember ? "true" : "false");
+    if (!remember) window.localStorage.removeItem(EMAIL_KEY);
     if (remember) return;
     const handler = () => {
       void supabase.auth.signOut();
@@ -62,6 +66,11 @@ function ClientLogin() {
       setLoading(false);
       setError("Invalid email or password.");
       return;
+    }
+
+    if (typeof window !== "undefined") {
+      if (remember) window.localStorage.setItem(EMAIL_KEY, trimmedEmail);
+      else window.localStorage.removeItem(EMAIL_KEY);
     }
     const { data: authData } = await supabase.auth.getUser();
     const authUserId = authData.user?.id ?? null;

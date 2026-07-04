@@ -10,6 +10,7 @@ export const Route = createFileRoute("/practitioner/login")({
 });
 
 const REMEMBER_KEY = "buddy.remember_me";
+const EMAIL_KEY = "buddy.remember_email";
 
 function PractitionerLogin() {
   const navigate = useNavigate();
@@ -27,6 +28,8 @@ function PractitionerLogin() {
     if (typeof window === "undefined") return;
     const stored = window.localStorage.getItem(REMEMBER_KEY);
     if (stored === "false") setRemember(false);
+    const savedEmail = window.localStorage.getItem(EMAIL_KEY);
+    if (savedEmail) setEmail(savedEmail);
   }, []);
 
   useEffect(() => {
@@ -38,6 +41,7 @@ function PractitionerLogin() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(REMEMBER_KEY, remember ? "true" : "false");
+    if (!remember) window.localStorage.removeItem(EMAIL_KEY);
     if (remember) return;
     const handler = () => {
       void supabase.auth.signOut();
@@ -60,6 +64,11 @@ function PractitionerLogin() {
       setLoading(false);
       setError("Email or password incorrect.");
       return;
+    }
+
+    if (typeof window !== "undefined") {
+      if (remember) window.localStorage.setItem(EMAIL_KEY, email.trim());
+      else window.localStorage.removeItem(EMAIL_KEY);
     }
 
     const userId = signIn.user.id;
