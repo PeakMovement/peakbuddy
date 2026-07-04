@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { LogOut, Trash2, Mail, Phone, ClipboardCheck, Settings as SettingsIcon, ChevronRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { deleteMyAccount } from "@/lib/account-delete.functions";
+import { NotificationSubscribeButton } from "@/components/NotificationSubscribeButton";
 import { updateMyEmail, updatePractitionerPhone } from "@/lib/client-profile.functions";
 import { EditableTextField } from "@/routes/client.app.profile";
 import {
@@ -195,6 +196,8 @@ function PractitionerProfile() {
       </div>
 
       <MoreSection queueCount={queueCount} showQueue={programsEnabled} />
+
+      <NotificationSubscribeButton />
 
 
 

@@ -13,7 +13,7 @@ import {
 import { deleteMyAccount } from "@/lib/account-delete.functions";
 import { updateClientPhone, updateMyEmail } from "@/lib/client-profile.functions";
 import { MyRewards } from "@/components/MyRewards";
-import { MyNotificationStatus } from "@/components/MyNotificationStatus";
+import { NotificationSubscribeButton } from "@/components/NotificationSubscribeButton";
 import { BodyForecastBeta } from "@/components/BodyForecastBeta";
 import { CalendarFeedCard } from "@/components/CalendarFeedCard";
 import { WearablesPanel } from "@/components/wearables/WearablesPanel";
@@ -256,7 +256,7 @@ function ClientProfile() {
       </div>
 
       {/* Notification status */}
-      <MyNotificationStatus />
+      <NotificationSubscribeButton />
       {client && <BodyForecastBeta client={client} />}
 
       {/* Rewards */}
