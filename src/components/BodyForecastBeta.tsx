@@ -5,16 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { computeForecast, type ForecastResult } from "@/lib/body-forecast";
 
 // BETA GATE — only shows for these accounts. Expand/remove later.
-const BETA_EMAILS = ["justin15muller@gmail.com"];
-const BETA_NAMES = ["justin muller"];
-
 type BetaClient = { id: string; full_name: string | null; email: string | null };
-
-function isBetaClient(c: BetaClient): boolean {
-  const email = (c.email ?? "").toLowerCase().trim();
-  const name = (c.full_name ?? "").toLowerCase().trim();
-  return BETA_EMAILS.includes(email) || BETA_NAMES.includes(name);
-}
 
 const DOT: Record<string, string> = {
   strong: "var(--green)",
@@ -30,7 +21,6 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (!isBetaClient(client)) return;
     let cancelled = false;
     setStatus("loading");
     (async () => {
@@ -73,26 +63,9 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
     };
   }, [client]);
 
-  if (!isBetaClient(client)) return null;
-
-  if (status === "loading") {
-    return (
-      <div style={{ marginTop: 8 }}>
-        <div role="status" aria-live="polite" style={{ ...card, color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
-          Reading your latest data…
-        </div>
-      </div>
-    );
-  }
-  if (status === "error" || !result) {
-    return (
-      <div style={{ marginTop: 8 }}>
-        <div role="status" aria-live="polite" style={{ ...card, color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
-          Couldn't load your forecast just now. Pull to refresh or check back shortly.
-        </div>
-      </div>
-    );
-  }
+  // Show only when we have a real forecast built from the client's own wearable
+  // data; silent for everyone else (loading, error, or no wearable connected).
+  if (status !== "ready" || !result || !result.hasWearable) return null;
 
   const dot = DOT[result.level] ?? "var(--blue-accent)";
 
