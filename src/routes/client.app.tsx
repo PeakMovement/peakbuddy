@@ -7,6 +7,7 @@ import { useOnline } from "@/hooks/use-online";
 import { getClientBootstrap, type ClientProgramState } from "@/lib/client-program.functions";
 import { ProgramIntroModal } from "@/components/ProgramIntroModal";
 import { registerPushToken } from "@/lib/push";
+import { SyncStatusBanner } from "@/components/SyncStatusBanner";
 
 export const Route = createFileRoute("/client/app")({
   component: ClientAppLayout,
@@ -125,6 +126,7 @@ function ClientAppLayout() {
       }}
     >
       <OfflineBanner />
+      <SyncStatusBanner />
 
       {pendingBannerVisible && programState?.program && (
         <button
