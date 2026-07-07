@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import { Watch } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { computeForecast, type ForecastResult } from "@/lib/body-forecast";
 
 type WRow = {
   date: string;
@@ -20,17 +21,32 @@ type WRow = {
  */
 export function ClientWearablesCard({ clientId }: { clientId: string }) {
   const [rows, setRows] = useState<WRow[]>([]);
+  const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
-        .from("wearable_sessions")
-        .select("date, source, sleep_score, readiness_score, resting_hr, hrv_avg, total_steps")
-        .eq("client_id", clientId)
-        .order("date", { ascending: false })
-        .limit(14);
-      setRows((data ?? []) as WRow[]);
+      const [{ data }, { data: ci }] = await Promise.all([
+        supabase
+          .from("wearable_sessions")
+          .select("date, source, sleep_score, readiness_score, resting_hr, hrv_avg, total_steps")
+          .eq("client_id", clientId)
+          .order("date", { ascending: false })
+          .limit(30),
+        supabase
+          .from("check_ins")
+          .select("created_at, pain_level")
+          .eq("client_id", clientId)
+          .order("created_at", { ascending: false })
+          .limit(60),
+      ]);
+      const wrows = (data ?? []) as WRow[];
+      setRows(wrows);
+      const checkins = ((ci ?? []) as { created_at: string; pain_level: number | null }[]).map((r) => ({
+        date: String(r.created_at).slice(0, 10),
+        pain_level: r.pain_level ?? null,
+      }));
+      setForecast(computeForecast(wrows, checkins));
       setLoaded(true);
     })();
   }, [clientId]);
@@ -68,6 +84,14 @@ export function ClientWearablesCard({ clientId }: { clientId: string }) {
           · {rows[0].source} · synced {new Date(rows[0].date).toLocaleDateString()}
         </span>
       </div>
+
+      {forecast && forecast.hasWearable && (
+        <div style={readBox}>
+          <div style={readTitle}>Recovery vs symptoms</div>
+          <div style={readMsg}>{forecast.message}</div>
+          {forecast.personalNote && <div style={readNote}>{forecast.personalNote}</div>}
+        </div>
+      )}
 
       <div style={grid}>
         {stats.map((s) => (
@@ -123,6 +147,34 @@ const titleStyle: CSSProperties = {
   fontSize: 14,
   textTransform: "uppercase",
   letterSpacing: "0.08em",
+};
+const readBox: CSSProperties = {
+  marginTop: 12,
+  padding: "10px 12px",
+  borderRadius: 10,
+  background: "rgba(74,141,240,0.08)",
+  border: "1px solid rgba(74,141,240,0.28)",
+};
+const readTitle: CSSProperties = {
+  fontFamily: "var(--font-ui)",
+  fontSize: 10,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  color: "var(--blue-accent)",
+  marginBottom: 4,
+};
+const readMsg: CSSProperties = {
+  fontFamily: "var(--font-ui)",
+  fontSize: 13.5,
+  lineHeight: 1.5,
+  color: "var(--white)",
+};
+const readNote: CSSProperties = {
+  fontFamily: "var(--font-ui)",
+  fontSize: 12,
+  lineHeight: 1.5,
+  color: "var(--white-muted)",
+  marginTop: 6,
 };
 const grid: CSSProperties = {
   marginTop: 12,
