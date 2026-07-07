@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { LogOut, ExternalLink, Trash2, ChevronDown, Phone, Check, Mail } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -16,7 +16,9 @@ import { MyRewards } from "@/components/MyRewards";
 import { NotificationSubscribeButton } from "@/components/NotificationSubscribeButton";
 import { BodyForecastBeta } from "@/components/BodyForecastBeta";
 import { CalendarFeedCard } from "@/components/CalendarFeedCard";
-import { WearablesPanel } from "@/components/wearables/WearablesPanel";
+const WearablesPanel = lazy(() =>
+  import("@/components/wearables/WearablesPanel").then((m) => ({ default: m.WearablesPanel })),
+);
 
 export const Route = createFileRoute("/client/app/profile")({
   head: () => ({ meta: [{ title: "Profile — Buddy" }] }),
@@ -266,7 +268,15 @@ function ClientProfile() {
       {/* Wearables — self-contained panel; move this block to relocate the section. */}
       <SectionHeader>Wearables</SectionHeader>
       <div id="wearables" style={{ scrollMarginTop: 80 }}>
-        <WearablesPanel />
+        <Suspense
+          fallback={
+            <div style={{ color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 13, padding: 8 }}>
+              Loading…
+            </div>
+          }
+        >
+          <WearablesPanel />
+        </Suspense>
       </div>
 
       <div style={{ marginTop: 20 }}>
