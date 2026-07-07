@@ -35,6 +35,7 @@ function Settings() {
   const [webhookEnabled, setWebhookEnabled] = useState(false);
   const [contactWebhookUrl, setContactWebhookUrl] = useState("");
   const [contactWebhookEnabled, setContactWebhookEnabled] = useState(false);
+  const [weeklyDigestEnabled, setWeeklyDigestEnabled] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -54,6 +55,9 @@ function Settings() {
       setWebhookEnabled(pr?.webhook_enabled ?? false);
       setContactWebhookUrl(pr?.contact_webhook_url ?? "");
       setContactWebhookEnabled(pr?.contact_webhook_enabled ?? false);
+      setWeeklyDigestEnabled(
+        (pr as { weekly_digest_enabled?: boolean } | null)?.weekly_digest_enabled ?? false,
+      );
       setPracticeId(pr?.id ?? null);
       setLoading(false);
     })();
@@ -78,20 +82,21 @@ function Settings() {
       webhook_enabled: webhookEnabled,
       contact_webhook_url: contactWebhookUrl.trim(),
       contact_webhook_enabled: contactWebhookEnabled,
+      weekly_digest_enabled: weeklyDigestEnabled,
     };
 
     let pracErr: { message: string } | null = null;
     if (practiceId) {
       const { error } = await supabase
         .from("practices")
-        .update(updatePayload)
+        .update(updatePayload as never)
         .eq("id", practiceId)
         .eq("practitioner_id", userId);
       pracErr = error;
     } else {
       const { data, error } = await supabase
         .from("practices")
-        .insert({ ...updatePayload, practitioner_id: userId, onboarding_complete: true })
+        .insert({ ...updatePayload, practitioner_id: userId, onboarding_complete: true } as never)
         .select()
         .maybeSingle();
       pracErr = error;
@@ -221,6 +226,23 @@ function Settings() {
           testKind="contact"
           practitionerId={userId}
         />
+
+        <div style={{ marginTop: 24 }}>
+          <div style={sectionTitle}>Weekly summary email</div>
+          <p style={{ color: "var(--white-muted)", fontSize: 13, lineHeight: 1.5, margin: "6px 0 12px" }}>
+            A once-a-week email recapping your clients&apos; check-ins, flagged entries, who&apos;s at
+            risk, and who&apos;s gone quiet. Off by default.
+          </p>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={weeklyDigestEnabled}
+              onChange={(e) => setWeeklyDigestEnabled(e.target.checked)}
+              style={{ width: 18, height: 18, accentColor: "var(--blue-accent)" }}
+            />
+            <span style={{ color: "var(--white)", fontSize: 14 }}>Email me a weekly summary</span>
+          </label>
+        </div>
 
         {error && <div style={{ color: "var(--red)", fontSize: 13, marginTop: 16 }}>{error}</div>}
         {success && (
