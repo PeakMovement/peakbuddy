@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { Flame, Lock } from "lucide-react";
+import { Flame, Lock, Trophy } from "lucide-react";
 import { STREAK_MILESTONES, type StreakResult } from "@/lib/streak";
 
 /**
@@ -45,6 +45,12 @@ export function StreakCard({ streak }: { streak: StreakResult | null }) {
         </div>
       </div>
 
+      {STREAK_MILESTONES.includes(streak.current) && (
+        <div style={celebrate}>
+          <Trophy size={15} aria-hidden /> You hit a {streak.current} check-in milestone. Keep it going!
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
         {STREAK_MILESTONES.map((m) => {
           const unlocked = streak.unlockedMilestones.includes(m);
@@ -84,6 +90,20 @@ const bigNum: CSSProperties = {
   fontWeight: 700,
   lineHeight: 1,
   color: "var(--white)",
+};
+const celebrate: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  marginTop: 12,
+  padding: "10px 12px",
+  borderRadius: 10,
+  background: "rgba(74,141,240,0.12)",
+  border: "1px solid rgba(74,141,240,0.4)",
+  color: "var(--white)",
+  fontFamily: "var(--font-ui)",
+  fontWeight: 600,
+  fontSize: 13.5,
 };
 const subLabel: CSSProperties = {
   fontFamily: "var(--font-ui)",
