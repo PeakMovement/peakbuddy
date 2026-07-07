@@ -323,3 +323,56 @@ export const updateRewardsSchedule = createServerFn({ method: "POST" })
     }
     return { enabled: data.enabled, allowedDays: days };
   });
+
+// ---- Stage: redemption tracking ----
+
+export const redeemMyReward = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as SupabaseClient;
+    const { data: row } = await db
+      .from("client_rewards")
+      .select("id, client_id")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (!row) throw new Error("Not found");
+    const { data: client } = await db
+      .from("clients")
+      .select("id")
+      .eq("auth_user_id", context.userId)
+      .maybeSingle();
+    if (!client || client.id !== row.client_id) throw new Error("Forbidden");
+    const { error } = await db
+      .from("client_rewards")
+      .update({ status: "redeemed", redeemed_at: new Date().toISOString() })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+export type RedemptionRow = { name: string; issued: number; redeemed: number };
+
+export const getRewardsRedemptionSummary = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<RedemptionRow[]> => {
+    const { data: me } = await context.supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (me?.role !== "super_admin") throw new Error("Forbidden");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as SupabaseClient;
+    const { data: rows } = await db.from("client_rewards").select("status, reward:rewards(name)");
+    const map = new Map<string, { issued: number; redeemed: number }>();
+    for (const r of (rows ?? []) as { status: string; reward: { name: string } | null }[]) {
+      const name = r.reward?.name ?? "Unknown";
+      const e = map.get(name) ?? { issued: 0, redeemed: 0 };
+      e.issued += 1;
+      if (r.status === "redeemed") e.redeemed += 1;
+      map.set(name, e);
+    }
+    return Array.from(map.entries()).map(([name, v]) => ({ name, issued: v.issued, redeemed: v.redeemed }));
+  });

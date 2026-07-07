@@ -7,7 +7,9 @@ import {
   deleteReward,
   getRewardsSchedule,
   updateRewardsSchedule,
+  getRewardsRedemptionSummary,
   type Reward,
+  type RedemptionRow,
 } from "@/lib/rewards.functions";
 
 type FormState = {
@@ -34,6 +36,7 @@ const EMPTY: FormState = {
  */
 export function RewardsManager() {
   const [rewards, setRewards] = useState<Reward[]>([]);
+  const [redemption, setRedemption] = useState<RedemptionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<FormState>({ ...EMPTY });
   const [editing, setEditing] = useState(false);
@@ -48,6 +51,9 @@ export function RewardsManager() {
   const load = async () => {
     try {
       const [list, sched] = await Promise.all([listAllRewards(), getRewardsSchedule()]);
+      getRewardsRedemptionSummary()
+        .then((rows) => setRedemption(rows))
+        .catch(() => setRedemption([]));
       setRewards(list);
       setSchedEnabled(sched.enabled);
       setSchedDays(sched.allowedDays);
@@ -295,6 +301,23 @@ export function RewardsManager() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {redemption.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <div style={titleStyle}>Redemption summary</div>
+          <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+            {redemption.map((row) => (
+              <div key={row.name} style={listItem}>
+                <div style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
+                  {row.name}
+                </div>
+                <div style={{ color: "var(--white-muted)", fontFamily: "var(--font-data)", fontSize: 12 }}>
+                  {row.redeemed}/{row.issued} used
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </section>

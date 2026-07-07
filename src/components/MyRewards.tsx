@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import { Gift, MapPin } from "lucide-react";
-import { listMyRewards, type IssuedReward } from "@/lib/rewards.functions";
+import { listMyRewards, redeemMyReward, type IssuedReward } from "@/lib/rewards.functions";
 
 const SEEN_KEY = "buddy.rewards.seen.v1";
 
@@ -44,6 +44,15 @@ export function useUnseenRewardCount(): number {
 export function MyRewards() {
   const [rewards, setRewards] = useState<IssuedReward[] | null>(null);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
+  const [redeemed, setRedeemed] = useState<Set<string>>(new Set());
+  const markUsed = async (id: string) => {
+    try {
+      await redeemMyReward({ data: { id } });
+      setRedeemed((prev) => new Set(prev).add(id));
+    } catch {
+      /* ignore */
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -103,6 +112,13 @@ export function MyRewards() {
                 Get directions
               </a>
             )}
+            {r.status === "redeemed" || redeemed.has(r.id) ? (
+              <div style={usedTag}>Used</div>
+            ) : (
+              <button type="button" onClick={() => markUsed(r.id)} style={usedBtn}>
+                Mark as used
+              </button>
+            )}
           </div>
         );
       })}
@@ -149,6 +165,27 @@ const codeStyle: CSSProperties = {
   borderRadius: 8,
   padding: "8px 12px",
   textAlign: "center",
+};
+const usedBtn: CSSProperties = {
+  marginTop: 10,
+  display: "block",
+  width: "100%",
+  minHeight: 38,
+  background: "transparent",
+  color: "var(--white-muted)",
+  border: "1px solid var(--navy-border)",
+  borderRadius: 8,
+  fontFamily: "var(--font-ui)",
+  fontWeight: 600,
+  fontSize: 13,
+  cursor: "pointer",
+};
+const usedTag: CSSProperties = {
+  marginTop: 10,
+  fontFamily: "var(--font-ui)",
+  fontSize: 12,
+  fontWeight: 600,
+  color: "var(--green)",
 };
 const mapLink: CSSProperties = {
   marginTop: 10,
