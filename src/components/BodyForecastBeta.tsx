@@ -19,13 +19,17 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
   const [result, setResult] = useState<ForecastResult | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [open, setOpen] = useState(false);
+  // 1-tap forecast confirmation (turns the forecast grade into a lightweight check-in)
+  const [practitionerId, setPractitionerId] = useState<string | null>(null);
+  const [todayDone, setTodayDone] = useState(true);
+  const [confirmState, setConfirmState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   useEffect(() => {
     let cancelled = false;
     setStatus("loading");
     (async () => {
       try {
-        const [wr, cr] = await Promise.all([
+        const [wr, cr, clientRow] = await Promise.all([
           supabase
             .from("wearable_sessions")
             .select("date, sleep_score, readiness_score, resting_hr, hrv_avg")
@@ -38,9 +42,17 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
             .eq("client_id", client.id)
             .order("created_at", { ascending: false })
             .limit(60),
+          supabase.from("clients").select("practitioner_id").eq("id", client.id).maybeSingle(),
         ]);
         if (wr.error || cr.error) throw wr.error ?? cr.error;
         if (cancelled) return;
+        setPractitionerId(((clientRow.data as { practitioner_id?: string } | null)?.practitioner_id) ?? null);
+        const todayKey = new Date().toISOString().slice(0, 10);
+        setTodayDone(
+          ((cr.data ?? []) as { created_at: string }[]).some(
+            (c) => String(c.created_at).slice(0, 10) === todayKey,
+          ),
+        );
         const wearables = ((wr.data ?? []) as Record<string, unknown>[]).map((r) => ({
           date: String(r.date),
           sleep_score: (r.sleep_score as number | null) ?? null,
@@ -69,6 +81,32 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
 
   const dot = DOT[result.level] ?? "var(--blue-accent)";
 
+  const confirmToday = async (pain: number) => {
+    if (!practitionerId || confirmState === "saving") return;
+    setConfirmState("saving");
+    try {
+      const { error } = await supabase.rpc("insert_check_in", {
+        p_client_id: client.id,
+        p_practitioner_id: practitionerId,
+        p_pain_level: pain,
+        p_sleep_quality: null,
+        p_stress_level: null,
+        p_energy_level: null,
+        p_mood: null,
+        p_notes: "Quick confirm from Body Forecast",
+        p_medication_taken: false,
+        p_flagged: pain >= 8,
+      });
+      if (error) throw error;
+      setConfirmState("saved");
+      setTodayDone(true);
+    } catch {
+      setConfirmState("error");
+    }
+  };
+
+  const showConfirm = !todayDone && practitionerId != null;
+
   return (
     <div style={{ marginTop: 8 }}>
       <div style={card}>
@@ -90,6 +128,37 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
         {result.personalNote && (
           <div style={noteBox}>
             <strong style={{ color: "var(--white)" }}>Your pattern:</strong> {result.personalNote}
+          </div>
+        )}
+
+        {/* 1-tap confirmation — grading the forecast doubles as today's check-in */}
+        {showConfirm && confirmState !== "saved" && (
+          <div style={confirmBox}>
+            <div style={confirmLabel}>How's your pain today? One tap logs your check-in.</div>
+            <div style={scaleRow} role="group" aria-label="Rate today's pain 0 to 10">
+              {Array.from({ length: 11 }, (_, n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => confirmToday(n)}
+                  disabled={confirmState === "saving"}
+                  style={scaleBtn}
+                  aria-label={`Pain ${n} of 10`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            {confirmState === "error" && (
+              <div style={{ color: "var(--red)", fontFamily: "var(--font-ui)", fontSize: 12, marginTop: 6 }}>
+                Couldn't save — try again.
+              </div>
+            )}
+          </div>
+        )}
+        {confirmState === "saved" && (
+          <div style={{ ...confirmBox, color: "var(--green)", fontFamily: "var(--font-ui)", fontSize: 13 }}>
+            Thanks — logged. Your forecast learns from every check-in.
           </div>
         )}
 
@@ -191,6 +260,38 @@ const noteBox: CSSProperties = {
   fontSize: 13.5,
   lineHeight: 1.5,
   color: "var(--white-muted)",
+};
+const confirmBox: CSSProperties = {
+  marginTop: 14,
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid var(--navy-border)",
+  borderRadius: 12,
+  padding: "12px 14px",
+};
+const confirmLabel: CSSProperties = {
+  fontFamily: "var(--font-ui)",
+  fontSize: 13,
+  fontWeight: 600,
+  color: "var(--white)",
+};
+const scaleRow: CSSProperties = {
+  display: "flex",
+  gap: 5,
+  marginTop: 10,
+  flexWrap: "wrap",
+};
+const scaleBtn: CSSProperties = {
+  minWidth: 30,
+  minHeight: 34,
+  flex: "1 1 auto",
+  background: "transparent",
+  color: "var(--white-muted)",
+  border: "1px solid var(--navy-border)",
+  borderRadius: 8,
+  fontFamily: "var(--font-data)",
+  fontWeight: 700,
+  fontSize: 13,
+  cursor: "pointer",
 };
 const revealBtn: CSSProperties = {
   marginTop: 14,
