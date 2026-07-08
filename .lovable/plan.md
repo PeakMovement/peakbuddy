@@ -1,39 +1,28 @@
-## Goal
-Create 3 high-quality Instagram post images that showcase Buddy's key features in a bright, social-friendly aesthetic — plus a simple on-site gallery page where they can be previewed and downloaded.
+## Plan: Provide Garmin with Buddy's data-use and data-sale disclosure
 
-## Deliverables
+### Goal
+Answer Garmin's two questions using the existing Privacy Policy:
+1. How will user data be used?
+2. Will users be informed that their data is being sold?
 
-### 1. Three Instagram post images (1080 × 1080)
-Each post highlights a different feature cluster with bold, minimal typography on a bright, modern health-tech aesthetic (NOT the app's dark navy theme).
+### Deliverable
+A formal response text that can be emailed to Garmin, based on the current Privacy Policy at `/privacy-policy`.
 
-| Post | Theme | Visual Concept |
-|------|-------|----------------|
-| **01** | Daily Check-In | Split-screen or layered UI-mockup feel showing the 5 sliders (pain, sleep, stress, energy, mood) with a bold "30 seconds" headline. Bright gradient background (soft teal → lavender or warm coral → peach). |
-| **02** | AI Insights / Yves | Abstract data-pattern visualization — gentle waveforms, rising trend lines, soft glows. Headline: "Catch it before it flares." Calm, intelligent palette (soft blue → cream). |
-| **03** | Practitioner Connected | Two converging paths or a shared dashboard metaphor. Warm, supportive palette (soft green → sand). Headline: "Your clinician sees what you see." |
+### Key points from the existing policy
+- Data is used for: clinical care, AI-assisted pattern detection, service improvement, and legal compliance.
+- Buddy does **not** sell, rent, or trade personal information.
+- Data is shared only with: the registered practitioner (with explicit consent), trusted processors (Anthropic for AI, Google/Lovable for program suggestions), and when required by law.
+- Users are informed via the Privacy Policy and must give explicit consent before AI providers receive health data.
+- Consent can be withdrawn at any time in the user's profile.
 
-All images will be generated with the `imagegen` tool at 1080×1080, premium quality for crisp text and UI details. Prompts will specify: bright background, minimal bold sans-serif typography, clean health-tech aesthetic, no dark navy, Instagram-square format.
+### Proposed response
+[The draft response included in the chat above]
 
-### 2. Gallery page (`/social`)
-A lightweight new route at `src/routes/social.tsx` that:
-- Displays the 3 generated images in a responsive grid
-- Shows suggested caption copy beneath each image
-- Offers a "Download" link for each image (using `<a download>`)
-- Uses the existing app fonts (Cormorant Garamond for headings, Rajdhani for UI) but on a light background to match the social aesthetic
-- Links back to `/marketing`
+### Optional next steps (if needed)
+- Adjust tone or length.
+- Add a data-flow diagram.
+- Create a dedicated `/garmin-compliance` or `/data-use` page on the site.
 
-### 3. Caption copy
-Three ready-to-paste Instagram captions written in Buddy's voice (clinical but warm, confident but not jargon-heavy).
-
-## Technical approach
-- `imagegen--generate_image` for the 3 assets → `public/social/post-01.jpg`, `post-02.jpg`, `post-03.jpg`
-- New route file `src/routes/social.tsx` with static gallery layout
-- Add `<Link to="/social">` from the existing `/marketing` page (optional, can be skipped if you prefer it unlinked)
-
-## Out of scope
-- No carousel/Reel animations (static images only for this test)
-- No scheduling or social-media API integration
-- No dark-theme versions (bright social style only)
-
----
-Approve and I'll generate the images and build the gallery page.
+### Out of scope
+- Changing the Privacy Policy text unless the user requests it.
+- Modifying app code or data handling.
