@@ -14,7 +14,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "despia-native": "latest",
     "@cloudflare/vite-plugin": "^1.25.5",
     "@fontsource/cormorant-garamond": "^5.2.11",
     "@fontsource/rajdhani": "^5.2.7",
@@ -59,6 +58,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
+    "despia-native": "latest",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^1.14.0",
@@ -80,7 +80,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
-    "@lovable.dev/vite-tanstack-config": "2.6.4",
+    "@lovable.dev/vite-tanstack-config": "2.7.1",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
