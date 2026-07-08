@@ -1,28 +1,19 @@
-## Plan: Provide Garmin with Buddy's data-use and data-sale disclosure
+# 300×300 Hosted B App Icon
 
-### Goal
-Answer Garmin's two questions using the existing Privacy Policy:
-1. How will user data be used?
-2. Will users be informed that their data is being sold?
+## Goal
+Create a 300×300 pixel version of the existing B app icon (appstore/app-icon-B-v3.png) and host it at a stable CDN URL, without modifying the app code.
 
-### Deliverable
-A formal response text that can be emailed to Garmin, based on the current Privacy Policy at `/privacy-policy`.
+## Plan
+1. **Resize the existing icon**  
+   Use Python/PIL to downscale `/mnt/documents/appstore/app-icon-B-v3.png` to exactly 300×300 px, preserving the blue B, dark navy background, and glow. Save the result to `/mnt/documents/appstore/app-icon-B-300x300.png`.
 
-### Key points from the existing policy
-- Data is used for: clinical care, AI-assisted pattern detection, service improvement, and legal compliance.
-- Buddy does **not** sell, rent, or trade personal information.
-- Data is shared only with: the registered practitioner (with explicit consent), trusted processors (Anthropic for AI, Google/Lovable for program suggestions), and when required by law.
-- Users are informed via the Privacy Policy and must give explicit consent before AI providers receive health data.
-- Consent can be withdrawn at any time in the user's profile.
+2. **Upload to Lovable CDN**  
+   Run `lovable-assets create --file /mnt/documents/appstore/app-icon-B-300x300.png --filename app-icon-B-300x300.png` to upload the PNG to the Lovable CDN and obtain the `.asset.json` pointer.
 
-### Proposed response
-[The draft response included in the chat above]
+3. **Return the hosted URL**  
+   Read the generated `.asset.json` and provide the `url` value (e.g. `/__l5e/assets-v1/{asset_id}/app-icon-B-300x300.png`), which is publicly accessible via the project's domain.
 
-### Optional next steps (if needed)
-- Adjust tone or length.
-- Add a data-flow diagram.
-- Create a dedicated `/garmin-compliance` or `/data-use` page on the site.
-
-### Out of scope
-- Changing the Privacy Policy text unless the user requests it.
-- Modifying app code or data handling.
+## Notes
+- No app files will be changed.
+- The resulting image will live in `/mnt/documents/appstore/` and as a CDN asset pointer.
+- If `lovable-assets` is unavailable, I will fall back to generating the image with the agent image tool and saving it to `/mnt/documents/` for direct preview/download.
