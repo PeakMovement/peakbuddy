@@ -8,6 +8,7 @@ import { getClientBootstrap, type ClientProgramState } from "@/lib/client-progra
 import { ProgramIntroModal } from "@/components/ProgramIntroModal";
 import { registerPushToken } from "@/lib/push";
 import { SyncStatusBanner } from "@/components/SyncStatusBanner";
+import { InstallPrompt } from "@/components/InstallPrompt";
 
 export const Route = createFileRoute("/client/app")({
   component: ClientAppLayout,
@@ -127,6 +128,7 @@ function ClientAppLayout() {
     >
       <OfflineBanner />
       <SyncStatusBanner />
+      <InstallPrompt />
 
       {pendingBannerVisible && programState?.program && (
         <button
