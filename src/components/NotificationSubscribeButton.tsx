@@ -39,19 +39,22 @@ export function NotificationSubscribeButton() {
         setNote("Your browser doesn\u2019t support notifications. On iPhone, add Buddy to your Home Screen first.");
         return;
       }
-      // Request permission FIRST, synchronously within the tap — iOS drops the
-      // system prompt if it is called after awaits.
-      await requestPermissionInteractive();
       setBusy(true);
-      setNote(null);
+      setNote("Setting up notifications\u2026");
       try {
+        // Request permission first (iOS drops the prompt if called after awaits).
+        await requestPermissionInteractive();
         const ok = await registerWebPushToken();
         await refresh();
-        setNote(
-          ok
-            ? "You\u2019re subscribed to notifications."
-            : "Tap Allow on the notification prompt to turn them on.",
-        );
+        if (ok) {
+          setNote("You\u2019re subscribed to notifications \u2705");
+        } else if (typeof Notification !== "undefined" && Notification.permission === "denied") {
+          setNote("Notifications are blocked. Enable them in iPhone Settings \u2192 Notifications \u2192 Buddy.");
+        } else {
+          setNote(
+            "Still connecting to the notification service. If this persists, fully close and reopen Buddy, then try again.",
+          );
+        }
       } catch {
         setNote("Something went wrong. Please try again.");
       } finally {
