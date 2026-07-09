@@ -61,7 +61,7 @@ function AdminAppLayout() {
 
   return (
     <div
-      className="safe-area"
+      className="safe-area app-frame app-frame--wide"
       style={{
         minHeight: "100vh",
         background: "var(--navy)",
@@ -75,6 +75,7 @@ function AdminAppLayout() {
 
       <nav
         aria-label="Primary"
+        className="app-nav app-nav--wide"
         style={{
           position: "fixed",
           left: 0,

@@ -72,3 +72,55 @@ button { cursor: pointer; }
   animation: buddy-pulse 1.4s ease-in-out infinite;
 }
 
+
+/* ============================================================
+   Responsive: clean, app-like layout across phone / tablet / desktop.
+   Phone-first stays untouched; wider screens get a centered, framed
+   column so the app looks intentional instead of stretched.
+   ============================================================ */
+
+/* Never let media/content force horizontal scroll. */
+img, svg, video, canvas { max-width: 100%; height: auto; }
+
+/* Horizontal-scroll wrapper for wide tables in the portals. */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* Center standalone pages (login / landing) and cap their width. */
+.page-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100dvh;
+}
+
+@media (min-width: 768px) {
+  /* Darker backdrop so the framed app column reads as intentional. */
+  body { background: #0f1834; }
+
+  /* Client app: a tidy centered phone-width column. */
+  .app-frame {
+    --app-col: 480px;
+    max-width: var(--app-col);
+    margin-inline: auto;
+    min-height: 100dvh;
+    border-inline: 1px solid var(--navy-border);
+    box-shadow: 0 0 80px rgba(0, 0, 0, 0.45);
+  }
+
+  /* Practitioner / admin portals: wider centered working area. */
+  .app-frame--wide { --app-col: 1120px; }
+
+  /* Keep the fixed bottom nav aligned to its column, centered. */
+  .app-nav {
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%);
+    width: 100% !important;
+    max-width: var(--app-col, 480px) !important;
+  }
+}
+
+/* Roomier tap targets + padding on genuinely large screens. */
+@media (min-width: 1024px) {
+  .app-frame--wide { padding-inline: 8px; }
+}

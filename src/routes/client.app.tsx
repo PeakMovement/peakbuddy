@@ -119,7 +119,7 @@ function ClientAppLayout() {
 
   return (
     <div
-      className="safe-area"
+      className="safe-area app-frame"
       style={{
         minHeight: "100vh",
         background: "var(--navy)",
@@ -166,6 +166,7 @@ function ClientAppLayout() {
 
       <nav
         aria-label="Primary"
+        className="app-nav"
         style={{
           position: "fixed",
           left: 0,
