@@ -69,6 +69,45 @@ const WEIGHTS: Record<Metric, number> = { pain: 0.35, sleep: 0.2, stress: 0.2, e
 const WORSE_DIR: Record<Metric, 1 | -1> = { pain: 1, sleep: -1, stress: 1, energy: -1, mood: -1 };
 const Z_CAP = 2;
 
+// #3 Wearable augmentation. Physiological signals (poor sleep, low readiness,
+// HRV drop, resting-HR rise) add to the self-report risk so alerts can fire on
+// the body's data too. Additive + capped, and ZERO effect when a client has no
+// wearable data (returns bump 0), so no-wearable clients behave exactly as before.
+const WEARABLE_BUMP_CAP = 18;
+type WearableRow = {
+  date: string;
+  sleep_score: number | null;
+  readiness_score: number | null;
+  hrv_avg: number | null;
+  resting_hr: number | null;
+};
+function avgOf(xs: number[]): number | null {
+  return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+}
+function pickNums(rows: WearableRow[], k: keyof WearableRow): number[] {
+  return rows
+    .map((r) => r[k])
+    .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+}
+function computeWearableBump(rows: WearableRow[]): { bump: number; factors: string[] } {
+  if (rows.length < 3) return { bump: 0, factors: [] };
+  const recent = rows.slice(0, 3); // rows are date-desc
+  const base = rows.slice(3, 14);
+  const factors: string[] = [];
+  let bump = 0;
+  const rSleep = avgOf(pickNums(recent, "sleep_score"));
+  if (rSleep !== null && rSleep < 65) { bump += 6; factors.push("low sleep quality"); }
+  const rReady = avgOf(pickNums(recent, "readiness_score"));
+  if (rReady !== null && rReady < 65) { bump += 5; factors.push("low readiness"); }
+  const rHrv = avgOf(pickNums(recent, "hrv_avg"));
+  const bHrv = avgOf(pickNums(base, "hrv_avg"));
+  if (rHrv !== null && bHrv !== null && bHrv > 0 && rHrv < bHrv * 0.9) { bump += 6; factors.push("HRV below baseline"); }
+  const rRhr = avgOf(pickNums(recent, "resting_hr"));
+  const bRhr = avgOf(pickNums(base, "resting_hr"));
+  if (rRhr !== null && bRhr !== null && bRhr > 0 && rRhr > bRhr * 1.05) { bump += 5; factors.push("resting HR above baseline"); }
+  return { bump: Math.min(WEARABLE_BUMP_CAP, bump), factors };
+}
+
 function computeRisk(recent: CheckInRow[], baseline: BaselineRow) {
   const breakdown: { metric: Metric; recent_mean: number | null; baseline_mean: number | null; z: number; direction: "worse" | "better" | "flat" }[] = [];
   let total = 0;
@@ -208,16 +247,35 @@ async function processClient(
   if (recent.length === 0) return { skipped: "no_recent" as const };
 
   const computed = computeRisk(recent, baseline);
+
+  // #3 Wearable augmentation (additive, capped, no-op when no wearable data).
+  const since14 = new Date(Date.parse(`${forDate}T00:00:00Z`) - 14 * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const { data: wsRows } = await supabaseAdmin
+    .from("wearable_sessions")
+    .select("date, sleep_score, readiness_score, hrv_avg, resting_hr")
+    .eq("client_id", client.id)
+    .gte("date", since14)
+    .order("date", { ascending: false })
+    .limit(30);
+  const wb = computeWearableBump((wsRows ?? []) as WearableRow[]);
+  const adjustedScore = Math.min(100, computed.risk_score + wb.bump);
+  const adjustedSummary =
+    wb.factors.length > 0
+      ? `${computed.summary} Wearable signals: ${wb.factors.join(", ")}.`
+      : computed.summary;
+
   const { data: saved } = await supabaseAdmin
     .from("risk_scores")
     .upsert(
       {
         client_id: client.id,
         score_date: forDate,
-        risk_score: computed.risk_score,
-        delta_vs_baseline: { breakdown: computed.breakdown },
+        risk_score: adjustedScore,
+        delta_vs_baseline: { breakdown: computed.breakdown, wearable: { bump: wb.bump, factors: wb.factors } },
         trend: computed.trend,
-        summary: computed.summary,
+        summary: adjustedSummary,
       },
       { onConflict: "client_id,score_date" },
     )
@@ -234,9 +292,9 @@ async function processClient(
     .limit(1)
     .maybeSingle();
   const prevScore = (prevRow as { risk_score: number } | null)?.risk_score ?? 0;
-  const jumped = computed.risk_score - prevScore >= DELTA_TRIGGER;
-  const shouldDraft = computed.risk_score >= DRAFT_THRESHOLD || jumped;
-  if (!shouldDraft) return { ok: true as const, risk_score: computed.risk_score, drafted: false };
+  const jumped = adjustedScore - prevScore >= DELTA_TRIGGER;
+  const shouldDraft = adjustedScore >= DRAFT_THRESHOLD || jumped;
+  if (!shouldDraft) return { ok: true as const, risk_score: adjustedScore, drafted: false };
 
   // 4. Rate-limit: skip if a draft already exists for this client today.
   const todayStart = new Date(`${forDate}T00:00:00Z`).toISOString();
@@ -245,7 +303,7 @@ async function processClient(
     .select("*", { count: "exact", head: true })
     .eq("client_id", client.id)
     .gte("created_at", todayStart);
-  if ((existing ?? 0) > 0) return { ok: true as const, risk_score: computed.risk_score, drafted: false };
+  if ((existing ?? 0) > 0) return { ok: true as const, risk_score: adjustedScore, drafted: false };
 
   // 5. Draft via AI (if consented) or template fallback.
   const ai = await aiDraft({ client, recent, computed, programs });
@@ -284,7 +342,7 @@ async function processClient(
     log.warn(`nightly push notify failed for ${client.id}`, e);
   }
 
-  return { ok: true as const, risk_score: computed.risk_score, drafted: true };
+  return { ok: true as const, risk_score: adjustedScore, drafted: true };
 }
 
 export const Route = createFileRoute("/api/public/hooks/nightly-risk-analysis")({
