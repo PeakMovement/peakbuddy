@@ -126,11 +126,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       ...(SUPABASE_ORIGIN
         ? [
-            { rel: "preconnect", href: SUPABASE_ORIGIN, crossOrigin: "anonymous" },
+            { rel: "preconnect", href: SUPABASE_ORIGIN, crossOrigin: "anonymous" as const },
             { rel: "dns-prefetch", href: SUPABASE_ORIGIN },
           ]
         : []),
-      { rel: "preconnect", href: "https://cdn.onesignal.com", crossOrigin: "anonymous" },
+      { rel: "preconnect", href: "https://cdn.onesignal.com", crossOrigin: "anonymous" as const },
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/png", href: "/icon.png" },
       { rel: "manifest", href: "/manifest.webmanifest" },
