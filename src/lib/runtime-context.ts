@@ -38,14 +38,20 @@ export function isIosSafari(): boolean {
   return isIos && isSafari;
 }
 
-/** Register the service worker — browser/PWA only, never inside Despia. */
+/** Register the OneSignal service worker — browser/PWA only, never in Despia. */
 export function registerServiceWorker(): void {
   if (typeof window === "undefined") return;
   if (isDespia()) return; // native shell keeps its own push
   if (!("serviceWorker" in navigator)) return;
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
-      /* registration is best-effort; app works without it */
-    });
-  });
+  const doRegister = () => {
+    navigator.serviceWorker
+      .register("/OneSignalSDKWorker.js", { scope: "/" })
+      .catch(() => {
+        /* best-effort; OneSignal also registers this same worker on init */
+      });
+  };
+  // The page "load" event may have ALREADY fired by the time this runs (SPA
+  // hydration), so register immediately when the document is ready.
+  if (document.readyState === "complete") doRegister();
+  else window.addEventListener("load", doRegister, { once: true });
 }

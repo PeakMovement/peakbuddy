@@ -64,10 +64,8 @@ export function initOneSignalWeb(): void {
     try {
       await OneSignal.init({
         appId: APP_ID,
-        // Use our combined service worker instead of OneSignal's default file.
         serviceWorkerParam: { scope: "/" },
-        serviceWorkerPath: "sw.js",
-        serviceWorkerOverrideForTypical: true,
+        serviceWorkerPath: "OneSignalSDKWorker.js",
         allowLocalhostAsSecureOrigin: true,
       });
       readyResolve?.(OneSignal);
