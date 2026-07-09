@@ -2,8 +2,9 @@ import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import { BellRing, Check } from "lucide-react";
 import despia from "despia-native";
-import { registerPushToken } from "@/lib/push";
+import { registerPushToken, registerWebPushToken } from "@/lib/push";
 import { getMyPushTokens } from "@/lib/push.functions";
+import { webPushSupported } from "@/lib/onesignal-web";
 
 // Native detection by user agent (Despia sets "despia" in the UA in the app).
 function inNativeApp(): boolean {
@@ -33,7 +34,26 @@ export function NotificationSubscribeButton() {
 
   const subscribe = async () => {
     if (!native) {
-      setNote("Open Buddy from the app on your phone to turn on notifications.");
+      // Web / installed-PWA path via the OneSignal Web SDK.
+      if (!webPushSupported()) {
+        setNote("Your browser doesn\u2019t support notifications. On iPhone, add Buddy to your Home Screen first.");
+        return;
+      }
+      setBusy(true);
+      setNote(null);
+      try {
+        const ok = await registerWebPushToken();
+        await refresh();
+        setNote(
+          ok
+            ? "You\u2019re subscribed to notifications."
+            : "Tap Allow on the notification prompt to turn them on.",
+        );
+      } catch {
+        setNote("Something went wrong. Please try again.");
+      } finally {
+        setBusy(false);
+      }
       return;
     }
     setBusy(true);

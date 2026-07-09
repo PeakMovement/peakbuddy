@@ -12,6 +12,7 @@ import { useEffect } from "react";
 import appCss from "../styles.css?url";
 import { log } from "@/lib/log";
 import { registerServiceWorker } from "@/lib/runtime-context";
+import { initOneSignalWeb } from "@/lib/onesignal-web";
 
 function NotFoundComponent() {
   return (
@@ -144,6 +145,7 @@ function RootComponent() {
 
   useEffect(() => {
     registerServiceWorker();
+    initOneSignalWeb();
   }, []);
 
   return (

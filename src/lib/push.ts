@@ -1,6 +1,7 @@
 import despia from "despia-native";
 import { log } from "@/lib/log";
 import { savePushToken } from "@/lib/push.functions";
+import { subscribeWebPush, getWebSubscriptionId } from "@/lib/onesignal-web";
 
 // Despia sets "despia" in the user agent when running inside the native runtime.
 function isDespia(): boolean {
@@ -52,5 +53,24 @@ export async function registerPushToken(): Promise<void> {
     }).catch(() => {});
   } catch (e) {
     log.error("registerPushToken failed", e);
+  }
+}
+
+/**
+ * Web/PWA push: opt in via the OneSignal Web SDK and store the subscription id
+ * (targetable by include_player_ids, same as the native player id). No-op in
+ * the Despia native app, which uses the bridge above.
+ */
+export async function registerWebPushToken(): Promise<boolean> {
+  try {
+    if (typeof window === "undefined" || isDespia()) return false;
+    let id = await getWebSubscriptionId();
+    if (!id) id = await subscribeWebPush();
+    if (!id) return false;
+    await savePushToken({ data: { token: id, platform: "web" } }).catch(() => {});
+    return true;
+  } catch (e) {
+    log.error("registerWebPushToken failed", e);
+    return false;
   }
 }

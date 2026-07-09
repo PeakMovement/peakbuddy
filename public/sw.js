@@ -1,4 +1,10 @@
-// Buddy service worker — offline app shell + web push handling.
+// Buddy service worker — offline app shell + web push.
+// OneSignal's worker is imported so a SINGLE worker handles both the offline
+// shell (below) and web push (OneSignal owns the push + notificationclick
+// events, so we do NOT define our own here — that would double-fire).
+importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDKWorker.js");
+
+// Buddy offline app shell.
 // Registered only in browser/PWA contexts (never inside the Despia native
 // shell, which keeps its own OneSignal player-ID push). Data offline is
 // handled separately by the app's own offline check-in queue; this SW owns
@@ -58,41 +64,6 @@ self.addEventListener("fetch", (event) => {
         })
         .catch(() => cached);
       return cached || network;
-    }),
-  );
-});
-
-// Web push (used only if a web-push subscription is later wired up; harmless
-// otherwise). Payload: { title, body, url, icon }.
-self.addEventListener("push", (event) => {
-  let data = {};
-  try {
-    data = event.data ? event.data.json() : {};
-  } catch (_e) {
-    data = { title: "Buddy", body: event.data ? event.data.text() : "" };
-  }
-  const title = data.title || "Buddy";
-  const options = {
-    body: data.body || "",
-    icon: data.icon || "/icons/icon-192.png",
-    badge: "/icons/icon-192.png",
-    data: { url: data.url || "/" },
-  };
-  event.waitUntil(self.registration.showNotification(title, options));
-});
-
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-  const target = (event.notification.data && event.notification.data.url) || "/";
-  event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if ("focus" in client) {
-          client.navigate(target);
-          return client.focus();
-        }
-      }
-      return self.clients.openWindow(target);
     }),
   );
 });
