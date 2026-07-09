@@ -11,6 +11,9 @@ import {
 } from "recharts";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useServerFn } from "@tanstack/react-start";
+import { getMyWearableSnapshot, type WearableSnapshot } from "@/lib/wearables/snapshot.functions";
+import { WearableTiles } from "@/components/wearables/WearableTiles";
 import { getClientId } from "@/lib/client-session";
 import type { CheckIn, Client } from "@/lib/types";
 
@@ -83,6 +86,8 @@ function ProgressScreen() {
   const [client, setClient] = useState<Client | null>(null);
   const [items, setItems] = useState<CheckIn[]>([]);
   const [loading, setLoading] = useState(true);
+  const [snapshot, setSnapshot] = useState<WearableSnapshot | null>(null);
+  const loadSnapshot = useServerFn(getMyWearableSnapshot);
 
   useEffect(() => {
     const id = getClientId();
@@ -99,6 +104,9 @@ function ProgressScreen() {
       setClient(c as Client | null);
       setItems((ci as CheckIn[]) ?? []);
       setLoading(false);
+      loadSnapshot()
+        .then(setSnapshot)
+        .catch(() => setSnapshot({ connected: false, provider: null, date: null, session: null }));
     })();
   }, []);
 
@@ -289,6 +297,8 @@ function ProgressScreen() {
             <MetricRing label="Energy" value={stats.energy} />
             <MetricRing label="Mood" value={stats.mood} />
           </div>
+
+          <WearableTiles snapshot={snapshot} />
         </>
       )}
     </div>
