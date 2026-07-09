@@ -10,6 +10,16 @@ import {
 
 import { useEffect } from "react";
 import appCss from "../styles.css?url";
+
+// Origin of the Supabase API — preconnected below so the first data/auth call
+// doesn't pay the DNS+TLS handshake on top of the request.
+let SUPABASE_ORIGIN = "";
+try {
+  const u = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  if (u) SUPABASE_ORIGIN = new URL(u).origin;
+} catch {
+  /* ignore */
+}
 import { log } from "@/lib/log";
 import { registerServiceWorker } from "@/lib/runtime-context";
 import { initOneSignalWeb } from "@/lib/onesignal-web";
@@ -114,6 +124,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
     ],
     links: [
+      ...(SUPABASE_ORIGIN
+        ? [
+            { rel: "preconnect", href: SUPABASE_ORIGIN, crossOrigin: "anonymous" },
+            { rel: "dns-prefetch", href: SUPABASE_ORIGIN },
+          ]
+        : []),
+      { rel: "preconnect", href: "https://cdn.onesignal.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/png", href: "/icon.png" },
       { rel: "manifest", href: "/manifest.webmanifest" },
