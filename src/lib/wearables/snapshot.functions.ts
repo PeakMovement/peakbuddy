@@ -30,28 +30,41 @@ export const getMyWearableSnapshot = createServerFn({ method: "GET" })
       .maybeSingle();
     if (!client) return { connected: false, provider: null, date: null, session: null };
 
-    const [{ data: latest }, { data: tokens }] = await Promise.all([
+    const [{ data: recent }, { data: tokens }] = await Promise.all([
       db
         .from("wearable_sessions")
         .select(METRIC_FIELDS)
         .eq("client_id", client.id)
         .order("date", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+        .limit(14),
       db.from("wearable_tokens").select("provider").eq("client_id", client.id),
     ]);
 
+    const rows = (recent ?? []) as any[];
     const tokenProviders = ((tokens ?? []) as { provider: string }[]).map((t) => t.provider);
     const provider =
-      ((latest?.source as WearableProvider | undefined) ??
+      ((rows[0]?.source as WearableProvider | undefined) ??
         (tokenProviders[0] as WearableProvider | undefined)) ??
       null;
     const connected = provider != null || tokenProviders.length > 0;
 
+    // Oura/Garmin compute sleep, readiness & HRV only AFTER the night, so the
+    // newest date row ("today") is often near-empty. Show the most recent row
+    // that actually carries data, so tiles reflect the last complete day.
+    const CORE = [
+      "sleep_score", "readiness_score", "resting_hr", "hrv_avg", "avg_heart_rate", "spo2_avg", "training_load",
+    ];
+    const forProvider = provider ? rows.filter((r) => r.source === provider) : rows;
+    const hasData = (r: any) =>
+      CORE.some((k) => typeof r[k] === "number" && Number.isFinite(r[k])) ||
+      (typeof r.total_steps === "number" && r.total_steps > 0) ||
+      (typeof r.active_calories === "number" && r.active_calories > 0);
+    const chosen = forProvider.find(hasData) ?? forProvider[0] ?? rows[0] ?? null;
+
     return {
       connected,
       provider,
-      date: (latest?.date as string | undefined) ?? null,
-      session: latest ? (latest as unknown as WearableMetricRow) : null,
+      date: (chosen?.date as string | undefined) ?? null,
+      session: chosen ? (chosen as unknown as WearableMetricRow) : null,
     };
   });

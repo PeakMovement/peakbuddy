@@ -290,8 +290,22 @@ function ProgressScreen() {
             </div>
           )}
 
-          {/* 2x2 metric rings */}
-          <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {/* 2x2 metric rings — self-reported check-in averages */}
+          <div
+            style={{
+              marginTop: 24,
+              fontFamily: "var(--font-ui)",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "var(--white-muted)",
+              marginBottom: 12,
+            }}
+          >
+            How you&apos;ve been feeling · your check-ins
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <MetricRing label="Sleep" value={stats.sleep} />
             <MetricRing label="Stress" value={stats.stress} />
             <MetricRing label="Energy" value={stats.energy} />
