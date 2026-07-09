@@ -65,7 +65,7 @@ export function initOneSignalWeb(): void {
       await OneSignal.init({
         appId: APP_ID,
         serviceWorkerParam: { scope: "/" },
-        serviceWorkerPath: "OneSignalSDKWorker.js",
+        serviceWorkerPath: "/OneSignalSDKWorker.js",
         allowLocalhostAsSecureOrigin: true,
       });
       readyResolve?.(OneSignal);
