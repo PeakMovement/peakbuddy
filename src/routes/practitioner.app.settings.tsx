@@ -36,6 +36,7 @@ function Settings() {
   const [contactWebhookUrl, setContactWebhookUrl] = useState("");
   const [contactWebhookEnabled, setContactWebhookEnabled] = useState(false);
   const [weeklyDigestEnabled, setWeeklyDigestEnabled] = useState(false);
+  const [autoRewardEnabled, setAutoRewardEnabled] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -57,6 +58,9 @@ function Settings() {
       setContactWebhookEnabled(pr?.contact_webhook_enabled ?? false);
       setWeeklyDigestEnabled(
         (pr as { weekly_digest_enabled?: boolean } | null)?.weekly_digest_enabled ?? false,
+      );
+      setAutoRewardEnabled(
+        (pr as { auto_reward_enabled?: boolean } | null)?.auto_reward_enabled ?? true,
       );
       setPracticeId(pr?.id ?? null);
       setLoading(false);
@@ -83,6 +87,7 @@ function Settings() {
       contact_webhook_url: contactWebhookUrl.trim(),
       contact_webhook_enabled: contactWebhookEnabled,
       weekly_digest_enabled: weeklyDigestEnabled,
+      auto_reward_enabled: autoRewardEnabled,
     };
 
     let pracErr: { message: string } | null = null;
@@ -241,6 +246,23 @@ function Settings() {
               style={{ width: 18, height: 18, accentColor: "var(--blue-accent)" }}
             />
             <span style={{ color: "var(--white)", fontSize: 14 }}>Email me a weekly summary</span>
+          </label>
+        </div>
+
+        <div style={{ marginTop: 24 }}>
+          <div style={sectionTitle}>Streak rewards</div>
+          <p style={{ color: "var(--white-muted)", fontSize: 13, lineHeight: 1.5, margin: "6px 0 12px" }}>
+            Automatically issue one of your rewards when a client reaches a check-in streak milestone
+            (3, 7, 14, 30). Uses your active rewards; each milestone is issued once per client.
+          </p>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={autoRewardEnabled}
+              onChange={(e) => setAutoRewardEnabled(e.target.checked)}
+              style={{ width: 18, height: 18, accentColor: "var(--blue-accent)" }}
+            />
+            <span style={{ color: "var(--white)", fontSize: 14 }}>Auto-issue rewards at streak milestones</span>
           </label>
         </div>
 

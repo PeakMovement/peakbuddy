@@ -376,3 +376,109 @@ export const getRewardsRedemptionSummary = createServerFn({ method: "GET" })
     }
     return Array.from(map.entries()).map(([name, v]) => ({ name, issued: v.issued, redeemed: v.redeemed }));
   });
+
+/**
+ * #4 Auto-issue a reward when the calling client hits a new streak milestone.
+ * Streak is recomputed authoritatively server-side. Gated by platform rewards
+ * settings, per-practice gamification + auto_reward_enabled. Idempotent per
+ * milestone via the client_rewards.milestone unique index. Best-effort: returns
+ * { issued:false } for every gate rather than throwing, so the check-in flow
+ * never breaks on it.
+ */
+export const autoIssueMilestoneReward = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as SupabaseClient;
+
+    const { data: client } = await db
+      .from("clients")
+      .select("id, practitioner_id, auth_user_id, full_name, check_in_frequency")
+      .eq("auth_user_id", context.userId)
+      .maybeSingle();
+    if (!client) return { issued: false as const, reason: "not_client" as const };
+
+    // Platform + practice gates.
+    const { data: settings } = await db
+      .from("platform_settings")
+      .select("rewards_enabled, rewards_allowed_days")
+      .maybeSingle();
+    if (settings && (settings as { rewards_enabled?: boolean }).rewards_enabled === false)
+      return { issued: false as const, reason: "disabled" as const };
+    const allowedDays = ((settings as { rewards_allowed_days?: number[] } | null)?.rewards_allowed_days ??
+      [0, 1, 2, 3, 4, 5, 6]) as number[];
+    if (!allowedDays.includes(new Date().getUTCDay()))
+      return { issued: false as const, reason: "day_not_allowed" as const };
+
+    const { data: prac } = await db
+      .from("practices")
+      .select("gamification_enabled, auto_reward_enabled")
+      .eq("practitioner_id", client.practitioner_id)
+      .maybeSingle();
+    if (prac && (prac as { gamification_enabled?: boolean }).gamification_enabled === false)
+      return { issued: false as const, reason: "gamification_off" as const };
+    if (prac && (prac as { auto_reward_enabled?: boolean }).auto_reward_enabled === false)
+      return { issued: false as const, reason: "auto_off" as const };
+
+    // Authoritative streak from check-in history.
+    const { computeStreak, STREAK_MILESTONES } = await import("@/lib/streak");
+    type Freq = import("@/lib/streak").CheckInFrequency;
+    const { data: rows } = await db
+      .from("check_ins")
+      .select("created_at")
+      .eq("client_id", client.id)
+      .order("created_at", { ascending: false })
+      .limit(400);
+    const stamps = ((rows ?? []) as { created_at: string }[]).map((r) => r.created_at);
+    const freq = ((client as { check_in_frequency?: string }).check_in_frequency ?? "daily") as Freq;
+    const streak = computeStreak(stamps, freq);
+
+    const reached = STREAK_MILESTONES.filter((m) => streak.current >= m);
+    if (reached.length === 0) return { issued: false as const, reason: "no_milestone" as const };
+
+    const { data: existing } = await db
+      .from("client_rewards")
+      .select("milestone")
+      .eq("client_id", client.id)
+      .not("milestone", "is", null);
+    const done = new Set(((existing ?? []) as { milestone: number | null }[]).map((r) => r.milestone));
+    const target = reached.find((m) => !done.has(m));
+    if (target === undefined) return { issued: false as const, reason: "already_issued" as const };
+
+    const { data: pool } = await db.from("rewards").select("id").eq("active", true);
+    const list = (pool ?? []) as { id: string }[];
+    if (list.length === 0) return { issued: false as const, reason: "no_rewards" as const };
+    const chosen = list[Math.floor(Math.random() * list.length)];
+
+    const { data: issued, error } = await db
+      .from("client_rewards")
+      .insert({
+        client_id: client.id,
+        reward_id: chosen.id,
+        practitioner_id: client.practitioner_id,
+        status: "earned",
+        milestone: target,
+        source: "auto",
+      })
+      .select(ISSUED_SELECT)
+      .single();
+    if (error) return { issued: false as const, reason: "race" as const };
+    const normalized = normalizeReward(issued);
+
+    try {
+      if (client.auth_user_id) {
+        const { sendPushCore } = await import("@/lib/push.functions");
+        const firstName = (client.full_name || "").trim().split(/\s+/)[0] || "Hey";
+        await sendPushCore(db as unknown as Parameters<typeof sendPushCore>[0], {
+          userId: client.auth_user_id,
+          title: "🎁 Streak reward unlocked",
+          body: `${firstName}, you hit a ${target}-check-in streak — a voucher is waiting in your profile.`,
+          data: { type: "reward_earned", rewardId: normalized.id, milestone: target },
+        });
+      }
+    } catch {
+      /* push is best-effort */
+    }
+
+    return { issued: true as const, milestone: target, reward: normalized };
+  });

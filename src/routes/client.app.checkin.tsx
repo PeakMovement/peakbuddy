@@ -14,6 +14,7 @@ import {
 import type { CheckIn, Client } from "@/lib/types";
 import { log } from "@/lib/log";
 import { suggestProgram } from "@/lib/programs.functions";
+import { autoIssueMilestoneReward } from "@/lib/rewards.functions";
 import { computeStreak, type CheckInFrequency } from "@/lib/streak";
 import { StreakCard } from "@/components/StreakCard";
 import { WearablePromptCard } from "@/components/wearables/WearablePromptCard";
@@ -341,6 +342,9 @@ function CheckInScreen() {
         clientId: client.id,
       },
     }).catch((e) => log.error("[Check-in] suggestProgram failed:", e));
+    // #4 Auto-issue a reward if this check-in crossed a streak milestone.
+    // Best-effort + fully server-gated; never blocks the check-in.
+    autoIssueMilestoneReward().catch((e) => log.error("[Check-in] autoReward failed:", e));
   };
 
   if (loading) {
