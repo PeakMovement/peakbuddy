@@ -58,6 +58,7 @@ import { Route as ApiPublicHooksWeeklyPractitionerDigestRouteImport } from './ro
 import { Route as ApiPublicHooksNightlyRiskAnalysisRouteImport } from './routes/api/public/hooks/nightly-risk-analysis'
 import { Route as ApiPublicHooksNightlyPatternDetectionRouteImport } from './routes/api/public/hooks/nightly-pattern-detection'
 import { Route as ApiPublicHooksCheckinRemindersRouteImport } from './routes/api/public/hooks/checkin-reminders'
+import { Route as ApiPublicGoogleCalendarCallbackRouteImport } from './routes/api/public/google-calendar/callback'
 import { Route as ApiPublicCalendarTokenRouteImport } from './routes/api/public/calendar/$token'
 import { Route as AdminAppPractitionerPractitionerIdRouteImport } from './routes/admin.app.practitioner.$practitionerId'
 import { Route as AdminAppClientDetailClientIdRouteImport } from './routes/admin.app.client-detail.$clientId'
@@ -323,6 +324,12 @@ const ApiPublicHooksCheckinRemindersRoute =
     path: '/api/public/hooks/checkin-reminders',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicGoogleCalendarCallbackRoute =
+  ApiPublicGoogleCalendarCallbackRouteImport.update({
+    id: '/api/public/google-calendar/callback',
+    path: '/api/public/google-calendar/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicCalendarTokenRoute = ApiPublicCalendarTokenRouteImport.update({
   id: '/api/public/calendar/$token',
   path: '/api/public/calendar/$token',
@@ -414,6 +421,7 @@ export interface FileRoutesByFullPath {
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
   '/api/public/calendar/$token': typeof ApiPublicCalendarTokenRoute
+  '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
@@ -472,6 +480,7 @@ export interface FileRoutesByTo {
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
   '/api/public/calendar/$token': typeof ApiPublicCalendarTokenRoute
+  '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
@@ -532,6 +541,7 @@ export interface FileRoutesById {
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
   '/api/public/calendar/$token': typeof ApiPublicCalendarTokenRoute
+  '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
@@ -593,6 +603,7 @@ export interface FileRouteTypes {
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
     | '/api/public/calendar/$token'
+    | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
@@ -651,6 +662,7 @@ export interface FileRouteTypes {
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
     | '/api/public/calendar/$token'
+    | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
@@ -710,6 +722,7 @@ export interface FileRouteTypes {
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
     | '/api/public/calendar/$token'
+    | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
@@ -748,6 +761,7 @@ export interface RootRouteChildren {
   ApiPublicTriageQueryRoute: typeof ApiPublicTriageQueryRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicCalendarTokenRoute: typeof ApiPublicCalendarTokenRoute
+  ApiPublicGoogleCalendarCallbackRoute: typeof ApiPublicGoogleCalendarCallbackRoute
   ApiPublicHooksCheckinRemindersRoute: typeof ApiPublicHooksCheckinRemindersRoute
   ApiPublicHooksNightlyPatternDetectionRoute: typeof ApiPublicHooksNightlyPatternDetectionRoute
   ApiPublicHooksNightlyRiskAnalysisRoute: typeof ApiPublicHooksNightlyRiskAnalysisRoute
@@ -1109,6 +1123,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksCheckinRemindersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/google-calendar/callback': {
+      id: '/api/public/google-calendar/callback'
+      path: '/api/public/google-calendar/callback'
+      fullPath: '/api/public/google-calendar/callback'
+      preLoaderRoute: typeof ApiPublicGoogleCalendarCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/calendar/$token': {
       id: '/api/public/calendar/$token'
       path: '/api/public/calendar/$token'
@@ -1267,6 +1288,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicTriageQueryRoute: ApiPublicTriageQueryRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicCalendarTokenRoute: ApiPublicCalendarTokenRoute,
+  ApiPublicGoogleCalendarCallbackRoute: ApiPublicGoogleCalendarCallbackRoute,
   ApiPublicHooksCheckinRemindersRoute: ApiPublicHooksCheckinRemindersRoute,
   ApiPublicHooksNightlyPatternDetectionRoute:
     ApiPublicHooksNightlyPatternDetectionRoute,
