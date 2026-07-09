@@ -160,7 +160,7 @@ function ClientAppLayout() {
         </button>
       )}
 
-      <main style={{ flex: 1, paddingBottom: 120, overflowX: "hidden" }}>
+      <main style={{ flex: 1, paddingBottom: 96, overflowX: "hidden" }}>
         <Outlet />
       </main>
 
@@ -173,7 +173,8 @@ function ClientAppLayout() {
           bottom: 0,
           background: "var(--navy-card)",
           borderTop: "1px solid var(--navy-border)",
-          paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)",
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 4px)",
+          paddingTop: 4,
           display: "flex",
           zIndex: 50,
         }}
