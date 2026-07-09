@@ -155,6 +155,7 @@ export type PushDiagnostics = {
   permission: string; // "granted" | "denied" | "default" | "unsupported"
   serviceWorker: string; // "active" | "installing" | "registered" | "none" | "unsupported"
   swError: string | null;
+  swTestSameOrigin: string; // trivial same-origin worker result
   oneSignalReady: boolean;
   subscriptionId: string | null;
   optedIn: boolean | null;
@@ -199,6 +200,18 @@ export async function getDiagnostics(): Promise<PushDiagnostics> {
     }
   }
 
+  // Decisive test: can a TRIVIAL same-origin worker register at all here?
+  let swTestSameOrigin = "n/a";
+  if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+    try {
+      const treg = await navigator.serviceWorker.register("/sw-test.js", { scope: "/swtest/" });
+      swTestSameOrigin = treg.active ? "active" : treg.installing ? "installing" : "registered";
+      treg.unregister().catch(() => {});
+    } catch (e) {
+      swTestSameOrigin = e instanceof Error ? `fail: ${e.name}` : "fail";
+    }
+  }
+
   const os = await whenReady(3000);
   return {
     runtime,
@@ -206,6 +219,7 @@ export async function getDiagnostics(): Promise<PushDiagnostics> {
     permission,
     serviceWorker,
     swError,
+    swTestSameOrigin,
     oneSignalReady: Boolean(os),
     subscriptionId: os?.User?.PushSubscription?.id ?? null,
     optedIn: os?.User?.PushSubscription?.optedIn ?? null,

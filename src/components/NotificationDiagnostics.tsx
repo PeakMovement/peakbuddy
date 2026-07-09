@@ -55,6 +55,11 @@ export function NotificationDiagnostics() {
       {d?.swError && (
         <p style={{ ...hint, color: "var(--red)" }}>Service worker error: {d.swError}</p>
       )}
+      {d?.swTestSameOrigin && (
+        <p style={{ ...hint, color: d.swTestSameOrigin.startsWith("fail") ? "var(--red)" : "var(--green)" }}>
+          Same-origin worker test: {d.swTestSameOrigin}
+        </p>
+      )}
       <p style={hint}>
         For notifications to work: installed app = yes, permission = granted, service worker = active,
         opted in = yes, and a Subscription ID present.
