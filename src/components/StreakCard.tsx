@@ -45,7 +45,7 @@ export function StreakCard({ streak }: { streak: StreakResult | null }) {
         </div>
       </div>
 
-      {STREAK_MILESTONES.includes(streak.current) && (
+      {(STREAK_MILESTONES as readonly number[]).includes(streak.current) && (
         <div style={celebrate}>
           <Trophy size={15} aria-hidden /> You hit a {streak.current} check-in milestone. Keep it going!
         </div>

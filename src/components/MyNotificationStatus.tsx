@@ -10,7 +10,7 @@ export function MyNotificationStatus() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setBridge(window.despia ? "yes" : "no");
+      setBridge((window as unknown as { despia?: unknown }).despia ? "yes" : "no");
     }
     void getMyPushTokens().then((r) => setTokens(r.tokens as TokenRow[]));
   }, []);
