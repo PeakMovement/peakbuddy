@@ -16,6 +16,7 @@ import { MyRewards } from "@/components/MyRewards";
 import { NotificationSubscribeButton } from "@/components/NotificationSubscribeButton";
 import { BodyForecastBeta } from "@/components/BodyForecastBeta";
 import { CalendarFeedCard } from "@/components/CalendarFeedCard";
+import { GoogleCalendarConnectCard } from "@/components/GoogleCalendarConnectCard";
 const WearablesPanel = lazy(() =>
   import("@/components/wearables/WearablesPanel").then((m) => ({ default: m.WearablesPanel })),
 );
@@ -317,6 +318,9 @@ function ClientProfile() {
 
       <div style={{ marginTop: 20 }}>
         <CalendarFeedCard />
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <GoogleCalendarConnectCard />
       </div>
 
       {/* Plan */}
