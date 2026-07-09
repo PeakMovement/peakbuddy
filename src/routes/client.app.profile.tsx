@@ -51,6 +51,7 @@ function ClientProfile() {
   const respond = useServerFn(respondToSuggestedProgram);
   const [busy, setBusy] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
+  const [wearablesOpen, setWearablesOpen] = useState(false);
   const [timelineItems, setTimelineItems] = useState<CheckIn[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [openCheckInId, setOpenCheckInId] = useState<string | null>(null);
@@ -265,18 +266,53 @@ function ClientProfile() {
       <SectionHeader>Rewards</SectionHeader>
       <MyRewards />
 
-      {/* Wearables — self-contained panel; move this block to relocate the section. */}
-      <SectionHeader>Wearables</SectionHeader>
-      <div id="wearables" style={{ scrollMarginTop: 80 }}>
-        <Suspense
-          fallback={
-            <div style={{ color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 13, padding: 8 }}>
-              Loading…
-            </div>
-          }
+      {/* Wearables — collapsible dropdown; recharts loads only when expanded. */}
+      <div id="wearables" style={{ scrollMarginTop: 80, marginTop: 8 }}>
+        <button
+          type="button"
+          onClick={() => setWearablesOpen((v) => !v)}
+          aria-expanded={wearablesOpen}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            background: "var(--navy-card)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 12,
+            padding: "14px 16px",
+            color: "var(--white)",
+            fontFamily: "var(--font-ui)",
+            fontWeight: 600,
+            fontSize: 15,
+            cursor: "pointer",
+          }}
         >
-          <WearablesPanel />
-        </Suspense>
+          <span>Wearables</span>
+          <ChevronDown
+            size={18}
+            style={{
+              transform: wearablesOpen ? "rotate(180deg)" : "none",
+              transition: "transform .2s ease",
+              color: "var(--white-muted)",
+            }}
+            aria-hidden
+          />
+        </button>
+        {wearablesOpen && (
+          <div style={{ marginTop: 10 }}>
+            <Suspense
+              fallback={
+                <div style={{ color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 13, padding: 8 }}>
+                  Loading…
+                </div>
+              }
+            >
+              <WearablesPanel />
+            </Suspense>
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop: 20 }}>

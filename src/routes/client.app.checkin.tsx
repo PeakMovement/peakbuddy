@@ -352,23 +352,24 @@ function CheckInScreen() {
     return (
       <div
         style={{
-          padding: "32px 20px",
+          padding: "24px 20px 32px",
+          minHeight: "calc(100dvh - 150px)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
+          justifyContent: "center",
           textAlign: "center",
         }}
       >
         <div
           style={{
-            width: 96,
-            height: 96,
+            width: 88,
+            height: 88,
             borderRadius: "50%",
             border: "3px solid var(--green)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            marginTop: 32,
             animation: "pulse 1.6s ease-out",
           }}
         >
@@ -378,17 +379,17 @@ function CheckInScreen() {
           style={{
             fontFamily: "var(--font-hero)",
             fontSize: 26,
-            marginTop: 24,
+            marginTop: 20,
             color: "var(--white)",
           }}
         >
           {success ? "Check-in complete. Well done." : "Already checked in today."}
         </h1>
-        {!success && <p style={{ marginTop: 8, color: "var(--white-muted)" }}>See you tomorrow.</p>}
+        {!success && <p style={{ marginTop: 6, color: "var(--white-muted)" }}>See you tomorrow.</p>}
         {gamificationOn && (
           <div
             style={{
-              marginTop: 24,
+              marginTop: 22,
               width: "100%",
               display: "flex",
               flexDirection: "column",
@@ -404,7 +405,7 @@ function CheckInScreen() {
           </p>
         )}
         {ci?.pain_level != null && (
-          <p style={{ marginTop: 24, fontFamily: "var(--font-data)", color: "var(--white-muted)" }}>
+          <p style={{ marginTop: 18, fontFamily: "var(--font-data)", color: "var(--white-muted)" }}>
             Last pain score:{" "}
             <span style={{ color: painColor(ci.pain_level), fontSize: 20 }}>
               {ci.pain_level}/10
@@ -416,7 +417,7 @@ function CheckInScreen() {
           type="button"
           onClick={() => setShowRepeatModal(true)}
           style={{
-            marginTop: 32,
+            marginTop: 24,
             background: "transparent",
             border: "1px solid var(--navy-border)",
             color: "var(--white)",
