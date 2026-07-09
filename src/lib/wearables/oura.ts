@@ -237,6 +237,8 @@ export async function fetchOuraSessions(args: {
       active_calories: num(act?.active_calories),
       total_calories: num(act?.total_calories),
       resting_hr: restingHr,
+      // Full-day average HR from the /heartrate time-series (already fetched).
+      avg_heart_rate: hr && hr.count ? Math.round(hr.total / hr.count) : null,
       hrv_avg: num(sd?.average_hrv),
       spo2_avg: spo2Avg,
       total_sleep_duration: num(sd?.total_sleep_duration),
