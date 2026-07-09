@@ -6,7 +6,7 @@ import { getClientId } from "@/lib/client-session";
 import { useOnline } from "@/hooks/use-online";
 import { getClientBootstrap, type ClientProgramState } from "@/lib/client-program.functions";
 import { ProgramIntroModal } from "@/components/ProgramIntroModal";
-import { registerPushToken } from "@/lib/push";
+import { registerPushToken, registerWebPushToken } from "@/lib/push";
 import { SyncStatusBanner } from "@/components/SyncStatusBanner";
 import { InstallPrompt } from "@/components/InstallPrompt";
 
@@ -74,6 +74,7 @@ function ClientAppLayout() {
 
   useEffect(() => {
     void registerPushToken();
+    void registerWebPushToken();
   }, []);
 
   useEffect(() => {

@@ -8,6 +8,7 @@
 // the offline shell and push, avoiding a two-worker conflict.
 
 import { getRuntimeContext } from "@/lib/runtime-context";
+import { savePushToken } from "@/lib/push.functions";
 
 const APP_ID = "334ee7c1-86d8-4cff-9317-575b798a6ef9";
 const SDK_URL = "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js";
@@ -21,7 +22,12 @@ type OneSignalApi = {
   User: {
     PushSubscription: {
       id?: string | null;
+      optedIn?: boolean;
       optIn: () => Promise<void>;
+      addEventListener: (
+        event: "change",
+        cb: (e: { current: { id?: string | null; optedIn?: boolean } }) => void,
+      ) => void;
     };
   };
 };
@@ -65,6 +71,21 @@ export function initOneSignalWeb(): void {
         allowLocalhostAsSecureOrigin: true,
       });
       readyResolve?.(OneSignal);
+
+      // Persist the subscription id whenever it becomes available, regardless
+      // of whether the user subscribed via our button or OneSignal's own prompt.
+      const persist = (id?: string | null, optedIn?: boolean) => {
+        if (!id || optedIn === false) return;
+        void savePushToken({ data: { token: id, platform: "web" } }).catch(() => {});
+      };
+      persist(OneSignal.User.PushSubscription.id, OneSignal.User.PushSubscription.optedIn);
+      try {
+        OneSignal.User.PushSubscription.addEventListener("change", (e) => {
+          persist(e.current.id, e.current.optedIn);
+        });
+      } catch {
+        /* older SDK — button/onload capture still covers it */
+      }
     } catch {
       /* init is best-effort; the app works without web push */
     }
