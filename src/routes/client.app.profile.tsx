@@ -14,6 +14,7 @@ import { deleteMyAccount } from "@/lib/account-delete.functions";
 import { updateClientPhone, updateMyEmail } from "@/lib/client-profile.functions";
 import { MyRewards } from "@/components/MyRewards";
 import { NotificationSubscribeButton } from "@/components/NotificationSubscribeButton";
+import { NotificationDiagnostics } from "@/components/NotificationDiagnostics";
 import { BodyForecastBeta } from "@/components/BodyForecastBeta";
 import { CalendarFeedCard } from "@/components/CalendarFeedCard";
 const WearablesPanel = lazy(() =>
@@ -259,6 +260,7 @@ function ClientProfile() {
 
       {/* Notification status */}
       <NotificationSubscribeButton />
+      <NotificationDiagnostics />
       {client && <BodyForecastBeta client={client} />}
 
       {/* Rewards */}

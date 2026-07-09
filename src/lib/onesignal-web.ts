@@ -137,3 +137,57 @@ export async function getWebSubscriptionId(): Promise<string | null> {
   const os = await whenReady(3000);
   return os?.User?.PushSubscription?.id ?? null;
 }
+
+/** Directly request permission (call from a user gesture / button tap). */
+export async function requestPermissionInteractive(): Promise<void> {
+  initOneSignalWeb();
+  const os = await whenReady();
+  if (!os) return;
+  try {
+    await os.Notifications.requestPermission();
+    await os.User.PushSubscription.optIn();
+  } catch {
+    /* denied or unsupported */
+  }
+}
+
+export type PushDiagnostics = {
+  runtime: string;
+  standaloneDisplay: boolean;
+  permission: string; // "granted" | "denied" | "default" | "unsupported"
+  serviceWorker: string; // "active" | "registered" | "none" | "unsupported"
+  oneSignalReady: boolean;
+  subscriptionId: string | null;
+  optedIn: boolean | null;
+};
+
+/** Live snapshot of the web-push state — used by the on-screen diagnostic. */
+export async function getDiagnostics(): Promise<PushDiagnostics> {
+  const runtime = getRuntimeContext();
+  const standaloneDisplay =
+    typeof window !== "undefined" &&
+    Boolean(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+
+  let permission = "unsupported";
+  if (typeof Notification !== "undefined") permission = Notification.permission;
+
+  let serviceWorker = "unsupported";
+  if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+    if (navigator.serviceWorker.controller) serviceWorker = "active";
+    else {
+      const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+      serviceWorker = reg ? "registered" : "none";
+    }
+  }
+
+  const os = await whenReady(3000);
+  return {
+    runtime,
+    standaloneDisplay,
+    permission,
+    serviceWorker,
+    oneSignalReady: Boolean(os),
+    subscriptionId: os?.User?.PushSubscription?.id ?? null,
+    optedIn: os?.User?.PushSubscription?.optedIn ?? null,
+  };
+}

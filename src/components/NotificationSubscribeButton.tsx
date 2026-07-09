@@ -4,7 +4,7 @@ import { BellRing, Check } from "lucide-react";
 import despia from "despia-native";
 import { registerPushToken, registerWebPushToken } from "@/lib/push";
 import { getMyPushTokens } from "@/lib/push.functions";
-import { webPushSupported } from "@/lib/onesignal-web";
+import { webPushSupported, requestPermissionInteractive } from "@/lib/onesignal-web";
 
 // Native detection by user agent (Despia sets "despia" in the UA in the app).
 function inNativeApp(): boolean {
@@ -39,6 +39,9 @@ export function NotificationSubscribeButton() {
         setNote("Your browser doesn\u2019t support notifications. On iPhone, add Buddy to your Home Screen first.");
         return;
       }
+      // Request permission FIRST, synchronously within the tap — iOS drops the
+      // system prompt if it is called after awaits.
+      await requestPermissionInteractive();
       setBusy(true);
       setNote(null);
       try {
