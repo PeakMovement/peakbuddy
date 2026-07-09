@@ -125,3 +125,124 @@ export async function fetchGoogleUserEmail(accessToken: string): Promise<string 
     return null;
   }
 }
+
+// ---- Calendar API (event writing) ----------------------------------------
+
+const CALENDAR_EVENTS_URL =
+  "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+
+/**
+ * Return a valid access token for the user, refreshing via the stored refresh
+ * token when the current one is expired (or about to be). Updates the DB row.
+ * `db` is the service-role client.
+ */
+export async function getFreshGoogleAccessToken(
+  db: { from: (t: string) => any },
+  userId: string,
+): Promise<string | null> {
+  const { data: row } = await db
+    .from("google_calendar_tokens")
+    .select("access_token, refresh_token, expires_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!row) return null;
+
+  const expiresAt = row.expires_at ? Date.parse(row.expires_at) : 0;
+  const stillValid = expiresAt - Date.now() > 60_000; // 60s safety margin
+  if (stillValid && row.access_token) return row.access_token as string;
+
+  if (!row.refresh_token) return (row.access_token as string) ?? null;
+  const { clientId, clientSecret } = googleCreds();
+  const refreshed = await refreshGoogleToken({
+    refreshToken: row.refresh_token as string,
+    clientId,
+    clientSecret,
+  });
+  const newExpiry = new Date(Date.now() + (refreshed.expires_in ?? 3600) * 1000).toISOString();
+  await db
+    .from("google_calendar_tokens")
+    .update({ access_token: refreshed.access_token, expires_at: newExpiry })
+    .eq("user_id", userId);
+  return refreshed.access_token;
+}
+
+const DOW_RRULE = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+
+export type GoogleEventInput = {
+  summary: string;
+  description: string;
+  /** "YYYY-MM-DD" first occurrence date. */
+  startDate: string;
+  /** "HH:MM" or "HH:MM:SS". */
+  time: string;
+  /** IANA timezone. */
+  timeZone: string;
+  /** 0=Sun..6=Sat; all 7 (or empty) => daily. */
+  daysOfWeek: number[];
+  /** Event length in minutes. */
+  durationMin?: number;
+};
+
+function pad(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+export function buildGoogleEventBody(ev: GoogleEventInput): Record<string, unknown> {
+  const t = ev.time.length === 5 ? `${ev.time}:00` : ev.time;
+  const [h, m] = t.split(":").map((x) => parseInt(x, 10));
+  const dur = ev.durationMin ?? 15;
+  const startDateTime = `${ev.startDate}T${t}`;
+  // Compute end time (same day; reminders are short).
+  const endMinutes = h * 60 + m + dur;
+  const endDateTime = `${ev.startDate}T${pad(Math.floor(endMinutes / 60) % 24)}:${pad(endMinutes % 60)}:00`;
+
+  const days = [...new Set(ev.daysOfWeek)].filter((d) => d >= 0 && d <= 6).sort((a, b) => a - b);
+  const daily = days.length === 0 || days.length === 7;
+  const recurrence = daily
+    ? "RRULE:FREQ=DAILY"
+    : `RRULE:FREQ=WEEKLY;BYDAY=${days.map((d) => DOW_RRULE[d]).join(",")}`;
+
+  return {
+    summary: ev.summary,
+    description: ev.description,
+    start: { dateTime: startDateTime, timeZone: ev.timeZone },
+    end: { dateTime: endDateTime, timeZone: ev.timeZone },
+    recurrence: [recurrence],
+    reminders: {
+      useDefault: false,
+      overrides: [
+        { method: "popup", minutes: 10 },
+        { method: "popup", minutes: 0 },
+      ],
+    },
+  };
+}
+
+export async function insertGoogleCalendarEvent(
+  accessToken: string,
+  body: Record<string, unknown>,
+): Promise<{ id: string; htmlLink?: string }> {
+  const res = await fetch(CALENDAR_EVENTS_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(`Calendar insert failed [${res.status}]: ${await res.text()}`);
+  }
+  const json = (await res.json()) as { id: string; htmlLink?: string };
+  return { id: json.id, htmlLink: json.htmlLink };
+}
+
+export async function deleteGoogleCalendarEvent(
+  accessToken: string,
+  eventId: string,
+): Promise<void> {
+  await fetch(`${CALENDAR_EVENTS_URL}/${encodeURIComponent(eventId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  }).catch(() => {});
+}
