@@ -153,7 +153,8 @@ export type PushDiagnostics = {
   runtime: string;
   standaloneDisplay: boolean;
   permission: string; // "granted" | "denied" | "default" | "unsupported"
-  serviceWorker: string; // "active" | "registered" | "none" | "unsupported"
+  serviceWorker: string; // "active" | "installing" | "registered" | "none" | "unsupported"
+  swError: string | null;
   oneSignalReady: boolean;
   subscriptionId: string | null;
   optedIn: boolean | null;
@@ -170,11 +171,31 @@ export async function getDiagnostics(): Promise<PushDiagnostics> {
   if (typeof Notification !== "undefined") permission = Notification.permission;
 
   let serviceWorker = "unsupported";
+  let swError: string | null = null;
   if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
-    if (navigator.serviceWorker.controller) serviceWorker = "active";
-    else {
-      const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
-      serviceWorker = reg ? "registered" : "none";
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      const reg = regs[0];
+      if (reg) {
+        serviceWorker = reg.active
+          ? "active"
+          : reg.installing
+            ? "installing"
+            : reg.waiting
+              ? "waiting"
+              : "registered";
+      } else {
+        // No registration yet — actively try, and surface the REAL error.
+        try {
+          const r = await navigator.serviceWorker.register("/OneSignalSDKWorker.js", { scope: "/" });
+          serviceWorker = r.active ? "active" : r.installing ? "installing" : "registered";
+        } catch (e) {
+          serviceWorker = "none";
+          swError = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+        }
+      }
+    } catch (e) {
+      swError = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
     }
   }
 
@@ -184,6 +205,7 @@ export async function getDiagnostics(): Promise<PushDiagnostics> {
     standaloneDisplay,
     permission,
     serviceWorker,
+    swError,
     oneSignalReady: Boolean(os),
     subscriptionId: os?.User?.PushSubscription?.id ?? null,
     optedIn: os?.User?.PushSubscription?.optedIn ?? null,

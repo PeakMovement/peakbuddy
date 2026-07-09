@@ -52,6 +52,9 @@ export function NotificationDiagnostics() {
           </span>
         </div>
       ))}
+      {d?.swError && (
+        <p style={{ ...hint, color: "var(--red)" }}>Service worker error: {d.swError}</p>
+      )}
       <p style={hint}>
         For notifications to work: installed app = yes, permission = granted, service worker = active,
         opted in = yes, and a Subscription ID present.
