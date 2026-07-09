@@ -367,7 +367,7 @@ export const getRewardsRedemptionSummary = createServerFn({ method: "GET" })
     const db = supabaseAdmin as unknown as SupabaseClient;
     const { data: rows } = await db.from("client_rewards").select("status, reward:rewards(name)");
     const map = new Map<string, { issued: number; redeemed: number }>();
-    for (const r of (rows ?? []) as { status: string; reward: { name: string } | null }[]) {
+    for (const r of (rows ?? []) as unknown as { status: string; reward: { name: string } | null }[]) {
       const name = r.reward?.name ?? "Unknown";
       const e = map.get(name) ?? { issued: 0, redeemed: 0 };
       e.issued += 1;

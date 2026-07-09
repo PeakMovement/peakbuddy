@@ -221,8 +221,14 @@ export const Route = createFileRoute("/api/public/hooks/weekly-practitioner-dige
         const stats = { sent: 0, skipped: 0, errors: 0 };
         let from = 0;
         for (;;) {
-          const { data: practices, error } = await supabaseAdmin
-            .from("practices")
+          const { data: practices, error } = await (supabaseAdmin
+            .from("practices") as unknown as {
+              select: (s: string) => {
+                eq: (c: string, v: unknown) => {
+                  range: (f: number, t: number) => Promise<{ data: { practitioner_id: string }[] | null; error: unknown }>;
+                };
+              };
+            })
             .select("practitioner_id, weekly_digest_enabled")
             .eq("weekly_digest_enabled", true)
             .range(from, from + BATCH_SIZE - 1);
