@@ -19,6 +19,8 @@ function AdminSettings() {
   const [url, setUrl] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [programsEnabled, setProgramsEnabled] = useState(true);
+  const [centralUrl, setCentralUrl] = useState("");
+  const [centralEnabled, setCentralEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -31,6 +33,8 @@ function AdminSettings() {
         setUrl(s.new_practitioner_webhook_url ?? "");
         setEnabled(s.new_practitioner_webhook_enabled ?? false);
         setProgramsEnabled(s.programs_feature_enabled ?? true);
+        setCentralUrl((s as { central_webhook_url?: string }).central_webhook_url ?? "");
+        setCentralEnabled((s as { central_webhook_enabled?: boolean }).central_webhook_enabled ?? false);
       }
 
       setLoading(false);
@@ -45,6 +49,8 @@ function AdminSettings() {
     const payload = {
       new_practitioner_webhook_url: url.trim(),
       new_practitioner_webhook_enabled: enabled,
+      central_webhook_url: centralUrl.trim(),
+      central_webhook_enabled: centralEnabled,
       programs_feature_enabled: programsEnabled,
     };
 
@@ -130,6 +136,46 @@ function AdminSettings() {
             type="checkbox"
             checked={enabled}
             onChange={(e) => setEnabled(e.target.checked)}
+            style={{ width: 22, height: 22, accentColor: "var(--blue-accent)" }}
+          />
+        </label>
+
+        <div style={{ ...sectionTitle, marginTop: 24 }}>Central alert channel (WhatsApp / email)</div>
+        <p style={{ color: "var(--white-muted)", fontSize: 12, marginTop: -8 }}>
+          One Buddy-owned automation endpoint for ALL practitioners. Every client alert &amp; contact
+          request POSTs here with the target practitioner&apos;s name, email and WhatsApp number, so a
+          single Make/Zapier/Twilio flow routes it. Practitioners never set up their own webhook.
+        </p>
+        <div>
+          <label style={labelStyle}>Central webhook URL</label>
+          <input
+            style={inputStyle}
+            value={centralUrl}
+            onChange={(e) => setCentralUrl(e.target.value)}
+            placeholder="https://hook.eu1.make.com/…"
+            inputMode="url"
+          />
+        </div>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "var(--navy-card)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 8,
+            padding: "12px 14px",
+            minHeight: 48,
+            cursor: "pointer",
+          }}
+        >
+          <span style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
+            Enabled
+          </span>
+          <input
+            type="checkbox"
+            checked={centralEnabled}
+            onChange={(e) => setCentralEnabled(e.target.checked)}
             style={{ width: 22, height: 22, accentColor: "var(--blue-accent)" }}
           />
         </label>

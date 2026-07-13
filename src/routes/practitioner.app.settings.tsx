@@ -35,6 +35,7 @@ function Settings() {
   const [webhookEnabled, setWebhookEnabled] = useState(false);
   const [contactWebhookUrl, setContactWebhookUrl] = useState("");
   const [contactWebhookEnabled, setContactWebhookEnabled] = useState(false);
+  const [whatsappNumber, setWhatsappNumber] = useState("");
   const [weeklyDigestEnabled, setWeeklyDigestEnabled] = useState(false);
   const [autoRewardEnabled, setAutoRewardEnabled] = useState(true);
 
@@ -56,6 +57,7 @@ function Settings() {
       setWebhookEnabled(pr?.webhook_enabled ?? false);
       setContactWebhookUrl(pr?.contact_webhook_url ?? "");
       setContactWebhookEnabled(pr?.contact_webhook_enabled ?? false);
+      setWhatsappNumber((pr as { whatsapp_number?: string } | null)?.whatsapp_number ?? "");
       setWeeklyDigestEnabled(
         (pr as { weekly_digest_enabled?: boolean } | null)?.weekly_digest_enabled ?? false,
       );
@@ -86,6 +88,7 @@ function Settings() {
       webhook_enabled: webhookEnabled,
       contact_webhook_url: contactWebhookUrl.trim(),
       contact_webhook_enabled: contactWebhookEnabled,
+      whatsapp_number: whatsappNumber.trim() || null,
       weekly_digest_enabled: weeklyDigestEnabled,
       auto_reward_enabled: autoRewardEnabled,
     };
@@ -202,6 +205,22 @@ function Settings() {
               ))}
             </select>
           </div>
+        </div>
+
+        <div style={{ marginTop: 24 }}>
+          <div style={sectionTitle}>WhatsApp alerts</div>
+          <p style={{ color: "var(--white-muted)", fontSize: 13, lineHeight: 1.5, margin: "6px 0 10px" }}>
+            Enter your WhatsApp number to receive client alerts via Buddy&apos;s notification service.
+            No setup needed \u2014 alerts are sent centrally from Buddy.
+          </p>
+          <label style={labelStyle}>WhatsApp number (with country code)</label>
+          <input
+            style={inputStyle}
+            value={whatsappNumber}
+            onChange={(e) => setWhatsappNumber(e.target.value)}
+            placeholder="+27 82 123 4567"
+            inputMode="tel"
+          />
         </div>
 
         <WebhookSection

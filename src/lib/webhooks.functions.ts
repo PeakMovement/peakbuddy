@@ -33,6 +33,34 @@ async function loadWebhookSettings(practitionerId: string) {
   return data;
 }
 
+// Central Buddy channel: one automation endpoint for everyone. Loads whether the
+// central webhook is enabled + the practitioner's contact details so the single
+// automation can route WhatsApp/email to the right person.
+async function loadCentralTarget(practitionerId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const [{ data: settings }, { data: prac }, prof, userRes] = await Promise.all([
+    supabaseAdmin
+      .from("platform_settings")
+      .select("central_webhook_url, central_webhook_enabled")
+      .limit(1)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("practices")
+      .select("whatsapp_number")
+      .eq("practitioner_id", practitionerId)
+      .maybeSingle(),
+    supabaseAdmin.from("profiles").select("full_name").eq("id", practitionerId).maybeSingle(),
+    supabaseAdmin.auth.admin.getUserById(practitionerId),
+  ]);
+  return {
+    url: (settings as { central_webhook_url?: string } | null)?.central_webhook_url?.trim() || "",
+    enabled: (settings as { central_webhook_enabled?: boolean } | null)?.central_webhook_enabled === true,
+    whatsapp: (prac as { whatsapp_number?: string } | null)?.whatsapp_number ?? null,
+    name: (prof.data as { full_name?: string } | null)?.full_name ?? null,
+    email: userRes?.data?.user?.email ?? null,
+  };
+}
+
 function isDeliverableUrl(url: string): boolean {
   // Practitioner-supplied destination: require https and refuse obvious
   // internal targets to limit SSRF surface.
@@ -73,36 +101,83 @@ async function deliver(url: string, body: unknown) {
 export const fireAlertWebhookServer = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => alertSchema.parse(input))
   .handler(async ({ data }) => {
-    const settings = await loadWebhookSettings(data.practitionerId);
-    if (!settings?.webhook_url || !settings?.webhook_enabled) {
-      return { fired: false as const, reason: "not_configured" as const };
+    const ts = new Date().toISOString();
+    const [settings, central] = await Promise.all([
+      loadWebhookSettings(data.practitionerId),
+      loadCentralTarget(data.practitionerId),
+    ]);
+    const results: Record<string, unknown> = {};
+
+    // Central Buddy channel (one automation for everyone) — includes the target
+    // practitioner's email + WhatsApp number so it can route to the right person.
+    if (central.enabled && central.url) {
+      results.central = await deliver(central.url, {
+        event: "buddy_alert",
+        channel: "central",
+        practitioner_id: data.practitionerId,
+        practitioner_name: central.name,
+        practitioner_email: central.email,
+        practitioner_whatsapp: central.whatsapp,
+        client_id: data.clientId,
+        client_name: data.clientName,
+        message: data.alertMessage,
+        urgency: data.urgency,
+        red_flag_detected: data.redFlagDetected,
+        timestamp: ts,
+      });
     }
-    return deliver(settings.webhook_url, {
-      event: "buddy_alert",
-      practitioner_id: data.practitionerId,
-      client_id: data.clientId,
-      client_name: data.clientName,
-      message: data.alertMessage,
-      urgency: data.urgency,
-      red_flag_detected: data.redFlagDetected,
-      timestamp: new Date().toISOString(),
-    });
+    // Optional legacy per-practice webhook (backward compatible).
+    if (settings?.webhook_url && settings?.webhook_enabled) {
+      results.practice = await deliver(settings.webhook_url, {
+        event: "buddy_alert",
+        practitioner_id: data.practitionerId,
+        client_id: data.clientId,
+        client_name: data.clientName,
+        message: data.alertMessage,
+        urgency: data.urgency,
+        red_flag_detected: data.redFlagDetected,
+        timestamp: ts,
+      });
+    }
+    const fired = Boolean(results.central || results.practice);
+    return { fired, reason: fired ? undefined : ("not_configured" as const), results };
   });
 
 export const fireContactWebhookServer = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => contactSchema.parse(input))
   .handler(async ({ data }) => {
-    const settings = await loadWebhookSettings(data.practitionerId);
-    if (!settings?.contact_webhook_url || !settings?.contact_webhook_enabled) {
-      return { fired: false as const, reason: "not_configured" as const };
+    const ts = new Date().toISOString();
+    const [settings, central] = await Promise.all([
+      loadWebhookSettings(data.practitionerId),
+      loadCentralTarget(data.practitionerId),
+    ]);
+    const results: Record<string, unknown> = {};
+    if (central.enabled && central.url) {
+      results.central = await deliver(central.url, {
+        event: "buddy_contact",
+        channel: "central",
+        practitioner_id: data.practitionerId,
+        practitioner_name: central.name,
+        practitioner_email: central.email,
+        practitioner_whatsapp: central.whatsapp,
+        client_id: data.clientId,
+        client_name: data.clientName,
+        symptom_description: data.symptomDescription,
+        symptom_score: data.symptomScore,
+        timestamp: ts,
+      });
     }
-    return deliver(settings.contact_webhook_url, {
-      event: "buddy_contact",
-      practitioner_id: data.practitionerId,
-      client_id: data.clientId,
-      client_name: data.clientName,
-      symptom_description: data.symptomDescription,
-      symptom_score: data.symptomScore,
-      timestamp: new Date().toISOString(),
-    });
+    if (settings?.contact_webhook_url && settings?.contact_webhook_enabled) {
+      results.practice = await deliver(settings.contact_webhook_url, {
+        event: "buddy_contact",
+        practitioner_id: data.practitionerId,
+        client_id: data.clientId,
+        client_name: data.clientName,
+        symptom_description: data.symptomDescription,
+        symptom_score: data.symptomScore,
+        timestamp: ts,
+      });
+    }
+    const fired = Boolean(results.central || results.practice);
+    return { fired, reason: fired ? undefined : ("not_configured" as const), results };
   });
