@@ -86,8 +86,8 @@ export const PROVIDER_METRICS: Record<WearableProvider, MetricKey[]> = {
   // oura.ts populates: readiness, sleep, activity, steps, active+total cals,
   // resting_hr, avg_heart_rate (now persisted), hrv, spo2.
   oura: ["active_calories", "avg_heart_rate", "resting_hr", "hrv", "sleep_score", "readiness", "steps", "spo2"],
-  // garmin.ts populates: steps, total+active cals, resting_hr, sleep, hrv.
-  garmin: ["active_calories", "total_calories", "resting_hr", "hrv", "sleep_score", "steps"],
+  // garmin.ts populates: steps, total+active cals, resting_hr, sleep, hrv, distance (activities).
+  garmin: ["active_calories", "total_calories", "resting_hr", "hrv", "sleep_score", "steps", "distance"],
   // polar.ts populates: sleep, duration, active cals, distance, avg+max HR,
   // training load.
   polar: ["active_calories", "avg_heart_rate", "max_heart_rate", "training_load", "sleep_score", "distance"],

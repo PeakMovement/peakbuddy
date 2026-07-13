@@ -70,6 +70,19 @@ export function WearableTiles({ snapshot }: { snapshot: WearableSnapshot | null 
   return (
     <div style={{ marginTop: 24 }}>
       <div style={sectionLabel}>{PROVIDER_LABEL[provider]} · your metrics</div>
+      {snapshot.date && (
+        <div
+          style={{
+            fontFamily: "var(--font-ui)",
+            fontSize: 11.5,
+            color: "var(--white-muted)",
+            marginTop: -6,
+            marginBottom: 12,
+          }}
+        >
+          Latest reading: {formatReadingDate(snapshot.date)}
+        </div>
+      )}
       <div style={grid}>
         {defs.map((def) => (
           <Tile key={def.key} def={def} value={readMetric(def, snapshot.session)} />
@@ -145,5 +158,16 @@ const connectCard: CSSProperties = {
   borderRadius: 14,
   padding: "14px 16px",
 };
+
+function formatReadingDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  const today = new Date();
+  const days = Math.floor((today.setHours(0, 0, 0, 0) - d.getTime()) / 86_400_000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
 
 export default WearableTiles;

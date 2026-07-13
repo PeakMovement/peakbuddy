@@ -72,6 +72,16 @@ function Settings() {
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userId) return;
+
+    // Normalize + validate WhatsApp to E.164 so central delivery doesn't fail silently.
+    const rawWa = whatsappNumber.trim();
+    const normalizedWa = rawWa ? rawWa.replace(/[^\d+]/g, "") : "";
+    if (normalizedWa && !/^\+[1-9]\d{7,14}$/.test(normalizedWa)) {
+      setError("Enter your WhatsApp number in international format, e.g. +27821234567.");
+      return;
+    }
+    if (normalizedWa !== whatsappNumber) setWhatsappNumber(normalizedWa);
+
     setSaving(true);
     setError(null);
     setSuccess(null);
@@ -88,7 +98,7 @@ function Settings() {
       webhook_enabled: webhookEnabled,
       contact_webhook_url: contactWebhookUrl.trim(),
       contact_webhook_enabled: contactWebhookEnabled,
-      whatsapp_number: whatsappNumber.trim() || null,
+      whatsapp_number: normalizedWa || null,
       weekly_digest_enabled: weeklyDigestEnabled,
       auto_reward_enabled: autoRewardEnabled,
     };
