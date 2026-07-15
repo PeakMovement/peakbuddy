@@ -481,23 +481,28 @@ function MorningAnalysisCard() {
             Morning Analysis
           </h2>
         </div>
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--white-muted)", cursor: "pointer" }}>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--white-muted)", cursor: (saving || loading) ? "wait" : "pointer" }}>
           <input
             type="checkbox"
-            checked={data?.enabled ?? true}
+            checked={data?.user_enabled ?? true}
             disabled={saving || loading}
             onChange={(e) => toggle(e.target.checked)}
           />
-          {data?.enabled ? "On" : "Off"}
+          {data?.user_enabled ? "On" : "Off"}
         </label>
       </div>
 
       {loading ? (
         <p style={{ marginTop: 10, fontSize: 12, color: "var(--white-muted)" }}>Loading…</p>
+      ) : data && !data.ai_enabled ? (
+        <p style={{ marginTop: 10, fontSize: 12, color: "var(--white-muted)" }}>
+          AI features are disabled for your practice. Contact your admin to enable morning analysis.
+        </p>
       ) : !data?.enabled ? (
         <p style={{ marginTop: 10, fontSize: 12, color: "var(--white-muted)" }}>
           Daily analysis is paused. Turn on to receive AI summaries each morning.
         </p>
+
       ) : data.client_count === 0 ? (
         <p style={{ marginTop: 10, fontSize: 12, color: "var(--white-muted)" }}>
           Add a client to start receiving morning analysis.
