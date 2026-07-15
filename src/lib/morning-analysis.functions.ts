@@ -16,10 +16,13 @@ export type MorningAnalysisItem = {
 
 export type MorningAnalysisPayload = {
   enabled: boolean;
+  user_enabled: boolean;
+  ai_enabled: boolean;
   client_count: number;
   items: MorningAnalysisItem[];
   generated_for: string; // ISO date (today)
 };
+
 
 export const getMorningAnalysis = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
