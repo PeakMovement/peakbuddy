@@ -100,7 +100,7 @@ export const getMorningAnalysis = createServerFn({ method: "GET" })
       }),
     );
 
-    return { enabled, client_count, items, generated_for: startOfDay };
+    return { enabled, user_enabled: userEnabled, ai_enabled: aiEnabled, client_count, items, generated_for: startOfDay };
   });
 
 export const setMorningAnalysisEnabled = createServerFn({ method: "POST" })
