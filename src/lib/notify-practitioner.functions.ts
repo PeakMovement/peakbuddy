@@ -78,12 +78,7 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data, context }) => {
     const serviceKey = process.env.SEED_SERVICE_ROLE_KEY;
-    const lovableKey = process.env.LOVABLE_API_KEY;
-    const resendKey = process.env.RESEND_API_KEY;
     if (!serviceKey) return { ok: false as const, error: "Server missing SEED_SERVICE_ROLE_KEY" };
-    if (!lovableKey || !resendKey) {
-      return { ok: false as const, error: "Email service not configured" };
-    }
 
     const admin = createClient(SUPABASE_URL, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -142,6 +137,61 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
     }
 
     const clientLink = `${APP_BASE_URL}/practitioner/app/client-detail/${client.id}`;
+
+    // Preferred: the central Buddy automation (your own email + WhatsApp channel).
+    // When it's enabled, Lovable's internal email is bypassed entirely.
+    const [{ data: ps }, { data: prac }] = await Promise.all([
+      admin
+        .from("platform_settings")
+        .select("central_webhook_url, central_webhook_enabled")
+        .limit(1)
+        .maybeSingle(),
+      admin
+        .from("practices")
+        .select("whatsapp_number")
+        .eq("practitioner_id", client.practitioner_id)
+        .maybeSingle(),
+    ]);
+    const centralUrl = ((ps as { central_webhook_url?: string } | null)?.central_webhook_url ?? "").trim();
+    const centralEnabled = (ps as { central_webhook_enabled?: boolean } | null)?.central_webhook_enabled === true;
+    if (centralEnabled && centralUrl) {
+      try {
+        const res = await fetch(centralUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event: "buddy_contact",
+            channel: "central",
+            practitioner_id: client.practitioner_id,
+            practitioner_name: practitionerName,
+            practitioner_email: practitionerEmail,
+            practitioner_whatsapp: (prac as { whatsapp_number?: string } | null)?.whatsapp_number ?? null,
+            client_id: client.id,
+            client_name: client.full_name,
+            symptom_description: data.symptomDescription,
+            symptom_score: data.symptomScore,
+            urgency: data.urgency,
+            client_link: clientLink,
+            timestamp: new Date().toISOString(),
+          }),
+        });
+        if (!res.ok) {
+          log.error("[notifyPractitioner] central webhook error", res.status, await res.text());
+          return { ok: false as const, error: `Notification failed (${res.status})` };
+        }
+        return { ok: true as const, via: "central" as const };
+      } catch (e) {
+        log.error("[notifyPractitioner] central webhook fetch failed", e);
+        return { ok: false as const, error: "Notification send failed" };
+      }
+    }
+
+    // Fallback: legacy Resend gateway (only if the central channel is off).
+    const lovableKey = process.env.LOVABLE_API_KEY;
+    const resendKey = process.env.RESEND_API_KEY;
+    if (!lovableKey || !resendKey) {
+      return { ok: false as const, error: "No notification channel configured" };
+    }
     const { subject, html, text } = renderEmail({
       clientName: client.full_name,
       practitionerName,
@@ -150,7 +200,6 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
       urgency: data.urgency,
       clientLink,
     });
-
     try {
       const res = await fetch(`${GATEWAY_URL}/emails`, {
         method: "POST",
