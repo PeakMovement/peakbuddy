@@ -82,9 +82,13 @@ function isDeliverableUrl(url: string): boolean {
   }
 }
 
-async function deliver(url: string, body: unknown) {
+type DeliveryResult =
+  | { fired: true; status: number }
+  | { fired: false; reason: "invalid_url" | "fetch_error" };
+
+async function deliver(url: string, body: unknown): Promise<DeliveryResult> {
   if (!isDeliverableUrl(url)) {
-    return { fired: false as const, reason: "invalid_url" as const };
+    return { fired: false, reason: "invalid_url" };
   }
   try {
     const res = await fetch(url, {
@@ -92,11 +96,16 @@ async function deliver(url: string, body: unknown) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    return { fired: true as const, status: res.status };
+    return { fired: true, status: res.status };
   } catch {
-    return { fired: false as const, reason: "fetch_error" as const };
+    return { fired: false, reason: "fetch_error" };
   }
 }
+
+type WebhookResults = {
+  central?: DeliveryResult;
+  practice?: DeliveryResult;
+};
 
 export const fireAlertWebhookServer = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => alertSchema.parse(input))
