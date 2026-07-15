@@ -10,7 +10,7 @@ import { log } from "@/lib/log";
 
 const BATCH_SIZE = 50;
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
-const FROM_ADDRESS = process.env.BUDDY_EMAIL_FROM || "Buddy <onboarding@resend.dev>";
+const FROM_ADDRESS = process.env.BUDDY_EMAIL_FROM || "Buddy <noreply@buddy-health.co.za>";
 const APP_BASE_URL = process.env.BUDDY_APP_BASE_URL || "https://peakbuddy.lovable.app";
 
 type ClientRow = { id: string; full_name: string; practitioner_id: string };

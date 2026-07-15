@@ -11,7 +11,7 @@ const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 // that Resend's sandbox only delivers to the verified Resend account owner.
 // For production, verify peakmovement.co.za (or a notify. subdomain) in
 // Resend and change this to e.g. "Buddy <notify@peakmovement.co.za>".
-const FROM_ADDRESS = process.env.BUDDY_EMAIL_FROM || "Buddy <onboarding@resend.dev>";
+const FROM_ADDRESS = process.env.BUDDY_EMAIL_FROM || "Buddy <noreply@buddy-health.co.za>";
 const APP_BASE_URL = process.env.BUDDY_APP_BASE_URL || "https://peakbuddy.lovable.app";
 
 const inputSchema = z.object({
