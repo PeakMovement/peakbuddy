@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { log } from "@/lib/log";
 
 const PLATFORMS = ["ios", "android", "web", "despia"] as const;
 type Platform = (typeof PLATFORMS)[number];
@@ -356,7 +357,7 @@ export const sendCheckInNudge = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: client } = await supabaseAdmin
       .from("clients")
-      .select("id, practitioner_id, auth_user_id")
+      .select("id, practitioner_id, auth_user_id, full_name, email")
       .eq("id", data.clientId)
       .maybeSingle();
     if (!client) return { ok: false as const, reason: "not_found" as const };
@@ -380,6 +381,30 @@ export const sendCheckInNudge = createServerFn({ method: "POST" })
       data: { type: "checkin_request" },
       sentBy: context.userId,
     });
+
+    // Also email the patient via Buddy's internal email system (best-effort).
+    if ((client as { email?: string | null }).email) {
+      try {
+        const [{ sendTransactionalEmailServer }, { data: prac }] = await Promise.all([
+          import("@/lib/email/send-server"),
+          supabaseAdmin.from("profiles").select("full_name").eq("id", client.practitioner_id).maybeSingle(),
+        ]);
+        const appBase = process.env.BUDDY_APP_BASE_URL || "https://peakbuddy.lovable.app";
+        await sendTransactionalEmailServer({
+          templateName: "practitioner-checkin",
+          recipientEmail: (client as { email: string }).email,
+          idempotencyKey: `checkin-nudge-${client.id}-${new Date().toISOString().slice(0, 10)}`,
+          templateData: {
+            clientName: ((client as { full_name?: string }).full_name || "").trim().split(/\s+/)[0] || null,
+            practitionerName: (prac as { full_name?: string } | null)?.full_name ?? null,
+            loginUrl: `${appBase}/client/login`,
+          },
+        });
+      } catch (e) {
+        log.error("[sendCheckInNudge] patient email failed", e);
+      }
+    }
+
     return { ok: true as const };
   });
 

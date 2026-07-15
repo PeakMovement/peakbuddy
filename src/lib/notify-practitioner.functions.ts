@@ -5,13 +5,11 @@ import { log } from "@/lib/log";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 
 // Default sender. Works out of the box via Resend's sandbox address — note
 // that Resend's sandbox only delivers to the verified Resend account owner.
 // For production, verify peakmovement.co.za (or a notify. subdomain) in
 // Resend and change this to e.g. "Buddy <notify@peakmovement.co.za>".
-const FROM_ADDRESS = process.env.BUDDY_EMAIL_FROM || "Buddy <noreply@buddy-health.co.za>";
 const APP_BASE_URL = process.env.BUDDY_APP_BASE_URL || "https://peakbuddy.lovable.app";
 
 const inputSchema = z.object({
@@ -20,58 +18,6 @@ const inputSchema = z.object({
   symptomScore: z.number().min(0).max(10),
   urgency: z.enum(["emergency", "urgent", "soon", "monitor", "routine"]),
 });
-
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-const URGENCY_COLOR: Record<string, string> = {
-  emergency: "#b00020",
-  urgent: "#c2680a",
-  soon: "#8a7a0a",
-  monitor: "#1e4a7a",
-  routine: "#1e7a3a",
-};
-
-function renderEmail(opts: {
-  clientName: string;
-  practitionerName: string;
-  symptomDescription: string;
-  symptomScore: number;
-  urgency: string;
-  clientLink: string;
-}) {
-  const color = URGENCY_COLOR[opts.urgency] || "#333";
-  const subject = `[Buddy] ${opts.clientName} requested contact (${opts.urgency.toUpperCase()})`;
-  const html = `
-<!doctype html>
-<html><body style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;background:#f6f6f8;margin:0;padding:24px;color:#111">
-  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:24px;border:1px solid #e6e6ea">
-    <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#666">Buddy · Client Contact Request</div>
-    <h1 style="font-size:20px;margin:8px 0 16px">${escapeHtml(opts.clientName)} requested contact</h1>
-    <div style="display:inline-block;padding:4px 10px;border-radius:999px;background:${color};color:#fff;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase">${escapeHtml(opts.urgency)}</div>
-    <p style="margin:16px 0 4px;color:#555;font-size:13px;text-transform:uppercase;letter-spacing:.06em">Symptom description</p>
-    <p style="margin:0 0 16px;white-space:pre-wrap;font-size:15px;line-height:1.5">${escapeHtml(opts.symptomDescription)}</p>
-    <p style="margin:0 0 24px;color:#555;font-size:13px">Severity score: <strong>${opts.symptomScore}/10</strong></p>
-    <a href="${opts.clientLink}" style="display:inline-block;background:#0a66ff;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600">Open client in Buddy</a>
-    <p style="margin:24px 0 0;color:#888;font-size:12px;line-height:1.5">Hi ${escapeHtml(opts.practitionerName)} — this is an automated notification from Buddy. This is <strong>not</strong> an emergency channel. If your client is in immediate danger they should call emergency services.</p>
-  </div>
-</body></html>`;
-  const text = `${opts.clientName} requested contact (${opts.urgency.toUpperCase()})
-
-Symptom: ${opts.symptomDescription}
-Severity: ${opts.symptomScore}/10
-
-Open in Buddy: ${opts.clientLink}
-
-This is not an emergency channel.`;
-  return { subject, html, text };
-}
 
 export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -138,96 +84,25 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
 
     const clientLink = `${APP_BASE_URL}/practitioner/app/client-detail/${client.id}`;
 
-    // Preferred: the central Buddy automation (your own email + WhatsApp channel).
-    // When it's enabled, Lovable's internal email is bypassed entirely.
-    const [{ data: ps }, { data: prac }] = await Promise.all([
-      admin
-        .from("platform_settings")
-        .select("central_webhook_url, central_webhook_enabled")
-        .limit(1)
-        .maybeSingle(),
-      admin
-        .from("practices")
-        .select("whatsapp_number")
-        .eq("practitioner_id", client.practitioner_id)
-        .maybeSingle(),
-    ]);
-    const centralUrl = ((ps as { central_webhook_url?: string } | null)?.central_webhook_url ?? "").trim();
-    const centralEnabled = (ps as { central_webhook_enabled?: boolean } | null)?.central_webhook_enabled === true;
-    if (centralEnabled && centralUrl) {
-      try {
-        const res = await fetch(centralUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            event: "buddy_contact",
-            channel: "central",
-            practitioner_id: client.practitioner_id,
-            practitioner_name: practitionerName,
-            practitioner_email: practitionerEmail,
-            practitioner_whatsapp: (prac as { whatsapp_number?: string } | null)?.whatsapp_number ?? null,
-            client_id: client.id,
-            client_name: client.full_name,
-            symptom_description: data.symptomDescription,
-            symptom_score: data.symptomScore,
-            urgency: data.urgency,
-            client_link: clientLink,
-            timestamp: new Date().toISOString(),
-          }),
-        });
-        if (!res.ok) {
-          log.error("[notifyPractitioner] central webhook error", res.status, await res.text());
-          return { ok: false as const, error: `Notification failed (${res.status})` };
-        }
-        return { ok: true as const, via: "central" as const };
-      } catch (e) {
-        log.error("[notifyPractitioner] central webhook fetch failed", e);
-        return { ok: false as const, error: "Notification send failed" };
-      }
-    }
-
-    // Fallback: legacy Resend gateway (only if the central channel is off).
-    const lovableKey = process.env.LOVABLE_API_KEY;
-    const resendKey = process.env.RESEND_API_KEY;
-    if (!lovableKey || !resendKey) {
-      return { ok: false as const, error: "No notification channel configured" };
-    }
-    const { subject, html, text } = renderEmail({
-      clientName: client.full_name,
-      practitionerName,
-      symptomDescription: data.symptomDescription,
-      symptomScore: data.symptomScore,
-      urgency: data.urgency,
-      clientLink,
+    // Notify the practitioner via Buddy's internal email system (the healthy
+    // notify.buddy-health.co.za path that also powers the welcome email).
+    const { sendTransactionalEmailServer } = await import("@/lib/email/send-server");
+    const send = await sendTransactionalEmailServer({
+      templateName: "practitioner-contact",
+      recipientEmail: practitionerEmail,
+      idempotencyKey: `contact-${client.id}-${Date.now()}`,
+      templateData: {
+        clientName: client.full_name,
+        practitionerName,
+        symptomDescription: data.symptomDescription,
+        symptomScore: data.symptomScore,
+        urgency: data.urgency,
+        clientLink,
+      },
     });
-    try {
-      const res = await fetch(`${GATEWAY_URL}/emails`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${lovableKey}`,
-          "X-Connection-Api-Key": resendKey,
-        },
-        body: JSON.stringify({
-          from: FROM_ADDRESS,
-          to: [practitionerEmail],
-          subject,
-          html,
-          text,
-          tags: [
-            { name: "event", value: "client_contact_request" },
-            { name: "urgency", value: data.urgency },
-          ],
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.text();
-        log.error("[notifyPractitioner] resend gateway error", res.status, body);
-        return { ok: false as const, error: `Email send failed (${res.status})` };
-      }
-      return { ok: true as const };
-    } catch (e) {
-      log.error("[notifyPractitioner] fetch failed", e);
-      return { ok: false as const, error: "Email send failed" };
+    if (!send.ok) {
+      log.error("[notifyPractitioner] internal email failed", send.error);
+      return { ok: false as const, error: send.error };
     }
+    return { ok: true as const };
   });
