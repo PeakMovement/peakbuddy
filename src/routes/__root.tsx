@@ -23,6 +23,8 @@ try {
 import { log } from "@/lib/log";
 import { registerServiceWorker } from "@/lib/runtime-context";
 import { initOneSignalWeb } from "@/lib/onesignal-web";
+import { initIdleSignout } from "@/lib/idle-signout";
+
 
 function NotFoundComponent() {
   return (
@@ -163,7 +165,10 @@ function RootComponent() {
   useEffect(() => {
     registerServiceWorker();
     initOneSignalWeb();
+    const cleanup = initIdleSignout({ maxIdleMs: 24 * 60 * 60 * 1000 });
+    return cleanup;
   }, []);
+
 
   return (
     <QueryClientProvider client={queryClient}>
