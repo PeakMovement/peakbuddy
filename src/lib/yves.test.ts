@@ -97,3 +97,91 @@ describe("analyzeRealTime", () => {
     expect(r.source).toBe("keyword");
   });
 });
+
+
+describe("numeric pain parser", () => {
+  it("parses 'out of 10' phrasing the old literal terms missed", () => {
+    const r = applyKeywordFloor("my pain is 7 out of 10 today", "routine", 0);
+    expect(r.severity).toBeGreaterThanOrEqual(6);
+    expect(r.urgency).toBe("soon");
+    expect(r.escalated).toBe(true);
+  });
+
+  it("parses 'pain is at a 9'", () => {
+    const r = applyKeywordFloor("the pain is at a 9 right now", "routine", 0);
+    expect(r.severity).toBeGreaterThanOrEqual(7);
+    expect(r.urgency).toBe("urgent");
+  });
+
+  it("treats 10/10 as urgent severity 8", () => {
+    const r = applyKeywordFloor("headache 10/10", "routine", 0);
+    expect(r.urgency).toBe("urgent");
+    expect(r.severity).toBeGreaterThanOrEqual(8);
+  });
+
+  it("realtime detects a numeric-only rating", () => {
+    const r = analyzeRealTime("pain is 8 out of 10");
+    expect(r.detected).toBe(true);
+    expect(r.urgency).toBe("soon");
+  });
+});
+
+describe("severity / onset modifiers", () => {
+  it("boosts a matched symptom when described as crushing", () => {
+    const base = applyKeywordFloor("radiating pain in my back", "routine", 0);
+    const boosted = applyKeywordFloor("crushing radiating pain in my back", "routine", 0);
+    expect(boosted.severity).toBeGreaterThan(base.severity);
+  });
+
+  it("does not fabricate severity from a modifier with no symptom", () => {
+    const r = applyKeywordFloor("it came on suddenly and then i felt fine", "routine", 0);
+    expect(r.escalated).toBe(false);
+    expect(r.severity).toBe(0);
+  });
+});
+
+describe("category clustering", () => {
+  it("escalates when multiple cardiac terms co-occur", () => {
+    const r = applyKeywordFloor("chest tightness with palpitations and jaw pain", "routine", 0);
+    expect(r.urgency).toBe("urgent");
+    expect(r.severity).toBeGreaterThanOrEqual(8);
+    expect(r.topCategory).toBe("cardiac");
+  });
+
+  it("does not push clustering to emergency (reserved for hard overrides)", () => {
+    const r = applyKeywordFloor("chest tightness with palpitations and jaw pain", "routine", 0);
+    expect(r.urgency).not.toBe("emergency");
+  });
+});
+
+describe("refined attribution guard", () => {
+  it("still discards a symptom attributed to someone else", () => {
+    const r = applyKeywordFloor("my brother gets palpitations", "routine", 0);
+    expect(r.matchedTerms).not.toContain("palpitations");
+  });
+
+  it("keeps the symptom when the patient reclaims it with a self-pronoun", () => {
+    const r = applyKeywordFloor("my brother is fine but i have palpitations", "routine", 0);
+    expect(r.matchedTerms).toContain("palpitations");
+  });
+});
+
+describe("merged vocabulary", () => {
+  it("detects named MSK injuries the old floor lacked", () => {
+    const r = applyKeywordFloor("physio thinks it is a meniscus tear", "routine", 0);
+    expect(r.matchedTerms).toContain("meniscus tear");
+    expect(r.topCategory).toBe("msk_alarm");
+  });
+
+  it("treats high fever as urgent", () => {
+    const r = applyKeywordFloor("high fever since last night", "routine", 0);
+    expect(r.urgency).toBe("urgent");
+    expect(r.severity).toBeGreaterThanOrEqual(7);
+  });
+
+  it("does not double-count 'fever' when 'high fever' matched", () => {
+    const r = applyKeywordFloor("high fever since last night", "routine", 0);
+    // "fever" substring is dropped, so no spurious infection cluster bonus.
+    expect(r.severity).toBeLessThanOrEqual(8);
+  });
+});

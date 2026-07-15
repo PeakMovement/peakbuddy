@@ -140,7 +140,7 @@ const HARD_OVERRIDE_PHRASES: Array<{ term: string; category: RedFlagCategory }> 
 // ─────────────────────────────────────────────────────────────────────────────
 // KEYWORD FLOOR — escalates urgency/severity if AI underrates. Categorised.
 // ─────────────────────────────────────────────────────────────────────────────
-const KEYWORD_FLOOR: Array<{
+const KEYWORD_FLOOR_RAW: Array<{
   term: string;
   minUrgency: UrgencyTier;
   minSeverity: number;
@@ -219,12 +219,6 @@ const KEYWORD_FLOOR: Array<{
   { term: "severe pain", minUrgency: "soon", minSeverity: 6, category: "general" },
   { term: "excruciating", minUrgency: "urgent", minSeverity: 7, category: "general" },
   { term: "unbearable pain", minUrgency: "urgent", minSeverity: 7, category: "general" },
-  { term: "pain 8 out of 10", minUrgency: "soon", minSeverity: 6, category: "general" },
-  { term: "pain 9 out of 10", minUrgency: "urgent", minSeverity: 7, category: "general" },
-  { term: "pain 10 out of 10", minUrgency: "urgent", minSeverity: 8, category: "general" },
-  { term: "8/10", minUrgency: "soon", minSeverity: 6, category: "general" },
-  { term: "9/10", minUrgency: "urgent", minSeverity: 7, category: "general" },
-  { term: "10/10", minUrgency: "urgent", minSeverity: 8, category: "general" },
 
   // MSK alarms
   { term: "cannot walk", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
@@ -260,7 +254,76 @@ const KEYWORD_FLOOR: Array<{
   { term: "fever", minUrgency: "monitor", minSeverity: 4, category: "infection" },
   { term: "neck stiffness", minUrgency: "urgent", minSeverity: 7, category: "infection" },
   { term: "naar", minUrgency: "monitor", minSeverity: 3, category: "general" }, // Afrikaans: nauseous
+
+  // ── Merged upward from the precursor engine — clinically-meaningful terms
+  //    Buddy's floor was missing. Deduped against existing terms at build time.
+  // Cardiac
+  { term: "chest discomfort", minUrgency: "soon", minSeverity: 6, category: "cardiac" },
+  { term: "chest heaviness", minUrgency: "soon", minSeverity: 6, category: "cardiac" },
+  { term: "cold sweats", minUrgency: "soon", minSeverity: 5, category: "cardiac" },
+  { term: "heart pounding", minUrgency: "soon", minSeverity: 5, category: "cardiac" },
+  { term: "heart skipping", minUrgency: "soon", minSeverity: 5, category: "cardiac" },
+  // Neuro
+  { term: "vertigo", minUrgency: "soon", minSeverity: 5, category: "neuro" },
+  { term: "double vision", minUrgency: "urgent", minSeverity: 7, category: "neuro" },
+  { term: "blurred vision", minUrgency: "soon", minSeverity: 6, category: "neuro" },
+  { term: "loss of balance", minUrgency: "urgent", minSeverity: 7, category: "neuro" },
+  { term: "loss of coordination", minUrgency: "urgent", minSeverity: 7, category: "neuro" },
+  { term: "pinched nerve", minUrgency: "soon", minSeverity: 6, category: "neuro" },
+  { term: "trapped nerve", minUrgency: "soon", minSeverity: 6, category: "neuro" },
+  { term: "carpal tunnel", minUrgency: "monitor", minSeverity: 4, category: "neuro" },
+  // Respiratory
+  { term: "shallow breathing", minUrgency: "soon", minSeverity: 5, category: "respiratory" },
+  { term: "rapid breathing", minUrgency: "soon", minSeverity: 5, category: "respiratory" },
+  { term: "chest congestion", minUrgency: "monitor", minSeverity: 4, category: "respiratory" },
+  // Infection
+  { term: "high fever", minUrgency: "urgent", minSeverity: 7, category: "infection" },
+  { term: "persistent fever", minUrgency: "soon", minSeverity: 6, category: "infection" },
+  { term: "spreading rash", minUrgency: "soon", minSeverity: 6, category: "infection" },
+  { term: "chills", minUrgency: "monitor", minSeverity: 3, category: "infection" },
+  // Systemic / oncological
+  { term: "suspicious mole", minUrgency: "soon", minSeverity: 6, category: "systemic" },
+  { term: "changing mole", minUrgency: "soon", minSeverity: 6, category: "systemic" },
+  { term: "persistent fatigue", minUrgency: "monitor", minSeverity: 4, category: "systemic" },
+  // MSK alarms / named injuries
+  { term: "acl tear", minUrgency: "soon", minSeverity: 6, category: "msk_alarm" },
+  { term: "acl injury", minUrgency: "soon", minSeverity: 6, category: "msk_alarm" },
+  { term: "meniscus tear", minUrgency: "soon", minSeverity: 6, category: "msk_alarm" },
+  { term: "torn meniscus", minUrgency: "soon", minSeverity: 6, category: "msk_alarm" },
+  { term: "torn ligament", minUrgency: "soon", minSeverity: 6, category: "msk_alarm" },
+  { term: "ligament tear", minUrgency: "soon", minSeverity: 6, category: "msk_alarm" },
+  { term: "rotator cuff tear", minUrgency: "soon", minSeverity: 6, category: "msk_alarm" },
+  { term: "rotator cuff", minUrgency: "monitor", minSeverity: 4, category: "msk_alarm" },
+  { term: "torn achilles", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
+  { term: "achilles rupture", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
+  { term: "dislocated", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
+  { term: "dislocation", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
+  { term: "whiplash", minUrgency: "soon", minSeverity: 6, category: "msk_alarm" },
+  { term: "herniated disc", minUrgency: "soon", minSeverity: 6, category: "msk_alarm" },
+  { term: "slipped disc", minUrgency: "soon", minSeverity: 6, category: "msk_alarm" },
+  { term: "bulging disc", minUrgency: "soon", minSeverity: 5, category: "msk_alarm" },
+  { term: "disc herniation", minUrgency: "soon", minSeverity: 5, category: "msk_alarm" },
+  { term: "stress fracture", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
+  { term: "plantar fasciitis", minUrgency: "monitor", minSeverity: 3, category: "msk_alarm" },
+  { term: "tennis elbow", minUrgency: "monitor", minSeverity: 3, category: "msk_alarm" },
+  // Mental health
+  { term: "depressed", minUrgency: "soon", minSeverity: 5, category: "mental_health" },
+  { term: "depression", minUrgency: "soon", minSeverity: 5, category: "mental_health" },
 ];
+
+// Deduped, clash-free floor: drop any exact-duplicate term and any term that
+// collides with a hard-override phrase (hard overrides win — they short-circuit).
+const _HARD_TERMS = new Set(HARD_OVERRIDE_PHRASES.map((h) => h.term));
+const KEYWORD_FLOOR: typeof KEYWORD_FLOOR_RAW = (() => {
+  const seen = new Set<string>();
+  const out: typeof KEYWORD_FLOOR_RAW = [];
+  for (const kf of KEYWORD_FLOOR_RAW) {
+    if (seen.has(kf.term) || _HARD_TERMS.has(kf.term)) continue;
+    seen.add(kf.term);
+    out.push(kf);
+  }
+  return out;
+})();
 
 const NEGATION_MARKERS = [
   "don't",
@@ -317,6 +380,105 @@ function isAttributed(text: string, termIndex: number): boolean {
   return ATTRIBUTION_MARKERS.some((a) => before.includes(a));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Merged scoring mechanics (folded upward from the precursor engine):
+// numeric-pain parsing, compositional severity/onset modifiers, category
+// clustering, and a sharper token-window attribution guard for the floor.
+// ─────────────────────────────────────────────────────────────────────────────
+const FORCE_URGENT_CATEGORIES = new Set<RedFlagCategory>([
+  "cardiac",
+  "neuro",
+  "cauda_equina",
+  "mental_health",
+  "respiratory",
+]);
+
+// Intensity words that BOOST a detected symptom. Words already present as
+// standalone floor terms (severe / excruciating / unbearable) are deliberately
+// excluded to avoid double-counting.
+const SEVERITY_MODIFIERS: Record<string, number> = {
+  intense: 1,
+  extreme: 1,
+  terrible: 1,
+  horrible: 1,
+  agonizing: 2,
+  agonising: 2,
+  crushing: 2,
+  worst: 2,
+};
+
+const ONSET_MODIFIERS: Array<[string, number]> = [
+  ["out of nowhere", 2],
+  ["all of a sudden", 1],
+  ["just started", 1],
+  ["came on suddenly", 1],
+  ["suddenly", 1],
+  ["sudden", 1],
+];
+
+// Parse an explicit pain rating from free text: "7/10", "8 out of 10",
+// "pain is at a 9". Returns 0 when none found.
+function extractNumericPain(text: string): number {
+  let max = 0;
+  const patterns = [
+    /(?:pain|hurt(?:ing)?|severity|ache|sore)[^0-9]{0,20}?(\d{1,2})\s*(?:\/|out\s*of)\s*10/gi,
+    /\b(\d{1,2})\s*(?:\/|out\s*of)\s*10\b/gi,
+    // "pain is at a 9", "pain around 7" — lazy fill, but reject durations
+    // like "pain for 3 weeks" via the trailing unit guard.
+    /\bpain\b[^0-9]{0,15}?(\d{1,2})(?!\s*(?:\/|out\b|days?|weeks?|months?|hours?|hrs?|years?|yrs?|times?|x\b|%|kg|cm|mm|ml|mg))/gi,
+  ];
+  for (const re of patterns) {
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      const n = parseInt(m[1], 10);
+      if (n >= 0 && n <= 10 && n > max) max = n;
+    }
+  }
+  return max;
+}
+
+// Highest single applicable intensity/onset boost (max, not summed — conservative).
+function modifierBoost(lower: string): number {
+  let boost = 0;
+  for (const [mod, b] of Object.entries(SEVERITY_MODIFIERS)) {
+    if (new RegExp(`\\b${mod}\\b`, "i").test(lower)) boost = Math.max(boost, b);
+  }
+  for (const [mod, b] of ONSET_MODIFIERS) {
+    const re = mod.includes(" ") ? new RegExp(mod, "i") : new RegExp(`\\b${mod}\\b`, "i");
+    if (re.test(lower)) boost = Math.max(boost, b);
+  }
+  return boost;
+}
+
+const ATTRIBUTION_TOKENS = new Set([
+  "friend", "friends", "mother", "mom", "mum", "father", "dad",
+  "husband", "wife", "partner", "spouse", "sister", "brother", "sibling",
+  "colleague", "coworker", "neighbor", "neighbour", "son", "daughter",
+  "child", "kid", "uncle", "aunt", "cousin", "grandparent", "grandma",
+  "grandpa", "someone", "somebody",
+]);
+
+const SELF_PRONOUNS = new Set(["i", "me", "my", "ive", "im", "mine", "i've", "i'm"]);
+
+// Sharper attribution check for the keyword floor: an attribution token in the
+// preceding window marks the symptom as someone else's UNLESS a self-pronoun
+// appears after it ("my brother is fine but I have chest pain" -> kept).
+function isAttributedRefined(text: string, index: number): boolean {
+  const window = text.substring(Math.max(0, index - 60), index).toLowerCase();
+  const tokens = window
+    .split(/\s+/)
+    .map((t) => t.replace(/[^a-z']/g, ""))
+    .filter(Boolean);
+  const recent = tokens.slice(-6);
+  for (let i = 0; i < recent.length; i++) {
+    if (ATTRIBUTION_TOKENS.has(recent[i])) {
+      const after = recent.slice(i + 1);
+      if (!after.some((t) => SELF_PRONOUNS.has(t))) return true;
+    }
+  }
+  return false;
+}
+
 export function checkHardOverride(text: string): {
   triggered: boolean;
   phrase: string | null;
@@ -344,36 +506,87 @@ export function applyKeywordFloor(
   topCategory: RedFlagCategory | null;
 } {
   const lower = text.toLowerCase();
-  let urgency = currentUrgency;
-  let severity = currentSeverity;
-  let escalated = false;
-  const matchedTerms: string[] = [];
-  let topCategory: RedFlagCategory | null = null;
-  let topSeverity = -1;
 
+  // Pass 1 — collect non-negated, non-attributed matches.
+  const raw: Array<{
+    term: string;
+    minUrgency: UrgencyTier;
+    minSeverity: number;
+    category: RedFlagCategory;
+  }> = [];
   for (const kf of KEYWORD_FLOOR) {
     const index = lower.indexOf(kf.term);
     if (index === -1) continue;
     if (isNegated(text, index)) continue;
-    if (isAttributed(text, index)) continue;
+    if (isAttributedRefined(text, index)) continue;
+    raw.push(kf);
+  }
+
+  // Drop shorter terms that are substrings of a longer matched term (e.g. drop
+  // "fever" when "high fever" also matched) so clustering/scoring isn't inflated
+  // by overlapping phrasings of the same underlying concept.
+  const hits = raw.filter(
+    (a) => !raw.some((b) => b.term !== a.term && b.term.includes(a.term)),
+  );
+
+  let urgency = currentUrgency;
+  let termSeverity = currentSeverity;
+  let topCategory: RedFlagCategory | null = null;
+  let topSeverity = -1;
+  const matchedTerms: string[] = [];
+  const categoryHits: Partial<Record<RedFlagCategory, number>> = {};
+
+  for (const kf of hits) {
     matchedTerms.push(kf.term);
+    categoryHits[kf.category] = (categoryHits[kf.category] ?? 0) + 1;
     if (kf.minSeverity > topSeverity) {
       topSeverity = kf.minSeverity;
       topCategory = kf.category;
     }
-    if (URGENCY_RANK[kf.minUrgency] > URGENCY_RANK[urgency]) {
-      urgency = kf.minUrgency;
-      escalated = true;
-    }
-    if (kf.minSeverity > severity) {
-      severity = kf.minSeverity;
-      escalated = true;
+    if (URGENCY_RANK[kf.minUrgency] > URGENCY_RANK[urgency]) urgency = kf.minUrgency;
+    if (kf.minSeverity > termSeverity) termSeverity = kf.minSeverity;
+  }
+
+  // Numeric pain rating ("7 out of 10", "pain is at a 9").
+  const numericPain = extractNumericPain(lower);
+  if (numericPain >= 9) {
+    if (URGENCY_RANK.urgent > URGENCY_RANK[urgency]) urgency = "urgent";
+    termSeverity = Math.max(termSeverity, numericPain === 10 ? 8 : 7);
+  } else if (numericPain >= 7) {
+    if (URGENCY_RANK.soon > URGENCY_RANK[urgency]) urgency = "soon";
+    termSeverity = Math.max(termSeverity, 6);
+  }
+
+  const hasSignal = matchedTerms.length > 0 || numericPain > 0;
+
+  // Category clustering: 2+ distinct terms in one body system escalates.
+  let clusterBonus = 0;
+  let forcedByCluster = false;
+  for (const key of Object.keys(categoryHits) as RedFlagCategory[]) {
+    const count = categoryHits[key] ?? 0;
+    if (count >= 2) {
+      clusterBonus = Math.max(clusterBonus, count >= 3 ? 3 : 2);
+      if (FORCE_URGENT_CATEGORIES.has(key)) forcedByCluster = true;
     }
   }
 
+  // Compositional intensity/onset modifiers — only when a real symptom is present.
+  const modifierBonus = hasSignal ? modifierBoost(lower) : 0;
+
+  let severity = Math.min(10, termSeverity + clusterBonus + modifierBonus);
+
+  // A cluster in a critical system escalates to at least urgent (never emergency
+  // — that tier is reserved for hard overrides).
+  if (forcedByCluster) {
+    severity = Math.max(severity, 8);
+    if (URGENCY_RANK.urgent > URGENCY_RANK[urgency]) urgency = "urgent";
+  }
+
+  const escalated =
+    severity > currentSeverity || URGENCY_RANK[urgency] > URGENCY_RANK[currentUrgency];
+
   return { urgency, severity, escalated, matchedTerms, topCategory };
 }
-
 export function analyzeRealTime(text: string): RealTimeResult {
   if (!text.trim()) {
     return {
@@ -398,7 +611,7 @@ export function analyzeRealTime(text: string): RealTimeResult {
   }
   const floor = applyKeywordFloor(text, "routine", 0);
   return {
-    detected: floor.matchedTerms.length > 0,
+    detected: floor.matchedTerms.length > 0 || floor.severity > 0,
     urgency: floor.urgency,
     severity: floor.severity,
     source: "keyword",
