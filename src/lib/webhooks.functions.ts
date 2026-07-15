@@ -115,7 +115,7 @@ export const fireAlertWebhookServer = createServerFn({ method: "POST" })
       loadWebhookSettings(data.practitionerId),
       loadCentralTarget(data.practitionerId),
     ]);
-    const results: Record<string, unknown> = {};
+    const results: WebhookResults = {};
 
     // Central Buddy channel (one automation for everyone) — includes the target
     // practitioner's email + WhatsApp number so it can route to the right person.
@@ -160,7 +160,7 @@ export const fireContactWebhookServer = createServerFn({ method: "POST" })
       loadWebhookSettings(data.practitionerId),
       loadCentralTarget(data.practitionerId),
     ]);
-    const results: Record<string, unknown> = {};
+    const results: WebhookResults = {};
     if (central.enabled && central.url) {
       results.central = await deliver(central.url, {
         event: "buddy_contact",
