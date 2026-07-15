@@ -6,10 +6,6 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 
-// Default sender. Works out of the box via Resend's sandbox address — note
-// that Resend's sandbox only delivers to the verified Resend account owner.
-// For production, verify peakmovement.co.za (or a notify. subdomain) in
-// Resend and change this to e.g. "Buddy <notify@peakmovement.co.za>".
 const APP_BASE_URL = process.env.BUDDY_APP_BASE_URL || "https://peakbuddy.lovable.app";
 
 const inputSchema = z.object({
