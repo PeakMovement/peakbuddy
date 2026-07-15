@@ -165,7 +165,10 @@ function RootComponent() {
   useEffect(() => {
     registerServiceWorker();
     initOneSignalWeb();
+    const cleanup = initIdleSignout({ maxIdleMs: 24 * 60 * 60 * 1000 });
+    return cleanup;
   }, []);
+
 
   return (
     <QueryClientProvider client={queryClient}>
