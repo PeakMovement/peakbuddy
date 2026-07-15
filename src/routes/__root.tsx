@@ -23,6 +23,8 @@ try {
 import { log } from "@/lib/log";
 import { registerServiceWorker } from "@/lib/runtime-context";
 import { initOneSignalWeb } from "@/lib/onesignal-web";
+import { initIdleSignout } from "@/lib/idle-signout";
+
 
 function NotFoundComponent() {
   return (
