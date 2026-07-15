@@ -16,10 +16,13 @@ export type MorningAnalysisItem = {
 
 export type MorningAnalysisPayload = {
   enabled: boolean;
+  user_enabled: boolean;
+  ai_enabled: boolean;
   client_count: number;
   items: MorningAnalysisItem[];
   generated_for: string; // ISO date (today)
 };
+
 
 export const getMorningAnalysis = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -45,7 +48,8 @@ export const getMorningAnalysis = createServerFn({ method: "GET" })
       ]);
 
     const aiEnabled = practice?.ai_features_enabled === true;
-    const enabled = aiEnabled && (prof?.morning_analysis_enabled ?? true);
+    const userEnabled = prof?.morning_analysis_enabled ?? true;
+    const enabled = aiEnabled && userEnabled;
     const client_count = clientCount ?? 0;
     const today = new Date();
     const startOfDay = new Date(
@@ -55,8 +59,9 @@ export const getMorningAnalysis = createServerFn({ method: "GET" })
     ).toISOString();
 
     if (!enabled || client_count === 0) {
-      return { enabled, client_count, items: [], generated_for: startOfDay };
+      return { enabled, user_enabled: userEnabled, ai_enabled: aiEnabled, client_count, items: [], generated_for: startOfDay };
     }
+
 
     const { data, error } = await supabase
       .from("practitioner_drafts")
@@ -95,7 +100,7 @@ export const getMorningAnalysis = createServerFn({ method: "GET" })
       }),
     );
 
-    return { enabled, client_count, items, generated_for: startOfDay };
+    return { enabled, user_enabled: userEnabled, ai_enabled: aiEnabled, client_count, items, generated_for: startOfDay };
   });
 
 export const setMorningAnalysisEnabled = createServerFn({ method: "POST" })
