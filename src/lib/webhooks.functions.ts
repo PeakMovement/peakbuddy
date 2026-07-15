@@ -82,9 +82,13 @@ function isDeliverableUrl(url: string): boolean {
   }
 }
 
-async function deliver(url: string, body: unknown) {
+type DeliveryResult =
+  | { fired: true; status: number }
+  | { fired: false; reason: "invalid_url" | "fetch_error" };
+
+async function deliver(url: string, body: unknown): Promise<DeliveryResult> {
   if (!isDeliverableUrl(url)) {
-    return { fired: false as const, reason: "invalid_url" as const };
+    return { fired: false, reason: "invalid_url" };
   }
   try {
     const res = await fetch(url, {
@@ -92,11 +96,16 @@ async function deliver(url: string, body: unknown) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    return { fired: true as const, status: res.status };
+    return { fired: true, status: res.status };
   } catch {
-    return { fired: false as const, reason: "fetch_error" as const };
+    return { fired: false, reason: "fetch_error" };
   }
 }
+
+type WebhookResults = {
+  central?: DeliveryResult;
+  practice?: DeliveryResult;
+};
 
 export const fireAlertWebhookServer = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => alertSchema.parse(input))
@@ -106,7 +115,7 @@ export const fireAlertWebhookServer = createServerFn({ method: "POST" })
       loadWebhookSettings(data.practitionerId),
       loadCentralTarget(data.practitionerId),
     ]);
-    const results: Record<string, unknown> = {};
+    const results: WebhookResults = {};
 
     // Central Buddy channel (one automation for everyone) — includes the target
     // practitioner's email + WhatsApp number so it can route to the right person.
@@ -151,7 +160,7 @@ export const fireContactWebhookServer = createServerFn({ method: "POST" })
       loadWebhookSettings(data.practitionerId),
       loadCentralTarget(data.practitionerId),
     ]);
-    const results: Record<string, unknown> = {};
+    const results: WebhookResults = {};
     if (central.enabled && central.url) {
       results.central = await deliver(central.url, {
         event: "buddy_contact",

@@ -60,6 +60,7 @@ import { Route as ApiPublicHooksNightlyPatternDetectionRouteImport } from './rou
 import { Route as ApiPublicHooksCheckinRemindersRouteImport } from './routes/api/public/hooks/checkin-reminders'
 import { Route as ApiPublicGoogleCalendarCallbackRouteImport } from './routes/api/public/google-calendar/callback'
 import { Route as ApiPublicCalendarTokenRouteImport } from './routes/api/public/calendar/$token'
+import { Route as ApiPublicAlertsActionRouteImport } from './routes/api/public/alerts/action'
 import { Route as AdminAppPractitionerPractitionerIdRouteImport } from './routes/admin.app.practitioner.$practitionerId'
 import { Route as AdminAppClientDetailClientIdRouteImport } from './routes/admin.app.client-detail.$clientId'
 import { Route as ApiPublicWearablesPolarCallbackRouteImport } from './routes/api/public/wearables/polar/callback'
@@ -335,6 +336,11 @@ const ApiPublicCalendarTokenRoute = ApiPublicCalendarTokenRouteImport.update({
   path: '/api/public/calendar/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAlertsActionRoute = ApiPublicAlertsActionRouteImport.update({
+  id: '/api/public/alerts/action',
+  path: '/api/public/alerts/action',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminAppPractitionerPractitionerIdRoute =
   AdminAppPractitionerPractitionerIdRouteImport.update({
     id: '/practitioner/$practitionerId',
@@ -420,6 +426,7 @@ export interface FileRoutesByFullPath {
   '/client/app/': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
+  '/api/public/alerts/action': typeof ApiPublicAlertsActionRoute
   '/api/public/calendar/$token': typeof ApiPublicCalendarTokenRoute
   '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
@@ -479,6 +486,7 @@ export interface FileRoutesByTo {
   '/client/app': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
+  '/api/public/alerts/action': typeof ApiPublicAlertsActionRoute
   '/api/public/calendar/$token': typeof ApiPublicCalendarTokenRoute
   '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
@@ -540,6 +548,7 @@ export interface FileRoutesById {
   '/client/app/': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
+  '/api/public/alerts/action': typeof ApiPublicAlertsActionRoute
   '/api/public/calendar/$token': typeof ApiPublicCalendarTokenRoute
   '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
@@ -602,6 +611,7 @@ export interface FileRouteTypes {
     | '/client/app/'
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
+    | '/api/public/alerts/action'
     | '/api/public/calendar/$token'
     | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
@@ -661,6 +671,7 @@ export interface FileRouteTypes {
     | '/client/app'
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
+    | '/api/public/alerts/action'
     | '/api/public/calendar/$token'
     | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
@@ -721,6 +732,7 @@ export interface FileRouteTypes {
     | '/client/app/'
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
+    | '/api/public/alerts/action'
     | '/api/public/calendar/$token'
     | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
@@ -760,6 +772,7 @@ export interface RootRouteChildren {
   PractitionerSignupRoute: typeof PractitionerSignupRoute
   ApiPublicTriageQueryRoute: typeof ApiPublicTriageQueryRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
+  ApiPublicAlertsActionRoute: typeof ApiPublicAlertsActionRoute
   ApiPublicCalendarTokenRoute: typeof ApiPublicCalendarTokenRoute
   ApiPublicGoogleCalendarCallbackRoute: typeof ApiPublicGoogleCalendarCallbackRoute
   ApiPublicHooksCheckinRemindersRoute: typeof ApiPublicHooksCheckinRemindersRoute
@@ -1137,6 +1150,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCalendarTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/alerts/action': {
+      id: '/api/public/alerts/action'
+      path: '/api/public/alerts/action'
+      fullPath: '/api/public/alerts/action'
+      preLoaderRoute: typeof ApiPublicAlertsActionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/app/practitioner/$practitionerId': {
       id: '/admin/app/practitioner/$practitionerId'
       path: '/practitioner/$practitionerId'
@@ -1287,6 +1307,7 @@ const rootRouteChildren: RootRouteChildren = {
   PractitionerSignupRoute: PractitionerSignupRoute,
   ApiPublicTriageQueryRoute: ApiPublicTriageQueryRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
+  ApiPublicAlertsActionRoute: ApiPublicAlertsActionRoute,
   ApiPublicCalendarTokenRoute: ApiPublicCalendarTokenRoute,
   ApiPublicGoogleCalendarCallbackRoute: ApiPublicGoogleCalendarCallbackRoute,
   ApiPublicHooksCheckinRemindersRoute: ApiPublicHooksCheckinRemindersRoute,
@@ -1310,13 +1331,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

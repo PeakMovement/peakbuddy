@@ -6,10 +6,6 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 
-// Default sender. Works out of the box via Resend's sandbox address — note
-// that Resend's sandbox only delivers to the verified Resend account owner.
-// For production, verify peakmovement.co.za (or a notify. subdomain) in
-// Resend and change this to e.g. "Buddy <notify@peakmovement.co.za>".
 const APP_BASE_URL = process.env.BUDDY_APP_BASE_URL || "https://peakbuddy.lovable.app";
 
 const inputSchema = z.object({
@@ -104,5 +100,124 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
       log.error("[notifyPractitioner] internal email failed", send.error);
       return { ok: false as const, error: send.error };
     }
+    return { ok: true as const };
+  });
+
+/**
+ * Fires the "practitioner alert" email when a patient logs a symptom that
+ * trips the risk profile. Idempotent on `alerts.email_fired`. Called
+ * server-side from the same client paths that already call `notifyAlertPush`
+ * (checkin, yves red-flag). No auth middleware: the alert row is the
+ * capability — we validate the caller against the alert's client.
+ */
+export const notifyAlertEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ alertId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { mintAlertActionToken } = await import("@/lib/alert-actions.server");
+
+    // Load the alert and gate on email_fired.
+    const { data: alert } = await supabaseAdmin
+      .from("alerts")
+      .select("id, practitioner_id, client_id, message, urgency, email_fired, created_at")
+      .eq("id", data.alertId)
+      .maybeSingle();
+    if (!alert) return { ok: false as const, reason: "not_found" as const };
+    if (alert.email_fired) return { ok: true as const, skipped: "already_sent" as const };
+
+    // Load client (for name + phone + owner check) and validate the caller.
+    const { data: client } = await supabaseAdmin
+      .from("clients")
+      .select("id, full_name, phone, auth_user_id")
+      .eq("id", alert.client_id)
+      .maybeSingle();
+    if (!client) return { ok: false as const, reason: "client_not_found" as const };
+    if (client.auth_user_id !== context.userId) {
+      // Server-side callers (nightly hooks, etc) can also trigger this via
+      // super_admin escalation.
+      const { data: prof } = await supabaseAdmin
+        .from("profiles")
+        .select("role")
+        .eq("id", context.userId)
+        .maybeSingle();
+      if ((prof as { role?: string } | null)?.role !== "super_admin") {
+        return { ok: false as const, reason: "forbidden" as const };
+      }
+    }
+
+    // Load practitioner email + display name.
+    const [{ data: prof }, { data: userRes }] = await Promise.all([
+      supabaseAdmin.from("profiles").select("full_name").eq("id", alert.practitioner_id).maybeSingle(),
+      supabaseAdmin.auth.admin.getUserById(alert.practitioner_id),
+    ]);
+    const practitionerEmail = userRes?.user?.email;
+    if (!practitionerEmail) {
+      return { ok: false as const, reason: "no_practitioner_email" as const };
+    }
+    const practitionerName = (prof as { full_name?: string } | null)?.full_name || "Practitioner";
+
+    // Mint action tokens.
+    const [checkinToken, reviewedToken] = await Promise.all([
+      mintAlertActionToken({
+        alertId: alert.id,
+        practitionerId: alert.practitioner_id,
+        action: "checkin",
+      }),
+      mintAlertActionToken({
+        alertId: alert.id,
+        practitionerId: alert.practitioner_id,
+        action: "reviewed",
+      }),
+    ]);
+
+    const firstName = (client.full_name || "Your client").trim().split(/\s+/)[0];
+    const viewUrl = `${APP_BASE_URL}/practitioner/app/client-detail/${client.id}`;
+    const checkinUrl = `${APP_BASE_URL}/api/public/alerts/action?token=${encodeURIComponent(checkinToken)}`;
+    const reviewedUrl = `${APP_BASE_URL}/api/public/alerts/action?token=${encodeURIComponent(reviewedToken)}`;
+
+    // WhatsApp deep link — digits only, prefixed with country code. If the
+    // stored number is a plain local number this may not dial correctly, but
+    // wa.me will show a friendly picker.
+    const phoneDigits = (client.phone || "").replace(/\D/g, "");
+    const whatsappUrl = phoneDigits
+      ? `https://wa.me/${phoneDigits}?text=${encodeURIComponent(
+          `Hi ${firstName}, this is ${practitionerName} following up on your recent Buddy check-in.`,
+        )}`
+      : null;
+
+    const timestamp = new Date(alert.created_at || Date.now()).toLocaleString("en-ZA", {
+      timeZone: "Africa/Johannesburg",
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+
+    const { sendTransactionalEmailServer } = await import("@/lib/email/send-server");
+    const send = await sendTransactionalEmailServer({
+      templateName: "practitioner-alert",
+      recipientEmail: practitionerEmail,
+      idempotencyKey: `alert-${alert.id}`,
+      templateData: {
+        clientName: client.full_name,
+        clientFirstName: firstName,
+        practitionerName,
+        alertMessage: alert.message,
+        urgency: alert.urgency,
+        timestamp,
+        viewUrl,
+        checkinUrl,
+        reviewedUrl,
+        whatsappUrl,
+      },
+    });
+
+    if (!send.ok) {
+      log.error("[notifyAlertEmail] send failed", send.error);
+      return { ok: false as const, reason: "send_failed" as const };
+    }
+
+    await supabaseAdmin.from("alerts").update({ email_fired: true }).eq("id", alert.id);
     return { ok: true as const };
   });

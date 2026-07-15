@@ -14,6 +14,8 @@ export async function getPracticeWebhookSettings(practitionerId: string) {
   } | null;
 }
 
+type WebhookFireResult = { fired: boolean; reason?: string };
+
 export async function fireAlertWebhook(payload: {
   practitionerId: string;
   clientName: string;
@@ -21,11 +23,12 @@ export async function fireAlertWebhook(payload: {
   alertMessage: string;
   urgency: string;
   redFlagDetected: boolean;
-}) {
+}): Promise<WebhookFireResult> {
   // Delegates to a server function — webhook settings and delivery never
   // touch the patient's browser.
   const { fireAlertWebhookServer } = await import("@/lib/webhooks.functions");
-  return fireAlertWebhookServer({ data: payload });
+  const r = await fireAlertWebhookServer({ data: payload });
+  return { fired: !!r.fired, reason: r.reason };
 }
 
 export async function fireContactWebhook(payload: {
@@ -34,9 +37,10 @@ export async function fireContactWebhook(payload: {
   clientId: string;
   symptomDescription: string;
   symptomScore: number;
-}) {
+}): Promise<WebhookFireResult> {
   const { fireContactWebhookServer } = await import("@/lib/webhooks.functions");
-  return fireContactWebhookServer({ data: payload });
+  const r = await fireContactWebhookServer({ data: payload });
+  return { fired: !!r.fired, reason: r.reason };
 }
 
 /**

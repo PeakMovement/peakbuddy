@@ -242,13 +242,20 @@ function CheckInScreen() {
             .eq("id", alertRowId);
         }
 
-        // Push the practitioner (best-effort, first name only — no symptom detail).
+        // Push + email the practitioner (best-effort). Both are idempotent
+        // via `alerts.push_fired` / `alerts.email_fired`.
         if (alertRowId) {
           try {
-            const { notifyAlertPush } = await import("@/lib/push.functions");
-            await notifyAlertPush({ data: { alertId: alertRowId, kind: "checkin" } });
+            const [{ notifyAlertPush }, { notifyAlertEmail }] = await Promise.all([
+              import("@/lib/push.functions"),
+              import("@/lib/notify-practitioner.functions"),
+            ]);
+            await Promise.all([
+              notifyAlertPush({ data: { alertId: alertRowId, kind: "checkin" } }),
+              notifyAlertEmail({ data: { alertId: alertRowId } }),
+            ]);
           } catch (e) {
-            log.warn("[Check-in] practitioner push failed:", e);
+            log.warn("[Check-in] practitioner notify failed:", e);
           }
         }
 

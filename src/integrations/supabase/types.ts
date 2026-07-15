@@ -14,11 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      alert_action_tokens: {
+        Row: {
+          action: string
+          alert_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          practitioner_id: string
+          token_hash: string
+          used_at: string | null
+        }
+        Insert: {
+          action: string
+          alert_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          practitioner_id: string
+          token_hash: string
+          used_at?: string | null
+        }
+        Update: {
+          action?: string
+          alert_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          practitioner_id?: string
+          token_hash?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_action_tokens_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alerts: {
         Row: {
           alert_type: string
           client_id: string
           created_at: string
+          email_fired: boolean
           id: string
           is_read: boolean
           message: string | null
@@ -30,6 +72,8 @@ export type Database = {
           practitioner_id: string
           push_fired: boolean
           red_flag_category: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           urgency: string
           webhook_fired: boolean
         }
@@ -37,6 +81,7 @@ export type Database = {
           alert_type: string
           client_id: string
           created_at?: string
+          email_fired?: boolean
           id?: string
           is_read?: boolean
           message?: string | null
@@ -48,6 +93,8 @@ export type Database = {
           practitioner_id: string
           push_fired?: boolean
           red_flag_category?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           urgency: string
           webhook_fired?: boolean
         }
@@ -55,6 +102,7 @@ export type Database = {
           alert_type?: string
           client_id?: string
           created_at?: string
+          email_fired?: boolean
           id?: string
           is_read?: boolean
           message?: string | null
@@ -66,6 +114,8 @@ export type Database = {
           practitioner_id?: string
           push_fired?: boolean
           red_flag_category?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           urgency?: string
           webhook_fired?: boolean
         }
