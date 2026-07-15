@@ -92,6 +92,27 @@ export function RewardsManager() {
   };
 
 
+  const toggleActive = async () => {
+    setSchedSaving(true);
+    setSchedMsg(null);
+    try {
+      const next = await updateRewardsSchedule({
+        data: { enabled: !schedEnabled, allowedDays: schedDays },
+      });
+      setSchedEnabled(next.enabled);
+      setSchedDays(next.allowedDays);
+      setSchedMsg(
+        next.enabled
+          ? "Rewards activated — now visible to practitioners and clients."
+          : "Rewards deactivated — hidden from practitioners and clients.",
+      );
+    } catch (e) {
+      setSchedMsg(e instanceof Error ? e.message : "Could not update rewards");
+    } finally {
+      setSchedSaving(false);
+    }
+  };
+
   const reset = () => {
     setForm({ ...EMPTY });
     setEditing(false);
@@ -152,24 +173,47 @@ export function RewardsManager() {
       <div style={titleStyle}>Rewards</div>
       <p style={{ color: "var(--white-muted)", fontSize: 12, marginTop: 4 }}>
         Discount vouchers clients can earn. When a practitioner approves a reward, a random active
-        reward is given.
+        reward is given. Rewards are hidden from practitioners and clients until you activate them
+        below.
       </p>
 
       <div style={{ ...cardStyle, marginTop: 12 }}>
         <div style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 600 }}>
           Reward availability
         </div>
-        <label style={toggleRow}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+            background: "var(--navy)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 8,
+            padding: "12px 14px",
+            minHeight: 48,
+          }}
+        >
           <span style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
-            Rewards enabled
+            Status:{" "}
+            <strong style={{ color: schedEnabled ? "var(--green)" : "var(--white-muted)" }}>
+              {schedEnabled ? "Active" : "Inactive"}
+            </strong>
           </span>
-          <input
-            type="checkbox"
-            checked={schedEnabled}
-            onChange={(e) => setSchedEnabled(e.target.checked)}
-            style={{ width: 22, height: 22, accentColor: "var(--blue-accent)" }}
-          />
-        </label>
+        </div>
+        <button
+          type="button"
+          onClick={toggleActive}
+          disabled={schedSaving}
+          style={{
+            ...primaryBtn,
+            background: schedEnabled ? "var(--navy)" : "var(--blue-accent)",
+            border: schedEnabled ? "1px solid var(--navy-border)" : "none",
+            color: schedEnabled ? "var(--white-muted)" : "var(--white)",
+          }}
+        >
+          {schedSaving ? "Working…" : schedEnabled ? "Deactivate rewards" : "Activate rewards"}
+        </button>
         <div style={{ color: "var(--white-muted)", fontSize: 12 }}>
           Days practitioners can approve rewards (UTC):
         </div>
@@ -203,7 +247,7 @@ export function RewardsManager() {
           <div style={{ color: "var(--white-muted)", fontSize: 12 }}>{schedMsg}</div>
         )}
         <button type="button" onClick={saveSchedule} disabled={schedSaving} style={primaryBtn}>
-          {schedSaving ? "Saving…" : "Save availability"}
+          {schedSaving ? "Saving…" : "Save days"}
         </button>
       </div>
 

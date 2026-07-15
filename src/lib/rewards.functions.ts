@@ -279,6 +279,23 @@ export const listMyRewards = createServerFn({ method: "GET" })
     return (rows ?? []).map(normalizeReward);
   });
 
+// Any authenticated user (client or practitioner) can read whether rewards are
+// live, so their UI can show/hide the rewards surfaces. Defaults to false — the
+// rewards experience stays hidden until an admin explicitly activates it.
+export const getRewardsStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async (): Promise<{ enabled: boolean }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as SupabaseClient;
+    const { data } = await db
+      .from("platform_settings")
+      .select("rewards_enabled")
+      .maybeSingle();
+    return {
+      enabled: (data as { rewards_enabled?: boolean } | null)?.rewards_enabled === true,
+    };
+  });
+
 // ---- Super-admin: global rewards availability schedule ----
 
 export type RewardsSchedule = { enabled: boolean; allowedDays: number[] };

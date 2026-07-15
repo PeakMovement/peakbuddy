@@ -4,6 +4,7 @@ import { Gift } from "lucide-react";
 import {
   approveClientReward,
   listClientRewards,
+  getRewardsStatus,
   type IssuedReward,
 } from "@/lib/rewards.functions";
 
@@ -13,6 +14,7 @@ import {
  */
 export function ClientRewardsSection({ clientId }: { clientId: string }) {
   const [rewards, setRewards] = useState<IssuedReward[]>([]);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -20,6 +22,9 @@ export function ClientRewardsSection({ clientId }: { clientId: string }) {
 
   const load = async () => {
     try {
+      const status = await getRewardsStatus().catch(() => ({ enabled: false }));
+      setEnabled(status.enabled);
+      if (!status.enabled) return;
       setRewards(await listClientRewards({ data: { clientId } }));
     } catch {
       /* non-fatal */
@@ -46,6 +51,8 @@ export function ClientRewardsSection({ clientId }: { clientId: string }) {
       setBusy(false);
     }
   };
+
+  if (!enabled) return null;
 
   return (
     <section style={{ marginTop: 28 }}>

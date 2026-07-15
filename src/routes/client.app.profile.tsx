@@ -13,6 +13,7 @@ import {
 import { deleteMyAccount } from "@/lib/account-delete.functions";
 import { updateClientPhone, updateMyEmail } from "@/lib/client-profile.functions";
 import { MyRewards } from "@/components/MyRewards";
+import { getRewardsStatus } from "@/lib/rewards.functions";
 import { NotificationSubscribeButton } from "@/components/NotificationSubscribeButton";
 import { BodyForecastBeta } from "@/components/BodyForecastBeta";
 import { CalendarFeedCard } from "@/components/CalendarFeedCard";
@@ -56,6 +57,12 @@ function ClientProfile() {
   const [timelineItems, setTimelineItems] = useState<CheckIn[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [openCheckInId, setOpenCheckInId] = useState<string | null>(null);
+  const [rewardsOn, setRewardsOn] = useState(false);
+  useEffect(() => {
+    getRewardsStatus()
+      .then((r) => setRewardsOn(r.enabled))
+      .catch(() => setRewardsOn(false));
+  }, []);
 
   useEffect(() => {
     const id = getClientId();
@@ -263,9 +270,13 @@ function ClientProfile() {
       <NotificationSubscribeButton />
       {client && <BodyForecastBeta client={client} />}
 
-      {/* Rewards */}
-      <SectionHeader>Rewards</SectionHeader>
-      <MyRewards />
+      {/* Rewards — only shown when an admin has activated the rewards feature */}
+      {rewardsOn && (
+        <>
+          <SectionHeader>Rewards</SectionHeader>
+          <MyRewards />
+        </>
+      )}
 
       {/* Wearables — collapsible dropdown; recharts loads only when expanded. */}
       <div id="wearables" style={{ scrollMarginTop: 80, marginTop: 8 }}>
