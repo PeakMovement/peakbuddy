@@ -260,10 +260,16 @@ function YvesScreen() {
 
     if (alertRowId) {
       try {
-        const { notifyAlertPush } = await import("@/lib/push.functions");
-        await notifyAlertPush({ data: { alertId: alertRowId, kind: "yves" } });
+        const [{ notifyAlertPush }, { notifyAlertEmail }] = await Promise.all([
+          import("@/lib/push.functions"),
+          import("@/lib/notify-practitioner.functions"),
+        ]);
+        await Promise.all([
+          notifyAlertPush({ data: { alertId: alertRowId, kind: "yves" } }),
+          notifyAlertEmail({ data: { alertId: alertRowId } }),
+        ]);
       } catch (e) {
-        log.warn("[Yves] push notify failed:", e);
+        log.warn("[Yves] practitioner notify failed:", e);
       }
     }
   };
