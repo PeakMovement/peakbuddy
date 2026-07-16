@@ -4,6 +4,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { z } from "zod";
 
+// South Africa has no DST; SAST is a fixed UTC+2. Gate reward availability on
+// the local weekday rather than UTC so the day boundary matches users.
+function sastWeekday(): number {
+  return new Date(Date.now() + 2 * 60 * 60 * 1000).getUTCDay();
+}
+
 export type Reward = {
   id: string;
   name: string;
@@ -167,7 +173,7 @@ export const approveClientReward = createServerFn({ method: "POST" })
       throw new Error("Rewards are currently disabled by the administrator.");
     }
     const allowedDays: number[] = ((settings as any)?.rewards_allowed_days ?? [0, 1, 2, 3, 4, 5, 6]) as number[];
-    const today = new Date().getUTCDay();
+    const today = sastWeekday();
     if (!allowedDays.includes(today)) {
       const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
       const list = allowedDays.length === 0
@@ -424,7 +430,7 @@ export const autoIssueMilestoneReward = createServerFn({ method: "POST" })
       return { issued: false as const, reason: "disabled" as const };
     const allowedDays = ((settings as { rewards_allowed_days?: number[] } | null)?.rewards_allowed_days ??
       [0, 1, 2, 3, 4, 5, 6]) as number[];
-    if (!allowedDays.includes(new Date().getUTCDay()))
+    if (!allowedDays.includes(sastWeekday()))
       return { issued: false as const, reason: "day_not_allowed" as const };
 
     const { data: prac } = await db

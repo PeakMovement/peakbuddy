@@ -332,6 +332,17 @@ export const notifyAlertPush = createServerFn({ method: "POST" })
           ? `${firstName} logged a check-in that may need review`
           : `${firstName} reported symptoms that may need review`;
 
+    // Atomically claim the push (only one row updates when push_fired is still
+    // false) so two near-simultaneous triggers can't double-send.
+    const { data: claimed } = await supabaseAdmin
+      .from("alerts")
+      .update({ push_fired: true })
+      .eq("id", alert.id)
+      .eq("push_fired", false)
+      .select("id")
+      .maybeSingle();
+    if (!claimed) return { ok: true as const, skipped: "already_fired" as const };
+
     await sendPushCore(supabaseAdmin, {
       userId: alert.practitioner_id,
       title,
@@ -339,11 +350,6 @@ export const notifyAlertPush = createServerFn({ method: "POST" })
       data: { alertId: alert.id, clientId: alert.client_id },
       sentBy: context.userId,
     });
-
-    await supabaseAdmin
-      .from("alerts")
-      .update({ push_fired: true })
-      .eq("id", alert.id);
 
     return { ok: true as const };
   });

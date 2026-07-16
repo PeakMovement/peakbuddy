@@ -215,7 +215,7 @@ export function RewardsManager() {
           {schedSaving ? "Working…" : schedEnabled ? "Deactivate rewards" : "Activate rewards"}
         </button>
         <div style={{ color: "var(--white-muted)", fontSize: 12 }}>
-          Days practitioners can approve rewards (UTC):
+          Days practitioners can approve rewards (SAST):
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label, idx) => {

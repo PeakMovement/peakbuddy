@@ -65,7 +65,9 @@ export function MyRewards() {
         // Mark as seen so the badge clears next visit.
         const next = new Set(seen);
         list.forEach((r) => next.add(r.id));
-        saveSeen(next);
+        // Defer marking-as-seen so an unseen-count badge reading on the same
+        // render still reflects this session; it clears on the next visit.
+        window.setTimeout(() => saveSeen(next), 1500);
       } catch {
         setRewards([]);
       }
