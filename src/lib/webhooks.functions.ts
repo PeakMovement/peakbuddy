@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
 // Server-side webhook delivery. Webhooks previously fired from the patient's
@@ -108,6 +109,7 @@ type WebhookResults = {
 };
 
 export const fireAlertWebhookServer = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => alertSchema.parse(input))
   .handler(async ({ data }) => {
     const ts = new Date().toISOString();
@@ -153,6 +155,7 @@ export const fireAlertWebhookServer = createServerFn({ method: "POST" })
   });
 
 export const fireContactWebhookServer = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => contactSchema.parse(input))
   .handler(async ({ data }) => {
     const ts = new Date().toISOString();

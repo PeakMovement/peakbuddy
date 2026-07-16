@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 /**
  * Master AI feature gate.
@@ -34,6 +35,7 @@ export async function isPracticeAiEnabledFor(
 
 /** Server function: returns whether AI features are enabled for the given client's practice. */
 export const getClientAiEnabled = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: { clientId: string }) => input)
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -49,6 +51,7 @@ export const getClientAiEnabled = createServerFn({ method: "POST" })
 
 /** Server function: returns whether AI features are enabled for the calling practitioner's practice. */
 export const getPractitionerAiEnabled = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: { practitionerId: string }) => input)
   .handler(async ({ data }) => {
     const enabled = await isPracticeAiEnabledFor(null, data.practitionerId);

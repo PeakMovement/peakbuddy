@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export const getClientYvesAccess = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data: { clientId: string }) => {
     if (!data?.clientId || typeof data.clientId !== "string") {
       throw new Error("clientId is required");

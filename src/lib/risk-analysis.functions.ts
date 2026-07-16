@@ -1,5 +1,29 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+/** Only the client themselves, their practitioner, or a super admin may
+ *  read/compute a given client's risk data. Throws otherwise. */
+async function assertClientAccess(
+  admin: SupabaseClient,
+  userId: string,
+  clientId: string,
+): Promise<void> {
+  const { data: c } = await admin
+    .from("clients")
+    .select("auth_user_id, practitioner_id")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (!c) throw new Error("Forbidden");
+  if (c.auth_user_id === userId || c.practitioner_id === userId) return;
+  const { data: prof } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  if (prof?.role !== "super_admin") throw new Error("Forbidden");
+}
 
 /** Per-metric weights — must sum to 1. */
 const WEIGHTS = { pain: 0.35, sleep: 0.2, stress: 0.2, energy: 0.15, mood: 0.1 } as const;
@@ -77,11 +101,13 @@ export type ComputedRisk = {
 };
 
 export const computeBaseline = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: { clientId: string }) =>
     z.object({ clientId: z.string().uuid() }).parse(d),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await assertClientAccess(supabaseAdmin as unknown as SupabaseClient, context.userId, data.clientId);
     const since = new Date(Date.now() - BASELINE_DAYS * 86_400_000).toISOString();
     const { data: rows } = await supabaseAdmin
       .from("check_ins")
@@ -173,11 +199,13 @@ function computeRiskFromData(
 }
 
 export const computeRiskScore = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: { clientId: string; forDate?: string }) =>
     z.object({ clientId: z.string().uuid(), forDate: z.string().optional() }).parse(d),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await assertClientAccess(supabaseAdmin as unknown as SupabaseClient, context.userId, data.clientId);
     const forDate = data.forDate ?? new Date().toISOString().slice(0, 10);
 
     const { data: baselineRow } = await supabaseAdmin
@@ -229,11 +257,13 @@ export type ListRiskTrendItem = {
 };
 
 export const listClientRiskTrend = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: { clientId: string; days?: number }) =>
     z.object({ clientId: z.string().uuid(), days: z.number().int().min(1).max(90).optional() }).parse(d),
   )
-  .handler(async ({ data }): Promise<ListRiskTrendItem[]> => {
+  .handler(async ({ data, context }): Promise<ListRiskTrendItem[]> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await assertClientAccess(supabaseAdmin as unknown as SupabaseClient, context.userId, data.clientId);
     const days = data.days ?? 14;
     const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
     const { data: rows } = await supabaseAdmin

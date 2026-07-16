@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const inputSchema = z.object({
   practitionerId: z.string().uuid(),
@@ -14,9 +15,22 @@ const inputSchema = z.object({
 });
 
 export const createClientAccount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => inputSchema.parse(input))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+
+    // Authz: only the practitioner adding to their own roster (or a super admin).
+    if (context.userId !== data.practitionerId) {
+      const { data: prof } = await admin
+        .from("profiles")
+        .select("role")
+        .eq("id", context.userId)
+        .maybeSingle();
+      if (prof?.role !== "super_admin") {
+        return { ok: false as const, error: "Forbidden." };
+      }
+    }
     const { isProgramsFeatureEnabled } = await import("@/lib/client-program.functions");
     const programsEnabled = await isProgramsFeatureEnabled();
     const suggestedProgramId = programsEnabled ? (data.suggestedProgramId ?? null) : null;

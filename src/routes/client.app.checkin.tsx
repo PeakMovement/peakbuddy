@@ -210,10 +210,19 @@ function CheckInScreen() {
 
     const insertedId = newId as string;
 
+    // Urgency must reflect the strongest signal — an emergency keyword in the
+    // notes must not be downgraded to "urgent".
+    const URGENCY_RANK = { routine: 0, monitor: 1, soon: 2, urgent: 3, emergency: 4 } as const;
+    const painUrgency: keyof typeof URGENCY_RANK = pain >= 7 ? "urgent" : "routine";
+    const noteUrgency: keyof typeof URGENCY_RANK = notesFlagged ? rt.urgency : "routine";
+    const effectiveUrgency =
+      URGENCY_RANK[noteUrgency] >= URGENCY_RANK[painUrgency] ? noteUrgency : painUrgency;
+
     if (flagged) {
       const existing = await findRecentOpenAlert(client.id, "red_flag");
 
-      if (!existing) {
+      // Always (re)alert on an emergency, even within the 24h dedup window.
+      if (!existing || effectiveUrgency === "emergency") {
         const alertMessage =
           pain >= 7
             ? `Pain level ${pain}/10 reported in check-in.`
@@ -226,7 +235,7 @@ function CheckInScreen() {
             p_client_id: client.id,
             p_alert_type: "red_flag",
             p_message: alertMessage,
-            p_urgency: "urgent",
+            p_urgency: effectiveUrgency,
           });
           if (alertErr) throw alertErr;
           alertRowId = (alertId as string | null) ?? null;
@@ -264,7 +273,7 @@ function CheckInScreen() {
           clientName: client.full_name,
           clientId: client.id,
           alertMessage: "Red flag symptom detected in daily check-in",
-          urgency: "urgent",
+          urgency: effectiveUrgency,
           redFlagDetected: true,
         });
 
@@ -288,7 +297,9 @@ function CheckInScreen() {
         .map((c) => c.pain_level)
         .filter((p): p is number => typeof p === "number");
       // Include today's submission as the newest if not yet returned by DB
-      const series = [pain, ...pains].slice(0, 4);
+      // check_ins already includes today's just-inserted row; use it directly
+      // (fall back to today only if the read came back empty).
+      const series = pains.length > 0 ? pains.slice(0, 4) : [pain];
       const rising =
         series.length >= 3 &&
         series[0] - series[series.length - 1] >= 3 &&

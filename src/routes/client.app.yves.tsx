@@ -219,7 +219,7 @@ function YvesScreen() {
 
   const fireAlertForResult = async (triage: TriageResult, queryText: string) => {
     if (!client) return;
-    const existingAlert = await findRecentOpenAlert(client.id, "yves_red_flag");
+    const existingAlert = await findRecentOpenAlert(client.id, "red_flag");
     if (existingAlert) return;
 
     let alertRowId: string | null = null;
@@ -327,6 +327,18 @@ function YvesScreen() {
       return;
     }
 
+    // Decide whether to alert BEFORE inserting this query. Otherwise the
+    // freshly-inserted red-flag row makes the 24h duplicate check match
+    // itself and the practitioner alert never fires.
+    let shouldAlert = false;
+    if (triage.red_flag_detected) {
+      try {
+        shouldAlert = !(await checkRecentRedFlagQuery());
+      } catch {
+        shouldAlert = true; // fail open — a possible dup beats a missed red flag
+      }
+    }
+
     // Persist via direct insert (RLS allows client_id = current_client_id())
     let insertedId: string | null = null;
     try {
@@ -352,13 +364,10 @@ function YvesScreen() {
       setError(CLIENT_GENERIC_ERROR);
     }
 
-    // Duplicate prevention BEFORE alert
-    if (triage.red_flag_detected) {
+    // Fire the practitioner alert (decision made above, pre-insert).
+    if (shouldAlert) {
       try {
-        const dup = await checkRecentRedFlagQuery();
-        if (!dup) {
-          await fireAlertForResult(triage, queryText);
-        }
+        await fireAlertForResult(triage, queryText);
       } catch (e) {
         log.warn("Alert flow failed:", e);
       }
