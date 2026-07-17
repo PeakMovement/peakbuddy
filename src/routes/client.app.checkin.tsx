@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId, startOfTodayISO } from "@/lib/client-session";
-import { analyzeRealTime } from "@/lib/yves";
+import { evaluateCheckIn } from "@/lib/yves";
 import { fireAlertWebhook, findRecentOpenAlert } from "@/lib/webhooks";
 import {
   cacheClient,
@@ -129,9 +129,8 @@ function CheckInScreen() {
     setSubmitError(null);
     setSubmitting(true);
 
-    const rt = analyzeRealTime(notes);
-    const notesFlagged = rt.detected && rt.severity >= 6;
-    const flagged = pain >= 7 || notesFlagged;
+    // Shared triage helper — keeps this screen and the offline queue in step.
+    const { realtime: rt, flagged, urgency: effectiveUrgency } = evaluateCheckIn(pain, notes);
 
     const queuePayload = {
       queued_at: new Date().toISOString(),
@@ -209,14 +208,6 @@ function CheckInScreen() {
     }
 
     const insertedId = newId as string;
-
-    // Urgency must reflect the strongest signal — an emergency keyword in the
-    // notes must not be downgraded to "urgent".
-    const URGENCY_RANK = { routine: 0, monitor: 1, soon: 2, urgent: 3, emergency: 4 } as const;
-    const painUrgency: keyof typeof URGENCY_RANK = pain >= 7 ? "urgent" : "routine";
-    const noteUrgency: keyof typeof URGENCY_RANK = notesFlagged ? rt.urgency : "routine";
-    const effectiveUrgency =
-      URGENCY_RANK[noteUrgency] >= URGENCY_RANK[painUrgency] ? noteUrgency : painUrgency;
 
     if (flagged) {
       const existing = await findRecentOpenAlert(client.id, "red_flag");

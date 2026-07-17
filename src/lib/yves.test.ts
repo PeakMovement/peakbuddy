@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { checkHardOverride, applyKeywordFloor, analyzeRealTime } from "./yves";
+import { checkHardOverride, applyKeywordFloor, analyzeRealTime, evaluateCheckIn } from "./yves";
 
 describe("checkHardOverride", () => {
   it("triggers on emergency phrases", () => {
@@ -183,5 +183,58 @@ describe("merged vocabulary", () => {
     const r = applyKeywordFloor("high fever since last night", "routine", 0);
     // "fever" substring is dropped, so no spurious infection cluster bonus.
     expect(r.severity).toBeLessThanOrEqual(8);
+  });
+});
+
+describe("evaluateCheckIn (shared check-in triage)", () => {
+  it("flags high pain as urgent", () => {
+    const r = evaluateCheckIn(8, "");
+    expect(r.flagged).toBe(true);
+    expect(r.urgency).toBe("urgent");
+  });
+
+  it("never downgrades an emergency note to urgent", () => {
+    const r = evaluateCheckIn(3, "chest pain since this morning");
+    expect(r.flagged).toBe(true);
+    expect(r.urgency).toBe("emergency");
+  });
+
+  it("leaves a benign check-in unflagged", () => {
+    const r = evaluateCheckIn(3, "feeling good, slept well");
+    expect(r.flagged).toBe(false);
+    expect(r.urgency).toBe("routine");
+  });
+
+  it("only flags notes at severity >= 6", () => {
+    // "numbness" alone scores 5 — below the notes-flag threshold.
+    expect(evaluateCheckIn(2, "numbness in my foot").flagged).toBe(false);
+    // "burning down my leg" scores 7 — flags.
+    expect(evaluateCheckIn(4, "burning pain down my leg").flagged).toBe(true);
+  });
+});
+
+describe("Afrikaans / SA red-flag coverage", () => {
+  it("treats Afrikaans emergencies as hard overrides", () => {
+    expect(checkHardOverride("ek dink ek het n hartaanval").triggered).toBe(true);
+    expect(checkHardOverride("ek het n beroerte gehad").triggered).toBe(true);
+    expect(checkHardOverride("ek kan nie asemhaal nie").triggered).toBe(true);
+    expect(checkHardOverride("ek dink aan selfmoord").triggered).toBe(true);
+  });
+
+  it("escalates Afrikaans floor terms", () => {
+    const r = applyKeywordFloor("brandende pyn in my been", "routine", 0);
+    expect(r.matchedTerms).toContain("brandende pyn");
+    expect(r.urgency).toBe("soon");
+  });
+
+  it("clusters Afrikaans infection signs without double-counting koors", () => {
+    const r = applyKeywordFloor("ek het hoe koors en n stywe nek", "routine", 0);
+    expect(r.urgency).toBe("urgent");
+    expect(r.severity).toBeGreaterThanOrEqual(7);
+    expect(r.matchedTerms).not.toContain("koors"); // dropped in favour of "hoe koors"
+  });
+
+  it("routes an Afrikaans emergency through evaluateCheckIn", () => {
+    expect(evaluateCheckIn(3, "ek kan nie asemhaal nie").urgency).toBe("emergency");
   });
 });

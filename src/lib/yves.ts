@@ -135,6 +135,21 @@ const HARD_OVERRIDE_PHRASES: Array<{ term: string; category: RedFlagCategory }> 
   { term: "coughing up blood", category: "respiratory" },
   { term: "vomiting blood", category: "general" },
   { term: "puked blood", category: "general" },
+  // ── Afrikaans emergencies (SA market). Only unambiguous, multi-syllable
+  //    terms — short/ambiguous words are left to the keyword floor because
+  //    matching here is substring-based.
+  { term: "hartaanval", category: "cardiac" }, // heart attack
+  { term: "beroerte", category: "neuro" }, // stroke
+  { term: "stuiptrekking", category: "neuro" }, // seizure/convulsion
+  { term: "verlamming", category: "neuro" }, // paralysis
+  { term: "verlam", category: "neuro" }, // paralysed
+  { term: "bewusteloos", category: "general" }, // unconscious
+  { term: "kan nie asemhaal", category: "respiratory" }, // cannot breathe
+  { term: "nie asemhaal nie", category: "respiratory" },
+  { term: "selfmoord", category: "mental_health" }, // suicide
+  { term: "myself doodmaak", category: "mental_health" }, // kill myself
+  { term: "bloed opgooi", category: "general" }, // vomiting blood
+  { term: "pyn op die bors", category: "cardiac" }, // pain on the chest
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -254,6 +269,22 @@ const KEYWORD_FLOOR_RAW: Array<{
   { term: "fever", minUrgency: "monitor", minSeverity: 4, category: "infection" },
   { term: "neck stiffness", minUrgency: "urgent", minSeverity: 7, category: "infection" },
   { term: "naar", minUrgency: "monitor", minSeverity: 3, category: "general" }, // Afrikaans: nauseous
+
+  // ── Afrikaans / SA lay red-flag terms (substring-matched, so kept distinctive)
+  { term: "hartkloppings", minUrgency: "soon", minSeverity: 5, category: "cardiac" }, // palpitations
+  { term: "brandende pyn", minUrgency: "soon", minSeverity: 6, category: "neuro" }, // burning pain
+  { term: "skietende pyn", minUrgency: "soon", minSeverity: 5, category: "neuro" }, // shooting pain
+  { term: "gevoelloos", minUrgency: "soon", minSeverity: 5, category: "neuro" }, // numb
+  { term: "verdowing", minUrgency: "soon", minSeverity: 5, category: "neuro" }, // numbness
+  { term: "flou word", minUrgency: "urgent", minSeverity: 7, category: "neuro" }, // fainting
+  { term: "stywe nek", minUrgency: "urgent", minSeverity: 7, category: "infection" }, // stiff neck
+  { term: "hoë koors", minUrgency: "urgent", minSeverity: 7, category: "infection" }, // high fever
+  { term: "hoe koors", minUrgency: "urgent", minSeverity: 7, category: "infection" }, // (no diacritic)
+  { term: "koors", minUrgency: "monitor", minSeverity: 4, category: "infection" }, // fever
+  { term: "bloed in my urine", minUrgency: "urgent", minSeverity: 7, category: "systemic" },
+  { term: "bloed in my stoel", minUrgency: "urgent", minSeverity: 7, category: "systemic" }, // blood in stool
+  { term: "gewigsverlies", minUrgency: "soon", minSeverity: 5, category: "systemic" }, // weight loss
+  { term: "nagsweet", minUrgency: "soon", minSeverity: 5, category: "systemic" }, // night sweats
 
   // ── Merged upward from the precursor engine — clinically-meaningful terms
   //    Buddy's floor was missing. Deduped against existing terms at build time.
@@ -618,6 +649,32 @@ export function analyzeRealTime(text: string): RealTimeResult {
     matchedTerms: floor.matchedTerms,
     category: floor.topCategory,
   };
+}
+
+export interface CheckInEvaluation {
+  /** Real-time keyword/override scan of the free-text notes. */
+  realtime: RealTimeResult;
+  /** Whether this check-in should be flagged for practitioner review. */
+  flagged: boolean;
+  /** Highest urgency implied by the pain score OR the notes. An emergency term
+   *  in the notes is never downgraded to "urgent". */
+  urgency: UrgencyTier;
+}
+
+/**
+ * Single source of truth for triaging a daily check-in. Used by the live
+ * check-in screen and by the offline queue when a check-in syncs late, so both
+ * paths always agree on flagging and urgency.
+ */
+export function evaluateCheckIn(painLevel: number, notes: string): CheckInEvaluation {
+  const realtime = analyzeRealTime(notes ?? "");
+  const notesFlagged = realtime.detected && realtime.severity >= 6;
+  const flagged = painLevel >= 7 || notesFlagged;
+  const painUrgency: UrgencyTier = painLevel >= 7 ? "urgent" : "routine";
+  const noteUrgency: UrgencyTier = notesFlagged ? realtime.urgency : "routine";
+  const urgency =
+    URGENCY_RANK[noteUrgency] >= URGENCY_RANK[painUrgency] ? noteUrgency : painUrgency;
+  return { realtime, flagged, urgency };
 }
 
 function buildNextStep(urgency: UrgencyTier, practitionerName: string): string {

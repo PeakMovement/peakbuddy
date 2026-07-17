@@ -7,7 +7,7 @@
 
 import { supabase } from "@/lib/supabase";
 import { findRecentOpenAlert, fireAlertWebhook } from "@/lib/webhooks";
-import { analyzeRealTime } from "@/lib/yves";
+import { evaluateCheckIn } from "@/lib/yves";
 import { log } from "@/lib/log";
 
 const QUEUE_KEY = "buddy.offline_checkins";
@@ -105,13 +105,7 @@ export async function flushQueue(): Promise<{ synced: number; remaining: number 
           try {
             // Recompute urgency from the stored notes + pain so an emergency term
             // isn't downgraded to "urgent" (mirrors the online check-in path).
-            const rt = analyzeRealTime(item.notes);
-            const notesFlagged = rt.detected && rt.severity >= 6;
-            const URGENCY_RANK = { routine: 0, monitor: 1, soon: 2, urgent: 3, emergency: 4 } as const;
-            const painUrgency: keyof typeof URGENCY_RANK = item.pain_level >= 7 ? "urgent" : "routine";
-            const noteUrgency: keyof typeof URGENCY_RANK = notesFlagged ? rt.urgency : "routine";
-            const effectiveUrgency =
-              URGENCY_RANK[noteUrgency] >= URGENCY_RANK[painUrgency] ? noteUrgency : painUrgency;
+            const { urgency: effectiveUrgency } = evaluateCheckIn(item.pain_level, item.notes);
 
             const existing = await findRecentOpenAlert(item.client_id, "red_flag");
             if (!existing || effectiveUrgency === "emergency") {

@@ -138,6 +138,41 @@ RED-FLAG CHECKLIST — WALK THROUGH EVERY ONE BEFORE SCORING
 For each, ask: does today's description OR the patient's recent history suggest this? Pick the highest-concern category as red_flag_category.
 
 ═══════════════════════════════════════════════════════
+LANGUAGE — SOUTH AFRICAN ENGLISH AND AFRIKAANS
+═══════════════════════════════════════════════════════
+
+Patients often write in Afrikaans or mix it with English. Treat these as
+identical to their English meaning and triage them exactly the same:
+
+- borspyn / pyn op die bors = chest pain      - hartaanval = heart attack
+- beroerte = stroke                            - kortasem / benoud = short of breath
+- kan nie asemhaal nie = cannot breathe        - stuiptrekking = seizure
+- verlam / verlamming = paralysis              - bewusteloos = unconscious
+- selfmoord = suicide                          - hartkloppings = palpitations
+- duiselig = dizzy                             - naar = nauseous
+- koors = fever                                - stywe nek = stiff neck
+- gevoelloos / verdowing = numb / numbness     - brandende pyn = burning pain
+- skietende pyn = shooting pain                - flou word = fainting
+- nagsweet = night sweats                      - gewigsverlies = weight loss
+- rugpyn = back pain                           - bloed = blood
+
+Never downgrade a symptom because it was written in Afrikaans.
+
+═══════════════════════════════════════════════════════
+SYMPTOM CLUSTERING — COMBINATIONS MATTER
+═══════════════════════════════════════════════════════
+
+Two or more symptoms from the SAME body system are materially more concerning
+together than any one alone. Escalate at least one tier for these clusters, and
+name the cluster you saw in red_flags and rationale:
+
+- cardiac: chest pain + breathlessness + jaw or left-arm pain + cold sweats
+- neuro: facial droop + slurred speech + one-sided weakness
+- cauda equina: bilateral leg symptoms + saddle numbness + bladder/bowel change
+- infection: fever + stiff neck + headache, or fever + severe localised pain
+- systemic: unexplained weight loss + night sweats + persistent fatigue
+
+═══════════════════════════════════════════════════════
 USE THE PATIENT PROFILE — CONTEXT MATTERS
 ═══════════════════════════════════════════════════════
 

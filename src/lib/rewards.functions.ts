@@ -168,6 +168,7 @@ export const approveClientReward = createServerFn({ method: "POST" })
     const { data: settings } = await db
       .from("platform_settings")
       .select("rewards_enabled, rewards_allowed_days")
+      .limit(1)
       .maybeSingle();
     if (settings && (settings as any).rewards_enabled === false) {
       throw new Error("Rewards are currently disabled by the administrator.");
@@ -296,6 +297,7 @@ export const getRewardsStatus = createServerFn({ method: "GET" })
     const { data } = await db
       .from("platform_settings")
       .select("rewards_enabled")
+      .limit(1)
       .maybeSingle();
     return {
       enabled: (data as { rewards_enabled?: boolean } | null)?.rewards_enabled === true,
@@ -315,6 +317,7 @@ export const getRewardsSchedule = createServerFn({ method: "GET" })
     const { data } = await db
       .from("platform_settings")
       .select("rewards_enabled, rewards_allowed_days")
+      .limit(1)
       .maybeSingle();
     return {
       enabled: (data as any)?.rewards_enabled ?? true,
@@ -337,7 +340,8 @@ export const updateRewardsSchedule = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as SupabaseClient;
     const days = Array.from(new Set(data.allowedDays)).sort();
-    const { data: existing } = await db.from("platform_settings").select("id").maybeSingle();
+    const { data: existing } = await db.from("platform_settings").select("id").limit(1)
+      .maybeSingle();
     const payload = { rewards_enabled: data.enabled, rewards_allowed_days: days };
     if (existing?.id) {
       await db.from("platform_settings").update(payload).eq("id", existing.id);
@@ -425,6 +429,7 @@ export const autoIssueMilestoneReward = createServerFn({ method: "POST" })
     const { data: settings } = await db
       .from("platform_settings")
       .select("rewards_enabled, rewards_allowed_days")
+      .limit(1)
       .maybeSingle();
     if (settings && (settings as { rewards_enabled?: boolean }).rewards_enabled === false)
       return { issued: false as const, reason: "disabled" as const };
