@@ -53,13 +53,14 @@ export type AdminClientBundle = {
     practitioner_name: string | null;
   };
   wearables: WearableConnection[];
-  wearableSessions: Record<string, unknown>[];
-  checkIns: Record<string, unknown>[];
-  symptomQueries: Record<string, unknown>[];
-  alerts: Record<string, unknown>[];
-  riskScores: Record<string, unknown>[];
-  baseline: Record<string, unknown> | null;
-  patterns: Record<string, unknown>[];
+  wearableSessions: Record<string, any>[];
+  checkIns: Record<string, any>[];
+  symptomQueries: Record<string, any>[];
+  alerts: Record<string, any>[];
+  riskScores: Record<string, any>[];
+  baseline: Record<string, any> | null;
+  patterns: Record<string, any>[];
+
   loadInsight: LoadInsight;
   correlation: CorrelationResult;
   rhythms: RhythmPatterns;
@@ -193,13 +194,13 @@ export const getAdminClientBundle = createServerFn({ method: "POST" })
         practitioner_name: (prof?.full_name as string | null) ?? null,
       },
       wearables,
-      wearableSessions: (sessions ?? []) as Record<string, unknown>[],
-      checkIns: (checkIns ?? []) as Record<string, unknown>[],
-      symptomQueries: (queries ?? []) as Record<string, unknown>[],
-      alerts: (alerts ?? []) as Record<string, unknown>[],
-      riskScores: (risk ?? []) as Record<string, unknown>[],
-      baseline: (baseline as Record<string, unknown> | null) ?? null,
-      patterns: (patterns ?? []) as Record<string, unknown>[],
+      wearableSessions: (sessions ?? []) as Record<string, any>[],
+      checkIns: (checkIns ?? []) as Record<string, any>[],
+      symptomQueries: (queries ?? []) as Record<string, any>[],
+      alerts: (alerts ?? []) as Record<string, any>[],
+      riskScores: (risk ?? []) as Record<string, any>[],
+      baseline: (baseline as Record<string, any> | null) ?? null,
+      patterns: (patterns ?? []) as Record<string, any>[],
       loadInsight,
       correlation,
       rhythms,

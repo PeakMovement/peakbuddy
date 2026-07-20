@@ -301,7 +301,7 @@ function AdminDataHub() {
                     <BarChart data={predictorBars} layout="vertical" margin={{ top: 0, right: 16, left: 10, bottom: 0 }}>
                       <XAxis type="number" domain={[-1, 1]} stroke={C.muted} fontSize={10} ticks={[-1, -0.5, 0, 0.5, 1]} />
                       <YAxis type="category" dataKey="name" stroke={C.muted} fontSize={10} width={150} />
-                      <Tooltip contentStyle={tip} formatter={(v: number) => [v, "correlation r"]} />
+                      <Tooltip contentStyle={tip} formatter={(v) => [v as number, "correlation r"]} />
                       <Bar dataKey="r" radius={[3, 3, 3, 3]}>
                         {predictorBars.map((p, i) => (<Cell key={i} fill={p.dir === "worse" ? C.red : C.green} />))}
                       </Bar>
