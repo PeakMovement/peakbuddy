@@ -53,13 +53,14 @@ export type AdminClientBundle = {
     practitioner_name: string | null;
   };
   wearables: WearableConnection[];
-  wearableSessions: Record<string, unknown>[];
-  checkIns: Record<string, unknown>[];
-  symptomQueries: Record<string, unknown>[];
-  alerts: Record<string, unknown>[];
-  riskScores: Record<string, unknown>[];
-  baseline: Record<string, unknown> | null;
-  patterns: Record<string, unknown>[];
+  wearableSessions: Record<string, any>[];
+  checkIns: Record<string, any>[];
+  symptomQueries: Record<string, any>[];
+  alerts: Record<string, any>[];
+  riskScores: Record<string, any>[];
+  baseline: Record<string, any> | null;
+  patterns: Record<string, any>[];
+
   loadInsight: LoadInsight;
   correlation: CorrelationResult;
   rhythms: RhythmPatterns;
