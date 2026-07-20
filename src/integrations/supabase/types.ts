@@ -721,8 +721,6 @@ export type Database = {
         Row: {
           ai_features_enabled: boolean
           alert_sensitivity: string
-          auto_reward_enabled: boolean
-          gamification_enabled: boolean
           contact_webhook_enabled: boolean
           contact_webhook_url: string | null
           created_at: string
@@ -743,8 +741,6 @@ export type Database = {
         Insert: {
           ai_features_enabled?: boolean
           alert_sensitivity?: string
-          auto_reward_enabled?: boolean
-          gamification_enabled?: boolean
           contact_webhook_enabled?: boolean
           contact_webhook_url?: string | null
           created_at?: string
@@ -765,8 +761,6 @@ export type Database = {
         Update: {
           ai_features_enabled?: boolean
           alert_sensitivity?: string
-          auto_reward_enabled?: boolean
-          gamification_enabled?: boolean
           contact_webhook_enabled?: boolean
           contact_webhook_url?: string | null
           created_at?: string
