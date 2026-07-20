@@ -46,11 +46,17 @@ export function MyRewards() {
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const [redeemed, setRedeemed] = useState<Set<string>>(new Set());
   const markUsed = async (id: string) => {
+    // Optimistic — flip to "Used" the moment it's clicked; revert only if the
+    // server call actually fails.
+    setRedeemed((prev) => new Set(prev).add(id));
     try {
       await redeemMyReward({ data: { id } });
-      setRedeemed((prev) => new Set(prev).add(id));
     } catch {
-      /* ignore */
+      setRedeemed((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
