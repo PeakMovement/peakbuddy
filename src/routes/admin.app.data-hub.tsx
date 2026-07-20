@@ -100,6 +100,7 @@ function AdminDataHub() {
     if (!b) return [];
     return b.correlation.predictors.map((p) => ({ name: `${p.label} (+${p.bestLag}d)`, r: p.r, abs: Math.abs(p.r), dir: p.direction }));
   }, [b]);
+  const historySeries = useMemo(() => (b ? b.insightHistory.map((h) => ({ d: shortDate(h.date), acwr: h.acwr, fatigue: h.fatigue })) : []), [b]);
 
   return (
     <div style={{ padding: "20px 16px 24px" }}>
@@ -262,6 +263,24 @@ function AdminDataHub() {
                 </>
               )}
             </section>
+          )}
+
+          {/* Load history (persisted daily snapshots) */}
+          {b.wearables.some((w) => w.connected) && historySeries.length >= 2 && (
+            <ChartCard title="Load & fatigue history" subtitle="from daily snapshots" empty={null}>
+              <ChartBox height={200}>
+                <LineChart data={historySeries} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
+                  <CartesianGrid stroke={C.border} strokeDasharray="3 3" />
+                  <XAxis dataKey="d" stroke={C.muted} fontSize={10} minTickGap={18} />
+                  <YAxis yAxisId="f" domain={[0, 100]} stroke={C.muted} fontSize={10} />
+                  <YAxis yAxisId="a" orientation="right" domain={[0, 2]} stroke={C.muted} fontSize={10} />
+                  <Tooltip contentStyle={tip} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Line yAxisId="f" type="monotone" dataKey="fatigue" name="Fatigue" stroke={C.amber} strokeWidth={2} dot={false} connectNulls />
+                  <Line yAxisId="a" type="monotone" dataKey="acwr" name="ACWR" stroke={C.blue} strokeWidth={2} dot={false} connectNulls />
+                </LineChart>
+              </ChartBox>
+            </ChartCard>
           )}
 
           {/* Symptom predictors — per-client cross-reference (experimental) */}

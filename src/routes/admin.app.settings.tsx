@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
 import { RewardsManager } from "@/components/RewardsManager";
 import { PushTestPanel } from "@/components/PushTestPanel";
+import { DetectionSettingsPanel } from "@/components/DetectionSettingsPanel";
 import { supabase } from "@/lib/supabase";
 import type { PlatformSettings } from "@/lib/types";
 
@@ -235,6 +236,8 @@ function AdminSettings() {
       </form>
 
       <RewardsManager />
+
+      <DetectionSettingsPanel />
 
       <PushTestPanel />
 

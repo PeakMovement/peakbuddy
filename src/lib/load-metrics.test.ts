@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildLoadInsight, pickLoadMethod, loadForDay, fatigueIndex,
+  buildLoadInsight, pickLoadMethod, loadForDay, fatigueIndex, resolveThresholds, DEFAULT_THRESHOLDS,
   type WearableDay, type CheckInDay,
 } from "./load-metrics";
 
@@ -81,5 +81,24 @@ describe("symptom-vs-training cross-check", () => {
     const r = buildLoadInsight(sessions, checkIns, true);
     expect(r.crossCheck.observation).toContain("load spike");
     expect(r.crossCheck.days.length).toBeGreaterThan(0);
+  });
+});
+
+describe("configurable thresholds", () => {
+  it("merges a partial override onto the defaults", () => {
+    const th = resolveThresholds({ acwr: { critical: 1.2 } });
+    expect(th.acwr.critical).toBe(1.2);
+    expect(th.acwr.elevated).toBe(DEFAULT_THRESHOLDS.acwr.elevated);
+    expect(th.monotony.critical).toBe(DEFAULT_THRESHOLDS.monotony.critical);
+  });
+  it("a lowered ACWR critical flags a ratio that defaults would not", () => {
+    const sessions: WearableDay[] = Array.from({ length: 28 }, (_, i) => ({ date: new Date(Date.now() - i * 86400000).toISOString(), training_load: i < 7 ? 130 : 100 }));
+    const def = buildLoadInsight(sessions, [], true);
+    const tuned = buildLoadInsight(sessions, [], true, { acwr: { critical: 1.1, elevated: 1.05 } });
+    // default: acwr ~1.16 -> not critical; tuned critical 1.1 -> acwr driver present & higher severity
+    const defAcwr = def.drivers.all.find((d) => d.id === "acwr");
+    const tunedAcwr = tuned.drivers.all.find((d) => d.id === "acwr");
+    expect(tunedAcwr).toBeTruthy();
+    expect((tunedAcwr?.severity ?? 0)).toBeGreaterThanOrEqual(defAcwr?.severity ?? 0);
   });
 });

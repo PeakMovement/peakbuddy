@@ -63,6 +63,7 @@ export type AdminClientBundle = {
   loadInsight: LoadInsight;
   correlation: CorrelationResult;
   rhythms: RhythmPatterns;
+  insightHistory: { date: string; acwr: number | null; fatigue: number | null; risk: string | null }[];
 };
 
 // ── List every client (for the dropdown) ────────────────────────────────────
@@ -149,9 +150,28 @@ export const getAdminClientBundle = createServerFn({ method: "POST" })
     const hasWearableConnected = wearables.some((w) => w.connected);
     const wearDays = (sessions ?? []) as unknown as WearableDay[];
     const checkDays = (checkIns ?? []) as unknown as CheckInDay[];
-    const loadInsight = buildLoadInsight(wearDays, checkDays, hasWearableConnected);
+    const { data: psRow } = await db.from("platform_settings").select("detection_thresholds").limit(1).maybeSingle();
+    const thresholds = (psRow as { detection_thresholds?: unknown } | null)?.detection_thresholds ?? null;
+    const loadInsight = buildLoadInsight(wearDays, checkDays, hasWearableConnected, thresholds as never);
     const correlation = buildCorrelation(wearDays, checkDays, hasWearableConnected);
     const rhythms = buildRhythms(wearDays);
+
+    // Persist today's snapshot + read recent history (best-effort — table may
+    // not exist until the migration syncs).
+    let insightHistory: AdminClientBundle["insightHistory"] = [];
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      await db.from("client_insight_snapshots").upsert(
+        { client_id: id, snapshot_date: today, load: loadInsight, correlation, rhythms },
+        { onConflict: "client_id,snapshot_date" },
+      );
+      const { data: snaps } = await db.from("client_insight_snapshots")
+        .select("snapshot_date, load").eq("client_id", id).order("snapshot_date", { ascending: true }).limit(60);
+      insightHistory = ((snaps ?? []) as { snapshot_date: string; load: unknown }[]).map((r) => {
+        const L = (r.load ?? {}) as { metrics?: { acwr?: number | null; fatigueIndex?: number | null }; drivers?: { riskLevel?: string } };
+        return { date: r.snapshot_date, acwr: L.metrics?.acwr ?? null, fatigue: L.metrics?.fatigueIndex ?? null, risk: L.drivers?.riskLevel ?? null };
+      });
+    } catch { /* snapshots unavailable yet */ }
 
     return {
       client: {
@@ -183,5 +203,6 @@ export const getAdminClientBundle = createServerFn({ method: "POST" })
       loadInsight,
       correlation,
       rhythms,
+      insightHistory,
     };
   });

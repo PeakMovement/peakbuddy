@@ -66,7 +66,17 @@ export interface LoadInsight {
 }
 
 // Clinically-grounded thresholds carried across from Predictiv's riskDrivers.ts.
-const T = {
+// Exported + overridable so a super-admin can tune them (admin side only).
+export interface Thresholds {
+  acwr: { critical: number; elevated: number; optimalLow: number };
+  monotony: { critical: number; elevated: number; moderate: number };
+  strain: { critical: number; elevated: number; moderate: number };
+  fatigue: { critical: number; elevated: number; moderate: number };
+  hrv: { critical: number; elevated: number; moderate: number };
+  sleep: { critical: number; elevated: number; moderate: number };
+}
+export type PartialThresholds = { [K in keyof Thresholds]?: Partial<Thresholds[K]> };
+export const DEFAULT_THRESHOLDS: Thresholds = {
   acwr: { critical: 1.5, elevated: 1.3, optimalLow: 0.8 },
   monotony: { critical: 2.5, elevated: 2.0, moderate: 1.5 },
   strain: { critical: 3500, elevated: 2500, moderate: 1500 },
@@ -75,6 +85,15 @@ const T = {
   sleep: { critical: 50, elevated: 60, moderate: 70 }, // inverted (lower worse)
 };
 const MIN_DAYS_FOR_LOAD_DRIVERS = 14;
+
+export function resolveThresholds(o?: PartialThresholds | null): Thresholds {
+  if (!o) return DEFAULT_THRESHOLDS;
+  const out = {} as Thresholds;
+  (Object.keys(DEFAULT_THRESHOLDS) as (keyof Thresholds)[]).forEach((k) => {
+    out[k] = { ...(DEFAULT_THRESHOLDS[k] as object), ...((o[k] as object) ?? {}) } as never;
+  });
+  return out;
+}
 
 const mean = (xs: number[]): number | null => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 function stddev(xs: number[]): number | null {
@@ -141,7 +160,8 @@ export function fatigueIndex(strain: number | null, monotony: number | null): nu
   return Math.min(Math.round((s / 2000) * 50 + (m / 2.5) * 50), 100);
 }
 
-export function buildLoadInsight(sessions: WearableDay[], checkIns: CheckInDay[], hasWearableConnected: boolean): LoadInsight {
+export function buildLoadInsight(sessions: WearableDay[], checkIns: CheckInDay[], hasWearableConnected: boolean, thresholds?: PartialThresholds | null): LoadInsight {
+  const th = resolveThresholds(thresholds);
   const empty = (reason: string, method: LoadInsight["loadMethod"] = null, dataDays = 0): LoadInsight => ({
     available: false, reason, loadMethod: method,
     maturity: { level: maturity(dataDays), dataDays },
@@ -208,12 +228,12 @@ export function buildLoadInsight(sessions: WearableDay[], checkIns: CheckInDay[]
 
   // Risk drivers.
   const all = [
-    evalFactor("acwr", "Acute:chronic load ratio", acwr, T.acwr),
-    evalFactor("monotony", "Training monotony", monotony, T.monotony),
-    evalFactor("strain", "Weekly strain", strain, T.strain),
-    evalFactor("fatigue", "Fatigue index", fi, T.fatigue),
-    evalFactor("hrv", "HRV drop vs baseline", hrvDeviationPct, T.hrv),
-    evalFactor("sleep", "Sleep score", recentSleepScore, T.sleep, true),
+    evalFactor("acwr", "Acute:chronic load ratio", acwr, th.acwr),
+    evalFactor("monotony", "Training monotony", monotony, th.monotony),
+    evalFactor("strain", "Weekly strain", strain, th.strain),
+    evalFactor("fatigue", "Fatigue index", fi, th.fatigue),
+    evalFactor("hrv", "HRV drop vs baseline", hrvDeviationPct, th.hrv),
+    evalFactor("sleep", "Sleep score", recentSleepScore, th.sleep, true),
   ].filter((d): d is RiskDriver => d !== null).sort((a, b) => b.severity - a.severity);
   const topSeverity = all[0]?.severity ?? 0;
   const riskLevel: RiskLevel = topSeverity >= 90 ? "high" : topSeverity >= 65 ? "moderate" : "low";
