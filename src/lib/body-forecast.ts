@@ -69,7 +69,7 @@ export function computeForecast(
     return {
       hasWearable: true,
       level: "unknown",
-      message: `Your ring hasn't synced in ${daysStale} days, so your forecast is on hold. Open the Oura app to refresh it and Buddy will pick right back up.`,
+      message: `Your wearable hasn't synced in ${daysStale} days, so your forecast is on hold. Open your wearable's app to refresh it and Buddy will pick right back up.`,
       action: "",
       confidence: "",
       reasoning: "",
