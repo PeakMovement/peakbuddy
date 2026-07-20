@@ -4,6 +4,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { buildLoadInsight, type LoadInsight, type WearableDay, type CheckInDay } from "@/lib/load-metrics";
+import { buildCorrelation, type CorrelationResult } from "@/lib/symptom-correlation";
+import { buildRhythms, type RhythmPatterns } from "@/lib/rhythm-patterns";
 
 // ── Super-admin gate ────────────────────────────────────────────────────────
 async function assertSuperAdmin(supabase: SupabaseClient<Database>, userId: string) {
@@ -59,6 +61,8 @@ export type AdminClientBundle = {
   baseline: Record<string, unknown> | null;
   patterns: Record<string, unknown>[];
   loadInsight: LoadInsight;
+  correlation: CorrelationResult;
+  rhythms: RhythmPatterns;
 };
 
 // ── List every client (for the dropdown) ────────────────────────────────────
@@ -143,11 +147,11 @@ export const getAdminClientBundle = createServerFn({ method: "POST" })
     }));
 
     const hasWearableConnected = wearables.some((w) => w.connected);
-    const loadInsight = buildLoadInsight(
-      (sessions ?? []) as unknown as WearableDay[],
-      (checkIns ?? []) as unknown as CheckInDay[],
-      hasWearableConnected,
-    );
+    const wearDays = (sessions ?? []) as unknown as WearableDay[];
+    const checkDays = (checkIns ?? []) as unknown as CheckInDay[];
+    const loadInsight = buildLoadInsight(wearDays, checkDays, hasWearableConnected);
+    const correlation = buildCorrelation(wearDays, checkDays, hasWearableConnected);
+    const rhythms = buildRhythms(wearDays);
 
     return {
       client: {
@@ -177,5 +181,7 @@ export const getAdminClientBundle = createServerFn({ method: "POST" })
       baseline: (baseline as Record<string, unknown> | null) ?? null,
       patterns: (patterns ?? []) as Record<string, unknown>[],
       loadInsight,
+      correlation,
+      rhythms,
     };
   });

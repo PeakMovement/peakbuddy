@@ -96,6 +96,10 @@ function AdminDataHub() {
     if (!b) return [];
     return b.loadInsight.drivers.all.map((d) => ({ name: d.label, severity: d.severity }));
   }, [b]);
+  const predictorBars = useMemo(() => {
+    if (!b) return [];
+    return b.correlation.predictors.map((p) => ({ name: `${p.label} (+${p.bestLag}d)`, r: p.r, abs: Math.abs(p.r), dir: p.direction }));
+  }, [b]);
 
   return (
     <div style={{ padding: "20px 16px 24px" }}>
@@ -254,6 +258,64 @@ function AdminDataHub() {
                         <Line yAxisId="r" type="monotone" dataKey="pain" name="Pain" stroke={C.red} strokeWidth={2.5} dot={{ r: 2 }} connectNulls />
                       </ComposedChart>
                     </ChartBox>
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+
+          {/* Symptom predictors — per-client cross-reference (experimental) */}
+          {b.wearables.some((w) => w.connected) && (
+            <section style={card}>
+              <div style={sectionTitle}>
+                Symptom predictors
+                <span style={countS}>experimental · which health metrics track this client's pain</span>
+              </div>
+              {!b.correlation.available ? (
+                <div style={muted}>Not applicable — {b.correlation.reason}</div>
+              ) : (
+                <>
+                  {b.correlation.headline && (
+                    <div style={{ color: "var(--white)", fontSize: 14, marginBottom: 10 }}>{b.correlation.headline}</div>
+                  )}
+                  <ChartBox height={Math.max(90, predictorBars.length * 34)}>
+                    <BarChart data={predictorBars} layout="vertical" margin={{ top: 0, right: 16, left: 10, bottom: 0 }}>
+                      <XAxis type="number" domain={[-1, 1]} stroke={C.muted} fontSize={10} ticks={[-1, -0.5, 0, 0.5, 1]} />
+                      <YAxis type="category" dataKey="name" stroke={C.muted} fontSize={10} width={150} />
+                      <Tooltip contentStyle={tip} formatter={(v: number) => [v, "correlation r"]} />
+                      <Bar dataKey="r" radius={[3, 3, 3, 3]}>
+                        {predictorBars.map((p, i) => (<Cell key={i} fill={p.dir === "worse" ? C.red : C.green} />))}
+                      </Bar>
+                    </BarChart>
+                  </ChartBox>
+                  <div style={{ ...muted, fontSize: 11, marginTop: 6 }}>
+                    Red = higher metric tracks with more pain · green = with less pain. Positive lag means pain follows the metric by that many days. Association only, not proof of cause — for accuracy testing.
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+
+          {/* Rhythms & patterns */}
+          {b.wearables.some((w) => w.connected) && (
+            <section style={card}>
+              <div style={sectionTitle}>Rhythms & patterns</div>
+              {b.rhythms.notes.length === 0 && b.rhythms.sleepWeekday === null && b.rhythms.hrvTrend.direction === "unknown" ? (
+                <div style={muted}>Not applicable — not enough wearable history to detect rhythms yet.</div>
+              ) : (
+                <>
+                  {b.rhythms.notes.length > 0 && (
+                    <ul style={{ margin: "0 0 12px", paddingLeft: 18, color: "var(--white)", fontSize: 13 }}>
+                      {b.rhythms.notes.map((nte, i) => (<li key={i} style={{ marginBottom: 4 }}>{nte}</li>))}
+                    </ul>
+                  )}
+                  <div style={grid}>
+                    <Field label="Sleep · weekday" value={s(b.rhythms.sleepWeekday)} />
+                    <Field label="Sleep · weekend" value={s(b.rhythms.sleepWeekend)} />
+                    <Field label="HRV trend (14d)" value={b.rhythms.hrvTrend.direction} />
+                    <Field label="Resting HR trend" value={b.rhythms.rhrTrend.direction} />
+                    <Field label="Active days / week" value={s(b.rhythms.trainingConsistency.daysActivePerWeek)} />
+                    <Field label="Load week-on-week" value={b.rhythms.trainingConsistency.weekOverWeekChangePct === null ? "—" : `${b.rhythms.trainingConsistency.weekOverWeekChangePct}%`} />
                   </div>
                 </>
               )}
