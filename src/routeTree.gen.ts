@@ -45,6 +45,7 @@ import { Route as AdminAppSettingsRouteImport } from './routes/admin.app.setting
 import { Route as AdminAppProgramsRouteImport } from './routes/admin.app.programs'
 import { Route as AdminAppPractitionersRouteImport } from './routes/admin.app.practitioners'
 import { Route as AdminAppGradingRouteImport } from './routes/admin.app.grading'
+import { Route as AdminAppDataHubRouteImport } from './routes/admin.app.data-hub'
 import { Route as AdminAppDashboardRouteImport } from './routes/admin.app.dashboard'
 import { Route as AdminAppClientsRouteImport } from './routes/admin.app.clients'
 import { Route as AdminAppAlertsRouteImport } from './routes/admin.app.alerts'
@@ -252,6 +253,11 @@ const AdminAppGradingRoute = AdminAppGradingRouteImport.update({
   path: '/grading',
   getParentRoute: () => AdminAppRoute,
 } as any)
+const AdminAppDataHubRoute = AdminAppDataHubRouteImport.update({
+  id: '/data-hub',
+  path: '/data-hub',
+  getParentRoute: () => AdminAppRoute,
+} as any)
 const AdminAppDashboardRoute = AdminAppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -406,6 +412,7 @@ export interface FileRoutesByFullPath {
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
   '/admin/app/grading': typeof AdminAppGradingRoute
+  '/admin/app/data-hub': typeof AdminAppDataHubRoute
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
   '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
@@ -466,6 +473,7 @@ export interface FileRoutesByTo {
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
   '/admin/app/grading': typeof AdminAppGradingRoute
+  '/admin/app/data-hub': typeof AdminAppDataHubRoute
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
   '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
@@ -528,6 +536,7 @@ export interface FileRoutesById {
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
   '/admin/app/grading': typeof AdminAppGradingRoute
+  '/admin/app/data-hub': typeof AdminAppDataHubRoute
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
   '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
@@ -591,6 +600,7 @@ export interface FileRouteTypes {
     | '/admin/app/clients'
     | '/admin/app/dashboard'
     | '/admin/app/grading'
+    | '/admin/app/data-hub'
     | '/admin/app/practitioners'
     | '/admin/app/programs'
     | '/admin/app/settings'
@@ -651,6 +661,7 @@ export interface FileRouteTypes {
     | '/admin/app/clients'
     | '/admin/app/dashboard'
     | '/admin/app/grading'
+    | '/admin/app/data-hub'
     | '/admin/app/practitioners'
     | '/admin/app/programs'
     | '/admin/app/settings'
@@ -712,6 +723,7 @@ export interface FileRouteTypes {
     | '/admin/app/clients'
     | '/admin/app/dashboard'
     | '/admin/app/grading'
+    | '/admin/app/data-hub'
     | '/admin/app/practitioners'
     | '/admin/app/programs'
     | '/admin/app/settings'
@@ -1045,6 +1057,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppGradingRouteImport
       parentRoute: typeof AdminAppRoute
     }
+    '/admin/app/data-hub': {
+      id: '/admin/app/data-hub'
+      path: '/data-hub'
+      fullPath: '/admin/app/data-hub'
+      preLoaderRoute: typeof AdminAppDataHubRouteImport
+      parentRoute: typeof AdminAppRoute
+    }
     '/admin/app/dashboard': {
       id: '/admin/app/dashboard'
       path: '/dashboard'
@@ -1214,6 +1233,7 @@ interface AdminAppRouteChildren {
   AdminAppClientsRoute: typeof AdminAppClientsRoute
   AdminAppDashboardRoute: typeof AdminAppDashboardRoute
   AdminAppGradingRoute: typeof AdminAppGradingRoute
+  AdminAppDataHubRoute: typeof AdminAppDataHubRoute
   AdminAppPractitionersRoute: typeof AdminAppPractitionersRoute
   AdminAppProgramsRoute: typeof AdminAppProgramsRoute
   AdminAppSettingsRoute: typeof AdminAppSettingsRoute
@@ -1226,6 +1246,7 @@ const AdminAppRouteChildren: AdminAppRouteChildren = {
   AdminAppClientsRoute: AdminAppClientsRoute,
   AdminAppDashboardRoute: AdminAppDashboardRoute,
   AdminAppGradingRoute: AdminAppGradingRoute,
+  AdminAppDataHubRoute: AdminAppDataHubRoute,
   AdminAppPractitionersRoute: AdminAppPractitionersRoute,
   AdminAppProgramsRoute: AdminAppProgramsRoute,
   AdminAppSettingsRoute: AdminAppSettingsRoute,
