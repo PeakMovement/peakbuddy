@@ -40,6 +40,18 @@ function painColor(p: unknown): string {
   if (v <= 6) return "var(--amber)";
   return "var(--red)";
 }
+function acwrColor(v: number | null): string {
+  if (v === null) return "var(--white-muted)";
+  if (v >= 1.5) return "var(--red)";
+  if (v >= 1.3) return "var(--amber)";
+  if (v < 0.8) return "var(--amber)";
+  return "var(--green)";
+}
+function severityColor(sev: number): string {
+  if (sev >= 90) return "var(--red)";
+  if (sev >= 65) return "var(--amber)";
+  return "var(--blue-accent)";
+}
 function urgencyColor(u: unknown): string {
   switch (String(u)) {
     case "emergency": return "var(--red)";
@@ -245,6 +257,79 @@ function AdminDataHub() {
             )}
           </section>
 
+          {/* Training load & injury-risk cross-check — only when a wearable is connected */}
+          {bundle.wearables.some((w) => w.connected) && (
+            <section style={card}>
+              <div style={sectionTitle}>
+                Training load & injury-risk cross-check
+                <span style={{ ...pill, background: "rgba(255,255,255,0.06)", color: "var(--white-muted)" }}>
+                  {bundle.loadInsight.maturity.level} · {bundle.loadInsight.maturity.dataDays}d
+                </span>
+              </div>
+
+              {!bundle.loadInsight.available ? (
+                <div style={muted}>{bundle.loadInsight.reason}</div>
+              ) : (
+                <>
+                  {/* Risk drivers */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12, alignItems: "center" }}>
+                    <span style={{ ...pill, border: "1px solid var(--navy-border)", color: bundle.loadInsight.drivers.riskLevel === "high" ? "var(--red)" : bundle.loadInsight.drivers.riskLevel === "moderate" ? "var(--amber)" : "var(--green)" }}>
+                      {bundle.loadInsight.drivers.riskLevel} risk
+                    </span>
+                    {bundle.loadInsight.drivers.primary && (
+                      <span style={{ color: severityColor(bundle.loadInsight.drivers.primary.severity), fontSize: 13, fontWeight: 600 }}>
+                        Primary: {bundle.loadInsight.drivers.primary.reason}
+                      </span>
+                    )}
+                    {bundle.loadInsight.drivers.secondary && (
+                      <span style={{ color: "var(--white-muted)", fontSize: 12 }}>
+                        · then {bundle.loadInsight.drivers.secondary.reason}
+                      </span>
+                    )}
+                    {!bundle.loadInsight.drivers.primary && (
+                      <span style={{ color: "var(--white-muted)", fontSize: 13 }}>No elevated load drivers.</span>
+                    )}
+                  </div>
+
+                  {/* Metrics */}
+                  <div style={grid2}>
+                    <Metric label="ACWR (7d:28d)" value={bundle.loadInsight.metrics.acwr === null ? "building" : String(bundle.loadInsight.metrics.acwr)} color={acwrColor(bundle.loadInsight.metrics.acwr)} hint="sweet spot 0.8–1.3 · danger ≥1.5" />
+                    <Metric label="Acute / chronic load" value={`${s(bundle.loadInsight.metrics.acuteLoad)} / ${s(bundle.loadInsight.metrics.chronicLoad)}`} />
+                    <Metric label="Monotony" value={bundle.loadInsight.metrics.monotony === null ? "building" : String(bundle.loadInsight.metrics.monotony)} hint="≥2.0 elevated" />
+                    <Metric label="Weekly strain" value={s(bundle.loadInsight.metrics.strain)} hint="≥2500 elevated" />
+                    <Metric label="Fatigue index" value={s(bundle.loadInsight.metrics.fatigueIndex)} hint="0–100" />
+                    <Metric label="HRV vs baseline" value={bundle.loadInsight.metrics.hrvDeviationPct === null ? "—" : `${bundle.loadInsight.metrics.hrvDeviationPct}% down`} color={typeof bundle.loadInsight.metrics.hrvDeviationPct === "number" && bundle.loadInsight.metrics.hrvDeviationPct >= 20 ? "var(--amber)" : "var(--white)"} />
+                    <Metric label="Sleep score (7d)" value={s(bundle.loadInsight.metrics.recentSleepScore)} />
+                    <Metric label="Load source" value={String(bundle.loadInsight.loadMethod ?? "—").replace("_", " ")} />
+                  </div>
+                  {bundle.loadInsight.metrics.acwr === null && (
+                    <div style={{ ...muted, marginTop: 8 }}>
+                      Load ratios need 14+ days of wearable history before they are trustworthy — showing what is available so far.
+                    </div>
+                  )}
+
+                  {/* Symptom vs training cross-check */}
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ ...fieldLabel, marginBottom: 6 }}>Symptom vs training (last 14 days)</div>
+                    {bundle.loadInsight.crossCheck.observation && (
+                      <div style={{ color: "var(--amber)", fontSize: 13, marginBottom: 8 }}>⚠ {bundle.loadInsight.crossCheck.observation}</div>
+                    )}
+                    <ScrollTable head={["Date", "Load", "Pain", "Flag"]}>
+                      {bundle.loadInsight.crossCheck.days.map((d, i) => (
+                        <tr key={i}>
+                          <Td>{fmtDate(d.date)}</Td>
+                          <Td>{d.load === null ? "—" : String(d.load)}</Td>
+                          <Td><span style={{ color: painColor(d.pain), fontWeight: 700 }}>{d.pain === null ? "—" : String(d.pain)}</span></Td>
+                          <Td>{d.flagged ? "🚩" : ""}</Td>
+                        </tr>
+                      ))}
+                    </ScrollTable>
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+
           {/* Symptom data — check-ins */}
           <section style={card}>
             <div style={sectionTitle}>Symptom data · check-ins <Count n={bundle.checkIns.length} /></div>
@@ -322,6 +407,15 @@ function Field({ label, value }: { label: string; value: string }) {
     <div>
       <div style={fieldLabel}>{label}</div>
       <div style={{ color: "var(--white)", fontSize: 14, fontFamily: "var(--font-ui)" }}>{value}</div>
+    </div>
+  );
+}
+function Metric({ label, value, color, hint }: { label: string; value: string; color?: string; hint?: string }) {
+  return (
+    <div>
+      <div style={fieldLabel}>{label}</div>
+      <div style={{ color: color ?? "var(--white)", fontSize: 16, fontWeight: 700, fontFamily: "var(--font-ui)" }}>{value}</div>
+      {hint && <div style={{ color: "var(--white-muted)", fontSize: 10 }}>{hint}</div>}
     </div>
   );
 }
