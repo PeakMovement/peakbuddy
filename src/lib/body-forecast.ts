@@ -46,7 +46,7 @@ export function computeForecast(
     return {
       hasWearable: false,
       level: "unknown",
-      message: "Connect your Oura ring and Buddy will start reading how your body and your symptoms are trending together.",
+      message: "Connect a wearable and Buddy will start reading how your body and your symptoms are trending together.",
       action: "",
       confidence: "",
       reasoning: "",
