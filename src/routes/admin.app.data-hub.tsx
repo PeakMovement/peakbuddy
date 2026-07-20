@@ -341,16 +341,18 @@ function AdminDataHub() {
             </section>
           )}
 
-          {/* Physical vitals mini-charts */}
-          <section style={card}>
-            <div style={sectionTitle}>Physical vitals</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-              <VitalChart title="HRV" data={vitals.hrv} color={C.blue} />
-              <VitalChart title="Resting HR" data={vitals.rhr} color={C.red} />
-              <VitalChart title="Sleep score" data={vitals.sleep} color={C.green} />
-              <VitalChart title="Steps" data={vitals.steps} color={C.amber} />
-            </div>
-          </section>
+          {/* Physical vitals mini-charts — only when a wearable is connected */}
+          {b.wearables.some((w) => w.connected) && (
+            <section style={card}>
+              <div style={sectionTitle}>Physical vitals</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+                <VitalChart title="HRV" data={vitals.hrv} color={C.blue} />
+                <VitalChart title="Resting HR" data={vitals.rhr} color={C.red} />
+                <VitalChart title="Sleep score" data={vitals.sleep} color={C.green} />
+                <VitalChart title="Steps" data={vitals.steps} color={C.amber} />
+              </div>
+            </section>
+          )}
 
           {/* Detected patterns */}
           {b.patterns.length > 0 && (
