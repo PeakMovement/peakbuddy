@@ -411,8 +411,8 @@ export interface FileRoutesByFullPath {
   '/admin/app/alerts': typeof AdminAppAlertsRoute
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
-  '/admin/app/grading': typeof AdminAppGradingRoute
   '/admin/app/data-hub': typeof AdminAppDataHubRoute
+  '/admin/app/grading': typeof AdminAppGradingRoute
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
   '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
@@ -472,8 +472,8 @@ export interface FileRoutesByTo {
   '/admin/app/alerts': typeof AdminAppAlertsRoute
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
-  '/admin/app/grading': typeof AdminAppGradingRoute
   '/admin/app/data-hub': typeof AdminAppDataHubRoute
+  '/admin/app/grading': typeof AdminAppGradingRoute
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
   '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
@@ -535,8 +535,8 @@ export interface FileRoutesById {
   '/admin/app/alerts': typeof AdminAppAlertsRoute
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
-  '/admin/app/grading': typeof AdminAppGradingRoute
   '/admin/app/data-hub': typeof AdminAppDataHubRoute
+  '/admin/app/grading': typeof AdminAppGradingRoute
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
   '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
@@ -599,8 +599,8 @@ export interface FileRouteTypes {
     | '/admin/app/alerts'
     | '/admin/app/clients'
     | '/admin/app/dashboard'
-    | '/admin/app/grading'
     | '/admin/app/data-hub'
+    | '/admin/app/grading'
     | '/admin/app/practitioners'
     | '/admin/app/programs'
     | '/admin/app/settings'
@@ -660,8 +660,8 @@ export interface FileRouteTypes {
     | '/admin/app/alerts'
     | '/admin/app/clients'
     | '/admin/app/dashboard'
-    | '/admin/app/grading'
     | '/admin/app/data-hub'
+    | '/admin/app/grading'
     | '/admin/app/practitioners'
     | '/admin/app/programs'
     | '/admin/app/settings'
@@ -722,8 +722,8 @@ export interface FileRouteTypes {
     | '/admin/app/alerts'
     | '/admin/app/clients'
     | '/admin/app/dashboard'
-    | '/admin/app/grading'
     | '/admin/app/data-hub'
+    | '/admin/app/grading'
     | '/admin/app/practitioners'
     | '/admin/app/programs'
     | '/admin/app/settings'
@@ -1232,8 +1232,8 @@ interface AdminAppRouteChildren {
   AdminAppAlertsRoute: typeof AdminAppAlertsRoute
   AdminAppClientsRoute: typeof AdminAppClientsRoute
   AdminAppDashboardRoute: typeof AdminAppDashboardRoute
-  AdminAppGradingRoute: typeof AdminAppGradingRoute
   AdminAppDataHubRoute: typeof AdminAppDataHubRoute
+  AdminAppGradingRoute: typeof AdminAppGradingRoute
   AdminAppPractitionersRoute: typeof AdminAppPractitionersRoute
   AdminAppProgramsRoute: typeof AdminAppProgramsRoute
   AdminAppSettingsRoute: typeof AdminAppSettingsRoute
@@ -1245,8 +1245,8 @@ const AdminAppRouteChildren: AdminAppRouteChildren = {
   AdminAppAlertsRoute: AdminAppAlertsRoute,
   AdminAppClientsRoute: AdminAppClientsRoute,
   AdminAppDashboardRoute: AdminAppDashboardRoute,
-  AdminAppGradingRoute: AdminAppGradingRoute,
   AdminAppDataHubRoute: AdminAppDataHubRoute,
+  AdminAppGradingRoute: AdminAppGradingRoute,
   AdminAppPractitionersRoute: AdminAppPractitionersRoute,
   AdminAppProgramsRoute: AdminAppProgramsRoute,
   AdminAppSettingsRoute: AdminAppSettingsRoute,
