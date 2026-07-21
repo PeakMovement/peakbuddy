@@ -61,6 +61,25 @@ export async function registerPushToken(): Promise<void> {
  * (targetable by include_player_ids, same as the native player id). No-op in
  * the Despia native app, which uses the bridge above.
  */
+/**
+ * Non-prompting web token capture. Saves the OneSignal subscription id ONLY if
+ * the user has ALREADY opted in — it never triggers the permission prompt. Used
+ * on app load so new clients are not shown an unsolicited notification dropdown;
+ * the explicit "Enable notifications" button does the actual ask.
+ */
+export async function captureWebPushToken(): Promise<boolean> {
+  try {
+    if (typeof window === "undefined" || isDespia()) return false;
+    const id = await getWebSubscriptionId();
+    if (!id) return false;
+    await savePushToken({ data: { token: id, platform: "web" } }).catch(() => {});
+    return true;
+  } catch (e) {
+    log.error("captureWebPushToken failed", e);
+    return false;
+  }
+}
+
 export async function registerWebPushToken(): Promise<boolean> {
   try {
     if (typeof window === "undefined" || isDespia()) return false;

@@ -6,7 +6,7 @@ import { getClientId } from "@/lib/client-session";
 import { useOnline } from "@/hooks/use-online";
 import { getClientBootstrap, type ClientProgramState } from "@/lib/client-program.functions";
 import { ProgramIntroModal } from "@/components/ProgramIntroModal";
-import { registerPushToken, registerWebPushToken } from "@/lib/push";
+import { registerPushToken, captureWebPushToken } from "@/lib/push";
 import { SyncStatusBanner } from "@/components/SyncStatusBanner";
 import { InstallPrompt } from "@/components/InstallPrompt";
 
@@ -73,8 +73,11 @@ function ClientAppLayout() {
   }, [navigate, bootstrap]);
 
   useEffect(() => {
+    // Register the native token if present, and capture an EXISTING web
+    // subscription — but never auto-prompt. New clients only see the OneSignal
+    // permission prompt when they tap "Enable notifications" themselves.
     void registerPushToken();
-    void registerWebPushToken();
+    void captureWebPushToken();
   }, []);
 
   useEffect(() => {
