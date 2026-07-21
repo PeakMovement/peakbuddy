@@ -70,6 +70,8 @@ export async function registerPushToken(): Promise<void> {
 export async function captureWebPushToken(): Promise<boolean> {
   try {
     if (typeof window === "undefined" || isDespia()) return false;
+    // Never triggers a prompt: only runs for users who already granted permission.
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return false;
     const id = await getWebSubscriptionId();
     if (!id) return false;
     await savePushToken({ data: { token: id, platform: "web" } }).catch(() => {});

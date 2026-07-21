@@ -164,7 +164,13 @@ function RootComponent() {
 
   useEffect(() => {
     registerServiceWorker();
-    initOneSignalWeb();
+    // Only initialise the OneSignal web SDK once the user has ALREADY granted
+    // notification permission. This stops any OneSignal auto slide-prompt from
+    // appearing to new clients on load — the "Enable notifications" button
+    // initialises + asks on an explicit tap, so that is the single prompt.
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      initOneSignalWeb();
+    }
     const cleanup = initIdleSignout({ maxIdleMs: 24 * 60 * 60 * 1000 });
     return cleanup;
   }, []);
