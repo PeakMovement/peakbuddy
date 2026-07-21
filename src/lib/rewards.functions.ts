@@ -361,7 +361,7 @@ export const redeemMyReward = createServerFn({ method: "POST" })
     const db = supabaseAdmin as unknown as SupabaseClient;
     const { data: row } = await db
       .from("client_rewards")
-      .select("id, client_id")
+      .select("id, client_id, reward_id")
       .eq("id", data.id)
       .maybeSingle();
     if (!row) throw new Error("Not found");
@@ -371,10 +371,14 @@ export const redeemMyReward = createServerFn({ method: "POST" })
       .eq("auth_user_id", context.userId)
       .maybeSingle();
     if (!client || client.id !== row.client_id) throw new Error("Forbidden");
+    // A voucher code is reusable display data, so duplicate issuances of the
+    // same reward should disappear together when the client marks it used.
     const { error } = await db
       .from("client_rewards")
       .update({ status: "redeemed", redeemed_at: new Date().toISOString() })
-      .eq("id", data.id);
+      .eq("client_id", client.id)
+      .eq("reward_id", row.reward_id)
+      .neq("status", "redeemed");
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });

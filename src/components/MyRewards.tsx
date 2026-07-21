@@ -46,11 +46,18 @@ export function MyRewards() {
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const [redeemed, setRedeemed] = useState<Set<string>>(new Set());
   const markUsed = async (id: string) => {
+    const selected = rewards?.find((reward) => reward.id === id);
+    const matchingIds = new Set(
+      (rewards ?? [])
+        .filter((reward) => reward.reward?.voucher_code === selected?.reward?.voucher_code)
+        .map((reward) => reward.id),
+    );
     // Optimistic — remove from the list immediately; restore only if the
-    // server call actually fails.
+    // server call actually fails. Duplicate issuances of the same reusable
+    // voucher are treated as one visible reward.
     const prevRewards = rewards;
-    setRewards((list) => (list ? list.filter((r) => r.id !== id) : list));
-    setRedeemed((prev) => new Set(prev).add(id));
+    setRewards((list) => (list ? list.filter((r) => !matchingIds.has(r.id)) : list));
+    setRedeemed((prev) => new Set([...prev, ...matchingIds]));
     try {
       await redeemMyReward({ data: { id } });
     } catch {
@@ -67,7 +74,10 @@ export function MyRewards() {
     (async () => {
       try {
         const all = await listMyRewards();
-        const list = all.filter((r) => r.status !== "redeemed");
+        const active = all.filter((r) => r.status !== "redeemed");
+        const list = Array.from(
+          new Map(active.map((r) => [r.reward?.voucher_code ?? r.id, r])).values(),
+        );
         const seen = loadSeen();
         const unseen = new Set(list.filter((r) => !seen.has(r.id)).map((r) => r.id));
         setNewIds(unseen);
