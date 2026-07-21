@@ -21,6 +21,7 @@ import {
   type WearableProvider,
 } from "@/lib/wearables/metric-registry";
 import type { WearableSnapshot } from "@/lib/wearables/snapshot.functions";
+import { GarminAttribution } from "@/components/wearables/GarminAttribution";
 
 // Dynamic wearable tile section for the client Progress page. Renders exactly the
 // metrics the connected provider supplies (driven by the capability registry).
@@ -81,6 +82,11 @@ export function WearableTiles({ snapshot }: { snapshot: WearableSnapshot | null 
           }}
         >
           Latest reading: {formatReadingDate(snapshot.date)}
+        </div>
+      )}
+      {provider === "garmin" && (
+        <div style={{ marginBottom: 12 }}>
+          <GarminAttribution size="sm" showPoweredBy />
         </div>
       )}
       <div style={grid}>
