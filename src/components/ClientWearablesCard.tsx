@@ -78,13 +78,15 @@ export function ClientWearablesCard({ clientId }: { clientId: string }) {
 
   return (
     <section style={{ marginTop: 28 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <Watch size={16} color="var(--blue-accent)" aria-hidden />
         <span style={titleStyle}>Wearable</span>
         <span style={{ color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 11 }}>
           · {rows[0].source} · synced {new Date(rows[0].date).toLocaleDateString()}
         </span>
+        {rows[0].source === "garmin" && <GarminAttribution />}
       </div>
+
 
       {forecast && forecast.hasWearable && (
         <div style={readBox}>
