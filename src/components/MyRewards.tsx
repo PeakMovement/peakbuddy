@@ -46,12 +46,15 @@ export function MyRewards() {
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const [redeemed, setRedeemed] = useState<Set<string>>(new Set());
   const markUsed = async (id: string) => {
-    // Optimistic — flip to "Used" the moment it's clicked; revert only if the
+    // Optimistic — remove from the list immediately; restore only if the
     // server call actually fails.
+    const prevRewards = rewards;
+    setRewards((list) => (list ? list.filter((r) => r.id !== id) : list));
     setRedeemed((prev) => new Set(prev).add(id));
     try {
       await redeemMyReward({ data: { id } });
     } catch {
+      setRewards(prevRewards);
       setRedeemed((prev) => {
         const next = new Set(prev);
         next.delete(id);
@@ -63,7 +66,8 @@ export function MyRewards() {
   useEffect(() => {
     (async () => {
       try {
-        const list = await listMyRewards();
+        const all = await listMyRewards();
+        const list = all.filter((r) => r.status !== "redeemed");
         const seen = loadSeen();
         const unseen = new Set(list.filter((r) => !seen.has(r.id)).map((r) => r.id));
         setNewIds(unseen);
