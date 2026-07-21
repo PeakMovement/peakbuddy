@@ -1,55 +1,63 @@
-## Goal
+# Garmin Attribution Rollout
 
-Satisfy Garmin's two review requirements before submitting screenshots:
+Meet Garmin Health API brand/attribution requirements across every surface that displays Garmin data. No other functionality, styling, or copy changes.
 
-1. **Garmin branding** wherever Garmin data appears in the app (per GCDP Brand Guidelines).
-2. **Privacy Policy section** describing how Garmin data is collected, used, processed, stored, and shared — reachable via a **direct anchor link**.
+## 1. Assets
 
-## 1. Host the Garmin logo as a Lovable asset
+- Upload `user-uploads://Garmin-Tag-white-attribution.png` to the CDN via `lovable-assets` as `src/assets/garmin-tag-white.png.asset.json`.
+- Keep the existing `garmin-logo.webp` asset for now (used only on the connect panel white chip); the new tag replaces it on the dashboard Garmin card header.
 
-Upload `user-uploads://Garmin_logo_2006.svg.webp` via `lovable-assets` to `src/assets/garmin-logo.webp.asset.json`. This gives every surface a CDN URL, no binary in the repo.
+## 2. Capture Garmin device model (best-effort)
 
-Guideline compliance: the supplied logo is the black wordmark + blue triangle. On our dark navy background it must sit on a **white/light chip** (per Garmin brand rules — no color inversion, min clear space). I'll render it inside a white rounded pill wherever it appears.
+Garmin Health API only reliably reports device name on **activity** payloads (`deviceName`), not on dailies/sleep/HRV summaries. To support "Garmin {model}" without inventing data:
 
-## 2. Add branding to every Garmin data surface
+- Add `garmin_device_model text` to `wearable_connections` (nullable).
+- In `src/routes/api/public/wearables/garmin/webhook.ts`, when an `activities` payload arrives with `deviceName`, upsert the most recent value onto the user's `wearable_connections` row.
+- Expose it on `WearableSnapshot` (`snapshot.functions.ts`) as `deviceModel: string | null` alongside `provider`.
+- When missing, components render just `Garmin` (spec-compliant fallback).
 
-Surfaces that currently show Garmin data:
+## 3. Reusable attribution component
 
-- **`src/components/wearables/WearablesPanel.tsx`** — replace the generic hand-drawn `<ProviderMark provider="garmin">` SVG with the official Garmin logo chip. The card already says "Garmin"; the logo replaces the placeholder mark.
-- **`src/components/wearables/WearableTiles.tsx`** — when the connected provider is `garmin`, render a small "Powered by [Garmin logo]" attribution row above the metric grid (in addition to the existing "Garmin · your metrics" label).
-- **`src/routes/client.app.profile.tsx`** — verify the wearables tile that lists connected providers shows the Garmin mark (uses `WearablesPanel`, so covered by the change above).
+Extend `src/components/wearables/GarminAttribution.tsx`:
 
-A small reusable `<GarminAttribution />` component in `src/components/wearables/GarminAttribution.tsx` will render the white-chip logo at two sizes (`sm` for tiles, `md` for the Wearables panel card) so all surfaces stay consistent.
+- New props: `deviceModel?: string | null`, `variant?: "text" | "logo"` (default `"text"`), keep existing `size`.
+- `variant="text"` → muted caption `Garmin {model}` (or `Garmin`) using existing `--white-muted` token, `font-ui`, ~12px. No chip, no logo. This is what every screen except the dashboard card header uses.
+- `variant="logo"` → the new white Garmin tag image at 16–20px tall (natural aspect ratio, no recolor/rotate/crop/effects) followed by the model text. Used **only** on the Garmin dashboard card header.
+- Also export a small `<YvesGarminCaption />` helper that renders the exact required string: `Insights derived in part from Garmin device-sourced data.` (unchanged wording).
 
-## 3. Add the Garmin section to the Privacy Policy
+## 4. Placement — screens to update
 
-Edit `src/routes/privacy-policy.tsx` — insert a new `<section id="garmin">` after the existing AI section (currently `#ai`). Content:
+Attribution goes directly under/next to the section title, above the fold, always visible (never in tooltip/accordion/popover). Show once per Garmin section, not per row. Only render when the user is actually connected to Garmin (`provider === "garmin"`).
 
-- **What we collect via Garmin Health API:** daily summaries, sleep, HRV, activities, epochs, stress, user metrics — as pushed by Garmin's webhooks (no on-demand pulls).
-- **How it's collected:** OAuth 2.0 + PKCE consent in Garmin Connect; user can revoke in Garmin Connect at any time.
-- **How it's used:** displayed to the user, shared with their linked practitioner for clinical review, and used as context signals for the Yves triage assistant (HRV/RHR/sleep deltas).
-- **Third-party processing of Garmin data:**
-  - Anthropic (Yves triage) — only when the user has consented to AI features.
-  - Google via Lovable AI Gateway (program suggestions) — only when the user has consented.
-  - Cloud hosting/database provider — encrypted at rest.
-  - Garmin data is **never sold** and **never used to train AI models**.
-- **Storage & retention:** encrypted at rest; retained while the connection is active + statutory healthcare retention; deleted on disconnect or on request.
-- **User control:** disconnect in Profile → Wearables removes the token and stops all data flow; deregistration webhooks from Garmin are honored automatically.
+Screens/components to edit:
 
-Deep-link URL to give Garmin: **`https://peakbuddy.lovable.app/privacy-policy#garmin`**
+1. `src/components/wearables/WearableTiles.tsx` — client Progress page Garmin metrics grid. Replace current `<GarminAttribution size="sm" showPoweredBy />` with the new text variant showing `Garmin {model}` under the "Garmin · your metrics" heading. (Covers HRV, sleep, stress, steps, Body Battery, RHR, activity, distance — all rendered by this grid.)
+2. `src/components/wearables/WearablesPanel.tsx` — Garmin dashboard card header. Swap the current inline white chip for `<GarminAttribution variant="logo" deviceModel={...} />` next to the card title.
+3. `src/components/ClientWearablesCard.tsx` — practitioner "Wearable" section on client detail. Add the text attribution beside the section title when `rows[0].source === "garmin"`.
+4. `src/components/BodyForecastBeta.tsx` — when the forecast is built from Garmin data, add the text attribution + the required Yves caption ("Insights derived in part from Garmin device-sourced data.") beneath the card title, since this feeds Yves.
+5. `src/routes/client.app.yves.tsx` — where wearable context is shown/mentioned, render the Yves caption once above the fold when the client's connected provider is Garmin.
+6. `src/routes/practitioner.app.client-detail.$clientId.tsx` — if the practitioner view surfaces Garmin-derived signals in the wearable/insights area, add the text attribution once at the section header (single instance, not per row).
 
-Also add a small "Garmin Health Data" entry to the on-page ToC / anchor list if one exists (currently no ToC — sections are numbered; I'll insert as **§5. Garmin Health Data** and renumber subsequent sections, or append as §14 to avoid renumber churn — recommending **append as §14** to minimize diff).
+If any of those screens already shows non-Garmin (Oura/Polar) data too, attribution renders only for the Garmin subset.
 
-## Out of scope
+## 5. Empty / disconnected state
 
-- Any change to Garmin OAuth/webhook logic (already built).
-- Enabling the Health API in Garmin's config portal — that's a step you do in `apis.garmin.com/tools/apiConfiguration`, not something the app can do.
-- Rewording the rest of the privacy policy.
+Every insertion is guarded by "user is connected to Garmin AND has Garmin data present". No logo, no text, no Yves caption when there's no Garmin data.
 
-## Files touched
+## 6. Rules explicitly enforced
 
-- `src/assets/garmin-logo.webp.asset.json` (new — CDN pointer)
-- `src/components/wearables/GarminAttribution.tsx` (new)
-- `src/components/wearables/WearablesPanel.tsx` (swap Garmin ProviderMark)
-- `src/components/wearables/WearableTiles.tsx` (add attribution row for Garmin)
-- `src/routes/privacy-policy.tsx` (add `#garmin` section)
+- Logo appears **only** on the WearablesPanel Garmin card header. Every other screen uses the plain text variant.
+- Logo not recolored/stretched/cropped/rotated/animated; aspect ratio preserved via `width: auto`.
+- Yves caption wording is a constant string; no variants.
+- No phrases like "Garmin insights" or "Garmin model" anywhere.
+
+## 7. After implementation
+
+Post a checklist of every file/screen touched so you can verify coverage before screenshots.
+
+## Technical notes
+
+- Migration: single `ALTER TABLE public.wearable_connections ADD COLUMN garmin_device_model text` with existing RLS/grants unchanged.
+- Webhook change is additive (best-effort upsert from `activities[].deviceName`); no behavior change if the field is absent.
+- Snapshot type extension is nullable so all consumers compile without change; only the attribution component reads it.
+- No changes to color tokens, layout, spacing, or any non-attribution copy.
