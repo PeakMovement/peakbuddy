@@ -47,12 +47,20 @@ export const getMyWearableSnapshot = createServerFn({ method: "GET" })
     ]);
 
     const rows = (recent ?? []) as any[];
-    const tokenProviders = ((tokens ?? []) as { provider: string }[]).map((t) => t.provider);
+    const tokenRows = (tokens ?? []) as {
+      provider: string;
+      garmin_device_model: string | null;
+    }[];
+    const tokenProviders = tokenRows.map((t) => t.provider);
     const provider =
       ((rows[0]?.source as WearableProvider | undefined) ??
         (tokenProviders[0] as WearableProvider | undefined)) ??
       null;
     const connected = provider != null || tokenProviders.length > 0;
+    const deviceModel =
+      provider === "garmin"
+        ? (tokenRows.find((t) => t.provider === "garmin")?.garmin_device_model ?? null)
+        : null;
 
     // Oura/Garmin compute sleep, readiness & HRV only AFTER the night, so the
     // newest date row ("today") is often near-empty. Show the most recent row
@@ -72,5 +80,6 @@ export const getMyWearableSnapshot = createServerFn({ method: "GET" })
       provider,
       date: (chosen?.date as string | undefined) ?? null,
       session: chosen ? (chosen as unknown as WearableMetricRow) : null,
+      deviceModel,
     };
   });
