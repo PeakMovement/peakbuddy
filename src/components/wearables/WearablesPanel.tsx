@@ -52,6 +52,8 @@ const CARD = "var(--navy-card)";
 const BORDER = "var(--navy-border)";
 const RED = "var(--red, #ef4444)";
 
+import garminLogo from "@/assets/garmin-logo.webp.asset.json";
+
 function ProviderMark({ provider }: { provider: WearableProvider }) {
   const common = { width: 22, height: 22, fill: "currentColor" } as const;
   if (provider === "oura") {
@@ -69,10 +71,25 @@ function ProviderMark({ provider }: { provider: WearableProvider }) {
       </svg>
     );
   }
+  // Garmin: official logo on a white chip per GCDP Brand Guidelines.
   return (
-    <svg viewBox="0 0 24 24" {...common}>
-      <path d="M12 2 3 20.3l.7.7L12 18l8.3 3 .7-.7L12 2Zm0 5.6 5.9 12L12 17l-5.9 2.6L12 7.6Z" />
-    </svg>
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        background: "#ffffff",
+        borderRadius: 6,
+        padding: "4px 6px",
+        lineHeight: 0,
+      }}
+    >
+      <img
+        src={garminLogo.url}
+        alt="Garmin"
+        height={14}
+        style={{ height: 14, width: "auto", display: "block" }}
+      />
+    </span>
   );
 }
 
