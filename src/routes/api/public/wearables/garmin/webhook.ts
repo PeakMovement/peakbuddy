@@ -116,10 +116,12 @@ export const Route = createFileRoute("/api/public/wearables/garmin/webhook")({
             }
           }
 
-          // Activities: accumulate distance per (client, date).
+          // Activities: accumulate distance per (client, date). Also opportunistically
+          // capture the Garmin device name (for brand attribution UI).
           const acts = [...(payload.activities ?? []), ...(payload.activityDetails ?? [])];
           const byClientDate = new Map<string, number>();
           const dateMeta = new Map<string, { clientId: string; date: string }>();
+          const deviceByClient = new Map<string, string>();
           for (const item of acts) {
             const clientId = await resolveClientId(
               supabaseAdmin,
@@ -128,6 +130,9 @@ export const Route = createFileRoute("/api/public/wearables/garmin/webhook")({
               true,
             );
             if (!clientId) continue;
+            const deviceName = (item.deviceName as string | undefined)?.trim();
+            if (deviceName && !deviceByClient.has(clientId))
+              deviceByClient.set(clientId, deviceName);
             const a = mapGarminActivity(item);
             if (!a) continue;
             const key = `${clientId}|${a.date}`;
@@ -145,6 +150,13 @@ export const Route = createFileRoute("/api/public/wearables/garmin/webhook")({
                 },
               ]);
             }
+          }
+          for (const [clientId, deviceName] of deviceByClient) {
+            await supabaseAdmin
+              .from("wearable_tokens")
+              .update({ garmin_device_model: deviceName })
+              .eq("client_id", clientId)
+              .eq("provider", "garmin");
           }
 
           // Deregistration: remove the token (no self-heal).
