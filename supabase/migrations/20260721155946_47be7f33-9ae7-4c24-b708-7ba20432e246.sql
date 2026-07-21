@@ -1,0 +1,1 @@
+ALTER TABLE public.wearable_tokens ADD COLUMN IF NOT EXISTS garmin_device_model text;
