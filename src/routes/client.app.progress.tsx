@@ -106,7 +106,15 @@ function ProgressScreen() {
       setLoading(false);
       loadSnapshot()
         .then(setSnapshot)
-        .catch(() => setSnapshot({ connected: false, provider: null, date: null, session: null }));
+        .catch(() =>
+          setSnapshot({
+            connected: false,
+            provider: null,
+            date: null,
+            session: null,
+            deviceModel: null,
+          }),
+        );
     })();
   }, []);
 

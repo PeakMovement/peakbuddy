@@ -86,7 +86,7 @@ export function WearableTiles({ snapshot }: { snapshot: WearableSnapshot | null 
       )}
       {provider === "garmin" && (
         <div style={{ marginBottom: 12 }}>
-          <GarminAttribution size="sm" showPoweredBy />
+          <GarminAttribution deviceModel={snapshot.deviceModel} />
         </div>
       )}
       <div style={grid}>

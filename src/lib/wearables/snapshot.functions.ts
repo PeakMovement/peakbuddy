@@ -7,6 +7,8 @@ export type WearableSnapshot = {
   provider: WearableProvider | null;
   date: string | null;
   session: WearableMetricRow | null;
+  /** Garmin device model captured from activity webhooks (nullable). */
+  deviceModel: string | null;
 };
 
 const METRIC_FIELDS =
@@ -28,7 +30,8 @@ export const getMyWearableSnapshot = createServerFn({ method: "GET" })
       .select("id")
       .eq("auth_user_id", context.userId)
       .maybeSingle();
-    if (!client) return { connected: false, provider: null, date: null, session: null };
+    if (!client)
+      return { connected: false, provider: null, date: null, session: null, deviceModel: null };
 
     const [{ data: recent }, { data: tokens }] = await Promise.all([
       db
@@ -37,16 +40,27 @@ export const getMyWearableSnapshot = createServerFn({ method: "GET" })
         .eq("client_id", client.id)
         .order("date", { ascending: false })
         .limit(14),
-      db.from("wearable_tokens").select("provider").eq("client_id", client.id),
+      db
+        .from("wearable_tokens")
+        .select("provider, garmin_device_model")
+        .eq("client_id", client.id),
     ]);
 
     const rows = (recent ?? []) as any[];
-    const tokenProviders = ((tokens ?? []) as { provider: string }[]).map((t) => t.provider);
+    const tokenRows = (tokens ?? []) as {
+      provider: string;
+      garmin_device_model: string | null;
+    }[];
+    const tokenProviders = tokenRows.map((t) => t.provider);
     const provider =
       ((rows[0]?.source as WearableProvider | undefined) ??
         (tokenProviders[0] as WearableProvider | undefined)) ??
       null;
     const connected = provider != null || tokenProviders.length > 0;
+    const deviceModel =
+      provider === "garmin"
+        ? (tokenRows.find((t) => t.provider === "garmin")?.garmin_device_model ?? null)
+        : null;
 
     // Oura/Garmin compute sleep, readiness & HRV only AFTER the night, so the
     // newest date row ("today") is often near-empty. Show the most recent row
@@ -66,5 +80,6 @@ export const getMyWearableSnapshot = createServerFn({ method: "GET" })
       provider,
       date: (chosen?.date as string | undefined) ?? null,
       session: chosen ? (chosen as unknown as WearableMetricRow) : null,
+      deviceModel,
     };
   });

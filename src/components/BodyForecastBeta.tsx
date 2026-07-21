@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Sparkles, ChevronDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { computeForecast, type ForecastResult } from "@/lib/body-forecast";
+import { GarminAttribution, YvesGarminCaption } from "@/components/wearables/GarminAttribution";
 
 // BETA GATE — only shows for these accounts. Expand/remove later.
 type BetaClient = { id: string; full_name: string | null; email: string | null };
@@ -17,6 +18,7 @@ const DOT: Record<string, string> = {
 /** Beta "Your Body Forecast" card. Renders nothing unless the client is in the beta gate. */
 export function BodyForecastBeta({ client }: { client: BetaClient }) {
   const [result, setResult] = useState<ForecastResult | null>(null);
+  const [hasGarmin, setHasGarmin] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [open, setOpen] = useState(false);
   // 1-tap forecast confirmation (turns the forecast grade into a lightweight check-in)
@@ -32,7 +34,7 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
         const [wr, cr, clientRow] = await Promise.all([
           supabase
             .from("wearable_sessions")
-            .select("date, sleep_score, readiness_score, resting_hr, hrv_avg")
+            .select("date, source, sleep_score, readiness_score, resting_hr, hrv_avg")
             .eq("client_id", client.id)
             .order("date", { ascending: false })
             .limit(30),
@@ -53,7 +55,9 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
             (c) => String(c.created_at).slice(0, 10) === todayKey,
           ),
         );
-        const wearables = ((wr.data ?? []) as Record<string, unknown>[]).map((r) => ({
+        const rawRows = (wr.data ?? []) as Record<string, unknown>[];
+        setHasGarmin(rawRows.some((r) => r.source === "garmin"));
+        const wearables = rawRows.map((r) => ({
           date: String(r.date),
           sleep_score: (r.sleep_score as number | null) ?? null,
           readiness_score: (r.readiness_score as number | null) ?? null,
@@ -117,6 +121,12 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
           </div>
           <span style={betaTag}>Beta</span>
         </div>
+        {hasGarmin && (
+          <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+            <GarminAttribution />
+            <YvesGarminCaption />
+          </div>
+        )}
 
         {/* Hero: symptom-relatable message */}
         <div style={{ display: "flex", gap: 10, marginTop: 16, alignItems: "flex-start" }}>

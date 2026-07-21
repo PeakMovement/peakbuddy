@@ -1349,6 +1349,7 @@ export type Database = {
           client_id: string
           created_at: string
           expires_at: string | null
+          garmin_device_model: string | null
           provider: string
           provider_user_id: string | null
           refresh_token: string | null
@@ -1360,6 +1361,7 @@ export type Database = {
           client_id: string
           created_at?: string
           expires_at?: string | null
+          garmin_device_model?: string | null
           provider: string
           provider_user_id?: string | null
           refresh_token?: string | null
@@ -1371,6 +1373,7 @@ export type Database = {
           client_id?: string
           created_at?: string
           expires_at?: string | null
+          garmin_device_model?: string | null
           provider?: string
           provider_user_id?: string | null
           refresh_token?: string | null
