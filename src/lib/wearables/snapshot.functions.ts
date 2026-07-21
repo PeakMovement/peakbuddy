@@ -7,6 +7,8 @@ export type WearableSnapshot = {
   provider: WearableProvider | null;
   date: string | null;
   session: WearableMetricRow | null;
+  /** Garmin device model captured from activity webhooks (nullable). */
+  deviceModel: string | null;
 };
 
 const METRIC_FIELDS =
