@@ -1387,6 +1387,102 @@ export type Database = {
           },
         ]
       }
+      yves_triage_logs: {
+        Row: {
+          client_id: string
+          combination_floor_hit: string[]
+          created_at: string
+          error: string | null
+          escalated: boolean
+          escalation_reasons: string[]
+          extraction_model: string | null
+          extraction_output: Json | null
+          final_model: string | null
+          final_red_flag_category: string | null
+          final_severity: number | null
+          final_urgency: string | null
+          first_pass_confidence: number | null
+          first_pass_model: string | null
+          first_pass_severity: number | null
+          first_pass_urgency: string | null
+          floor_terms_hit: string[]
+          hard_override_hit: string[]
+          id: string
+          practitioner_id: string
+          prompt_version: string
+          query_text_len: number | null
+          symptom_query_id: string | null
+          total_latency_ms: number | null
+        }
+        Insert: {
+          client_id: string
+          combination_floor_hit?: string[]
+          created_at?: string
+          error?: string | null
+          escalated?: boolean
+          escalation_reasons?: string[]
+          extraction_model?: string | null
+          extraction_output?: Json | null
+          final_model?: string | null
+          final_red_flag_category?: string | null
+          final_severity?: number | null
+          final_urgency?: string | null
+          first_pass_confidence?: number | null
+          first_pass_model?: string | null
+          first_pass_severity?: number | null
+          first_pass_urgency?: string | null
+          floor_terms_hit?: string[]
+          hard_override_hit?: string[]
+          id?: string
+          practitioner_id: string
+          prompt_version: string
+          query_text_len?: number | null
+          symptom_query_id?: string | null
+          total_latency_ms?: number | null
+        }
+        Update: {
+          client_id?: string
+          combination_floor_hit?: string[]
+          created_at?: string
+          error?: string | null
+          escalated?: boolean
+          escalation_reasons?: string[]
+          extraction_model?: string | null
+          extraction_output?: Json | null
+          final_model?: string | null
+          final_red_flag_category?: string | null
+          final_severity?: number | null
+          final_urgency?: string | null
+          first_pass_confidence?: number | null
+          first_pass_model?: string | null
+          first_pass_severity?: number | null
+          first_pass_urgency?: string | null
+          floor_terms_hit?: string[]
+          hard_override_hit?: string[]
+          id?: string
+          practitioner_id?: string
+          prompt_version?: string
+          query_text_len?: number | null
+          symptom_query_id?: string | null
+          total_latency_ms?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yves_triage_logs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "yves_triage_logs_symptom_query_id_fkey"
+            columns: ["symptom_query_id"]
+            isOneToOne: false
+            referencedRelation: "symptom_queries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

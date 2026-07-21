@@ -342,6 +342,84 @@ const KEYWORD_FLOOR_RAW: Array<{
   { term: "depression", minUrgency: "soon", minSeverity: 5, category: "mental_health" },
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// COMBINATION FLOOR — pairs of moderate terms that together escalate. Runs
+// AFTER the single-term keyword floor and can only escalate (never downgrade).
+// Each entry: if ALL `terms` appear (non-negated, non-attributed) → apply
+// `minUrgency` / `minSeverity`. Ordered high-to-low; first match wins.
+// ─────────────────────────────────────────────────────────────────────────────
+export const COMBINATION_FLOOR: Array<{
+  id: string;
+  terms: string[];
+  minUrgency: UrgencyTier;
+  minSeverity: number;
+  category: RedFlagCategory;
+}> = [
+  // Meningitis triad
+  { id: "meningitis_triad", terms: ["fever", "neck stiffness"], minUrgency: "urgent", minSeverity: 9, category: "infection" },
+  { id: "meningitis_stiff", terms: ["fever", "stiff neck"], minUrgency: "urgent", minSeverity: 9, category: "infection" },
+  { id: "meningitis_af", terms: ["koors", "stywe nek"], minUrgency: "urgent", minSeverity: 9, category: "infection" },
+  // Classic cardiac cluster
+  { id: "cardiac_cluster_arm", terms: ["chest", "left arm"], minUrgency: "urgent", minSeverity: 9, category: "cardiac" },
+  { id: "cardiac_cluster_jaw", terms: ["chest", "jaw pain"], minUrgency: "urgent", minSeverity: 8, category: "cardiac" },
+  { id: "cardiac_cluster_sweat", terms: ["chest", "cold sweats"], minUrgency: "urgent", minSeverity: 8, category: "cardiac" },
+  { id: "cardiac_cluster_breath", terms: ["chest tightness", "shortness of breath"], minUrgency: "urgent", minSeverity: 8, category: "cardiac" },
+  // Cauda equina cluster
+  { id: "cauda_cluster", terms: ["numbness", "bladder"], minUrgency: "emergency", minSeverity: 10, category: "cauda_equina" },
+  { id: "cauda_cluster_bowel", terms: ["numbness", "bowel"], minUrgency: "emergency", minSeverity: 10, category: "cauda_equina" },
+  { id: "cauda_bilateral", terms: ["both legs", "weakness"], minUrgency: "urgent", minSeverity: 9, category: "cauda_equina" },
+  // Systemic / oncological cluster
+  { id: "systemic_weight_sweat", terms: ["weight loss", "night sweats"], minUrgency: "urgent", minSeverity: 7, category: "systemic" },
+  { id: "systemic_weight_fatigue", terms: ["weight loss", "fatigue"], minUrgency: "soon", minSeverity: 6, category: "systemic" },
+  // Stroke FAST cluster
+  { id: "stroke_fast", terms: ["face", "arm weakness"], minUrgency: "urgent", minSeverity: 9, category: "neuro" },
+  { id: "stroke_speech_weak", terms: ["slurred speech", "weakness"], minUrgency: "urgent", minSeverity: 9, category: "neuro" },
+  // Respiratory infection alarm
+  { id: "resp_infection", terms: ["fever", "cough", "shortness of breath"], minUrgency: "urgent", minSeverity: 8, category: "respiratory" },
+];
+
+export function applyCombinationFloor(
+  text: string,
+  currentUrgency: UrgencyTier,
+  currentSeverity: number,
+): {
+  urgency: UrgencyTier;
+  severity: number;
+  escalated: boolean;
+  matched: string[];
+  topCategory: RedFlagCategory | null;
+} {
+  const lower = text.toLowerCase();
+  const matched: string[] = [];
+  let urgency = currentUrgency;
+  let severity = currentSeverity;
+  let topCategory: RedFlagCategory | null = null;
+
+  for (const combo of COMBINATION_FLOOR) {
+    const allPresent = combo.terms.every((t) => {
+      const idx = lower.indexOf(t);
+      if (idx === -1) return false;
+      if (isNegated(text, idx)) return false;
+      if (isAttributed(text, idx)) return false;
+      return true;
+    });
+    if (!allPresent) continue;
+    matched.push(combo.id);
+    if (URGENCY_RANK[combo.minUrgency] > URGENCY_RANK[urgency]) {
+      urgency = combo.minUrgency;
+      topCategory = combo.category;
+    }
+    if (combo.minSeverity > severity) {
+      severity = combo.minSeverity;
+      if (!topCategory) topCategory = combo.category;
+    }
+  }
+
+  const escalated =
+    severity > currentSeverity || URGENCY_RANK[urgency] > URGENCY_RANK[currentUrgency];
+  return { urgency, severity, escalated, matched, topCategory };
+}
+
 // Deduped, clash-free floor: drop any exact-duplicate term and any term that
 // collides with a hard-override phrase (hard overrides win — they short-circuit).
 const _HARD_TERMS = new Set(HARD_OVERRIDE_PHRASES.map((h) => h.term));
