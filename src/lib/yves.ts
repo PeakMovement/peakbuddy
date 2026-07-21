@@ -150,6 +150,22 @@ const HARD_OVERRIDE_PHRASES: Array<{ term: string; category: RedFlagCategory }> 
   { term: "myself doodmaak", category: "mental_health" }, // kill myself
   { term: "bloed opgooi", category: "general" }, // vomiting blood
   { term: "pyn op die bors", category: "cardiac" }, // pain on the chest
+  // Natural-language variants of stroke / anaphylaxis / cauda-equina signs that
+  // exact-match missed ("my face IS drooping", "throat IS closing", "lost
+  // control OF MY bladder") — surfaced by the offline eval harness.
+  { term: "face is drooping", category: "neuro" },
+  { term: "speech is slurred", category: "neuro" },
+  { term: "slurring my words", category: "neuro" },
+  { term: "words are slurred", category: "neuro" },
+  { term: "throat is closing", category: "respiratory" },
+  { term: "throat closing up", category: "respiratory" },
+  { term: "lost control of my bladder", category: "cauda_equina" },
+  { term: "lost control of my bowel", category: "cauda_equina" },
+  { term: "cant control my bladder", category: "cauda_equina" },
+  { term: "can't control my bladder", category: "cauda_equina" },
+  { term: "cant control my bowel", category: "cauda_equina" },
+  { term: "can't control my bowel", category: "cauda_equina" },
+  { term: "numb between my legs", category: "cauda_equina" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
