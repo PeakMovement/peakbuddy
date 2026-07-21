@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Watch } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { computeForecast, type ForecastResult } from "@/lib/body-forecast";
+import { GarminAttribution } from "@/components/wearables/GarminAttribution";
 
 type WRow = {
   date: string;
