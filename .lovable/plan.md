@@ -1,66 +1,55 @@
+## Goal
 
-# Yves Analysis Upgrade — Phased Plan
+Satisfy Garmin's two review requirements before submitting screenshots:
 
-Goal: raise precision (fewer false alarms) and recall (catch subtle red flags) without weakening safety. Ship in 4 phases so each phase is measurable before the next.
+1. **Garmin branding** wherever Garmin data appears in the app (per GCDP Brand Guidelines).
+2. **Privacy Policy section** describing how Garmin data is collected, used, processed, stored, and shared — reachable via a **direct anchor link**.
 
-## Phase 1 — Richer patient context (fast, biggest immediate lift)
+## 1. Host the Garmin logo as a Lovable asset
 
-Expand what Yves sees before it reasons. Today it gets aggregates; give it evidence.
+Upload `user-uploads://Garmin_logo_2006.svg.webp` via `lovable-assets` to `src/assets/garmin-logo.webp.asset.json`. This gives every surface a CDN URL, no binary in the repo.
 
-Server-side context builder (in `triage-query.ts` client-context section):
-- Last 3 raw check-in notes verbatim (text + pain + timestamp + flagged bool)
-- Wearable deltas over last 7 days (HRV drop %, RHR spike, sleep debt hrs, ACWR spike) — only if `yves_ai_consent = true`
-- Practitioner-set fields: assigned program name + goals + known conditions/diagnosis notes
-- Time-of-day + hours since last activity/session
-- Last 2 red-flag categories fired for this client (with days ago)
+Guideline compliance: the supplied logo is the black wordmark + blue triangle. On our dark navy background it must sit on a **white/light chip** (per Garmin brand rules — no color inversion, min clear space). I'll render it inside a white rounded pill wherever it appears.
 
-Prompt change: replace freeform context block with a structured `<PATIENT_CONTEXT>` XML block so the model can reference specific fields.
+## 2. Add branding to every Garmin data surface
 
-## Phase 2 — Structured extraction + two-step reasoning
+Surfaces that currently show Garmin data:
 
-Split the single call into two:
+- **`src/components/wearables/WearablesPanel.tsx`** — replace the generic hand-drawn `<ProviderMark provider="garmin">` SVG with the official Garmin logo chip. The card already says "Garmin"; the logo replaces the placeholder mark.
+- **`src/components/wearables/WearableTiles.tsx`** — when the connected provider is `garmin`, render a small "Powered by [Garmin logo]" attribution row above the metric grid (in addition to the existing "Garmin · your metrics" label).
+- **`src/routes/client.app.profile.tsx`** — verify the wearables tile that lists connected providers shows the Garmin mark (uses `WearablesPanel`, so covered by the change above).
 
-1. **Extract** (Gemini Flash Lite, cheap): parse the message into normalized fields — `body_region`, `onset`, `duration`, `character`, `associated_symptoms[]`, `negations[]`, `attributions[]`, `language`. Handles "not chest pain, just tight" and "from yesterday's gym" correctly at the source.
-2. **Triage** (existing model): receives raw text + extracted record + patient context. Prompt forces "reason then score" — first list which red-flag checklist items apply and the differential, then output severity/urgency. Add `what_would_change_my_mind` field to surface uncertainty.
+A small reusable `<GarminAttribution />` component in `src/components/wearables/GarminAttribution.tsx` will render the white-chip logo at two sizes (`sm` for tiles, `md` for the Wearables panel card) so all surfaces stay consistent.
 
-Also: dynamically inject only the 2–3 few-shot examples matching the extracted `body_region` / suspected category, instead of always sending all 9.
+## 3. Add the Garmin section to the Privacy Policy
 
-## Phase 3 — Model router (cheap → strong on risk)
+Edit `src/routes/privacy-policy.tsx` — insert a new `<section id="garmin">` after the existing AI section (currently `#ai`). Content:
 
-- First pass: Gemini Flash Lite on the triage step.
-- Escalate to a reasoning model (GPT-5.5 or Gemini 3.1 Pro) when any of:
-  - severity ≥ 6
-  - confidence < 0.7
-  - any red_flag_category set
-  - keyword floor triggered
-- Second model sees first model's output and must explicitly agree/disagree with reasoning. Final result = higher-urgency of the two, union of red_flags.
-- Keeps hard-override and keyword floor as the safety net regardless of router path.
+- **What we collect via Garmin Health API:** daily summaries, sleep, HRV, activities, epochs, stress, user metrics — as pushed by Garmin's webhooks (no on-demand pulls).
+- **How it's collected:** OAuth 2.0 + PKCE consent in Garmin Connect; user can revoke in Garmin Connect at any time.
+- **How it's used:** displayed to the user, shared with their linked practitioner for clinical review, and used as context signals for the Yves triage assistant (HRV/RHR/sleep deltas).
+- **Third-party processing of Garmin data:**
+  - Anthropic (Yves triage) — only when the user has consented to AI features.
+  - Google via Lovable AI Gateway (program suggestions) — only when the user has consented.
+  - Cloud hosting/database provider — encrypted at rest.
+  - Garmin data is **never sold** and **never used to train AI models**.
+- **Storage & retention:** encrypted at rest; retained while the connection is active + statutory healthcare retention; deleted on disconnect or on request.
+- **User control:** disconnect in Profile → Wearables removes the token and stops all data flow; deregistration webhooks from Garmin are honored automatically.
 
-Add a combination floor (moderate + moderate pairs, e.g. `fever` + `neck stiff` → urgent) so cluster escalation doesn't depend only on the LLM.
+Deep-link URL to give Garmin: **`https://peakbuddy.lovable.app/privacy-policy#garmin`**
 
-## Phase 4 — Calibration loop from grading data
+Also add a small "Garmin Health Data" entry to the on-page ToC / anchor list if one exists (currently no ToC — sections are numbered; I'll insert as **§5. Garmin Health Data** and renumber subsequent sections, or append as §14 to avoid renumber churn — recommending **append as §14** to minimize diff).
 
-- Nightly aggregation of grading outcomes per practice + per red_flag_category → `yves_calibration` table (confirmed/false_alarm/already_aware counts, last 30/90 days).
-- Inject a compact "prior" block into the prompt: "this practice: cardiac alerts 12/15 confirmed, mental_health 2/8 confirmed" — Yves adjusts confidence, not the safety floor.
-- Per-keyword precision report for admins → surface floor terms with high false-alarm rate for manual tuning (never auto-relaxed).
-- Observability: log prompt version, model(s) used, tokens, latency, floor terms hit, AI-only urgency vs final urgency, extraction output, escalation path. Enables A/B on prompt changes with real numbers.
+## Out of scope
 
-## Safety invariants (unchanged across all phases)
+- Any change to Garmin OAuth/webhook logic (already built).
+- Enabling the Health API in Garmin's config portal — that's a step you do in `apis.garmin.com/tools/apiConfiguration`, not something the app can do.
+- Rewording the rest of the privacy policy.
 
-- Hard-override phrases and keyword floor always run and can only escalate, never downgrade.
-- Patient feedback (`setPatientFeedback`) still cannot influence severity/urgency.
-- AI calls still gated by `yves_ai_consent`; anything wearable/personal-context also gated.
-- Practitioner-visible rationale must cite whether escalation came from context, current text, or both.
+## Files touched
 
-## Technical notes
-
-- Files touched: `src/routes/api/public/triage-query.ts` (prompt + extraction call + router), `src/lib/yves.ts` (types, combination floor), new `src/lib/yves-context.server.ts` (context builder), new migration for `yves_calibration` table + grants + RLS.
-- No client UI changes required for phases 1–4; grading + consent UI already exist.
-- Backwards compatible: same `TriageResult` shape returned; new fields additive.
-
-## Suggested rollout
-
-1. Phase 1 behind no flag (pure context expansion, low risk).
-2. Phase 2 behind `platform_settings.yves_two_step_enabled` — A/B for 1 week.
-3. Phase 3 rolled out once phase 2 numbers hold.
-4. Phase 4 is background + admin surface; no user-visible risk.
+- `src/assets/garmin-logo.webp.asset.json` (new — CDN pointer)
+- `src/components/wearables/GarminAttribution.tsx` (new)
+- `src/components/wearables/WearablesPanel.tsx` (swap Garmin ProviderMark)
+- `src/components/wearables/WearableTiles.tsx` (add attribution row for Garmin)
+- `src/routes/privacy-policy.tsx` (add `#garmin` section)
