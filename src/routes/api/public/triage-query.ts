@@ -388,7 +388,7 @@ async function buildCalibrationPrior(
     ];
     const prior = Object.fromEntries(
       cats.map((c) => [c, { confirmed: 0, false_alarm: 0 }]),
-    ) as CalibrationPrior;
+    ) as unknown as CalibrationPrior;
 
     for (const r of rows) {
       const cat = (r.red_flag_category as keyof CalibrationPrior) ?? "general";
