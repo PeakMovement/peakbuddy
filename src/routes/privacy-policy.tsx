@@ -242,7 +242,93 @@ function PrivacyPolicyPage() {
           </ul>
         </section>
 
+        <section className="mt-8 scroll-mt-24" id="garmin">
+          <h2
+            className="text-xl font-semibold"
+            style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
+          >
+            Garmin Health Data
+          </h2>
+          <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
+            If you choose to connect a Garmin device to Buddy, this section explains exactly what
+            Garmin data we receive, how it is collected, how it is used, who processes it, and how
+            long we keep it. Garmin is a registered trademark of Garmin Ltd. Buddy is not
+            affiliated with or endorsed by Garmin.
+          </p>
+          <ul
+            className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed"
+            style={{ color: "var(--white-muted)" }}
+          >
+            <li>
+              <strong style={{ color: "var(--white)" }}>What we collect from Garmin:</strong> via
+              the Garmin Health API we receive daily wellness summaries, sleep summaries, heart
+              rate variability (HRV), stress details, epoch summaries, user metrics, and activity
+              summaries (including distance). We do not receive raw GPS tracks, contacts, messages,
+              or payment information.
+            </li>
+            <li>
+              <strong style={{ color: "var(--white)" }}>How it is collected:</strong> you authorise
+              the connection via Garmin Connect using OAuth 2.0 with PKCE. After you consent,
+              Garmin pushes new data to Buddy's secure webhook endpoint as it becomes available.
+              Buddy does not scrape or pull data from your Garmin account outside of this
+              authorised push flow.
+            </li>
+            <li>
+              <strong style={{ color: "var(--white)" }}>How we use it:</strong> Garmin data is
+              displayed to you in the app, shared with the healthcare practitioner linked to your
+              account for clinical review, and — only if you have separately consented to AI
+              features — used as contextual signal (e.g. HRV, resting heart rate, and sleep
+              deltas) for the Yves triage assistant.
+            </li>
+            <li>
+              <strong style={{ color: "var(--white)" }}>Who processes Garmin data on our behalf:</strong>{" "}
+              cloud infrastructure (Supabase / Cloudflare) for hosting and encrypted storage;
+              Anthropic (Claude models) as an AI processor for Yves, only when you have consented
+              to AI features; and Google (via the Lovable AI Gateway) for exercise-program
+              suggestions, only when you have consented to AI features. All processors are bound
+              by data processing agreements, use your data solely to provide the requested
+              feature, and do not use your Garmin data to train AI models.
+            </li>
+            <li>
+              <strong style={{ color: "var(--white)" }}>Selling and advertising:</strong> we do
+              not sell, rent, trade, or use your Garmin data for advertising, marketing profiling,
+              or any purpose other than the ones listed above.
+            </li>
+            <li>
+              <strong style={{ color: "var(--white)" }}>Storage and security:</strong> Garmin
+              access and refresh tokens and all synced Garmin data are encrypted at rest and
+              transmitted over TLS 1.2 or higher. Access is restricted by role-based policies so
+              only you, your linked practitioner, and authorised Buddy support staff can view
+              your data.
+            </li>
+            <li>
+              <strong style={{ color: "var(--white)" }}>Retention:</strong> Garmin data is
+              retained while your Garmin connection is active and for the duration of your
+              therapeutic relationship with your practitioner, plus any statutory healthcare
+              retention period applicable in South Africa. When you disconnect Garmin, we delete
+              your Garmin OAuth tokens immediately and stop receiving new data.
+            </li>
+            <li>
+              <strong style={{ color: "var(--white)" }}>Your control:</strong> you can disconnect
+              Garmin at any time from Profile → Wearables inside Buddy, or from Garmin Connect →
+              Settings → Connected Apps. Buddy automatically honours Garmin's deregistration and
+              user-permissions-change webhooks: if you revoke access on Garmin's side, we remove
+              the corresponding token on our side. You may also request deletion of any Garmin
+              data we hold by emailing{" "}
+              <a
+                href="mailto:hello@peakmovement.co.za"
+                className="underline underline-offset-2"
+                style={{ color: "var(--blue-accent)" }}
+              >
+                hello@peakmovement.co.za
+              </a>
+              .
+            </li>
+          </ul>
+        </section>
+
         <section className="mt-8">
+
           <h2
             className="text-xl font-semibold"
             style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
