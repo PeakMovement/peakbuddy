@@ -924,7 +924,7 @@ export const Route = createFileRoute("/api/public/triage-query")({
               prompt_version: PROMPT_VERSION,
               query_text_len: query_text.length,
               extraction_model: extractionModel,
-              extraction_output: extraction as unknown as Record<string, unknown> | null,
+              extraction_output: (extraction ?? null) as unknown as import("@/integrations/supabase/types").Json,
               first_pass_model: firstPass ? "claude-3-5-haiku-20241022" : null,
               first_pass_urgency: firstPass?.urgency ?? null,
               first_pass_severity: firstPass?.severity ?? null,
