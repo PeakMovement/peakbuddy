@@ -121,6 +121,12 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
           </div>
           <span style={betaTag}>Beta</span>
         </div>
+        {hasGarmin && (
+          <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+            <GarminAttribution />
+            <YvesGarminCaption />
+          </div>
+        )}
 
         {/* Hero: symptom-relatable message */}
         <div style={{ display: "flex", gap: 10, marginTop: 16, alignItems: "flex-start" }}>
