@@ -30,7 +30,8 @@ export const getMyWearableSnapshot = createServerFn({ method: "GET" })
       .select("id")
       .eq("auth_user_id", context.userId)
       .maybeSingle();
-    if (!client) return { connected: false, provider: null, date: null, session: null };
+    if (!client)
+      return { connected: false, provider: null, date: null, session: null, deviceModel: null };
 
     const [{ data: recent }, { data: tokens }] = await Promise.all([
       db
@@ -39,7 +40,10 @@ export const getMyWearableSnapshot = createServerFn({ method: "GET" })
         .eq("client_id", client.id)
         .order("date", { ascending: false })
         .limit(14),
-      db.from("wearable_tokens").select("provider").eq("client_id", client.id),
+      db
+        .from("wearable_tokens")
+        .select("provider, garmin_device_model")
+        .eq("client_id", client.id),
     ]);
 
     const rows = (recent ?? []) as any[];
