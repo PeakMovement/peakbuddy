@@ -12,7 +12,7 @@ import {
   type MorningAnalysisPayload,
 } from "@/lib/morning-analysis.functions";
 import { registerPushToken } from "@/lib/push";
-import { countActiveWearableConnections } from "@/lib/wearables.functions";
+import { countActiveWearableConnections, getPractitionerClientWearables } from "@/lib/wearables.functions";
 
 export const Route = createFileRoute("/practitioner/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Buddy" }] }),
@@ -23,6 +23,7 @@ type ClientRow = Client & {
   _lastCheckIn: string | null;
   _compliance: number;
   _activeToday: boolean;
+  _wearables: string[];
 };
 
 function greeting() {
@@ -69,6 +70,7 @@ function Dashboard() {
         { data: clients, error: cErr },
         { count: unreadCount, error: aErr },
         wc,
+        wmap,
       ] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
         supabase
@@ -82,6 +84,7 @@ function Dashboard() {
           .eq("practitioner_id", u.user.id)
           .eq("is_read", false),
         countActiveWearableConnections().catch(() => 0),
+        getPractitionerClientWearables().catch(() => ({}) as Record<string, string[]>),
       ]);
       if (cErr || aErr) throw cErr || aErr;
 
@@ -135,6 +138,7 @@ function Dashboard() {
           _lastCheckIn: last,
           _compliance: compliance,
           _activeToday: !!last && isSameDay(last, today),
+          _wearables: (wmap as Record<string, string[]>)[c.id] ?? [],
         };
       });
       setRows(enriched);
@@ -307,7 +311,7 @@ function Dashboard() {
                 >
                   {r.primary_complaint || "—"}
                 </div>
-                <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                   <span
                     style={{
                       width: 8,
@@ -325,6 +329,7 @@ function Dashboard() {
                   >
                     {r._lastCheckIn ? new Date(r._lastCheckIn).toLocaleDateString() : "Never"}
                   </span>
+                  <WearableBadge providers={r._wearables} />
                 </div>
               </div>
               <CircularRing
@@ -369,6 +374,36 @@ function Dashboard() {
         </Link>
       </div>
     </div>
+  );
+}
+
+function WearableBadge({ providers }: { providers: string[] }) {
+  const connected = providers.length > 0;
+  const label = connected
+    ? providers.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(", ")
+    : "No wearable";
+  return (
+    <span
+      title={connected ? `Connected: ${label}` : "No wearable connected"}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "2px 8px",
+        borderRadius: 999,
+        fontFamily: "var(--font-ui)",
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.06em",
+        textTransform: "uppercase",
+        border: `1px solid ${connected ? "var(--green)" : "var(--navy-border)"}`,
+        color: connected ? "var(--green)" : "var(--white-muted)",
+        background: connected ? "rgba(52,199,89,0.08)" : "transparent",
+      }}
+    >
+      <Watch size={10} />
+      {connected ? label : "None"}
+    </span>
   );
 }
 
