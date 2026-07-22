@@ -98,16 +98,17 @@ function AdminDataHub() {
   const [insightAt, setInsightAt] = useState<string>("");
   const [insightBusy, setInsightBusy] = useState(false);
   const [insightErr, setInsightErr] = useState<string | null>(null);
+  const [insightMemVer, setInsightMemVer] = useState<number | null>(null);
   useEffect(() => {
     // reset on client change
-    setInsightText(""); setInsightAt(""); setInsightErr(null);
+    setInsightText(""); setInsightAt(""); setInsightErr(null); setInsightMemVer(null);
   }, [selected]);
   async function runInsight() {
     if (!selected || insightBusy) return;
     setInsightBusy(true); setInsightErr(null);
     try {
       const r = await insightFn({ data: { clientId: selected, focus: insightFocus } });
-      setInsightText(r.text); setInsightAt(r.generatedAt);
+      setInsightText(r.text); setInsightAt(r.generatedAt); setInsightMemVer(r.memoryVersion ?? 0);
     } catch (e) {
       setInsightErr(e instanceof Error ? e.message : "Failed to generate insight");
     } finally { setInsightBusy(false); }
@@ -256,9 +257,12 @@ function AdminDataHub() {
           {/* Generate insight (AI) */}
           {visible.insight && (
           <section style={card}>
-            <div style={sectionTitle}>Generate insight <span style={countS}>AI analysis of this client's full record</span></div>
+            <div style={sectionTitle}>Yves <span style={countS}>Clinical insight agent</span></div>
+            <div style={{ ...muted, fontSize: 11, marginTop: -4, marginBottom: 8 }}>
+              Memory v{insightMemVer ?? "—"}
+            </div>
             <p style={{ ...muted, marginTop: 0, marginBottom: 12 }}>
-              AI reads all available metrics, symptoms, wearable data and alerts to summarise what matters about this client.
+              Yves reads all available metrics, symptoms, wearable data and alerts to summarise what matters about this client.
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
               <label style={fieldLabel}>Focus</label>
