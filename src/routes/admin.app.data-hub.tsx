@@ -71,6 +71,8 @@ function AdminDataHub() {
   const [loadingList, setLoadingList] = useState(true);
   const [loadingBundle, setLoadingBundle] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [activityOpen, setActivityOpen] = useState<boolean>(false);
+
   const [visible, setVisible] = useState<Record<SectionKey, boolean>>(() => {
     const base = Object.fromEntries(SECTIONS.map((s) => [s.key, true])) as Record<SectionKey, boolean>;
     if (typeof window === "undefined") return base;
