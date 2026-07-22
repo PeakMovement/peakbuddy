@@ -14,6 +14,12 @@ import { publishYvesRule, rejectYvesRule, rollbackYvesMemory } from "@/lib/yves-
 
 export const Route = createFileRoute("/admin/app/yves-teach")({
   head: () => ({ meta: [{ title: "Teach Yves — Buddy" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    mode: (s.mode as string | undefined) ?? undefined,
+    clientId: (s.clientId as string | undefined) ?? undefined,
+    focus: (s.focus as string | undefined) ?? undefined,
+    fromInsight: (s.fromInsight as string | undefined) ?? undefined,
+  }),
   component: TeachYves,
 });
 
