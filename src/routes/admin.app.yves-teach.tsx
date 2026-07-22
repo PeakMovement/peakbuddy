@@ -124,9 +124,39 @@ function TeachYves() {
     catch { setTurns((prev) => prev.map((x) => (x.id === t.id ? { ...x, liked: false } : x))); }
   }
 
-  function correct(_t: Turn) {
-    // Corrections-to-memory land in a later prompt.
-    alert("Corrections-to-memory will land in the next prompt.");
+  // Correction dialog state
+  const proposeFn = useServerFn(proposeYvesRule);
+  const [correctFor, setCorrectFor] = useState<Turn | null>(null);
+  const [correctionText, setCorrectionText] = useState("");
+  const [correctBusy, setCorrectBusy] = useState(false);
+  const [correctMsg, setCorrectMsg] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
+
+  function correct(t: Turn) {
+    if (!t.feedbackId) return;
+    setCorrectFor(t);
+    setCorrectionText("");
+    setCorrectMsg(null);
+  }
+
+  async function submitCorrection() {
+    if (!correctFor?.feedbackId || !correctionText.trim()) return;
+    setCorrectBusy(true);
+    setCorrectMsg(null);
+    try {
+      const r = await proposeFn({
+        data: { feedbackId: correctFor.feedbackId, correction: correctionText.trim(), focus },
+      });
+      if (r.ok) {
+        setCorrectMsg({ tone: "ok", text: `Staged as candidate rule${r.conflictIds?.length ? ` (${r.conflictIds.length} conflict${r.conflictIds.length === 1 ? "" : "s"} flagged)` : ""}.` });
+        try { setPanel(await memFn()); setTab("staging"); } catch { /* ignore */ }
+      } else {
+        setCorrectMsg({ tone: "warn", text: r.reason ?? "Blocked." });
+      }
+    } catch (e) {
+      setCorrectMsg({ tone: "err", text: e instanceof Error ? e.message : "Failed to propose rule." });
+    } finally {
+      setCorrectBusy(false);
+    }
   }
 
   function resetSession() {
