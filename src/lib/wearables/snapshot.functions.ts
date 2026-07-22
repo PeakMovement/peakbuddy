@@ -12,7 +12,7 @@ export type WearableSnapshot = {
 };
 
 const METRIC_FIELDS =
-  "date, source, active_calories, total_calories, avg_heart_rate, max_heart_rate, resting_hr, hrv_avg, spo2_avg, sleep_score, readiness_score, activity_score, total_steps, training_load, total_distance_km, stress_avg, body_battery_max, vo2_max";
+  "date, source, active_calories, total_calories, avg_heart_rate, max_heart_rate, resting_hr, hrv_avg, spo2_avg, sleep_score, readiness_score, activity_score, total_steps, training_load, total_distance_km, stress_avg, body_battery_max, body_battery_charged, body_battery_drained, vo2_max";
 
 /**
  * The calling client's wearable snapshot: whether a wearable is connected, which
@@ -40,10 +40,7 @@ export const getMyWearableSnapshot = createServerFn({ method: "GET" })
         .eq("client_id", client.id)
         .order("date", { ascending: false })
         .limit(14),
-      db
-        .from("wearable_tokens")
-        .select("provider, garmin_device_model")
-        .eq("client_id", client.id),
+      db.from("wearable_tokens").select("provider, garmin_device_model").eq("client_id", client.id),
     ]);
 
     const rows = (recent ?? []) as any[];
@@ -53,8 +50,8 @@ export const getMyWearableSnapshot = createServerFn({ method: "GET" })
     }[];
     const tokenProviders = tokenRows.map((t) => t.provider);
     const provider =
-      ((rows[0]?.source as WearableProvider | undefined) ??
-        (tokenProviders[0] as WearableProvider | undefined)) ??
+      (rows[0]?.source as WearableProvider | undefined) ??
+      (tokenProviders[0] as WearableProvider | undefined) ??
       null;
     const connected = provider != null || tokenProviders.length > 0;
     const deviceModel =
@@ -66,7 +63,13 @@ export const getMyWearableSnapshot = createServerFn({ method: "GET" })
     // newest date row ("today") is often near-empty. Show the most recent row
     // that actually carries data, so tiles reflect the last complete day.
     const CORE = [
-      "sleep_score", "readiness_score", "resting_hr", "hrv_avg", "avg_heart_rate", "spo2_avg", "training_load",
+      "sleep_score",
+      "readiness_score",
+      "resting_hr",
+      "hrv_avg",
+      "avg_heart_rate",
+      "spo2_avg",
+      "training_load",
     ];
     const forProvider = provider ? rows.filter((r) => r.source === provider) : rows;
     const hasData = (r: any) =>

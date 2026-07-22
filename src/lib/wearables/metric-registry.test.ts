@@ -19,7 +19,13 @@ describe("wearable metric registry", () => {
     expect(polar).not.toContain("hrv"); // polar.ts doesn't map hrv
     const garmin = metricsForProvider("garmin").map((m) => m.key);
     expect(garmin).toContain("resting_hr");
-    expect(garmin).not.toContain("avg_heart_rate"); // garmin.ts doesn't map avg HR
+    // garmin.ts now also persists avg/max HR, stress, Body Battery and VO2 max
+    // straight off the daily summary + userMetrics payloads.
+    expect(garmin).toContain("avg_heart_rate");
+    expect(garmin).toContain("stress");
+    expect(garmin).toContain("body_battery");
+    expect(garmin).toContain("vo2_max");
+    expect(garmin).not.toContain("readiness"); // Garmin has no readiness score
   });
 
   it("returns [] for unknown/absent provider", () => {
