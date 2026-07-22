@@ -109,6 +109,39 @@ function AdminGrading() {
     }
   };
 
+  const gradeInsight = async (row: InsightGradingRow, grade: "good" | "poor", note?: string) => {
+    setInsightQueue((q) => q.filter((r) => r.id !== row.id));
+    try {
+      await setInsightGradeFn({ data: { insightId: row.id, grade, note } });
+    } catch (e) {
+      log.error(e);
+      refreshInsights(versionFilter);
+    }
+  };
+
+  const openPoor = (row: InsightGradingRow) => {
+    setPoorFor(row);
+    setPoorNote("");
+  };
+
+  const submitPoor = async (sendToTeach: boolean) => {
+    if (!poorFor) return;
+    const row = poorFor;
+    const note = poorNote.trim() || undefined;
+    setPoorFor(null);
+    await gradeInsight(row, "poor", note);
+    if (sendToTeach) {
+      const params = new URLSearchParams({
+        mode: "client",
+        clientId: row.client_id,
+        fromInsight: row.id,
+      });
+      if (row.focus) params.set("focus", row.focus);
+      navigate({ to: "/admin/app/yves-teach", search: Object.fromEntries(params) as never });
+    }
+  };
+
+
   return (
     <div style={{ padding: "20px 16px 32px" }}>
       <h1
