@@ -456,8 +456,12 @@ function VitalChart({ title, data, color }: { title: string; data: { d: string; 
         <span style={fieldLabel}>{title}</span>
         <span style={{ color: "var(--white)", fontWeight: 700, fontSize: 15 }}>{latest === null ? "—" : latest}</span>
       </div>
-      {data.length < 2 ? (
-        <div style={{ ...muted, fontSize: 11, marginTop: 8 }}>Not tracked by this client's wearable.</div>
+      {data.length === 0 ? (
+        <div style={{ ...muted, fontSize: 11, marginTop: 8, fontStyle: "italic" }}>
+          Data cannot be displayed — not supported by this wearable.
+        </div>
+      ) : data.length < 2 ? (
+        <div style={{ ...muted, fontSize: 11, marginTop: 8 }}>Only one reading so far — building history.</div>
       ) : (
         <div style={{ width: "100%", height: 90, marginTop: 6 }}>
           <ResponsiveContainer width="100%" height="100%">
