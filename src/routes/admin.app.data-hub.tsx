@@ -248,10 +248,13 @@ function AdminDataHub() {
               </AreaChart>
             </ChartBox>
           </ChartCard>
+          )}
 
           {/* Wearable connection */}
+          {visible.wearable && (
           <section style={card}>
             <div style={sectionTitle}>Wearable connection</div>
+
             {b.wearables.length === 0 ? (
               <div style={muted}>No wearable connected.</div>
             ) : (
