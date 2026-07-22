@@ -257,9 +257,12 @@ function AdminDataHub() {
           {/* Generate insight (AI) */}
           {visible.insight && (
           <section style={card}>
-            <div style={sectionTitle}>Generate insight <span style={countS}>AI analysis of this client's full record</span></div>
+            <div style={sectionTitle}>Yves <span style={countS}>Clinical insight agent</span></div>
+            <div style={{ ...muted, fontSize: 11, marginTop: -4, marginBottom: 8 }}>
+              Memory v{insightMemVer ?? "—"}
+            </div>
             <p style={{ ...muted, marginTop: 0, marginBottom: 12 }}>
-              AI reads all available metrics, symptoms, wearable data and alerts to summarise what matters about this client.
+              Yves reads all available metrics, symptoms, wearable data and alerts to summarise what matters about this client.
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
               <label style={fieldLabel}>Focus</label>
