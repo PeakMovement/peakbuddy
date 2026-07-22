@@ -366,7 +366,8 @@ function AdminDataHub() {
           )}
 
           {/* Symptom predictors — per-client cross-reference (experimental) */}
-          {b.wearables.some((w) => w.connected) && (
+          {visible.predictors && b.wearables.some((w) => w.connected) && (
+
             <section style={card}>
               <div style={sectionTitle}>
                 Symptom predictors
