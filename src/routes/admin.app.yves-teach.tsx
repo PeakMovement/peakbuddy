@@ -70,11 +70,24 @@ function TeachYves() {
   const [panel, setPanel] = useState<Awaited<ReturnType<typeof getYvesMemoryPanel>> | null>(null);
   const [panelBusy, setPanelBusy] = useState(false);
 
+  const search = Route.useSearch();
+
   useEffect(() => {
     (async () => {
       try { setClients(await listFn()); } catch { /* ignore */ }
     })();
   }, [listFn]);
+
+  // Prefill from URL (e.g., "Send to Teach Yves" from the grading page)
+  useEffect(() => {
+    if (search.mode === "client" || search.mode === "scenario") setMode(search.mode);
+    if (search.clientId) setClientId(search.clientId);
+    if (search.focus && (YVES_TEACH_FOCUSES as readonly string[]).includes(search.focus)) {
+      setFocus(search.focus);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.mode, search.clientId, search.focus]);
+
 
   useEffect(() => {
     (async () => {
