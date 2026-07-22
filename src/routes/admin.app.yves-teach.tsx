@@ -439,9 +439,10 @@ function TeachYves() {
                 <div key={v.id} style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${C.border}`, borderRadius: 8, padding: 10 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div style={{ fontWeight: 700 }}>v{v.version_number}</div>
-                    <button disabled title="Rollback lands in the next prompt"
-                      style={{ background: "transparent", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 6, padding: "4px 8px", fontSize: 11, cursor: "not-allowed" }}>
-                      Rollback
+                    <button onClick={() => rollback(v.version_number)}
+                      disabled={rowBusyId === `v-${v.version_number}`}
+                      style={{ background: "transparent", color: C.amber, border: `1px solid ${C.amber}`, borderRadius: 6, padding: "4px 8px", fontSize: 11, cursor: rowBusyId === `v-${v.version_number}` ? "not-allowed" : "pointer" }}>
+                      {rowBusyId === `v-${v.version_number}` ? "Restoring…" : "Rollback"}
                     </button>
                   </div>
                   {v.note && <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{v.note}</div>}
