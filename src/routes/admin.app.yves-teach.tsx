@@ -412,10 +412,18 @@ function TeachYves() {
                         Conflicts with: {conflictTitles.length ? conflictTitles.join("; ") : `${r.conflict_flags.length} rule(s)`}
                       </div>
                     )}
-                    <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                      <button disabled style={pillBtn(C.green)} title="Wired in the next prompt">Approve</button>
-                      <button disabled style={pillBtn(C.muted)} title="Wired in the next prompt">Edit</button>
-                      <button disabled style={pillBtn(C.red)} title="Wired in the next prompt">Reject</button>
+                    <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                      <button onClick={() => approveRow(r, undefined, r.conflict_flags[0] ?? null)}
+                        disabled={rowBusyId === r.id || r.status !== "pending"}
+                        style={pillBtn(r.status === "pending" ? C.green : C.muted)}>
+                        {rowBusyId === r.id ? "…" : "Approve"}
+                      </button>
+                      <button onClick={() => openEdit(r)}
+                        disabled={rowBusyId === r.id || r.status !== "pending"}
+                        style={pillBtn(C.blue)}>Edit</button>
+                      <button onClick={() => rejectRow(r)}
+                        disabled={rowBusyId === r.id || r.status !== "pending"}
+                        style={pillBtn(C.red)}>Reject</button>
                       <span style={{ flex: 1 }} />
                       <span style={{ color: C.muted, fontSize: 11 }}>{new Date(r.created_at).toLocaleDateString("en-ZA")}</span>
                     </div>
