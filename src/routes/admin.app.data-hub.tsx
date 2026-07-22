@@ -43,6 +43,26 @@ function urgencyColor(u: unknown): string {
   return C.muted;
 }
 
+type SectionKey =
+  | "overview" | "symptoms" | "risk" | "wearable" | "load" | "history"
+  | "predictors" | "rhythms" | "vitals" | "patterns" | "yves" | "alerts";
+
+const SECTIONS: { key: SectionKey; label: string }[] = [
+  { key: "overview", label: "Overview" },
+  { key: "symptoms", label: "Symptom trend" },
+  { key: "risk", label: "Risk score" },
+  { key: "wearable", label: "Wearable connection" },
+  { key: "load", label: "Training load" },
+  { key: "history", label: "Load history" },
+  { key: "predictors", label: "Predictors" },
+  { key: "rhythms", label: "Rhythms" },
+  { key: "vitals", label: "Vitals" },
+  { key: "patterns", label: "Patterns" },
+  { key: "yves", label: "Yves queries" },
+  { key: "alerts", label: "Alerts" },
+];
+const VIS_STORAGE_KEY = "admin.dataHub.visibleSections.v1";
+
 function AdminDataHub() {
   const [clients, setClients] = useState<AdminClientListItem[]>([]);
   const [selected, setSelected] = useState<string>("");
@@ -50,8 +70,22 @@ function AdminDataHub() {
   const [loadingList, setLoadingList] = useState(true);
   const [loadingBundle, setLoadingBundle] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [visible, setVisible] = useState<Record<SectionKey, boolean>>(() => {
+    const base = Object.fromEntries(SECTIONS.map((s) => [s.key, true])) as Record<SectionKey, boolean>;
+    if (typeof window === "undefined") return base;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(VIS_STORAGE_KEY) || "{}");
+      return { ...base, ...saved };
+    } catch { return base; }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem(VIS_STORAGE_KEY, JSON.stringify(visible)); } catch { /* ignore */ }
+  }, [visible]);
+  const toggle = (k: SectionKey) => setVisible((v) => ({ ...v, [k]: !v[k] }));
+  const showAll = () => setVisible(Object.fromEntries(SECTIONS.map((s) => [s.key, true])) as Record<SectionKey, boolean>);
   const listFn = useServerFn(listAllClientsForAdmin);
   const bundleFn = useServerFn(getAdminClientBundle);
+
 
   useEffect(() => {
     (async () => {
