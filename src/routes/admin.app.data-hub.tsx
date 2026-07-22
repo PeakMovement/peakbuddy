@@ -161,7 +161,43 @@ function AdminDataHub() {
 
       {b && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Section visibility filter */}
+          <div style={{ ...card, padding: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+              <span style={fieldLabel}>Show / hide sections</span>
+              <button
+                onClick={showAll}
+                style={{ background: "transparent", border: "1px solid var(--navy-border)", color: "var(--white-muted)", borderRadius: 999, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}
+              >
+                Show all
+              </button>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {SECTIONS.map((s) => {
+                const on = visible[s.key];
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => toggle(s.key)}
+                    style={{
+                      ...pill,
+                      cursor: "pointer",
+                      border: `1px solid ${on ? "var(--blue-cold)" : "var(--navy-border)"}`,
+                      background: on ? "rgba(74,141,240,0.18)" : "transparent",
+                      color: on ? "var(--white)" : "var(--white-muted)",
+                    }}
+                    aria-pressed={on}
+                  >
+                    {on ? "✓ " : ""}{s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Overview */}
+          {visible.overview && (
+
           <section style={card}>
             <div style={sectionTitle}>Overview</div>
             <div style={grid}>
