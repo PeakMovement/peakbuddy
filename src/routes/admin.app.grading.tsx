@@ -34,21 +34,35 @@ const MODE_OPTIONS: { value: GradingMode; label: string }[] = [
 ];
 
 function AdminGrading() {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<GradingMode>("super_admin_only");
   const [queue, setQueue] = useState<AdminQueueRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingMode, setSavingMode] = useState(false);
 
+  // Insight grading state
+  const [insightQueue, setInsightQueue] = useState<InsightGradingRow[]>([]);
+  const [insightLoading, setInsightLoading] = useState(true);
+  const [versions, setVersions] = useState<Array<{ version: number; note: string | null }>>([]);
+  const [versionFilter, setVersionFilter] = useState<number | null>(null);
+  const [expandedInsight, setExpandedInsight] = useState<string | null>(null);
+  const [poorFor, setPoorFor] = useState<InsightGradingRow | null>(null);
+  const [poorNote, setPoorNote] = useState("");
+
   const getModeFn = useServerFn(getGradingMode);
   const setModeFn = useServerFn(setGradingMode);
   const getQueueFn = useServerFn(getAdminGradingQueue);
   const setOutcomeFn = useServerFn(setAlertOutcome);
+  const getInsightQueueFn = useServerFn(getInsightGradingQueue);
+  const setInsightGradeFn = useServerFn(setInsightGrade);
+  const listVersionsFn = useServerFn(listYvesMemoryVersionsForFilter);
 
   const refresh = async () => {
     try {
-      const [m, q] = await Promise.all([getModeFn(), getQueueFn()]);
+      const [m, q, v] = await Promise.all([getModeFn(), getQueueFn(), listVersionsFn()]);
       setMode(m.mode);
       setQueue(q);
+      setVersions(v.map((x) => ({ version: x.version, note: x.note })));
     } catch (e) {
       log.error(e);
     } finally {
@@ -56,9 +70,20 @@ function AdminGrading() {
     }
   };
 
-  useEffect(() => {
-    refresh();
-  }, []);
+  const refreshInsights = async (version: number | null) => {
+    setInsightLoading(true);
+    try {
+      const rows = await getInsightQueueFn({ data: { memoryVersion: version } });
+      setInsightQueue(rows);
+    } catch (e) {
+      log.error(e);
+    } finally {
+      setInsightLoading(false);
+    }
+  };
+
+  useEffect(() => { refresh(); }, []);
+  useEffect(() => { refreshInsights(versionFilter); }, [versionFilter]);
 
   const changeMode = async (next: GradingMode) => {
     setSavingMode(true);
