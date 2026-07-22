@@ -136,6 +136,18 @@ function AdminDataHub() {
     return b.correlation.predictors.map((p) => ({ name: `${p.label} (+${p.bestLag}d)`, r: p.r, abs: Math.abs(p.r), dir: p.direction }));
   }, [b]);
   const historySeries = useMemo(() => (b ? b.insightHistory.map((h) => ({ d: shortDate(h.date), acwr: h.acwr, fatigue: h.fatigue })) : []), [b]);
+  const activitySessions = useMemo(() => {
+    if (!b) return [] as Row[];
+    return b.wearableSessions.filter((r: Row) => {
+      const dur = num(r.duration_minutes);
+      const kcal = num(r.active_calories);
+      const load = num(r.training_load);
+      return (typeof r.session_type === "string" && r.session_type.trim() !== "")
+        || (dur !== null && dur > 0)
+        || (kcal !== null && kcal > 0)
+        || (load !== null && load > 0);
+    });
+  }, [b]);
 
   return (
     <div style={{ padding: "20px 16px 24px" }}>
