@@ -98,16 +98,17 @@ function AdminDataHub() {
   const [insightAt, setInsightAt] = useState<string>("");
   const [insightBusy, setInsightBusy] = useState(false);
   const [insightErr, setInsightErr] = useState<string | null>(null);
+  const [insightMemVer, setInsightMemVer] = useState<number | null>(null);
   useEffect(() => {
     // reset on client change
-    setInsightText(""); setInsightAt(""); setInsightErr(null);
+    setInsightText(""); setInsightAt(""); setInsightErr(null); setInsightMemVer(null);
   }, [selected]);
   async function runInsight() {
     if (!selected || insightBusy) return;
     setInsightBusy(true); setInsightErr(null);
     try {
       const r = await insightFn({ data: { clientId: selected, focus: insightFocus } });
-      setInsightText(r.text); setInsightAt(r.generatedAt);
+      setInsightText(r.text); setInsightAt(r.generatedAt); setInsightMemVer(r.memoryVersion ?? 0);
     } catch (e) {
       setInsightErr(e instanceof Error ? e.message : "Failed to generate insight");
     } finally { setInsightBusy(false); }
