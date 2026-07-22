@@ -211,9 +211,12 @@ function AdminDataHub() {
               <Field label="Passive monitoring" value={b.client.passive_monitoring_enabled ? "on" : "off"} />
             </div>
           </section>
+          )}
 
           {/* Symptom trend */}
+          {visible.symptoms && (
           <ChartCard title="Symptom & wellbeing trend" subtitle="Daily check-ins" empty={symptomSeries.length < 2 ? "Not enough check-ins yet to chart a trend." : null}>
+
             <ChartBox height={240}>
               <LineChart data={symptomSeries} margin={{ top: 6, right: 10, left: -18, bottom: 0 }}>
                 <CartesianGrid stroke={C.border} strokeDasharray="3 3" />
