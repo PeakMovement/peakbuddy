@@ -499,7 +499,9 @@ function AdminDataHub() {
               </div>
             )}
           </section>
+          )}
         </div>
+
       )}
     </div>
   );
