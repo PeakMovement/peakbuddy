@@ -440,7 +440,8 @@ function AdminDataHub() {
           )}
 
           {/* Detected patterns */}
-          {b.patterns.length > 0 && (
+          {visible.patterns && b.patterns.length > 0 && (
+
             <section style={card}>
               <div style={sectionTitle}>Detected patterns</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
