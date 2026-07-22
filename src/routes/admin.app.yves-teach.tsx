@@ -7,8 +7,10 @@ import {
   askYves,
   markYvesFeedbackPositive,
   getYvesMemoryPanel,
+  proposeYvesRule,
   YVES_TEACH_FOCUSES,
 } from "@/lib/yves-teach.functions";
+import { publishYvesRule, rejectYvesRule, rollbackYvesMemory } from "@/lib/yves-memory.functions";
 
 export const Route = createFileRoute("/admin/app/yves-teach")({
   head: () => ({ meta: [{ title: "Teach Yves — Buddy" }] }),
@@ -123,9 +125,115 @@ function TeachYves() {
     catch { setTurns((prev) => prev.map((x) => (x.id === t.id ? { ...x, liked: false } : x))); }
   }
 
-  function correct(_t: Turn) {
-    // Corrections-to-memory land in a later prompt.
-    alert("Corrections-to-memory will land in the next prompt.");
+  // Correction dialog state
+  const proposeFn = useServerFn(proposeYvesRule);
+  const [correctFor, setCorrectFor] = useState<Turn | null>(null);
+  const [correctionText, setCorrectionText] = useState("");
+  const [correctBusy, setCorrectBusy] = useState(false);
+  const [correctMsg, setCorrectMsg] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
+
+  function correct(t: Turn) {
+    if (!t.feedbackId) return;
+    setCorrectFor(t);
+    setCorrectionText("");
+    setCorrectMsg(null);
+  }
+
+  async function submitCorrection() {
+    if (!correctFor?.feedbackId || !correctionText.trim()) return;
+    setCorrectBusy(true);
+    setCorrectMsg(null);
+    try {
+      const r = await proposeFn({
+        data: { feedbackId: correctFor.feedbackId, correction: correctionText.trim(), focus },
+      });
+      if (r.ok) {
+        setCorrectMsg({ tone: "ok", text: `Staged as candidate rule${r.conflictIds?.length ? ` (${r.conflictIds.length} conflict${r.conflictIds.length === 1 ? "" : "s"} flagged)` : ""}.` });
+        try { setPanel(await memFn()); setTab("staging"); } catch { /* ignore */ }
+      } else {
+        setCorrectMsg({ tone: "warn", text: r.reason ?? "Blocked." });
+      }
+    } catch (e) {
+      setCorrectMsg({ tone: "err", text: e instanceof Error ? e.message : "Failed to propose rule." });
+    } finally {
+      setCorrectBusy(false);
+    }
+  }
+
+  // Publish / Reject / Rollback wiring
+  type StagingRow = NonNullable<typeof panel>["staging"][number];
+  const publishFn = useServerFn(publishYvesRule);
+  const rejectFn = useServerFn(rejectYvesRule);
+  const rollbackFn = useServerFn(rollbackYvesMemory);
+  const [rowBusyId, setRowBusyId] = useState<string | null>(null);
+  const [panelMsg, setPanelMsg] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
+  const [editRow, setEditRow] = useState<StagingRow | null>(null);
+  const [editDraft, setEditDraft] = useState<{ title: string; rule_text: string; rationale: string; scope: string; rule_type: string }>({
+    title: "", rule_text: "", rationale: "", scope: "", rule_type: "reasoning",
+  });
+  const [editSupersedesId, setEditSupersedesId] = useState<string>("");
+  const [reviewNote, setReviewNote] = useState<string>("");
+
+  async function refreshPanel() {
+    setPanelBusy(true);
+    try { setPanel(await memFn()); }
+    catch { /* ignore */ }
+    finally { setPanelBusy(false); }
+  }
+
+  async function approveRow(r: StagingRow, edits?: { title?: string; rule_text?: string; rationale?: string; scope?: string; rule_type?: string }, supersedesId?: string | null, note?: string) {
+    setRowBusyId(r.id);
+    setPanelMsg(null);
+    try {
+      const res = await publishFn({ data: { stagingId: r.id, edits, supersedesId: supersedesId ?? null, reviewNote: note } });
+      setPanelMsg({ tone: "ok", text: `Published (v${res.version})${res.supersededId ? ` — superseded ${res.supersededId.slice(0, 8)}…` : ""}` });
+      await refreshPanel();
+      setTab("published");
+      setEditRow(null);
+    } catch (e) {
+      setPanelMsg({ tone: "err", text: e instanceof Error ? e.message : "Publish failed." });
+    } finally { setRowBusyId(null); }
+  }
+
+  async function rejectRow(r: StagingRow) {
+    const note = window.prompt("Optional note for rejection:", "") ?? undefined;
+    setRowBusyId(r.id);
+    setPanelMsg(null);
+    try {
+      await rejectFn({ data: { stagingId: r.id, reviewNote: note?.trim() || undefined } });
+      setPanelMsg({ tone: "ok", text: "Rejected." });
+      await refreshPanel();
+    } catch (e) {
+      setPanelMsg({ tone: "err", text: e instanceof Error ? e.message : "Reject failed." });
+    } finally { setRowBusyId(null); }
+  }
+
+  function openEdit(r: StagingRow) {
+    setEditRow(r);
+    setEditDraft({
+      title: r.title,
+      rule_text: r.rule_text,
+      rationale: r.rationale ?? "",
+      scope: r.scope,
+      rule_type: r.rule_type,
+    });
+    setEditSupersedesId(r.conflict_flags[0] ?? "");
+    setReviewNote("");
+    setPanelMsg(null);
+  }
+
+  async function rollback(versionNumber: number) {
+    if (!window.confirm(`Roll back live memory to version ${versionNumber}? This deactivates current active rules and restores the snapshot.`)) return;
+    setRowBusyId(`v-${versionNumber}`);
+    setPanelMsg(null);
+    try {
+      const res = await rollbackFn({ data: { versionNumber } });
+      setPanelMsg({ tone: "ok", text: `Rolled back — restored ${res.restoredCount} rule(s), new version v${res.newVersion}.` });
+      await refreshPanel();
+      setTab("published");
+    } catch (e) {
+      setPanelMsg({ tone: "err", text: e instanceof Error ? e.message : "Rollback failed." });
+    } finally { setRowBusyId(null); }
   }
 
   function resetSession() {
@@ -269,6 +377,15 @@ function TeachYves() {
             ))}
           </div>
 
+          {panelMsg && (
+            <div style={{
+              marginBottom: 10, padding: 8, borderRadius: 6, fontSize: 11,
+              background: "rgba(0,0,0,0.25)",
+              border: `1px solid ${panelMsg.tone === "ok" ? C.green : panelMsg.tone === "warn" ? C.amber : C.red}`,
+              color: panelMsg.tone === "ok" ? C.green : panelMsg.tone === "warn" ? C.amber : C.red,
+            }}>{panelMsg.text}</div>
+          )}
+
           {panelBusy && <div style={{ color: C.muted, fontSize: 12 }}>Loading memory…</div>}
           {!panelBusy && panel && tab === "published" && (
             <div style={memListStyle}>
@@ -283,12 +400,45 @@ function TeachYves() {
           {!panelBusy && panel && tab === "staging" && (
             <div style={memListStyle}>
               {panel.staging.length === 0 && <Empty label="No candidate rules." />}
-              {panel.staging.map((r) => (
-                <MemoryCard key={r.id}
-                  badge={`${r.scope} · ${r.rule_type}`} title={r.title} body={r.rule_text}
-                  meta={`${r.status}${r.conflict_flags ? " · conflict flagged" : ""}`}
-                  tone={r.conflict_flags ? C.amber : undefined} />
-              ))}
+              {panel.staging.map((r) => {
+                const conflictTitles = r.conflict_flags
+                  .map((id) => panel.published.find((p) => p.id === id)?.title)
+                  .filter((t): t is string => Boolean(t));
+                const hasConflict = r.conflict_flags.length > 0;
+                return (
+                  <div key={r.id}
+                    style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${hasConflict ? C.amber : C.border}`, borderRadius: 8, padding: 10 }}>
+                    <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: hasConflict ? C.amber : C.muted }}>
+                      {r.scope} · {r.rule_type} · {r.status}
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 13, marginTop: 2 }}>{r.title}</div>
+                    <div style={{ color: C.white, fontSize: 12, marginTop: 4, whiteSpace: "pre-wrap" }}>{r.rule_text}</div>
+                    {r.rationale && (
+                      <div style={{ color: C.muted, fontSize: 11, marginTop: 6, fontStyle: "italic" }}>Why: {r.rationale}</div>
+                    )}
+                    {hasConflict && (
+                      <div style={{ color: C.amber, fontSize: 11, marginTop: 6 }}>
+                        Conflicts with: {conflictTitles.length ? conflictTitles.join("; ") : `${r.conflict_flags.length} rule(s)`}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                      <button onClick={() => approveRow(r, undefined, r.conflict_flags[0] ?? null)}
+                        disabled={rowBusyId === r.id || r.status !== "pending"}
+                        style={pillBtn(r.status === "pending" ? C.green : C.muted)}>
+                        {rowBusyId === r.id ? "…" : "Approve"}
+                      </button>
+                      <button onClick={() => openEdit(r)}
+                        disabled={rowBusyId === r.id || r.status !== "pending"}
+                        style={pillBtn(C.blue)}>Edit</button>
+                      <button onClick={() => rejectRow(r)}
+                        disabled={rowBusyId === r.id || r.status !== "pending"}
+                        style={pillBtn(C.red)}>Reject</button>
+                      <span style={{ flex: 1 }} />
+                      <span style={{ color: C.muted, fontSize: 11 }}>{new Date(r.created_at).toLocaleDateString("en-ZA")}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
           {!panelBusy && panel && tab === "versions" && (
@@ -298,9 +448,10 @@ function TeachYves() {
                 <div key={v.id} style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${C.border}`, borderRadius: 8, padding: 10 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div style={{ fontWeight: 700 }}>v{v.version_number}</div>
-                    <button disabled title="Rollback lands in the next prompt"
-                      style={{ background: "transparent", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 6, padding: "4px 8px", fontSize: 11, cursor: "not-allowed" }}>
-                      Rollback
+                    <button onClick={() => rollback(v.version_number)}
+                      disabled={rowBusyId === `v-${v.version_number}`}
+                      style={{ background: "transparent", color: C.amber, border: `1px solid ${C.amber}`, borderRadius: 6, padding: "4px 8px", fontSize: 11, cursor: rowBusyId === `v-${v.version_number}` ? "not-allowed" : "pointer" }}>
+                      {rowBusyId === `v-${v.version_number}` ? "Restoring…" : "Rollback"}
                     </button>
                   </div>
                   {v.note && <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{v.note}</div>}
@@ -313,9 +464,130 @@ function TeachYves() {
           )}
         </aside>
       </div>
+
+      {correctFor && (
+        <div
+          onClick={() => !correctBusy && setCorrectFor(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16 }}
+        >
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, width: "min(560px, 100%)", maxHeight: "90vh", overflowY: "auto" }}>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Correct Yves</h2>
+            <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>
+              Write how Yves should have answered, or the rule it should follow. Yves will draft a reusable, generalised rule from it. No client names, ids, dates, or one-off values.
+            </div>
+            <textarea
+              value={correctionText}
+              onChange={(e) => setCorrectionText(e.target.value)}
+              rows={6}
+              placeholder="e.g. When HRV drops >15% below baseline for 3+ nights, flag as recovery risk before recommending training…"
+              style={{ ...inputStyle, width: "100%", marginTop: 10, resize: "vertical", minHeight: 120 }}
+            />
+            {correctMsg && (
+              <div style={{
+                marginTop: 10, padding: 10, borderRadius: 8, fontSize: 12,
+                background: "rgba(0,0,0,0.25)",
+                border: `1px solid ${correctMsg.tone === "ok" ? C.green : correctMsg.tone === "warn" ? C.amber : C.red}`,
+                color: correctMsg.tone === "ok" ? C.green : correctMsg.tone === "warn" ? C.amber : C.red,
+              }}>
+                {correctMsg.text}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+              <button onClick={() => setCorrectFor(null)} disabled={correctBusy}
+                style={{ background: "transparent", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", cursor: correctBusy ? "not-allowed" : "pointer" }}>
+                Close
+              </button>
+              <button onClick={submitCorrection} disabled={correctBusy || !correctionText.trim()}
+                style={{
+                  background: correctBusy || !correctionText.trim() ? "rgba(74,141,240,0.4)" : C.blue,
+                  color: C.white, border: "none", borderRadius: 8, padding: "8px 14px",
+                  cursor: correctBusy || !correctionText.trim() ? "not-allowed" : "pointer", fontWeight: 600,
+                }}>
+                {correctBusy ? "Drafting…" : "Propose rule"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editRow && panel && (
+        <div onClick={() => rowBusyId !== editRow.id && setEditRow(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, width: "min(640px, 100%)", maxHeight: "90vh", overflowY: "auto" }}>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Edit & approve candidate</h2>
+            <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>
+              Edits are re-checked by the privacy sanitiser before publish.
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
+              <label style={labelStyle}>Scope
+                <input value={editDraft.scope} onChange={(e) => setEditDraft({ ...editDraft, scope: e.target.value })} style={inputStyle} />
+              </label>
+              <label style={labelStyle}>Rule type
+                <select value={editDraft.rule_type} onChange={(e) => setEditDraft({ ...editDraft, rule_type: e.target.value })} style={inputStyle}>
+                  {["reasoning", "phrasing", "safety", "escalation", "style"].map((t) => (<option key={t} value={t}>{t}</option>))}
+                </select>
+              </label>
+            </div>
+            <label style={{ ...labelStyle, marginTop: 8 }}>Title
+              <input value={editDraft.title} onChange={(e) => setEditDraft({ ...editDraft, title: e.target.value })} style={inputStyle} maxLength={80} />
+            </label>
+            <label style={{ ...labelStyle, marginTop: 8 }}>Rule text
+              <textarea value={editDraft.rule_text} onChange={(e) => setEditDraft({ ...editDraft, rule_text: e.target.value })}
+                rows={4} maxLength={600} style={{ ...inputStyle, resize: "vertical", minHeight: 90 }} />
+            </label>
+            <label style={{ ...labelStyle, marginTop: 8 }}>Rationale
+              <textarea value={editDraft.rationale} onChange={(e) => setEditDraft({ ...editDraft, rationale: e.target.value })}
+                rows={2} maxLength={400} style={{ ...inputStyle, resize: "vertical", minHeight: 50 }} />
+            </label>
+            <label style={{ ...labelStyle, marginTop: 8 }}>Supersedes existing rule
+              <select value={editSupersedesId} onChange={(e) => setEditSupersedesId(e.target.value)} style={inputStyle}>
+                <option value="">None (new rule)</option>
+                {panel.published
+                  .filter((p) => p.scope === editDraft.scope)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {editRow.conflict_flags.includes(p.id) ? "⚠ " : ""}{p.title}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label style={{ ...labelStyle, marginTop: 8 }}>Review note (optional)
+              <input value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} style={inputStyle} maxLength={400} />
+            </label>
+            <div style={{ display: "flex", gap: 8, marginTop: 14, justifyContent: "flex-end" }}>
+              <button onClick={() => setEditRow(null)} disabled={rowBusyId === editRow.id}
+                style={{ background: "transparent", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", cursor: rowBusyId === editRow.id ? "not-allowed" : "pointer" }}>
+                Cancel
+              </button>
+              <button
+                onClick={() => approveRow(editRow, {
+                  title: editDraft.title,
+                  rule_text: editDraft.rule_text,
+                  rationale: editDraft.rationale,
+                  scope: editDraft.scope,
+                  rule_type: editDraft.rule_type,
+                }, editSupersedesId || null, reviewNote.trim() || undefined)}
+                disabled={rowBusyId === editRow.id || !editDraft.title.trim() || !editDraft.rule_text.trim()}
+                style={{
+                  background: rowBusyId === editRow.id ? "rgba(52,211,153,0.4)" : C.green,
+                  color: "#0b1b34", border: "none", borderRadius: 8, padding: "8px 14px",
+                  cursor: rowBusyId === editRow.id ? "not-allowed" : "pointer", fontWeight: 700,
+                }}>
+                {rowBusyId === editRow.id ? "Publishing…" : "Publish"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+const labelStyle: React.CSSProperties = {
+  display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "#b8c5db", fontWeight: 600,
+};
 
 const inputStyle: React.CSSProperties = {
   background: "rgba(0,0,0,0.25)",
