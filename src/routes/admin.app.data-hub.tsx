@@ -456,7 +456,9 @@ function AdminDataHub() {
           )}
 
           {/* Yves queries */}
+          {visible.yves && (
           <section style={card}>
+
             <div style={sectionTitle}>Yves symptom queries <span style={countS}>({b.symptomQueries.length})</span></div>
             {b.symptomQueries.length === 0 ? <div style={muted}>No Yves queries.</div> : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
