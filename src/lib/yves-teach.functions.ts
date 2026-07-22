@@ -236,7 +236,16 @@ export const getYvesMemoryPanel = createServerFn({ method: "GET" })
 
     return {
       published: (pubRes.data ?? []) as never,
-      staging: (stgRes.data ?? []) as never,
+      staging: ((stgRes.data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+        id: r.id as string,
+        scope: r.scope as string,
+        rule_type: r.rule_type as string,
+        title: r.title as string,
+        rule_text: r.rule_text as string,
+        status: r.status as string,
+        conflict_flags: r.conflict_flags == null ? null : JSON.stringify(r.conflict_flags),
+        created_at: r.created_at as string,
+      })),
       versions: (verRes.data ?? []) as never,
     };
   });
