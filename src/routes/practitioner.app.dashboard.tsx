@@ -377,6 +377,36 @@ function Dashboard() {
   );
 }
 
+function WearableBadge({ providers }: { providers: string[] }) {
+  const connected = providers.length > 0;
+  const label = connected
+    ? providers.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(", ")
+    : "No wearable";
+  return (
+    <span
+      title={connected ? `Connected: ${label}` : "No wearable connected"}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "2px 8px",
+        borderRadius: 999,
+        fontFamily: "var(--font-ui)",
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.06em",
+        textTransform: "uppercase",
+        border: `1px solid ${connected ? "var(--green)" : "var(--navy-border)"}`,
+        color: connected ? "var(--green)" : "var(--white-muted)",
+        background: connected ? "rgba(52,199,89,0.08)" : "transparent",
+      }}
+    >
+      <Watch size={10} />
+      {connected ? label : "None"}
+    </span>
+  );
+}
+
 function Stat({ label, value, danger, icon }: { label: string; value: number; danger?: boolean; icon?: React.ReactNode }) {
   return (
     <div
