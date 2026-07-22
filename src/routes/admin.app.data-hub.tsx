@@ -477,9 +477,12 @@ function AdminDataHub() {
               </div>
             )}
           </section>
+          )}
 
           {/* Alerts */}
+          {visible.alerts && (
           <section style={card}>
+
             <div style={sectionTitle}>Alerts <span style={countS}>({b.alerts.length})</span></div>
             {b.alerts.length === 0 ? <div style={muted}>No alerts.</div> : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
