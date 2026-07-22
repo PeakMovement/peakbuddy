@@ -66,23 +66,15 @@ export const generateClientInsight = createServerFn({ method: "POST" })
     const extraScope = data.focus ? FOCUS_SCOPE[data.focus] : undefined;
     const scopesToLoad = Array.from(new Set(["global", "insight", ...(extraScope ? [extraScope] : [])]));
 
-    // Load active Yves memory rules + latest global memory version, in parallel.
-    const [memRes, verRes] = await Promise.all([
-      db.from("yves_memory")
-        .select("scope, rule_type, title, rule_text")
-        .eq("is_active", true)
-        .in("scope", scopesToLoad)
-        .order("rule_type", { ascending: true })
-        .order("created_at", { ascending: true }),
-      db.from("yves_memory_versions")
-        .select("version_number")
-        .order("version_number", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+    // Load active Yves memory rules + latest global memory version via cache.
+    const { getActiveYvesMemoryForScopesCached, getLatestYvesMemoryVersionCached } = await import(
+      "@/lib/yves-memory-cache.server"
+    );
+    const scopesToLoad = Array.from(new Set(["global", "insight", ...(extraScope ? [extraScope] : [])]));
+    const [memoryRules, memoryVersion] = await Promise.all([
+      getActiveYvesMemoryForScopesCached(db, scopesToLoad),
+      getLatestYvesMemoryVersionCached(db),
     ]);
-
-    const memoryRules = (memRes.data ?? []) as Array<{ scope: string; rule_type: string; title: string; rule_text: string }>;
-    const memoryVersion = (verRes.data?.version_number as number | undefined) ?? 0;
 
     const systemPrompt = buildYvesSystemPrompt({
       base: INSIGHT_SYSTEM_PROMPT,
