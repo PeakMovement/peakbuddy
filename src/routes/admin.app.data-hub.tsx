@@ -43,6 +43,26 @@ function urgencyColor(u: unknown): string {
   return C.muted;
 }
 
+type SectionKey =
+  | "overview" | "symptoms" | "risk" | "wearable" | "load" | "history"
+  | "predictors" | "rhythms" | "vitals" | "patterns" | "yves" | "alerts";
+
+const SECTIONS: { key: SectionKey; label: string }[] = [
+  { key: "overview", label: "Overview" },
+  { key: "symptoms", label: "Symptom trend" },
+  { key: "risk", label: "Risk score" },
+  { key: "wearable", label: "Wearable connection" },
+  { key: "load", label: "Training load" },
+  { key: "history", label: "Load history" },
+  { key: "predictors", label: "Predictors" },
+  { key: "rhythms", label: "Rhythms" },
+  { key: "vitals", label: "Vitals" },
+  { key: "patterns", label: "Patterns" },
+  { key: "yves", label: "Yves queries" },
+  { key: "alerts", label: "Alerts" },
+];
+const VIS_STORAGE_KEY = "admin.dataHub.visibleSections.v1";
+
 function AdminDataHub() {
   const [clients, setClients] = useState<AdminClientListItem[]>([]);
   const [selected, setSelected] = useState<string>("");
@@ -50,8 +70,22 @@ function AdminDataHub() {
   const [loadingList, setLoadingList] = useState(true);
   const [loadingBundle, setLoadingBundle] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [visible, setVisible] = useState<Record<SectionKey, boolean>>(() => {
+    const base = Object.fromEntries(SECTIONS.map((s) => [s.key, true])) as Record<SectionKey, boolean>;
+    if (typeof window === "undefined") return base;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(VIS_STORAGE_KEY) || "{}");
+      return { ...base, ...saved };
+    } catch { return base; }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem(VIS_STORAGE_KEY, JSON.stringify(visible)); } catch { /* ignore */ }
+  }, [visible]);
+  const toggle = (k: SectionKey) => setVisible((v) => ({ ...v, [k]: !v[k] }));
+  const showAll = () => setVisible(Object.fromEntries(SECTIONS.map((s) => [s.key, true])) as Record<SectionKey, boolean>);
   const listFn = useServerFn(listAllClientsForAdmin);
   const bundleFn = useServerFn(getAdminClientBundle);
+
 
   useEffect(() => {
     (async () => {
@@ -127,7 +161,43 @@ function AdminDataHub() {
 
       {b && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Section visibility filter */}
+          <div style={{ ...card, padding: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+              <span style={fieldLabel}>Show / hide sections</span>
+              <button
+                onClick={showAll}
+                style={{ background: "transparent", border: "1px solid var(--navy-border)", color: "var(--white-muted)", borderRadius: 999, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}
+              >
+                Show all
+              </button>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {SECTIONS.map((s) => {
+                const on = visible[s.key];
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => toggle(s.key)}
+                    style={{
+                      ...pill,
+                      cursor: "pointer",
+                      border: `1px solid ${on ? "var(--blue-cold)" : "var(--navy-border)"}`,
+                      background: on ? "rgba(74,141,240,0.18)" : "transparent",
+                      color: on ? "var(--white)" : "var(--white-muted)",
+                    }}
+                    aria-pressed={on}
+                  >
+                    {on ? "✓ " : ""}{s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Overview */}
+          {visible.overview && (
+
           <section style={card}>
             <div style={sectionTitle}>Overview</div>
             <div style={grid}>
@@ -141,9 +211,12 @@ function AdminDataHub() {
               <Field label="Passive monitoring" value={b.client.passive_monitoring_enabled ? "on" : "off"} />
             </div>
           </section>
+          )}
 
           {/* Symptom trend */}
+          {visible.symptoms && (
           <ChartCard title="Symptom & wellbeing trend" subtitle="Daily check-ins" empty={symptomSeries.length < 2 ? "Not enough check-ins yet to chart a trend." : null}>
+
             <ChartBox height={240}>
               <LineChart data={symptomSeries} margin={{ top: 6, right: 10, left: -18, bottom: 0 }}>
                 <CartesianGrid stroke={C.border} strokeDasharray="3 3" />
@@ -158,9 +231,12 @@ function AdminDataHub() {
               </LineChart>
             </ChartBox>
           </ChartCard>
+          )}
 
           {/* Risk trend */}
+          {visible.risk && (
           <ChartCard title="Predictive risk score" subtitle="0–100, higher = more concern" empty={riskSeries.length < 2 ? "No risk history yet (needs a wearable baseline + a few check-ins)." : null}>
+
             <ChartBox height={200}>
               <AreaChart data={riskSeries} margin={{ top: 6, right: 10, left: -18, bottom: 0 }}>
                 <defs><linearGradient id="riskG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.blue} stopOpacity={0.5} /><stop offset="100%" stopColor={C.blue} stopOpacity={0} /></linearGradient></defs>
@@ -172,10 +248,13 @@ function AdminDataHub() {
               </AreaChart>
             </ChartBox>
           </ChartCard>
+          )}
 
           {/* Wearable connection */}
+          {visible.wearable && (
           <section style={card}>
             <div style={sectionTitle}>Wearable connection</div>
+
             {b.wearables.length === 0 ? (
               <div style={muted}>No wearable connected.</div>
             ) : (
@@ -190,9 +269,11 @@ function AdminDataHub() {
               </div>
             )}
           </section>
+          )}
 
           {/* Training load & injury-risk — only when a wearable is connected */}
-          {b.wearables.some((w) => w.connected) && (
+          {visible.load && b.wearables.some((w) => w.connected) && (
+
             <section style={card}>
               <div style={sectionTitle}>
                 Training load & injury-risk cross-check
@@ -266,7 +347,8 @@ function AdminDataHub() {
           )}
 
           {/* Load history (persisted daily snapshots) */}
-          {b.wearables.some((w) => w.connected) && historySeries.length >= 2 && (
+          {visible.history && b.wearables.some((w) => w.connected) && historySeries.length >= 2 && (
+
             <ChartCard title="Load & fatigue history" subtitle="from daily snapshots" empty={null}>
               <ChartBox height={200}>
                 <LineChart data={historySeries} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
@@ -284,7 +366,8 @@ function AdminDataHub() {
           )}
 
           {/* Symptom predictors — per-client cross-reference (experimental) */}
-          {b.wearables.some((w) => w.connected) && (
+          {visible.predictors && b.wearables.some((w) => w.connected) && (
+
             <section style={card}>
               <div style={sectionTitle}>
                 Symptom predictors
@@ -316,7 +399,8 @@ function AdminDataHub() {
           )}
 
           {/* Rhythms & patterns */}
-          {b.wearables.some((w) => w.connected) && (
+          {visible.rhythms && b.wearables.some((w) => w.connected) && (
+
             <section style={card}>
               <div style={sectionTitle}>Rhythms & patterns</div>
               {b.rhythms.notes.length === 0 && b.rhythms.sleepWeekday === null && b.rhythms.hrvTrend.direction === "unknown" ? (
@@ -342,7 +426,8 @@ function AdminDataHub() {
           )}
 
           {/* Physical vitals mini-charts — only when a wearable is connected */}
-          {b.wearables.some((w) => w.connected) && (
+          {visible.vitals && b.wearables.some((w) => w.connected) && (
+
             <section style={card}>
               <div style={sectionTitle}>Physical vitals</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
@@ -355,7 +440,8 @@ function AdminDataHub() {
           )}
 
           {/* Detected patterns */}
-          {b.patterns.length > 0 && (
+          {visible.patterns && b.patterns.length > 0 && (
+
             <section style={card}>
               <div style={sectionTitle}>Detected patterns</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -370,7 +456,9 @@ function AdminDataHub() {
           )}
 
           {/* Yves queries */}
+          {visible.yves && (
           <section style={card}>
+
             <div style={sectionTitle}>Yves symptom queries <span style={countS}>({b.symptomQueries.length})</span></div>
             {b.symptomQueries.length === 0 ? <div style={muted}>No Yves queries.</div> : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -389,9 +477,12 @@ function AdminDataHub() {
               </div>
             )}
           </section>
+          )}
 
           {/* Alerts */}
+          {visible.alerts && (
           <section style={card}>
+
             <div style={sectionTitle}>Alerts <span style={countS}>({b.alerts.length})</span></div>
             {b.alerts.length === 0 ? <div style={muted}>No alerts.</div> : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -408,7 +499,9 @@ function AdminDataHub() {
               </div>
             )}
           </section>
+          )}
         </div>
+
       )}
     </div>
   );
@@ -456,8 +549,12 @@ function VitalChart({ title, data, color }: { title: string; data: { d: string; 
         <span style={fieldLabel}>{title}</span>
         <span style={{ color: "var(--white)", fontWeight: 700, fontSize: 15 }}>{latest === null ? "—" : latest}</span>
       </div>
-      {data.length < 2 ? (
-        <div style={{ ...muted, fontSize: 11, marginTop: 8 }}>Not tracked by this client's wearable.</div>
+      {data.length === 0 ? (
+        <div style={{ ...muted, fontSize: 11, marginTop: 8, fontStyle: "italic" }}>
+          Data cannot be displayed — not supported by this wearable.
+        </div>
+      ) : data.length < 2 ? (
+        <div style={{ ...muted, fontSize: 11, marginTop: 8 }}>Only one reading so far — building history.</div>
       ) : (
         <div style={{ width: "100%", height: 90, marginTop: 6 }}>
           <ResponsiveContainer width="100%" height="100%">
