@@ -369,6 +369,52 @@ function TeachYves() {
           )}
         </aside>
       </div>
+
+      {correctFor && (
+        <div
+          onClick={() => !correctBusy && setCorrectFor(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16 }}
+        >
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, width: "min(560px, 100%)", maxHeight: "90vh", overflowY: "auto" }}>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Correct Yves</h2>
+            <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>
+              Write how Yves should have answered, or the rule it should follow. Yves will draft a reusable, generalised rule from it. No client names, ids, dates, or one-off values.
+            </div>
+            <textarea
+              value={correctionText}
+              onChange={(e) => setCorrectionText(e.target.value)}
+              rows={6}
+              placeholder="e.g. When HRV drops >15% below baseline for 3+ nights, flag as recovery risk before recommending training…"
+              style={{ ...inputStyle, width: "100%", marginTop: 10, resize: "vertical", minHeight: 120 }}
+            />
+            {correctMsg && (
+              <div style={{
+                marginTop: 10, padding: 10, borderRadius: 8, fontSize: 12,
+                background: "rgba(0,0,0,0.25)",
+                border: `1px solid ${correctMsg.tone === "ok" ? C.green : correctMsg.tone === "warn" ? C.amber : C.red}`,
+                color: correctMsg.tone === "ok" ? C.green : correctMsg.tone === "warn" ? C.amber : C.red,
+              }}>
+                {correctMsg.text}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+              <button onClick={() => setCorrectFor(null)} disabled={correctBusy}
+                style={{ background: "transparent", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", cursor: correctBusy ? "not-allowed" : "pointer" }}>
+                Close
+              </button>
+              <button onClick={submitCorrection} disabled={correctBusy || !correctionText.trim()}
+                style={{
+                  background: correctBusy || !correctionText.trim() ? "rgba(74,141,240,0.4)" : C.blue,
+                  color: C.white, border: "none", borderRadius: 8, padding: "8px 14px",
+                  cursor: correctBusy || !correctionText.trim() ? "not-allowed" : "pointer", fontWeight: 600,
+                }}>
+                {correctBusy ? "Drafting…" : "Propose rule"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
