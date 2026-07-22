@@ -352,5 +352,8 @@ export const rollbackYvesMemory = createServerFn({ method: 'POST' })
       `Rollback to version ${data.versionNumber}`,
     );
 
+    const { invalidateYvesMemoryCache } = await import('@/lib/yves-memory-cache.server');
+    invalidateYvesMemoryCache();
+
     return { ok: true, newVersion, restoredCount: restored };
   });
