@@ -10,6 +10,7 @@ import {
   listAllClientsForAdmin, getAdminClientBundle,
   type AdminClientListItem, type AdminClientBundle,
 } from "@/lib/admin-data-hub.functions";
+import { generateClientInsight } from "@/lib/data-hub-insight.functions";
 import { log } from "@/lib/log";
 
 export const Route = createFileRoute("/admin/app/data-hub")({
@@ -44,11 +45,12 @@ function urgencyColor(u: unknown): string {
 }
 
 type SectionKey =
-  | "overview" | "symptoms" | "risk" | "wearable" | "load" | "history"
+  | "overview" | "insight" | "symptoms" | "risk" | "wearable" | "load" | "history"
   | "predictors" | "rhythms" | "vitals" | "activity" | "patterns" | "yves" | "alerts";
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: "overview", label: "Overview" },
+  { key: "insight", label: "Generate insight" },
   { key: "symptoms", label: "Symptom trend" },
   { key: "risk", label: "Risk score" },
   { key: "wearable", label: "Wearable connection" },
@@ -88,6 +90,29 @@ function AdminDataHub() {
   const showAll = () => setVisible(Object.fromEntries(SECTIONS.map((s) => [s.key, true])) as Record<SectionKey, boolean>);
   const listFn = useServerFn(listAllClientsForAdmin);
   const bundleFn = useServerFn(getAdminClientBundle);
+  const insightFn = useServerFn(generateClientInsight);
+
+  // ── AI insight state ──
+  const [insightFocus, setInsightFocus] = useState<string>("General overview");
+  const [insightText, setInsightText] = useState<string>("");
+  const [insightAt, setInsightAt] = useState<string>("");
+  const [insightBusy, setInsightBusy] = useState(false);
+  const [insightErr, setInsightErr] = useState<string | null>(null);
+  useEffect(() => {
+    // reset on client change
+    setInsightText(""); setInsightAt(""); setInsightErr(null);
+  }, [selected]);
+  async function runInsight() {
+    if (!selected || insightBusy) return;
+    setInsightBusy(true); setInsightErr(null);
+    try {
+      const r = await insightFn({ data: { clientId: selected, focus: insightFocus } });
+      setInsightText(r.text); setInsightAt(r.generatedAt);
+    } catch (e) {
+      setInsightErr(e instanceof Error ? e.message : "Failed to generate insight");
+    } finally { setInsightBusy(false); }
+  }
+
 
 
   useEffect(() => {
@@ -227,6 +252,63 @@ function AdminDataHub() {
             </div>
           </section>
           )}
+
+          {/* Generate insight (AI) */}
+          {visible.insight && (
+          <section style={card}>
+            <div style={sectionTitle}>Generate insight <span style={countS}>AI analysis of this client's full record</span></div>
+            <p style={{ ...muted, marginTop: 0, marginBottom: 12 }}>
+              AI reads all available metrics, symptoms, wearable data and alerts to summarise what matters about this client.
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
+              <label style={fieldLabel}>Focus</label>
+              <select
+                value={insightFocus}
+                onChange={(e) => setInsightFocus(e.target.value)}
+                disabled={insightBusy}
+                style={{ ...selectStyle, flex: "0 1 240px", padding: "8px 10px", fontSize: 13 }}
+              >
+                <option>General overview</option>
+                <option>Pain &amp; symptoms</option>
+                <option>Sleep &amp; recovery</option>
+                <option>Training load</option>
+                <option>Risk factors</option>
+              </select>
+              <button
+                onClick={runInsight}
+                disabled={insightBusy || !selected}
+                style={{
+                  background: insightBusy ? "var(--navy)" : "var(--blue-cold)",
+                  color: "var(--white)", border: "1px solid var(--blue-cold)",
+                  borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700,
+                  cursor: insightBusy || !selected ? "not-allowed" : "pointer",
+                  opacity: insightBusy || !selected ? 0.6 : 1,
+                }}
+              >
+                {insightBusy ? "Analysing…" : insightText ? "Regenerate" : "Generate insight"}
+              </button>
+              {insightAt && (
+                <span style={{ ...muted, fontSize: 11 }}>Generated {fmtDateTime(insightAt)}</span>
+              )}
+            </div>
+            {insightErr && (
+              <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 8 }}>{insightErr}</div>
+            )}
+            {insightText ? (
+              <div style={{
+                background: "var(--navy)", border: "1px solid var(--navy-border)", borderRadius: 10,
+                padding: 14, color: "var(--white)", fontSize: 14, lineHeight: 1.55,
+                whiteSpace: "pre-wrap",
+              }}>
+                {insightText}
+              </div>
+            ) : !insightBusy ? (
+              <div style={muted}>No insight yet — pick a focus and click <b>Generate insight</b>.</div>
+            ) : null}
+          </section>
+          )}
+
+
 
           {/* Symptom trend */}
           {visible.symptoms && (
