@@ -300,6 +300,10 @@ export type Database = {
           created_at: string
           focus: string | null
           generated_by: string | null
+          grade: string | null
+          grade_note: string | null
+          graded_at: string | null
+          graded_by: string | null
           id: string
           memory_version: number | null
           model: string | null
@@ -310,6 +314,10 @@ export type Database = {
           created_at?: string
           focus?: string | null
           generated_by?: string | null
+          grade?: string | null
+          grade_note?: string | null
+          graded_at?: string | null
+          graded_by?: string | null
           id?: string
           memory_version?: number | null
           model?: string | null
@@ -320,6 +328,10 @@ export type Database = {
           created_at?: string
           focus?: string | null
           generated_by?: string | null
+          grade?: string | null
+          grade_note?: string | null
+          graded_at?: string | null
+          graded_by?: string | null
           id?: string
           memory_version?: number | null
           model?: string | null
