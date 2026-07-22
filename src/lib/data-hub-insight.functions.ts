@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { INSIGHT_SYSTEM_PROMPT, buildInsightPayload } from "@/lib/data-hub-insight.prompt";
+import { buildYvesSystemPrompt, type YvesScope } from "@/lib/yves-identity";
 
 const Input = z.object({
   clientId: z.string().uuid(),
@@ -56,7 +57,7 @@ export const generateClientInsight = createServerFn({ method: "POST" })
     });
 
     // Map focus label → memory scope
-    const FOCUS_SCOPE: Record<string, string> = {
+    const FOCUS_SCOPE: Record<string, YvesScope> = {
       "Pain & symptoms": "pain_symptoms",
       "Sleep & recovery": "sleep",
       "Training load": "wearable",
@@ -83,14 +84,12 @@ export const generateClientInsight = createServerFn({ method: "POST" })
     const memoryRules = (memRes.data ?? []) as Array<{ scope: string; rule_type: string; title: string; rule_text: string }>;
     const memoryVersion = (verRes.data?.version_number as number | undefined) ?? 0;
 
-    const memoryBlock = memoryRules.length
-      ? [
-          "YVES CORE MEMORY (curated clinical rules, follow these):",
-          ...memoryRules.map((r) => `- [${r.rule_type}/${r.scope}] ${r.title}: ${r.rule_text}`),
-        ].join("\n")
-      : "YVES CORE MEMORY (curated clinical rules, follow these):\n- (no active rules)";
-
-    const systemPrompt = `${INSIGHT_SYSTEM_PROMPT}\n\n---\n${memoryBlock}`;
+    const systemPrompt = buildYvesSystemPrompt({
+      base: INSIGHT_SYSTEM_PROMPT,
+      scope: "insight",
+      memoryRules,
+      extraScopes: extraScope ? [extraScope] : [],
+    });
 
     const userMsg = [
       data.focus ? `Practitioner focus: ${data.focus}.` : "General overview.",
