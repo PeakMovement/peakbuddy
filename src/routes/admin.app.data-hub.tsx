@@ -231,9 +231,12 @@ function AdminDataHub() {
               </LineChart>
             </ChartBox>
           </ChartCard>
+          )}
 
           {/* Risk trend */}
+          {visible.risk && (
           <ChartCard title="Predictive risk score" subtitle="0–100, higher = more concern" empty={riskSeries.length < 2 ? "No risk history yet (needs a wearable baseline + a few check-ins)." : null}>
+
             <ChartBox height={200}>
               <AreaChart data={riskSeries} margin={{ top: 6, right: 10, left: -18, bottom: 0 }}>
                 <defs><linearGradient id="riskG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.blue} stopOpacity={0.5} /><stop offset="100%" stopColor={C.blue} stopOpacity={0} /></linearGradient></defs>
