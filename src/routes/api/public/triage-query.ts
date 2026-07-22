@@ -865,6 +865,16 @@ export const Route = createFileRoute("/api/public/triage-query")({
             if (firstPass.red_flag_category) escalationReasons.push("red_flag_category_set");
           }
 
+          // Load active Yves memory for triage surface (global + triage only).
+          const { data: memRows } = await supabaseAdmin
+            .from("yves_memory")
+            .select("scope, rule_type, title, rule_text")
+            .eq("is_active", true)
+            .in("scope", ["global", "triage"])
+            .order("rule_type", { ascending: true })
+            .order("created_at", { ascending: true });
+          const triageMemoryRules = (memRows ?? []) as Array<{ scope: string; rule_type: string; title: string; rule_text: string }>;
+
           const sonnetResult = await callReasoningModel({
             apiKey,
             queryText: query_text,
@@ -873,6 +883,7 @@ export const Route = createFileRoute("/api/public/triage-query")({
             firstPass,
             category: firstPass?.red_flag_category ?? null,
             timeoutMs: 15_000,
+            memoryRules: triageMemoryRules,
           });
 
           if (!sonnetResult.ok) {
