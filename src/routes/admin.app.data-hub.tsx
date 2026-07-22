@@ -269,9 +269,11 @@ function AdminDataHub() {
               </div>
             )}
           </section>
+          )}
 
           {/* Training load & injury-risk — only when a wearable is connected */}
-          {b.wearables.some((w) => w.connected) && (
+          {visible.load && b.wearables.some((w) => w.connected) && (
+
             <section style={card}>
               <div style={sectionTitle}>
                 Training load & injury-risk cross-check
