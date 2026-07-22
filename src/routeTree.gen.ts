@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as SocialRouteImport } from './routes/social'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as MarketingRouteImport } from './routes/marketing'
 import { Route as IndexRouteImport } from './routes/index'
@@ -83,6 +84,11 @@ const SupportRoute = SupportRouteImport.update({
 const SocialRoute = SocialRouteImport.update({
   id: '/social',
   path: '/social',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
@@ -394,6 +400,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/marketing': typeof MarketingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/social': typeof SocialRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
@@ -456,6 +463,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/marketing': typeof MarketingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/social': typeof SocialRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
@@ -518,6 +526,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/marketing': typeof MarketingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/social': typeof SocialRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
@@ -582,6 +591,7 @@ export interface FileRouteTypes {
     | '/'
     | '/marketing'
     | '/privacy-policy'
+    | '/reset-password'
     | '/social'
     | '/support'
     | '/unsubscribe'
@@ -644,6 +654,7 @@ export interface FileRouteTypes {
     | '/'
     | '/marketing'
     | '/privacy-policy'
+    | '/reset-password'
     | '/social'
     | '/support'
     | '/unsubscribe'
@@ -705,6 +716,7 @@ export interface FileRouteTypes {
     | '/'
     | '/marketing'
     | '/privacy-policy'
+    | '/reset-password'
     | '/social'
     | '/support'
     | '/unsubscribe'
@@ -768,6 +780,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   MarketingRoute: typeof MarketingRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SocialRoute: typeof SocialRoute
   SupportRoute: typeof SupportRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
@@ -824,6 +837,13 @@ declare module '@tanstack/react-router' {
       path: '/social'
       fullPath: '/social'
       preLoaderRoute: typeof SocialRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy-policy': {
@@ -1312,6 +1332,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MarketingRoute: MarketingRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SocialRoute: SocialRoute,
   SupportRoute: SupportRoute,
   UnsubscribeRoute: UnsubscribeRoute,
@@ -1352,13 +1373,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
