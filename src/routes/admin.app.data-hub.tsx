@@ -253,6 +253,63 @@ function AdminDataHub() {
           </section>
           )}
 
+          {/* Generate insight (AI) */}
+          {visible.insight && (
+          <section style={card}>
+            <div style={sectionTitle}>Generate insight <span style={countS}>AI analysis of this client's full record</span></div>
+            <p style={{ ...muted, marginTop: 0, marginBottom: 12 }}>
+              AI reads all available metrics, symptoms, wearable data and alerts to summarise what matters about this client.
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
+              <label style={fieldLabel}>Focus</label>
+              <select
+                value={insightFocus}
+                onChange={(e) => setInsightFocus(e.target.value)}
+                disabled={insightBusy}
+                style={{ ...selectStyle, flex: "0 1 240px", padding: "8px 10px", fontSize: 13 }}
+              >
+                <option>General overview</option>
+                <option>Pain &amp; symptoms</option>
+                <option>Sleep &amp; recovery</option>
+                <option>Training load</option>
+                <option>Risk factors</option>
+              </select>
+              <button
+                onClick={runInsight}
+                disabled={insightBusy || !selected}
+                style={{
+                  background: insightBusy ? "var(--navy)" : "var(--blue-cold)",
+                  color: "var(--white)", border: "1px solid var(--blue-cold)",
+                  borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700,
+                  cursor: insightBusy || !selected ? "not-allowed" : "pointer",
+                  opacity: insightBusy || !selected ? 0.6 : 1,
+                }}
+              >
+                {insightBusy ? "Analysing…" : insightText ? "Regenerate" : "Generate insight"}
+              </button>
+              {insightAt && (
+                <span style={{ ...muted, fontSize: 11 }}>Generated {fmtDateTime(insightAt)}</span>
+              )}
+            </div>
+            {insightErr && (
+              <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 8 }}>{insightErr}</div>
+            )}
+            {insightText ? (
+              <div style={{
+                background: "var(--navy)", border: "1px solid var(--navy-border)", borderRadius: 10,
+                padding: 14, color: "var(--white)", fontSize: 14, lineHeight: 1.55,
+                whiteSpace: "pre-wrap",
+              }}>
+                {insightText}
+              </div>
+            ) : !insightBusy ? (
+              <div style={muted}>No insight yet — pick a focus and click <b>Generate insight</b>.</div>
+            ) : null}
+          </section>
+          )}
+
+
+
           {/* Symptom trend */}
           {visible.symptoms && (
           <ChartCard title="Symptom & wellbeing trend" subtitle="Daily check-ins" empty={symptomSeries.length < 2 ? "Not enough check-ins yet to chart a trend." : null}>
