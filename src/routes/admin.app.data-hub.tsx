@@ -455,38 +455,62 @@ function AdminDataHub() {
           {/* Activity history — only where the wearable actually logged sessions */}
           {visible.activity && activitySessions.length > 0 && (
             <section style={card}>
-              <div style={sectionTitle}>
-                Activity history <span style={countS}>({activitySessions.length})</span>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {activitySessions.slice(0, 20).map((r: Row, i) => {
-                  const dur = num(r.duration_minutes);
-                  const kcal = num(r.active_calories);
-                  const load = num(r.training_load);
-                  const src = typeof r.source === "string" ? r.source : null;
-                  const type = typeof r.session_type === "string" && r.session_type.trim() !== ""
-                    ? r.session_type
-                    : "Activity";
-                  const bits: string[] = [];
-                  if (dur !== null && dur > 0) bits.push(`${dur} min`);
-                  if (kcal !== null && kcal > 0) bits.push(`${kcal} kcal`);
-                  if (load !== null && load > 0) bits.push(`load ${load}`);
-                  return (
-                    <div key={i} style={{ ...listRow, flexDirection: "column", alignItems: "stretch", gap: 4 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                        <span style={{ color: "var(--white)", textTransform: "capitalize" }}>{type.replace(/_/g, " ")}</span>
-                        <span style={{ color: "var(--white-muted)", fontSize: 12 }}>{shortDate(r.date as string)}</span>
+              <button
+                type="button"
+                onClick={() => setActivityOpen((v) => !v)}
+                style={{
+                  ...sectionTitle,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  background: "transparent",
+                  border: 0,
+                  padding: 0,
+                  cursor: "pointer",
+                  color: "inherit",
+                  font: "inherit",
+                  textAlign: "left",
+                }}
+                aria-expanded={activityOpen}
+              >
+                <span>
+                  Activity history <span style={countS}>({activitySessions.length})</span>
+                </span>
+                <span style={{ color: "var(--white-muted)", fontSize: 12 }}>{activityOpen ? "▲" : "▼"}</span>
+              </button>
+              {activityOpen && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12 }}>
+                  {activitySessions.slice(0, 20).map((r: Row, i) => {
+                    const dur = num(r.duration_minutes);
+                    const kcal = num(r.active_calories);
+                    const load = num(r.training_load);
+                    const src = typeof r.source === "string" ? r.source : null;
+                    const type = typeof r.session_type === "string" && r.session_type.trim() !== ""
+                      ? r.session_type
+                      : "Activity";
+                    const bits: string[] = [];
+                    if (dur !== null && dur > 0) bits.push(`${dur} min`);
+                    if (kcal !== null && kcal > 0) bits.push(`${kcal} kcal`);
+                    if (load !== null && load > 0) bits.push(`load ${load}`);
+                    return (
+                      <div key={i} style={{ ...listRow, flexDirection: "column", alignItems: "stretch", gap: 4 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                          <span style={{ color: "var(--white)", textTransform: "capitalize" }}>{type.replace(/_/g, " ")}</span>
+                          <span style={{ color: "var(--white-muted)", fontSize: 12 }}>{shortDate(r.date as string)}</span>
+                        </div>
+                        <div style={{ color: "var(--white-muted)", fontSize: 12, display: "flex", justifyContent: "space-between", gap: 8 }}>
+                          <span>{bits.join(" · ") || "—"}</span>
+                          {src ? <span style={{ textTransform: "capitalize" }}>{src}</span> : null}
+                        </div>
                       </div>
-                      <div style={{ color: "var(--white-muted)", fontSize: 12, display: "flex", justifyContent: "space-between", gap: 8 }}>
-                        <span>{bits.join(" · ") || "—"}</span>
-                        {src ? <span style={{ textTransform: "capitalize" }}>{src}</span> : null}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </section>
           )}
+
 
 
 
