@@ -301,6 +301,7 @@ export type Database = {
           focus: string | null
           generated_by: string | null
           id: string
+          memory_version: number | null
           model: string | null
           response: string
         }
@@ -310,6 +311,7 @@ export type Database = {
           focus?: string | null
           generated_by?: string | null
           id?: string
+          memory_version?: number | null
           model?: string | null
           response: string
         }
@@ -319,6 +321,7 @@ export type Database = {
           focus?: string | null
           generated_by?: string | null
           id?: string
+          memory_version?: number | null
           model?: string | null
           response?: string
         }
@@ -1424,6 +1427,230 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yves_feedback_log: {
+        Row: {
+          admin_correction: string | null
+          admin_id: string | null
+          created_at: string
+          id: string
+          question: string | null
+          resulted_in_staging_id: string | null
+          scope: string | null
+          session_id: string
+          test_context: Json | null
+          yves_answer: string | null
+        }
+        Insert: {
+          admin_correction?: string | null
+          admin_id?: string | null
+          created_at?: string
+          id?: string
+          question?: string | null
+          resulted_in_staging_id?: string | null
+          scope?: string | null
+          session_id: string
+          test_context?: Json | null
+          yves_answer?: string | null
+        }
+        Update: {
+          admin_correction?: string | null
+          admin_id?: string | null
+          created_at?: string
+          id?: string
+          question?: string | null
+          resulted_in_staging_id?: string | null
+          scope?: string | null
+          session_id?: string
+          test_context?: Json | null
+          yves_answer?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yves_feedback_log_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "yves_feedback_log_resulted_in_staging_id_fkey"
+            columns: ["resulted_in_staging_id"]
+            isOneToOne: false
+            referencedRelation: "yves_memory_staging"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yves_memory: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          rationale: string | null
+          rule_text: string
+          rule_type: string
+          scope: string
+          supersedes: string | null
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          rationale?: string | null
+          rule_text: string
+          rule_type: string
+          scope: string
+          supersedes?: string | null
+          title: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          rationale?: string | null
+          rule_text?: string
+          rule_type?: string
+          scope?: string
+          supersedes?: string | null
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yves_memory_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "yves_memory_supersedes_fkey"
+            columns: ["supersedes"]
+            isOneToOne: false
+            referencedRelation: "yves_memory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yves_memory_staging: {
+        Row: {
+          conflict_flags: Json | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          proposed_by: string
+          rationale: string | null
+          review_note: string | null
+          rule_text: string
+          rule_type: string
+          scope: string
+          source_feedback_id: string | null
+          status: string
+          supersedes: string | null
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          conflict_flags?: Json | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          proposed_by?: string
+          rationale?: string | null
+          review_note?: string | null
+          rule_text: string
+          rule_type: string
+          scope: string
+          source_feedback_id?: string | null
+          status?: string
+          supersedes?: string | null
+          title: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          conflict_flags?: Json | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          proposed_by?: string
+          rationale?: string | null
+          review_note?: string | null
+          rule_text?: string
+          rule_type?: string
+          scope?: string
+          source_feedback_id?: string | null
+          status?: string
+          supersedes?: string | null
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yves_memory_staging_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "yves_memory_staging_supersedes_fkey"
+            columns: ["supersedes"]
+            isOneToOne: false
+            referencedRelation: "yves_memory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yves_memory_versions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          snapshot: Json
+          version_number: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          snapshot: Json
+          version_number: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          snapshot?: Json
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yves_memory_versions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
