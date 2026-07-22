@@ -1,73 +1,49 @@
-# Generate Insight — AI-powered client analysis on the Data Hub
+# Buddy Overview Document (.docx)
 
-Add a new **Generate Insight** section to `src/routes/admin.app.data-hub.tsx` that reads all the metrics, symptoms, wearable data, alerts, patterns and Yves history already fetched by `getAdminClientBundle`, sends them to Lovable AI, and returns a highly-accurate, informative narrative about the selected client.
+Deliverable: a single downloadable Word document at `/mnt/documents/buddy-overview.docx` covering Buddy end-to-end for internal, clinical, and investor audiences — with a deep dive on the admin portal.
 
-## UI (data hub page)
+## Structure
 
-- New collapsible section titled **"Generate Insight"**, positioned near the top (right under Overview) and included in the show/hide chip bar as `SectionKey = "insight"`.
-- Contents:
-  - Short helper text: *"AI reads all available metrics, symptoms, wearable data and alerts to summarise what matters about this client."*
-  - **Generate insight** button (disabled while streaming, disabled if no client selected).
-  - Optional focus dropdown: *General overview / Pain & symptoms / Sleep & recovery / Training load / Risk factors* — appended to the prompt as a focus hint.
-  - Streamed markdown response rendered with `react-markdown` (already used elsewhere) inside a card styled with existing tokens (`C.card`, `C.border`).
-  - Timestamp of last generation + **Regenerate** button.
+1. **Executive summary** — what Buddy is (practitioner-first health monitoring platform), who it serves, differentiators.
+2. **Product pillars** — passive monitoring, daily check-ins, Yves AI triage, alerts, programs, rewards, calendar, wearables.
+3. **User roles & apps**
+   - Client PWA (check-in, timeline, progress, Yves, profile, rewards, wearable connect, push, calendar)
+   - Practitioner portal (dashboard, clients, alerts, insights, add-client, program queue, settings, drafts)
+   - Admin / super-admin portal (full deep dive — see §5)
+4. **Clinical workflows** — check-in → risk analysis → alert routing (in-app + email + practitioner digest) → practitioner action → outcome logging → nightly pattern detection → weekly digest.
+5. **Admin portal deep dive** (every route under `/admin/app/*`)
+   - Dashboard: counts (practitioners, clients, check-ins, open alerts today)
+   - Practitioners: list, approve, invite, delete
+   - Clients: cross-practice list, detail drill-down
+   - **Data Hub**: client picker; collapsible sections — Overview, Symptoms, Vitals, Yves history, Alerts, Activity history, Detected patterns, Baselines, Rewards, Generate Insight (Gemini 3.1 Pro clinical summary). Show/hide chip bar with localStorage persistence. Wearable-aware empty states.
+   - Programs: admin program authoring / queue
+   - Alerts: system-wide alert queue with outcome logging
+   - Grading: review AI outputs (Yves triage, risk analyses)
+   - Settings: super-admin config
+6. **AI stack** — Lovable AI Gateway; Gemini 3 Flash for high-volume, Gemini 3.1 Pro for clinical insight, two-pass Yves (Haiku extraction → Sonnet assessment), nightly risk + pattern jobs.
+7. **Wearables** — Garmin (with full attribution + device model), Oura, Polar; per-provider capability matrix; graceful "not supported by this wearable" UI.
+8. **Notifications** — OneSignal push (PWA), transactional email from `noreply@buddy-health.co.za`, practitioner alert emails, weekly digest, calendar reminders.
+9. **Auth, security, privacy** — Supabase auth, RLS on every table, `has_role` + `is_super_admin` gates, 24h idle sign-out, service-role only on server, privacy policy incl. Garmin section, no data sale.
+10. **Tech stack (internal)** — TanStack Start on Cloudflare Workers, Supabase (Lovable Cloud), TanStack Query, server functions with `requireSupabaseAuth`, public API routes under `/api/public/*` for webhooks/cron.
+11. **Integrations** — Google Calendar OAuth, Garmin/Oura/Polar OAuth + webhooks, OneSignal, Lovable AI Gateway.
+12. **Roadmap hooks** — Garmin stress / Body Battery / VO2 max persistence, WhatsApp webhook alerts, richer program authoring.
 
-## Backend (server function)
+## Method
 
-New file `src/lib/data-hub-insight.functions.ts`:
+- Read source of truth for admin routes to make feature list exact:
+  `src/routes/admin.app.tsx`, `admin.app.dashboard.tsx`, `admin.app.practitioners.tsx`, `admin.app.clients.tsx`, `admin.app.data-hub.tsx`, `admin.app.programs.tsx`, `admin.app.alerts.tsx`, `admin.app.grading.tsx`, `admin.app.settings.tsx`, and the two detail routes.
+- Read `src/lib/admin-data-hub.functions.ts`, `data-hub-insight.functions.ts`, `admin-invite-practitioner.functions.ts`, `admin-delete.functions.ts`, `admin-programs.functions.ts` to describe backend behavior accurately.
+- Skim client + practitioner route files to summarise those apps without over-claiming.
 
-- `generateClientInsight` — `createServerFn({ method: "POST" })` with `.middleware([requireSupabaseAuth])`.
-- Input: `{ clientId: string, focus?: string }`.
-- Authorisation: verify caller is `super_admin` OR the client's assigned practitioner (via `context.supabase` under RLS on `clients` / `profiles`).
-- Data gathering (server-side, admin client so we get complete history):
-  - Client profile + baselines + condition context (`clients`, `client_baselines`).
-  - Last 90 days of `check_ins` (pain, sleep, stress, energy, mood, notes, flags).
-  - Last 90 days of `wearable_sessions` (sleep score, HRV, resting HR, steps, calories, training load, session types).
-  - `wearable_tokens` providers (so the prompt knows which wearable is connected and what data is *not* available).
-  - Recent `alerts` (last 30 days, with type / urgency / message).
-  - `client_patterns` + `predictive_nudges` if present.
-  - Last 20 `yves_triage_logs` entries (query, triage_level, summary).
-- Compact the payload: aggregate to daily rollups + 7/30-day means, cap arrays, strip nulls — keep total prompt well under model limits.
-- Call Lovable AI Gateway via AI SDK (`streamText`) using the pattern in `ai-sdk-lovable-gateway` and `connecting-to-ai-models-tanstack`. Model: `google/gemini-3.1-pro-preview` (strong reasoning, multimodal, cheap enough for on-demand insights). Return a streamed UI message response so the UI can stream progressively.
-- Log every generation to a new table `client_insight_logs` (`id`, `client_id`, `generated_by`, `focus`, `prompt_summary`, `response`, `model`, `created_at`) so we can iterate on prompt quality.
+## Generation
 
-## Prompt design (trainable)
-
-System prompt lives in `src/lib/data-hub-insight.prompt.ts` so it can be tuned without touching route code:
-
-- Role: senior clinical data analyst assisting a practitioner.
-- Rules: base every statement on the supplied JSON; never invent data; when a metric is missing, explicitly say the connected wearable does not report it; cite the time window ("over the last 14 days…"); prefer specific numbers over vague adjectives; end with 3 prioritised, actionable recommendations.
-- Structure the response as: **Snapshot**, **What's changing** (trends with numbers), **Risk signals**, **Wearable data quality notes**, **Recommended next steps**.
-- Length: ~250–400 words.
-
-## Data model
-
-Migration adds:
-
-```text
-public.client_insight_logs
-  id uuid pk default gen_random_uuid()
-  client_id uuid references clients on delete cascade
-  generated_by uuid references auth.users
-  focus text
-  model text
-  prompt_tokens int
-  response text
-  created_at timestamptz default now()
-
-+ GRANTs to authenticated / service_role, RLS: super_admin OR client's practitioner can select/insert own rows.
-```
-
-## Files touched
-
-- `src/routes/admin.app.data-hub.tsx` — add `insight` section, chip, collapsible card, streaming hook.
-- `src/lib/data-hub-insight.functions.ts` — new server function.
-- `src/lib/data-hub-insight.prompt.ts` — system prompt + payload shaper (easy to iterate).
-- `src/lib/ai-gateway.server.ts` — reuse existing helper (create if not present per `ai-sdk-lovable-gateway`).
-- New migration for `client_insight_logs`.
+- Use the docx skill (`docx-js`) — US Letter, Arial, black headings, brand navy accent `#0B1B3B` on H1 divider borders and cover, blue accent `#3E7BFA` for links, single logo mark on cover using the existing `B` icon.
+- Sections: cover page, TOC, then §1–§12. Tables for role capability matrix and wearable capability matrix. Bulleted feature lists (via `LevelFormat.BULLET`, no unicode bullets).
+- Validate the generated file, convert to PDF+images, inspect every page for overflow/clipping, fix and regenerate before delivery.
+- Output: `/mnt/documents/buddy-overview.docx`, surfaced via `<presentation-artifact>`.
 
 ## Out of scope
 
-- No changes to the client / practitioner apps.
-- No changes to existing sections' data flow.
-- No new scheduled/automated insight generation (button-driven only for now).
+- No code changes to the app.
+- No new AI calls or DB writes.
+- Not a legal/clinical compliance document — descriptive overview only.
