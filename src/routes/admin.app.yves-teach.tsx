@@ -585,6 +585,10 @@ function TeachYves() {
   );
 }
 
+const labelStyle: React.CSSProperties = {
+  display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "#b8c5db", fontWeight: 600,
+};
+
 const inputStyle: React.CSSProperties = {
   background: "rgba(0,0,0,0.25)",
   color: "#f0ece4",
