@@ -426,7 +426,8 @@ function AdminDataHub() {
           )}
 
           {/* Physical vitals mini-charts — only when a wearable is connected */}
-          {b.wearables.some((w) => w.connected) && (
+          {visible.vitals && b.wearables.some((w) => w.connected) && (
+
             <section style={card}>
               <div style={sectionTitle}>Physical vitals</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
