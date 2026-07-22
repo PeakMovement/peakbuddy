@@ -10,6 +10,7 @@ import {
   proposeYvesRule,
   YVES_TEACH_FOCUSES,
 } from "@/lib/yves-teach.functions";
+import { publishYvesRule, rejectYvesRule, rollbackYvesMemory } from "@/lib/yves-memory.functions";
 
 export const Route = createFileRoute("/admin/app/yves-teach")({
   head: () => ({ meta: [{ title: "Teach Yves — Buddy" }] }),
