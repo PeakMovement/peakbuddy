@@ -311,7 +311,7 @@ function Dashboard() {
                 >
                   {r.primary_complaint || "—"}
                 </div>
-                <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                   <span
                     style={{
                       width: 8,
@@ -329,6 +329,7 @@ function Dashboard() {
                   >
                     {r._lastCheckIn ? new Date(r._lastCheckIn).toLocaleDateString() : "Never"}
                   </span>
+                  <WearableBadge providers={r._wearables} />
                 </div>
               </div>
               <CircularRing
