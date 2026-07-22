@@ -225,7 +225,7 @@ export const getYvesMemoryPanel = createServerFn({ method: "GET" })
         .order("scope", { ascending: true })
         .order("rule_type", { ascending: true }),
       db.from("yves_memory_staging")
-        .select("id, scope, rule_type, title, rule_text, status, conflict_flags, created_at")
+        .select("id, scope, rule_type, title, rule_text, rationale, status, conflict_flags, created_at")
         .order("created_at", { ascending: false })
         .limit(100),
       db.from("yves_memory_versions")
@@ -242,8 +242,9 @@ export const getYvesMemoryPanel = createServerFn({ method: "GET" })
         rule_type: r.rule_type as string,
         title: r.title as string,
         rule_text: r.rule_text as string,
+        rationale: (r.rationale as string | null) ?? null,
         status: r.status as string,
-        conflict_flags: r.conflict_flags == null ? null : JSON.stringify(r.conflict_flags),
+        conflict_flags: Array.isArray(r.conflict_flags) ? (r.conflict_flags as unknown[]).map(String) : [],
         created_at: r.created_at as string,
       })),
       versions: (verRes.data ?? []) as never,
