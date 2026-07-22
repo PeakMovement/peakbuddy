@@ -510,6 +510,77 @@ function TeachYves() {
           </div>
         </div>
       )}
+
+      {editRow && panel && (
+        <div onClick={() => rowBusyId !== editRow.id && setEditRow(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, width: "min(640px, 100%)", maxHeight: "90vh", overflowY: "auto" }}>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Edit & approve candidate</h2>
+            <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>
+              Edits are re-checked by the privacy sanitiser before publish.
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
+              <label style={labelStyle}>Scope
+                <input value={editDraft.scope} onChange={(e) => setEditDraft({ ...editDraft, scope: e.target.value })} style={inputStyle} />
+              </label>
+              <label style={labelStyle}>Rule type
+                <select value={editDraft.rule_type} onChange={(e) => setEditDraft({ ...editDraft, rule_type: e.target.value })} style={inputStyle}>
+                  {["reasoning", "phrasing", "safety", "escalation", "style"].map((t) => (<option key={t} value={t}>{t}</option>))}
+                </select>
+              </label>
+            </div>
+            <label style={{ ...labelStyle, marginTop: 8 }}>Title
+              <input value={editDraft.title} onChange={(e) => setEditDraft({ ...editDraft, title: e.target.value })} style={inputStyle} maxLength={80} />
+            </label>
+            <label style={{ ...labelStyle, marginTop: 8 }}>Rule text
+              <textarea value={editDraft.rule_text} onChange={(e) => setEditDraft({ ...editDraft, rule_text: e.target.value })}
+                rows={4} maxLength={600} style={{ ...inputStyle, resize: "vertical", minHeight: 90 }} />
+            </label>
+            <label style={{ ...labelStyle, marginTop: 8 }}>Rationale
+              <textarea value={editDraft.rationale} onChange={(e) => setEditDraft({ ...editDraft, rationale: e.target.value })}
+                rows={2} maxLength={400} style={{ ...inputStyle, resize: "vertical", minHeight: 50 }} />
+            </label>
+            <label style={{ ...labelStyle, marginTop: 8 }}>Supersedes existing rule
+              <select value={editSupersedesId} onChange={(e) => setEditSupersedesId(e.target.value)} style={inputStyle}>
+                <option value="">None (new rule)</option>
+                {panel.published
+                  .filter((p) => p.scope === editDraft.scope)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {editRow.conflict_flags.includes(p.id) ? "⚠ " : ""}{p.title}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label style={{ ...labelStyle, marginTop: 8 }}>Review note (optional)
+              <input value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} style={inputStyle} maxLength={400} />
+            </label>
+            <div style={{ display: "flex", gap: 8, marginTop: 14, justifyContent: "flex-end" }}>
+              <button onClick={() => setEditRow(null)} disabled={rowBusyId === editRow.id}
+                style={{ background: "transparent", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", cursor: rowBusyId === editRow.id ? "not-allowed" : "pointer" }}>
+                Cancel
+              </button>
+              <button
+                onClick={() => approveRow(editRow, {
+                  title: editDraft.title,
+                  rule_text: editDraft.rule_text,
+                  rationale: editDraft.rationale,
+                  scope: editDraft.scope,
+                  rule_type: editDraft.rule_type,
+                }, editSupersedesId || null, reviewNote.trim() || undefined)}
+                disabled={rowBusyId === editRow.id || !editDraft.title.trim() || !editDraft.rule_text.trim()}
+                style={{
+                  background: rowBusyId === editRow.id ? "rgba(52,211,153,0.4)" : C.green,
+                  color: "#0b1b34", border: "none", borderRadius: 8, padding: "8px 14px",
+                  cursor: rowBusyId === editRow.id ? "not-allowed" : "pointer", fontWeight: 700,
+                }}>
+                {rowBusyId === editRow.id ? "Publishing…" : "Publish"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
