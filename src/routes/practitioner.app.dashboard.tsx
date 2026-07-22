@@ -12,7 +12,7 @@ import {
   type MorningAnalysisPayload,
 } from "@/lib/morning-analysis.functions";
 import { registerPushToken } from "@/lib/push";
-import { countActiveWearableConnections } from "@/lib/wearables.functions";
+import { countActiveWearableConnections, getPractitionerClientWearables } from "@/lib/wearables.functions";
 
 export const Route = createFileRoute("/practitioner/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Buddy" }] }),
