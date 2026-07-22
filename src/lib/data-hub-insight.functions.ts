@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { INSIGHT_SYSTEM_PROMPT, buildInsightPayload } from "@/lib/data-hub-insight.prompt";
+import { buildYvesSystemPrompt, type YvesScope } from "@/lib/yves-identity";
 
 const Input = z.object({
   clientId: z.string().uuid(),
