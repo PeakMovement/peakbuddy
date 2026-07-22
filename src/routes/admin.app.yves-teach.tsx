@@ -7,6 +7,7 @@ import {
   askYves,
   markYvesFeedbackPositive,
   getYvesMemoryPanel,
+  proposeYvesRule,
   YVES_TEACH_FOCUSES,
 } from "@/lib/yves-teach.functions";
 
@@ -123,9 +124,39 @@ function TeachYves() {
     catch { setTurns((prev) => prev.map((x) => (x.id === t.id ? { ...x, liked: false } : x))); }
   }
 
-  function correct(_t: Turn) {
-    // Corrections-to-memory land in a later prompt.
-    alert("Corrections-to-memory will land in the next prompt.");
+  // Correction dialog state
+  const proposeFn = useServerFn(proposeYvesRule);
+  const [correctFor, setCorrectFor] = useState<Turn | null>(null);
+  const [correctionText, setCorrectionText] = useState("");
+  const [correctBusy, setCorrectBusy] = useState(false);
+  const [correctMsg, setCorrectMsg] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
+
+  function correct(t: Turn) {
+    if (!t.feedbackId) return;
+    setCorrectFor(t);
+    setCorrectionText("");
+    setCorrectMsg(null);
+  }
+
+  async function submitCorrection() {
+    if (!correctFor?.feedbackId || !correctionText.trim()) return;
+    setCorrectBusy(true);
+    setCorrectMsg(null);
+    try {
+      const r = await proposeFn({
+        data: { feedbackId: correctFor.feedbackId, correction: correctionText.trim(), focus },
+      });
+      if (r.ok) {
+        setCorrectMsg({ tone: "ok", text: `Staged as candidate rule${r.conflictIds?.length ? ` (${r.conflictIds.length} conflict${r.conflictIds.length === 1 ? "" : "s"} flagged)` : ""}.` });
+        try { setPanel(await memFn()); setTab("staging"); } catch { /* ignore */ }
+      } else {
+        setCorrectMsg({ tone: "warn", text: r.reason ?? "Blocked." });
+      }
+    } catch (e) {
+      setCorrectMsg({ tone: "err", text: e instanceof Error ? e.message : "Failed to propose rule." });
+    } finally {
+      setCorrectBusy(false);
+    }
   }
 
   function resetSession() {
@@ -283,12 +314,37 @@ function TeachYves() {
           {!panelBusy && panel && tab === "staging" && (
             <div style={memListStyle}>
               {panel.staging.length === 0 && <Empty label="No candidate rules." />}
-              {panel.staging.map((r) => (
-                <MemoryCard key={r.id}
-                  badge={`${r.scope} · ${r.rule_type}`} title={r.title} body={r.rule_text}
-                  meta={`${r.status}${r.conflict_flags ? " · conflict flagged" : ""}`}
-                  tone={r.conflict_flags ? C.amber : undefined} />
-              ))}
+              {panel.staging.map((r) => {
+                const conflictTitles = r.conflict_flags
+                  .map((id) => panel.published.find((p) => p.id === id)?.title)
+                  .filter((t): t is string => Boolean(t));
+                const hasConflict = r.conflict_flags.length > 0;
+                return (
+                  <div key={r.id}
+                    style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${hasConflict ? C.amber : C.border}`, borderRadius: 8, padding: 10 }}>
+                    <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: hasConflict ? C.amber : C.muted }}>
+                      {r.scope} · {r.rule_type} · {r.status}
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 13, marginTop: 2 }}>{r.title}</div>
+                    <div style={{ color: C.white, fontSize: 12, marginTop: 4, whiteSpace: "pre-wrap" }}>{r.rule_text}</div>
+                    {r.rationale && (
+                      <div style={{ color: C.muted, fontSize: 11, marginTop: 6, fontStyle: "italic" }}>Why: {r.rationale}</div>
+                    )}
+                    {hasConflict && (
+                      <div style={{ color: C.amber, fontSize: 11, marginTop: 6 }}>
+                        Conflicts with: {conflictTitles.length ? conflictTitles.join("; ") : `${r.conflict_flags.length} rule(s)`}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                      <button disabled style={pillBtn(C.green)} title="Wired in the next prompt">Approve</button>
+                      <button disabled style={pillBtn(C.muted)} title="Wired in the next prompt">Edit</button>
+                      <button disabled style={pillBtn(C.red)} title="Wired in the next prompt">Reject</button>
+                      <span style={{ flex: 1 }} />
+                      <span style={{ color: C.muted, fontSize: 11 }}>{new Date(r.created_at).toLocaleDateString("en-ZA")}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
           {!panelBusy && panel && tab === "versions" && (
@@ -313,6 +369,52 @@ function TeachYves() {
           )}
         </aside>
       </div>
+
+      {correctFor && (
+        <div
+          onClick={() => !correctBusy && setCorrectFor(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16 }}
+        >
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, width: "min(560px, 100%)", maxHeight: "90vh", overflowY: "auto" }}>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Correct Yves</h2>
+            <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>
+              Write how Yves should have answered, or the rule it should follow. Yves will draft a reusable, generalised rule from it. No client names, ids, dates, or one-off values.
+            </div>
+            <textarea
+              value={correctionText}
+              onChange={(e) => setCorrectionText(e.target.value)}
+              rows={6}
+              placeholder="e.g. When HRV drops >15% below baseline for 3+ nights, flag as recovery risk before recommending training…"
+              style={{ ...inputStyle, width: "100%", marginTop: 10, resize: "vertical", minHeight: 120 }}
+            />
+            {correctMsg && (
+              <div style={{
+                marginTop: 10, padding: 10, borderRadius: 8, fontSize: 12,
+                background: "rgba(0,0,0,0.25)",
+                border: `1px solid ${correctMsg.tone === "ok" ? C.green : correctMsg.tone === "warn" ? C.amber : C.red}`,
+                color: correctMsg.tone === "ok" ? C.green : correctMsg.tone === "warn" ? C.amber : C.red,
+              }}>
+                {correctMsg.text}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+              <button onClick={() => setCorrectFor(null)} disabled={correctBusy}
+                style={{ background: "transparent", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", cursor: correctBusy ? "not-allowed" : "pointer" }}>
+                Close
+              </button>
+              <button onClick={submitCorrection} disabled={correctBusy || !correctionText.trim()}
+                style={{
+                  background: correctBusy || !correctionText.trim() ? "rgba(74,141,240,0.4)" : C.blue,
+                  color: C.white, border: "none", borderRadius: 8, padding: "8px 14px",
+                  cursor: correctBusy || !correctionText.trim() ? "not-allowed" : "pointer", fontWeight: 600,
+                }}>
+                {correctBusy ? "Drafting…" : "Propose rule"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

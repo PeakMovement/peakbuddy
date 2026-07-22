@@ -211,7 +211,7 @@ export const getYvesMemoryPanel = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{
     published: Array<{ id: string; scope: string; rule_type: string; title: string; rule_text: string; updated_at: string }>;
-    staging: Array<{ id: string; scope: string; rule_type: string; title: string; rule_text: string; status: string; conflict_flags: string | null; created_at: string }>;
+    staging: Array<{ id: string; scope: string; rule_type: string; title: string; rule_text: string; rationale: string | null; status: string; conflict_flags: string[]; created_at: string }>;
     versions: Array<{ id: string; version_number: number; note: string | null; created_at: string }>;
   }> => {
     await assertSuperAdmin(context.supabase, context.userId);
@@ -225,7 +225,7 @@ export const getYvesMemoryPanel = createServerFn({ method: "GET" })
         .order("scope", { ascending: true })
         .order("rule_type", { ascending: true }),
       db.from("yves_memory_staging")
-        .select("id, scope, rule_type, title, rule_text, status, conflict_flags, created_at")
+        .select("id, scope, rule_type, title, rule_text, rationale, status, conflict_flags, created_at")
         .order("created_at", { ascending: false })
         .limit(100),
       db.from("yves_memory_versions")
@@ -242,10 +242,263 @@ export const getYvesMemoryPanel = createServerFn({ method: "GET" })
         rule_type: r.rule_type as string,
         title: r.title as string,
         rule_text: r.rule_text as string,
+        rationale: (r.rationale as string | null) ?? null,
         status: r.status as string,
-        conflict_flags: r.conflict_flags == null ? null : JSON.stringify(r.conflict_flags),
+        conflict_flags: Array.isArray(r.conflict_flags) ? (r.conflict_flags as unknown[]).map(String) : [],
         created_at: r.created_at as string,
       })),
       versions: (verRes.data ?? []) as never,
     };
   });
+
+// ============================================================================
+// proposeYvesRule — turn an admin correction into a candidate memory rule.
+// Two mandatory safety gates before anything is staged:
+//   1. Regex sanitiser (emails, long digit runs, id-like tokens, dated events).
+//   2. Model classifier for patient-identifiable info.
+// Then conflict detection against active rules of the same scope.
+// ============================================================================
+
+const RULE_TYPES = ["reasoning", "phrasing", "safety", "escalation", "style"] as const;
+type RuleType = (typeof RULE_TYPES)[number];
+
+const ProposeInput = z.object({
+  feedbackId: z.string().uuid(),
+  correction: z.string().min(4).max(4000),
+  focus: z.string().max(80),
+});
+
+type DraftRule = {
+  title: string;
+  rule_type: RuleType;
+  scope: string;
+  rule_text: string;
+  rationale: string;
+};
+
+async function chat(key: string, system: string, user: string): Promise<string> {
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    if (res.status === 429) throw new Error("AI is rate-limited. Please try again in a moment.");
+    if (res.status === 402) throw new Error("AI credits exhausted. Add credits in workspace billing.");
+    throw new Error(`AI request failed (${res.status}): ${body.slice(0, 200)}`);
+  }
+  const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  return json.choices?.[0]?.message?.content?.trim() ?? "";
+}
+
+function extractJson(raw: string): unknown {
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const body = (fenced ? fenced[1] : raw).trim();
+  const start = body.indexOf("{");
+  const end = body.lastIndexOf("}");
+  if (start < 0 || end < 0) throw new Error("Model did not return JSON.");
+  return JSON.parse(body.slice(start, end + 1));
+}
+
+// Regex sanitiser. Returns a reason string if it fails, else null.
+function regexSanitise(text: string): string | null {
+  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(text)) return "Contains an email address.";
+  if (/\b\d{6,}\b/.test(text)) return "Contains a long numeric sequence (possible ID or record number).";
+  // South African ID-number-like tokens (13 digits, possibly spaced).
+  if (/\b\d{2}\s?\d{2}\s?\d{2}\s?\d{4}\s?\d{3}\b/.test(text)) return "Contains an ID-number-like token.";
+  // A specific calendar date tied to an individual (YYYY-MM-DD or DD/MM/YYYY).
+  if (/\b(19|20)\d{2}-\d{2}-\d{2}\b/.test(text)) return "Contains a specific calendar date.";
+  if (/\b\d{2}\/\d{2}\/(19|20)\d{2}\b/.test(text)) return "Contains a specific calendar date.";
+  return null;
+}
+
+export const proposeYvesRule = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => ProposeInput.parse(input))
+  .handler(async ({ data, context }): Promise<{
+    ok: boolean;
+    stagedId?: string;
+    reason?: string;
+    draft?: DraftRule;
+    conflictIds?: string[];
+  }> => {
+    await assertSuperAdmin(context.supabase, context.userId);
+
+    const key = process.env.LOVABLE_API_KEY;
+    if (!key) throw new Error("AI is not configured (missing LOVABLE_API_KEY).");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as SupabaseClient;
+
+    // Load the feedback row to give the drafter question + previous answer context.
+    const fb = await db
+      .from("yves_feedback_log")
+      .select("id, question, yves_answer, scope")
+      .eq("id", data.feedbackId)
+      .maybeSingle();
+    if (!fb.data) throw new Error("Feedback row not found.");
+    const feedback = fb.data as { id: string; question: string; yves_answer: string; scope: string | null };
+
+    const focusScope = FOCUS_SCOPE[data.focus];
+    const targetScope = focusScope ?? feedback.scope ?? "insight";
+
+    // -------- Step 1: draft a generalised rule --------
+    const draftSystem = [
+      "You harvest reusable clinical reasoning rules for a clinician-facing AI agent (Yves).",
+      "Given a practitioner's correction to a specific answer, distil it into ONE reusable rule.",
+      "STRICT REQUIREMENTS:",
+      "- Write a general clinical reasoning, phrasing, safety, or style rule.",
+      "- Never mention a specific client, name, id, email, date, phone number, or one-off value.",
+      "- Never say 'for client X do Y'. Always phrase as a general pattern.",
+      "- Prefer 'When … then …' or 'Always/Never …' phrasing.",
+      "Return STRICT JSON only, no prose, matching:",
+      `{"title": string (max 80 chars), "rule_type": one of ${JSON.stringify(RULE_TYPES)}, "scope": string, "rule_text": string (max 600 chars), "rationale": string (max 400 chars)}`,
+      `Set scope to one of: "global", "insight", "pain_symptoms", "sleep", "wearable", "risk". Choose the narrowest scope that fits.`,
+      `Default scope suggestion for this correction: "${targetScope}".`,
+    ].join("\n");
+
+    const draftUser = [
+      `PRACTITIONER FOCUS: ${data.focus}`,
+      `ORIGINAL QUESTION: ${feedback.question}`,
+      `YVES'S ANSWER: ${feedback.yves_answer}`,
+      `PRACTITIONER CORRECTION: ${data.correction}`,
+    ].join("\n\n");
+
+    const draftRaw = await chat(key, draftSystem, draftUser);
+    let draft: DraftRule;
+    try {
+      const parsed = extractJson(draftRaw) as Record<string, unknown>;
+      const rt = String(parsed.rule_type ?? "");
+      draft = {
+        title: String(parsed.title ?? "").slice(0, 80).trim(),
+        rule_type: (RULE_TYPES as readonly string[]).includes(rt) ? (rt as RuleType) : "reasoning",
+        scope: String(parsed.scope ?? targetScope).trim() || targetScope,
+        rule_text: String(parsed.rule_text ?? "").slice(0, 600).trim(),
+        rationale: String(parsed.rationale ?? "").slice(0, 400).trim(),
+      };
+      if (!draft.title || !draft.rule_text) throw new Error("empty");
+    } catch {
+      await logAttempt(db, data.feedbackId, data.correction, "Model did not return a usable rule draft.", null);
+      return { ok: false, reason: "Yves could not draft a reusable rule from that correction. Please rephrase it as a general clinical principle." };
+    }
+
+    // -------- Step 2a: regex sanitiser --------
+    const combined = `${draft.title}\n${draft.rule_text}\n${draft.rationale}`;
+    const regexFail = regexSanitise(combined);
+    if (regexFail) {
+      await logAttempt(db, data.feedbackId, data.correction, `Regex sanitiser blocked: ${regexFail}`, draft);
+      return {
+        ok: false,
+        draft,
+        reason: `Blocked: ${regexFail} Rewrite the correction as a general clinical rule (no names, ids, dates, or one-off values).`,
+      };
+    }
+
+    // -------- Step 2b: model classifier --------
+    const classifier = await chat(
+      key,
+      "You are a strict privacy classifier. Reply with STRICT JSON: {\"identifiable\": boolean, \"reason\": string}. 'identifiable' is true if the text contains any patient-identifiable information or private data about one specific client (names, emails, ids, phone numbers, dated events tied to a person, or otherwise references one individual rather than a general clinical pattern).",
+      `Does the following candidate memory rule contain patient-identifiable information?\n\n${combined}`,
+    );
+    let identifiable = false;
+    let classReason = "";
+    try {
+      const c = extractJson(classifier) as { identifiable?: boolean; reason?: string };
+      identifiable = Boolean(c.identifiable);
+      classReason = String(c.reason ?? "").slice(0, 240);
+    } catch {
+      // Fail-closed: if classifier output is unparseable, block.
+      identifiable = true;
+      classReason = "Classifier output was unparseable; blocking as a precaution.";
+    }
+    if (identifiable) {
+      await logAttempt(db, data.feedbackId, data.correction, `Classifier blocked: ${classReason}`, draft);
+      return {
+        ok: false,
+        draft,
+        reason: `Blocked by privacy check: ${classReason} Please generalise the correction.`,
+      };
+    }
+
+    // -------- Step 3: conflict detection --------
+    const activeRes = await db
+      .from("yves_memory")
+      .select("id, title, rule_text")
+      .eq("is_active", true)
+      .eq("scope", draft.scope);
+    const active = (activeRes.data ?? []) as Array<{ id: string; title: string; rule_text: string }>;
+
+    let conflictIds: string[] = [];
+    if (active.length > 0) {
+      const conflictRaw = await chat(
+        key,
+        "You detect rule conflicts. Reply with STRICT JSON: {\"conflict_ids\": string[]} listing ids of existing rules the candidate contradicts or substantially overlaps with. Return [] if none.",
+        [
+          "CANDIDATE RULE:",
+          JSON.stringify({ title: draft.title, rule_text: draft.rule_text }),
+          "",
+          "EXISTING ACTIVE RULES (same scope):",
+          JSON.stringify(active),
+        ].join("\n"),
+      );
+      try {
+        const c = extractJson(conflictRaw) as { conflict_ids?: unknown[] };
+        const ids = Array.isArray(c.conflict_ids) ? c.conflict_ids.map(String) : [];
+        const valid = new Set(active.map((a) => a.id));
+        conflictIds = ids.filter((id) => valid.has(id));
+      } catch {
+        conflictIds = [];
+      }
+    }
+
+    // -------- Step 4: insert into staging --------
+    const stagedIns = await db
+      .from("yves_memory_staging")
+      .insert({
+        scope: draft.scope,
+        rule_type: draft.rule_type,
+        title: draft.title,
+        rule_text: draft.rule_text,
+        rationale: draft.rationale,
+        status: "pending",
+        proposed_by: "yves",
+        source_feedback_id: data.feedbackId,
+        conflict_flags: conflictIds.length ? conflictIds : null,
+        created_by: context.userId,
+      })
+      .select("id")
+      .maybeSingle();
+    const stagedId = (stagedIns.data as { id?: string } | null)?.id;
+    if (!stagedId) throw new Error(stagedIns.error?.message ?? "Failed to stage rule.");
+
+    await db
+      .from("yves_feedback_log")
+      .update({ admin_correction: data.correction, resulted_in_staging_id: stagedId })
+      .eq("id", data.feedbackId);
+
+    return { ok: true, stagedId, draft, conflictIds };
+  });
+
+async function logAttempt(
+  db: SupabaseClient,
+  feedbackId: string,
+  correction: string,
+  reason: string,
+  draft: DraftRule | null,
+) {
+  try {
+    await db
+      .from("yves_feedback_log")
+      .update({
+        admin_correction: `${correction}\n\n[BLOCKED] ${reason}${draft ? `\n[DRAFT] ${JSON.stringify(draft)}` : ""}`,
+      })
+      .eq("id", feedbackId);
+  } catch { /* best-effort */ }
+}
