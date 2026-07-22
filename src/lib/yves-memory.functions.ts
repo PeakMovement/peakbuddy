@@ -241,6 +241,9 @@ export const publishYvesRule = createServerFn({ method: 'POST' })
       `Approved staged rule "${title}"${supersedesId ? ` (supersedes ${supersedesId})` : ''}`,
     );
 
+    const { invalidateYvesMemoryCache } = await import('@/lib/yves-memory-cache.server');
+    invalidateYvesMemoryCache();
+
     return { ok: true, newRuleId, version, supersededId: supersedesId };
   });
 
