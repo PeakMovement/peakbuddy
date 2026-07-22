@@ -70,6 +70,7 @@ function Dashboard() {
         { data: clients, error: cErr },
         { count: unreadCount, error: aErr },
         wc,
+        wmap,
       ] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
         supabase
@@ -83,6 +84,7 @@ function Dashboard() {
           .eq("practitioner_id", u.user.id)
           .eq("is_read", false),
         countActiveWearableConnections().catch(() => 0),
+        getPractitionerClientWearables().catch(() => ({}) as Record<string, string[]>),
       ]);
       if (cErr || aErr) throw cErr || aErr;
 
