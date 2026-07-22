@@ -377,6 +377,15 @@ function TeachYves() {
             ))}
           </div>
 
+          {panelMsg && (
+            <div style={{
+              marginBottom: 10, padding: 8, borderRadius: 6, fontSize: 11,
+              background: "rgba(0,0,0,0.25)",
+              border: `1px solid ${panelMsg.tone === "ok" ? C.green : panelMsg.tone === "warn" ? C.amber : C.red}`,
+              color: panelMsg.tone === "ok" ? C.green : panelMsg.tone === "warn" ? C.amber : C.red,
+            }}>{panelMsg.text}</div>
+          )}
+
           {panelBusy && <div style={{ color: C.muted, fontSize: 12 }}>Loading memory…</div>}
           {!panelBusy && panel && tab === "published" && (
             <div style={memListStyle}>
