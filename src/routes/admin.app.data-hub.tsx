@@ -10,6 +10,7 @@ import {
   listAllClientsForAdmin, getAdminClientBundle,
   type AdminClientListItem, type AdminClientBundle,
 } from "@/lib/admin-data-hub.functions";
+import { generateClientInsight } from "@/lib/data-hub-insight.functions";
 import { log } from "@/lib/log";
 
 export const Route = createFileRoute("/admin/app/data-hub")({
