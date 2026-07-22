@@ -42,6 +42,7 @@ import { Route as ClientAppProgressRouteImport } from './routes/client.app.progr
 import { Route as ClientAppProfileRouteImport } from './routes/client.app.profile'
 import { Route as ClientAppCheckinRouteImport } from './routes/client.app.checkin'
 import { Route as ApiPublicTriageQueryRouteImport } from './routes/api/public/triage-query'
+import { Route as AdminAppYvesTeachRouteImport } from './routes/admin.app.yves-teach'
 import { Route as AdminAppSettingsRouteImport } from './routes/admin.app.settings'
 import { Route as AdminAppProgramsRouteImport } from './routes/admin.app.programs'
 import { Route as AdminAppPractitionersRouteImport } from './routes/admin.app.practitioners'
@@ -239,6 +240,11 @@ const ApiPublicTriageQueryRoute = ApiPublicTriageQueryRouteImport.update({
   path: '/api/public/triage-query',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminAppYvesTeachRoute = AdminAppYvesTeachRouteImport.update({
+  id: '/yves-teach',
+  path: '/yves-teach',
+  getParentRoute: () => AdminAppRoute,
+} as any)
 const AdminAppSettingsRoute = AdminAppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -423,6 +429,7 @@ export interface FileRoutesByFullPath {
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
   '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
+  '/admin/app/yves-teach': typeof AdminAppYvesTeachRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/profile': typeof ClientAppProfileRoute
@@ -485,6 +492,7 @@ export interface FileRoutesByTo {
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
   '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
+  '/admin/app/yves-teach': typeof AdminAppYvesTeachRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/profile': typeof ClientAppProfileRoute
@@ -549,6 +557,7 @@ export interface FileRoutesById {
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
   '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
+  '/admin/app/yves-teach': typeof AdminAppYvesTeachRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/profile': typeof ClientAppProfileRoute
@@ -614,6 +623,7 @@ export interface FileRouteTypes {
     | '/admin/app/practitioners'
     | '/admin/app/programs'
     | '/admin/app/settings'
+    | '/admin/app/yves-teach'
     | '/api/public/triage-query'
     | '/client/app/checkin'
     | '/client/app/profile'
@@ -676,6 +686,7 @@ export interface FileRouteTypes {
     | '/admin/app/practitioners'
     | '/admin/app/programs'
     | '/admin/app/settings'
+    | '/admin/app/yves-teach'
     | '/api/public/triage-query'
     | '/client/app/checkin'
     | '/client/app/profile'
@@ -739,6 +750,7 @@ export interface FileRouteTypes {
     | '/admin/app/practitioners'
     | '/admin/app/programs'
     | '/admin/app/settings'
+    | '/admin/app/yves-teach'
     | '/api/public/triage-query'
     | '/client/app/checkin'
     | '/client/app/profile'
@@ -1049,6 +1061,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTriageQueryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/app/yves-teach': {
+      id: '/admin/app/yves-teach'
+      path: '/yves-teach'
+      fullPath: '/admin/app/yves-teach'
+      preLoaderRoute: typeof AdminAppYvesTeachRouteImport
+      parentRoute: typeof AdminAppRoute
+    }
     '/admin/app/settings': {
       id: '/admin/app/settings'
       path: '/settings'
@@ -1257,6 +1276,7 @@ interface AdminAppRouteChildren {
   AdminAppPractitionersRoute: typeof AdminAppPractitionersRoute
   AdminAppProgramsRoute: typeof AdminAppProgramsRoute
   AdminAppSettingsRoute: typeof AdminAppSettingsRoute
+  AdminAppYvesTeachRoute: typeof AdminAppYvesTeachRoute
   AdminAppClientDetailClientIdRoute: typeof AdminAppClientDetailClientIdRoute
   AdminAppPractitionerPractitionerIdRoute: typeof AdminAppPractitionerPractitionerIdRoute
 }
@@ -1270,6 +1290,7 @@ const AdminAppRouteChildren: AdminAppRouteChildren = {
   AdminAppPractitionersRoute: AdminAppPractitionersRoute,
   AdminAppProgramsRoute: AdminAppProgramsRoute,
   AdminAppSettingsRoute: AdminAppSettingsRoute,
+  AdminAppYvesTeachRoute: AdminAppYvesTeachRoute,
   AdminAppClientDetailClientIdRoute: AdminAppClientDetailClientIdRoute,
   AdminAppPractitionerPractitionerIdRoute:
     AdminAppPractitionerPractitionerIdRoute,
