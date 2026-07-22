@@ -97,3 +97,103 @@ export const getAdminGradingQueue = createServerFn({ method: "GET" })
       };
     });
   });
+
+// ============================================================================
+// Insight grading (client_insight_logs) — ties into Yves memory version.
+// ============================================================================
+
+export type InsightGradingRow = {
+  id: string;
+  created_at: string;
+  client_id: string;
+  client_first_name: string;
+  focus: string | null;
+  model: string | null;
+  memory_version: number | null;
+  response_preview: string;
+  response_full: string;
+};
+
+export const listYvesMemoryVersionsForFilter = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<Array<{ version: number; note: string | null; created_at: string }>> => {
+    await assertSuperAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("yves_memory_versions")
+      .select("version_number, note, created_at")
+      .order("version_number", { ascending: false })
+      .limit(50);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => ({
+      version: r.version_number as number,
+      note: (r.note as string | null) ?? null,
+      created_at: r.created_at as string,
+    }));
+  });
+
+export const getInsightGradingQueue = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { memoryVersion?: number | null }) =>
+    z.object({ memoryVersion: z.number().int().nullable().optional() }).parse(d ?? {}),
+  )
+  .handler(async ({ context, data }): Promise<InsightGradingRow[]> => {
+    await assertSuperAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let q = supabaseAdmin
+      .from("client_insight_logs")
+      .select("id, client_id, focus, model, memory_version, response, created_at, grade")
+      .is("grade", null)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (data.memoryVersion != null) q = q.eq("memory_version", data.memoryVersion);
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    const list = rows ?? [];
+    if (list.length === 0) return [];
+    const clientIds = Array.from(new Set(list.map((r) => r.client_id as string)));
+    const { data: clients } = await supabaseAdmin
+      .from("clients").select("id, full_name").in("id", clientIds);
+    const cMap = new Map((clients ?? []).map((c) => [c.id as string, c.full_name as string | null]));
+    return list.map((r) => {
+      const full = (r.response as string | null) ?? "";
+      const name = (cMap.get(r.client_id as string) || "Unknown").trim().split(/\s+/)[0];
+      return {
+        id: r.id as string,
+        created_at: r.created_at as string,
+        client_id: r.client_id as string,
+        client_first_name: name,
+        focus: (r.focus as string | null) ?? null,
+        model: (r.model as string | null) ?? null,
+        memory_version: (r.memory_version as number | null) ?? null,
+        response_preview: full.slice(0, 320),
+        response_full: full,
+      };
+    });
+  });
+
+export const setInsightGrade = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { insightId: string; grade: "good" | "poor"; note?: string }) =>
+    z.object({
+      insightId: z.string().uuid(),
+      grade: z.enum(["good", "poor"]),
+      note: z.string().max(400).optional(),
+    }).parse(d),
+  )
+  .handler(async ({ context, data }): Promise<{ ok: true }> => {
+    await assertSuperAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("client_insight_logs")
+      .update({
+        grade: data.grade,
+        grade_note: data.note ?? null,
+        graded_by: context.userId,
+        graded_at: new Date().toISOString(),
+      })
+      .eq("id", data.insightId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+

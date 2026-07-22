@@ -21,20 +21,8 @@ export const getActiveYvesMemory = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { scope: YvesMemoryScope }) => input)
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const scopes =
-      data.scope === 'global' ? ['global'] : ['global', data.scope];
-
-    const { data: rows, error } = await supabase
-      .from('yves_memory')
-      .select('*')
-      .eq('is_active', true)
-      .in('scope', scopes)
-      .order('rule_type', { ascending: true })
-      .order('created_at', { ascending: true });
-
-    if (error) throw new Error(error.message);
-    return rows ?? [];
+    const { getActiveYvesMemoryCached } = await import('@/lib/yves-memory-cache.server');
+    return getActiveYvesMemoryCached(context.supabase, data.scope);
   });
 
 // ============================================================================
@@ -253,6 +241,9 @@ export const publishYvesRule = createServerFn({ method: 'POST' })
       `Approved staged rule "${title}"${supersedesId ? ` (supersedes ${supersedesId})` : ''}`,
     );
 
+    const { invalidateYvesMemoryCache } = await import('@/lib/yves-memory-cache.server');
+    invalidateYvesMemoryCache();
+
     return { ok: true, newRuleId, version, supersededId: supersedesId };
   });
 
@@ -360,6 +351,9 @@ export const rollbackYvesMemory = createServerFn({ method: 'POST' })
       context.userId,
       `Rollback to version ${data.versionNumber}`,
     );
+
+    const { invalidateYvesMemoryCache } = await import('@/lib/yves-memory-cache.server');
+    invalidateYvesMemoryCache();
 
     return { ok: true, newVersion, restoredCount: restored };
   });

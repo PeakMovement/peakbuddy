@@ -865,15 +865,15 @@ export const Route = createFileRoute("/api/public/triage-query")({
             if (firstPass.red_flag_category) escalationReasons.push("red_flag_category_set");
           }
 
-          // Load active Yves memory for triage surface (global + triage only).
-          const { data: memRows } = await supabaseAdmin
-            .from("yves_memory")
-            .select("scope, rule_type, title, rule_text")
-            .eq("is_active", true)
-            .in("scope", ["global", "triage"])
-            .order("rule_type", { ascending: true })
-            .order("created_at", { ascending: true });
-          const triageMemoryRules = (memRows ?? []) as Array<{ scope: string; rule_type: string; title: string; rule_text: string }>;
+          // Load active Yves memory for triage surface (global + triage only),
+          // via cached helper — high-volume path.
+          const { getActiveYvesMemoryForScopesCached } = await import(
+            "@/lib/yves-memory-cache.server"
+          );
+          const triageMemoryRules = await getActiveYvesMemoryForScopesCached(
+            supabaseAdmin as unknown as import("@supabase/supabase-js").SupabaseClient,
+            ["global", "triage"],
+          );
 
           const sonnetResult = await callReasoningModel({
             apiKey,
