@@ -347,7 +347,8 @@ function AdminDataHub() {
           )}
 
           {/* Load history (persisted daily snapshots) */}
-          {b.wearables.some((w) => w.connected) && historySeries.length >= 2 && (
+          {visible.history && b.wearables.some((w) => w.connected) && historySeries.length >= 2 && (
+
             <ChartCard title="Load & fatigue history" subtitle="from daily snapshots" empty={null}>
               <ChartBox height={200}>
                 <LineChart data={historySeries} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
