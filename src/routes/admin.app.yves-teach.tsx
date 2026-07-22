@@ -7,6 +7,7 @@ import {
   askYves,
   markYvesFeedbackPositive,
   getYvesMemoryPanel,
+  proposeYvesRule,
   YVES_TEACH_FOCUSES,
 } from "@/lib/yves-teach.functions";
 
