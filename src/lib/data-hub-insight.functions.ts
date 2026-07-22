@@ -57,7 +57,7 @@ export const generateClientInsight = createServerFn({ method: "POST" })
     });
 
     // Map focus label → memory scope
-    const FOCUS_SCOPE: Record<string, string> = {
+    const FOCUS_SCOPE: Record<string, YvesScope> = {
       "Pain & symptoms": "pain_symptoms",
       "Sleep & recovery": "sleep",
       "Training load": "wearable",
@@ -84,14 +84,16 @@ export const generateClientInsight = createServerFn({ method: "POST" })
     const memoryRules = (memRes.data ?? []) as Array<{ scope: string; rule_type: string; title: string; rule_text: string }>;
     const memoryVersion = (verRes.data?.version_number as number | undefined) ?? 0;
 
-    const memoryBlock = memoryRules.length
-      ? [
-          "YVES CORE MEMORY (curated clinical rules, follow these):",
-          ...memoryRules.map((r) => `- [${r.rule_type}/${r.scope}] ${r.title}: ${r.rule_text}`),
-        ].join("\n")
-      : "YVES CORE MEMORY (curated clinical rules, follow these):\n- (no active rules)";
-
-    const systemPrompt = `${INSIGHT_SYSTEM_PROMPT}\n\n---\n${memoryBlock}`;
+    // Insight surface: only global + insight rules (plus optional focus scope).
+    // buildYvesSystemPrompt re-filters as a safety net so pain_symptoms etc.
+    // still reach the insight prompt via the additive scopesToLoad load.
+    const allowed = new Set<string>(["global", "insight", ...(extraScope ? [extraScope] : [])]);
+    const scopedRules = memoryRules.filter((r) => allowed.has(r.scope));
+    const systemPrompt = buildYvesSystemPrompt({
+      base: INSIGHT_SYSTEM_PROMPT,
+      scope: "insight",
+      memoryRules: scopedRules,
+    });
 
     const userMsg = [
       data.focus ? `Practitioner focus: ${data.focus}.` : "General overview.",
