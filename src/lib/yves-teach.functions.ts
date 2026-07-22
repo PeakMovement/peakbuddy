@@ -211,7 +211,7 @@ export const getYvesMemoryPanel = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{
     published: Array<{ id: string; scope: string; rule_type: string; title: string; rule_text: string; updated_at: string }>;
-    staging: Array<{ id: string; scope: string; rule_type: string; title: string; rule_text: string; status: string; conflict_flags: unknown; created_at: string }>;
+    staging: Array<{ id: string; scope: string; rule_type: string; title: string; rule_text: string; status: string; conflict_flags: string | null; created_at: string }>;
     versions: Array<{ id: string; version_number: number; note: string | null; created_at: string }>;
   }> => {
     await assertSuperAdmin(context.supabase, context.userId);
