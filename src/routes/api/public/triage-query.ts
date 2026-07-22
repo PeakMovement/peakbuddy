@@ -637,12 +637,18 @@ async function callReasoningModel(params: {
   firstPass: FirstPassTriage | null;
   category: string | null;
   timeoutMs: number;
+  memoryRules: Array<{ scope: string; rule_type: string; title: string; rule_text: string }>;
 }): Promise<{ ok: true; data: TriageOutput; latencyMs: number } | { ok: false; error: string; latencyMs: number }> {
   const started = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), params.timeoutMs);
   try {
-    const system = buildSystemPrompt(params.category);
+    const { buildYvesSystemPrompt } = await import("@/lib/yves-identity");
+    const system = buildYvesSystemPrompt({
+      base: buildSystemPrompt(params.category),
+      scope: "triage",
+      memoryRules: params.memoryRules,
+    });
 
     const firstPassBlock = params.firstPass
       ? `<FIRST_PASS_OPINION>
