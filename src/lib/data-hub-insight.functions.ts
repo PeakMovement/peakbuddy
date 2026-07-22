@@ -14,7 +14,7 @@ const MODEL = "google/gemini-3.1-pro-preview";
 export const generateClientInsight = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => Input.parse(input))
-  .handler(async ({ data, context }): Promise<{ text: string; model: string; generatedAt: string }> => {
+  .handler(async ({ data, context }): Promise<{ text: string; model: string; generatedAt: string; memoryVersion: number }> => {
     // Super-admin only (matches admin data hub gate)
     const { data: prof } = await context.supabase
       .from("profiles").select("role").eq("id", context.userId).maybeSingle();
