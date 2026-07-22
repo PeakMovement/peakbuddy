@@ -45,11 +45,12 @@ function urgencyColor(u: unknown): string {
 }
 
 type SectionKey =
-  | "overview" | "symptoms" | "risk" | "wearable" | "load" | "history"
+  | "overview" | "insight" | "symptoms" | "risk" | "wearable" | "load" | "history"
   | "predictors" | "rhythms" | "vitals" | "activity" | "patterns" | "yves" | "alerts";
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: "overview", label: "Overview" },
+  { key: "insight", label: "Generate insight" },
   { key: "symptoms", label: "Symptom trend" },
   { key: "risk", label: "Risk score" },
   { key: "wearable", label: "Wearable connection" },
