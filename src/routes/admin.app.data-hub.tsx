@@ -452,6 +452,44 @@ function AdminDataHub() {
             </section>
           )}
 
+          {/* Activity history — only where the wearable actually logged sessions */}
+          {visible.activity && activitySessions.length > 0 && (
+            <section style={card}>
+              <div style={sectionTitle}>
+                Activity history <span style={countS}>({activitySessions.length})</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {activitySessions.slice(0, 20).map((r: Row, i) => {
+                  const dur = num(r.duration_minutes);
+                  const kcal = num(r.active_calories);
+                  const load = num(r.training_load);
+                  const src = typeof r.source === "string" ? r.source : null;
+                  const type = typeof r.session_type === "string" && r.session_type.trim() !== ""
+                    ? r.session_type
+                    : "Activity";
+                  const bits: string[] = [];
+                  if (dur !== null && dur > 0) bits.push(`${dur} min`);
+                  if (kcal !== null && kcal > 0) bits.push(`${kcal} kcal`);
+                  if (load !== null && load > 0) bits.push(`load ${load}`);
+                  return (
+                    <div key={i} style={{ ...listRow, flexDirection: "column", alignItems: "stretch", gap: 4 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                        <span style={{ color: "var(--white)", textTransform: "capitalize" }}>{type.replace(/_/g, " ")}</span>
+                        <span style={{ color: "var(--white-muted)", fontSize: 12 }}>{shortDate(r.date as string)}</span>
+                      </div>
+                      <div style={{ color: "var(--white-muted)", fontSize: 12, display: "flex", justifyContent: "space-between", gap: 8 }}>
+                        <span>{bits.join(" · ") || "—"}</span>
+                        {src ? <span style={{ textTransform: "capitalize" }}>{src}</span> : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+
+
           {/* Detected patterns */}
           {visible.patterns && b.patterns.length > 0 && (
 
