@@ -55,6 +55,43 @@ export const generateClientInsight = createServerFn({ method: "POST" })
       patterns: (patternsRes.data ?? []) as never,
     });
 
+    // Map focus label → memory scope
+    const FOCUS_SCOPE: Record<string, string> = {
+      "Pain & symptoms": "pain_symptoms",
+      "Sleep & recovery": "sleep",
+      "Training load": "wearable",
+      "Risk factors": "risk",
+    };
+    const extraScope = data.focus ? FOCUS_SCOPE[data.focus] : undefined;
+    const scopesToLoad = Array.from(new Set(["global", "insight", ...(extraScope ? [extraScope] : [])]));
+
+    // Load active Yves memory rules + latest global memory version, in parallel.
+    const [memRes, verRes] = await Promise.all([
+      db.from("yves_memory")
+        .select("scope, rule_type, title, rule_text")
+        .eq("is_active", true)
+        .in("scope", scopesToLoad)
+        .order("rule_type", { ascending: true })
+        .order("created_at", { ascending: true }),
+      db.from("yves_memory_versions")
+        .select("version_number")
+        .order("version_number", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    const memoryRules = (memRes.data ?? []) as Array<{ scope: string; rule_type: string; title: string; rule_text: string }>;
+    const memoryVersion = (verRes.data?.version_number as number | undefined) ?? 0;
+
+    const memoryBlock = memoryRules.length
+      ? [
+          "YVES CORE MEMORY (curated clinical rules, follow these):",
+          ...memoryRules.map((r) => `- [${r.rule_type}/${r.scope}] ${r.title}: ${r.rule_text}`),
+        ].join("\n")
+      : "YVES CORE MEMORY (curated clinical rules, follow these):\n- (no active rules)";
+
+    const systemPrompt = `${INSIGHT_SYSTEM_PROMPT}\n\n---\n${memoryBlock}`;
+
     const userMsg = [
       data.focus ? `Practitioner focus: ${data.focus}.` : "General overview.",
       "Analyse this client and produce insight per the required structure.",
@@ -68,7 +105,7 @@ export const generateClientInsight = createServerFn({ method: "POST" })
       body: JSON.stringify({
         model: MODEL,
         messages: [
-          { role: "system", content: INSIGHT_SYSTEM_PROMPT },
+          { role: "system", content: systemPrompt },
           { role: "user", content: userMsg },
         ],
       }),
@@ -93,8 +130,9 @@ export const generateClientInsight = createServerFn({ method: "POST" })
         focus: data.focus ?? null,
         model: MODEL,
         response: text,
+        memory_version: memoryVersion,
       });
     } catch { /* ignore */ }
 
-    return { text, model: MODEL, generatedAt: new Date().toISOString() };
+    return { text, model: MODEL, generatedAt: new Date().toISOString(), memoryVersion };
   });
