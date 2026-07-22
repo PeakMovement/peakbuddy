@@ -399,7 +399,8 @@ function AdminDataHub() {
           )}
 
           {/* Rhythms & patterns */}
-          {b.wearables.some((w) => w.connected) && (
+          {visible.rhythms && b.wearables.some((w) => w.connected) && (
+
             <section style={card}>
               <div style={sectionTitle}>Rhythms & patterns</div>
               {b.rhythms.notes.length === 0 && b.rhythms.sleepWeekday === null && b.rhythms.hrvTrend.direction === "unknown" ? (
