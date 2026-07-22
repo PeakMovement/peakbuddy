@@ -138,6 +138,7 @@ function Dashboard() {
           _lastCheckIn: last,
           _compliance: compliance,
           _activeToday: !!last && isSameDay(last, today),
+          _wearables: (wmap as Record<string, string[]>)[c.id] ?? [],
         };
       });
       setRows(enriched);
