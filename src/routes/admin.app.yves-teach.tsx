@@ -160,6 +160,82 @@ function TeachYves() {
     }
   }
 
+  // Publish / Reject / Rollback wiring
+  type StagingRow = NonNullable<typeof panel>["staging"][number];
+  const publishFn = useServerFn(publishYvesRule);
+  const rejectFn = useServerFn(rejectYvesRule);
+  const rollbackFn = useServerFn(rollbackYvesMemory);
+  const [rowBusyId, setRowBusyId] = useState<string | null>(null);
+  const [panelMsg, setPanelMsg] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
+  const [editRow, setEditRow] = useState<StagingRow | null>(null);
+  const [editDraft, setEditDraft] = useState<{ title: string; rule_text: string; rationale: string; scope: string; rule_type: string }>({
+    title: "", rule_text: "", rationale: "", scope: "", rule_type: "reasoning",
+  });
+  const [editSupersedesId, setEditSupersedesId] = useState<string>("");
+  const [reviewNote, setReviewNote] = useState<string>("");
+
+  async function refreshPanel() {
+    setPanelBusy(true);
+    try { setPanel(await memFn()); }
+    catch { /* ignore */ }
+    finally { setPanelBusy(false); }
+  }
+
+  async function approveRow(r: StagingRow, edits?: { title?: string; rule_text?: string; rationale?: string; scope?: string; rule_type?: string }, supersedesId?: string | null, note?: string) {
+    setRowBusyId(r.id);
+    setPanelMsg(null);
+    try {
+      const res = await publishFn({ data: { stagingId: r.id, edits, supersedesId: supersedesId ?? null, reviewNote: note } });
+      setPanelMsg({ tone: "ok", text: `Published (v${res.version})${res.supersededId ? ` — superseded ${res.supersededId.slice(0, 8)}…` : ""}` });
+      await refreshPanel();
+      setTab("published");
+      setEditRow(null);
+    } catch (e) {
+      setPanelMsg({ tone: "err", text: e instanceof Error ? e.message : "Publish failed." });
+    } finally { setRowBusyId(null); }
+  }
+
+  async function rejectRow(r: StagingRow) {
+    const note = window.prompt("Optional note for rejection:", "") ?? undefined;
+    setRowBusyId(r.id);
+    setPanelMsg(null);
+    try {
+      await rejectFn({ data: { stagingId: r.id, reviewNote: note?.trim() || undefined } });
+      setPanelMsg({ tone: "ok", text: "Rejected." });
+      await refreshPanel();
+    } catch (e) {
+      setPanelMsg({ tone: "err", text: e instanceof Error ? e.message : "Reject failed." });
+    } finally { setRowBusyId(null); }
+  }
+
+  function openEdit(r: StagingRow) {
+    setEditRow(r);
+    setEditDraft({
+      title: r.title,
+      rule_text: r.rule_text,
+      rationale: r.rationale ?? "",
+      scope: r.scope,
+      rule_type: r.rule_type,
+    });
+    setEditSupersedesId(r.conflict_flags[0] ?? "");
+    setReviewNote("");
+    setPanelMsg(null);
+  }
+
+  async function rollback(versionNumber: number) {
+    if (!window.confirm(`Roll back live memory to version ${versionNumber}? This deactivates current active rules and restores the snapshot.`)) return;
+    setRowBusyId(`v-${versionNumber}`);
+    setPanelMsg(null);
+    try {
+      const res = await rollbackFn({ data: { versionNumber } });
+      setPanelMsg({ tone: "ok", text: `Rolled back — restored ${res.restoredCount} rule(s), new version v${res.newVersion}.` });
+      await refreshPanel();
+      setTab("published");
+    } catch (e) {
+      setPanelMsg({ tone: "err", text: e instanceof Error ? e.message : "Rollback failed." });
+    } finally { setRowBusyId(null); }
+  }
+
   function resetSession() {
     sessionIdRef.current = newSessionId();
     setTurns([]);
