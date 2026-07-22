@@ -23,6 +23,7 @@ type ClientRow = Client & {
   _lastCheckIn: string | null;
   _compliance: number;
   _activeToday: boolean;
+  _wearables: string[];
 };
 
 function greeting() {
