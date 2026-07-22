@@ -294,6 +294,44 @@ export type Database = {
           },
         ]
       }
+      client_insight_logs: {
+        Row: {
+          client_id: string
+          created_at: string
+          focus: string | null
+          generated_by: string | null
+          id: string
+          model: string | null
+          response: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          focus?: string | null
+          generated_by?: string | null
+          id?: string
+          model?: string | null
+          response: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          focus?: string | null
+          generated_by?: string | null
+          id?: string
+          model?: string | null
+          response?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_insight_logs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_patterns: {
         Row: {
           active: boolean
