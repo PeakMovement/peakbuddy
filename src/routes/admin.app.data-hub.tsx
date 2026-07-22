@@ -90,6 +90,29 @@ function AdminDataHub() {
   const showAll = () => setVisible(Object.fromEntries(SECTIONS.map((s) => [s.key, true])) as Record<SectionKey, boolean>);
   const listFn = useServerFn(listAllClientsForAdmin);
   const bundleFn = useServerFn(getAdminClientBundle);
+  const insightFn = useServerFn(generateClientInsight);
+
+  // ── AI insight state ──
+  const [insightFocus, setInsightFocus] = useState<string>("General overview");
+  const [insightText, setInsightText] = useState<string>("");
+  const [insightAt, setInsightAt] = useState<string>("");
+  const [insightBusy, setInsightBusy] = useState(false);
+  const [insightErr, setInsightErr] = useState<string | null>(null);
+  useEffect(() => {
+    // reset on client change
+    setInsightText(""); setInsightAt(""); setInsightErr(null);
+  }, [selected]);
+  async function runInsight() {
+    if (!selected || insightBusy) return;
+    setInsightBusy(true); setInsightErr(null);
+    try {
+      const r = await insightFn({ data: { clientId: selected, focus: insightFocus } });
+      setInsightText(r.text); setInsightAt(r.generatedAt);
+    } catch (e) {
+      setInsightErr(e instanceof Error ? e.message : "Failed to generate insight");
+    } finally { setInsightBusy(false); }
+  }
+
 
 
   useEffect(() => {
