@@ -77,8 +77,15 @@ export function buildYvesSystemPrompt(params: {
   base: string;
   scope: YvesScope;
   memoryRules: YvesMemoryRule[];
+  /**
+   * Optional extra scopes to allow through the safety filter. Use for
+   * clinician-facing surfaces that also want a focus-specific rule set
+   * (e.g. the insight surface loads 'insight' plus the practitioner's focus
+   * scope). Never pass 'triage' from a clinician surface or vice versa.
+   */
+  extraScopes?: YvesScope[];
 }): string {
-  const allowed = new Set<string>(["global", params.scope]);
+  const allowed = new Set<string>(["global", params.scope, ...(params.extraScopes ?? [])]);
   const safe = params.memoryRules.filter((r) => allowed.has(r.scope));
   return `${params.base}\n\n---\n${YVES_IDENTITY}\n\n---\n${formatMemoryBlock(safe)}`;
 }
