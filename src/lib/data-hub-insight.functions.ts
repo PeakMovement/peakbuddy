@@ -84,15 +84,11 @@ export const generateClientInsight = createServerFn({ method: "POST" })
     const memoryRules = (memRes.data ?? []) as Array<{ scope: string; rule_type: string; title: string; rule_text: string }>;
     const memoryVersion = (verRes.data?.version_number as number | undefined) ?? 0;
 
-    // Insight surface: only global + insight rules (plus optional focus scope).
-    // buildYvesSystemPrompt re-filters as a safety net so pain_symptoms etc.
-    // still reach the insight prompt via the additive scopesToLoad load.
-    const allowed = new Set<string>(["global", "insight", ...(extraScope ? [extraScope] : [])]);
-    const scopedRules = memoryRules.filter((r) => allowed.has(r.scope));
     const systemPrompt = buildYvesSystemPrompt({
       base: INSIGHT_SYSTEM_PROMPT,
       scope: "insight",
-      memoryRules: scopedRules,
+      memoryRules,
+      extraScopes: extraScope ? [extraScope] : [],
     });
 
     const userMsg = [
