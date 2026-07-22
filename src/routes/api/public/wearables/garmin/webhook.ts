@@ -5,6 +5,7 @@ import {
   mapGarminDaily,
   mapGarminHrv,
   mapGarminSleep,
+  mapGarminUserMetrics,
   type GarminDailyRow,
 } from "@/lib/wearables/garmin";
 
@@ -101,6 +102,7 @@ export const Route = createFileRoute("/api/public/wearables/garmin/webhook")({
             { items: payload.dailies, map: mapGarminDaily },
             { items: payload.sleeps, map: mapGarminSleep },
             { items: payload.hrvSummaries, map: mapGarminHrv },
+            { items: payload.userMetrics, map: mapGarminUserMetrics },
           ];
           for (const { items, map } of simple) {
             for (const item of items ?? []) {

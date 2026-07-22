@@ -227,6 +227,7 @@ export function mapGarminDaily(
   const total =
     (item.totalKilocalories as number | undefined) ??
     (active != null || bmr != null ? (active ?? 0) + (bmr ?? 0) : null);
+  const distanceM = item.distanceInMeters as number | undefined;
   return {
     date,
     row: {
@@ -236,8 +237,28 @@ export function mapGarminDaily(
       total_calories: total,
       active_calories: num(active),
       resting_hr: num(item.restingHeartRateInBeatsPerMinute),
+      // Garmin sends these inside the daily summary too — capture them rather
+      // than making a second round-trip for stress / Body Battery.
+      avg_heart_rate: num(item.averageHeartRateInBeatsPerMinute),
+      max_heart_rate: num(item.maxHeartRateInBeatsPerMinute),
+      stress_avg: num(item.averageStressLevel),
+      body_battery_charged: num(item.bodyBatteryChargedValue),
+      body_battery_drained: num(item.bodyBatteryDrainedValue),
+      total_distance_km:
+        typeof distanceM === "number" ? Math.round((distanceM / 1000) * 100) / 100 : null,
     },
   };
+}
+
+/** userMetrics → VO2 max (Garmin's fitness metrics summary). */
+export function mapGarminUserMetrics(
+  item: Record<string, unknown>,
+): { date: string; row: GarminDailyRow } | null {
+  const date = item.calendarDate as string | undefined;
+  if (!date) return null;
+  const vo2 = num(item.vo2Max) ?? num(item.vo2MaxRunning) ?? num(item.vo2MaxCycling);
+  if (vo2 === null) return null;
+  return { date, row: { source: "garmin", date, vo2_max: vo2 } };
 }
 
 export function mapGarminSleep(

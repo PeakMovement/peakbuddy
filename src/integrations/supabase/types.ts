@@ -1294,6 +1294,8 @@ export type Database = {
           active_calories: number | null
           activity_score: number | null
           avg_heart_rate: number | null
+          body_battery_charged: number | null
+          body_battery_drained: number | null
           body_battery_max: number | null
           body_battery_min: number | null
           client_id: string
@@ -1326,6 +1328,8 @@ export type Database = {
           active_calories?: number | null
           activity_score?: number | null
           avg_heart_rate?: number | null
+          body_battery_charged?: number | null
+          body_battery_drained?: number | null
           body_battery_max?: number | null
           body_battery_min?: number | null
           client_id: string
@@ -1358,6 +1362,8 @@ export type Database = {
           active_calories?: number | null
           activity_score?: number | null
           avg_heart_rate?: number | null
+          body_battery_charged?: number | null
+          body_battery_drained?: number | null
           body_battery_max?: number | null
           body_battery_min?: number | null
           client_id?: string
