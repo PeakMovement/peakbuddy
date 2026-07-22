@@ -115,6 +115,22 @@ export const createClientAccount = createServerFn({ method: "POST" })
         .select("full_name")
         .eq("id", data.practitionerId)
         .maybeSingle();
+
+      // Mint a recovery link so the client can set their own password.
+      let setPasswordUrl: string | null = null;
+      try {
+        const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
+          type: "recovery",
+          email: data.email,
+          options: { redirectTo: "https://peakbuddy.lovable.app/reset-password" },
+        });
+        if (!linkErr) {
+          setPasswordUrl = linkData?.properties?.action_link ?? null;
+        }
+      } catch {
+        // fall through — email still sends with the temporary password copy
+      }
+
       await sendTransactionalEmailServer({
         templateName: "client-welcome",
         recipientEmail: data.email,
@@ -124,6 +140,7 @@ export const createClientAccount = createServerFn({ method: "POST" })
           practitionerName: practitioner?.full_name ?? null,
           email: data.email,
           loginUrl: "https://peakbuddy.lovable.app/client/login",
+          setPasswordUrl,
         },
       });
     } catch (e) {
