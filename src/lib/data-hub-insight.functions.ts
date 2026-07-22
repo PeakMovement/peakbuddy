@@ -70,7 +70,6 @@ export const generateClientInsight = createServerFn({ method: "POST" })
     const { getActiveYvesMemoryForScopesCached, getLatestYvesMemoryVersionCached } = await import(
       "@/lib/yves-memory-cache.server"
     );
-    const scopesToLoad = Array.from(new Set(["global", "insight", ...(extraScope ? [extraScope] : [])]));
     const [memoryRules, memoryVersion] = await Promise.all([
       getActiveYvesMemoryForScopesCached(db, scopesToLoad),
       getLatestYvesMemoryVersionCached(db),
