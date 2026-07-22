@@ -314,12 +314,37 @@ function TeachYves() {
           {!panelBusy && panel && tab === "staging" && (
             <div style={memListStyle}>
               {panel.staging.length === 0 && <Empty label="No candidate rules." />}
-              {panel.staging.map((r) => (
-                <MemoryCard key={r.id}
-                  badge={`${r.scope} · ${r.rule_type}`} title={r.title} body={r.rule_text}
-                  meta={`${r.status}${r.conflict_flags ? " · conflict flagged" : ""}`}
-                  tone={r.conflict_flags ? C.amber : undefined} />
-              ))}
+              {panel.staging.map((r) => {
+                const conflictTitles = r.conflict_flags
+                  .map((id) => panel.published.find((p) => p.id === id)?.title)
+                  .filter((t): t is string => Boolean(t));
+                const hasConflict = r.conflict_flags.length > 0;
+                return (
+                  <div key={r.id}
+                    style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${hasConflict ? C.amber : C.border}`, borderRadius: 8, padding: 10 }}>
+                    <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: hasConflict ? C.amber : C.muted }}>
+                      {r.scope} · {r.rule_type} · {r.status}
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 13, marginTop: 2 }}>{r.title}</div>
+                    <div style={{ color: C.white, fontSize: 12, marginTop: 4, whiteSpace: "pre-wrap" }}>{r.rule_text}</div>
+                    {r.rationale && (
+                      <div style={{ color: C.muted, fontSize: 11, marginTop: 6, fontStyle: "italic" }}>Why: {r.rationale}</div>
+                    )}
+                    {hasConflict && (
+                      <div style={{ color: C.amber, fontSize: 11, marginTop: 6 }}>
+                        Conflicts with: {conflictTitles.length ? conflictTitles.join("; ") : `${r.conflict_flags.length} rule(s)`}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                      <button disabled style={pillBtn(C.green)} title="Wired in the next prompt">Approve</button>
+                      <button disabled style={pillBtn(C.muted)} title="Wired in the next prompt">Edit</button>
+                      <button disabled style={pillBtn(C.red)} title="Wired in the next prompt">Reject</button>
+                      <span style={{ flex: 1 }} />
+                      <span style={{ color: C.muted, fontSize: 11 }}>{new Date(r.created_at).toLocaleDateString("en-ZA")}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
           {!panelBusy && panel && tab === "versions" && (
