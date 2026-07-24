@@ -262,6 +262,18 @@ export const getYvesMemoryPanel = createServerFn({ method: "GET" })
 const RULE_TYPES = ["reasoning", "phrasing", "safety", "escalation", "style"] as const;
 type RuleType = (typeof RULE_TYPES)[number];
 
+// Valid Yves scopes — a drafted/typo'd scope is coerced back so a rule can't
+// publish "dead" (never injected) or bleed into the wrong surface (e.g. a
+// clinician-insight rule leaking into patient-facing triage).
+const YVES_SCOPE_SET = new Set<string>([
+  "global", "insight", "triage", "pain_symptoms", "sleep", "stress", "wearable", "risk",
+]);
+function normalizeScope(candidate: string, fallback: string): string {
+  if (YVES_SCOPE_SET.has(candidate)) return candidate;
+  if (YVES_SCOPE_SET.has(fallback)) return fallback;
+  return "insight";
+}
+
 const ProposeInput = z.object({
   feedbackId: z.string().uuid(),
   correction: z.string().min(4).max(4000),
@@ -379,7 +391,7 @@ export const proposeYvesRule = createServerFn({ method: "POST" })
       draft = {
         title: String(parsed.title ?? "").slice(0, 80).trim(),
         rule_type: (RULE_TYPES as readonly string[]).includes(rt) ? (rt as RuleType) : "reasoning",
-        scope: String(parsed.scope ?? targetScope).trim() || targetScope,
+        scope: normalizeScope(String(parsed.scope ?? targetScope).trim(), targetScope),
         rule_text: String(parsed.rule_text ?? "").slice(0, 600).trim(),
         rationale: String(parsed.rationale ?? "").slice(0, 400).trim(),
       };
@@ -407,11 +419,11 @@ export const proposeYvesRule = createServerFn({ method: "POST" })
       "You are a strict privacy classifier. Reply with STRICT JSON: {\"identifiable\": boolean, \"reason\": string}. 'identifiable' is true if the text contains any patient-identifiable information or private data about one specific client (names, emails, ids, phone numbers, dated events tied to a person, or otherwise references one individual rather than a general clinical pattern).",
       `Does the following candidate memory rule contain patient-identifiable information?\n\n${combined}`,
     );
-    let identifiable = false;
+    let identifiable = true;
     let classReason = "";
     try {
       const c = extractJson(classifier) as { identifiable?: boolean; reason?: string };
-      identifiable = Boolean(c.identifiable);
+      identifiable = c.identifiable !== false;
       classReason = String(c.reason ?? "").slice(0, 240);
     } catch {
       // Fail-closed: if classifier output is unparseable, block.

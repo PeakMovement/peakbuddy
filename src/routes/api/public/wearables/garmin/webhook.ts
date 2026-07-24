@@ -144,12 +144,21 @@ export const Route = createFileRoute("/api/public/wearables/garmin/webhook")({
           for (const [key, km] of byClientDate) {
             const meta = dateMeta.get(key)!;
             if (km > 0) {
+              // The activity sum is workout-only; the daily summary carries the
+              // all-day distance. Keep whichever is larger so a logged workout
+              // doesn't undercount the day.
+              const { data: existing } = await supabaseAdmin
+                .from("wearable_sessions")
+                .select("total_distance_km")
+                .eq("client_id", meta.clientId)
+                .eq("source", "garmin")
+                .eq("date", meta.date)
+                .maybeSingle();
+              const prior =
+                typeof existing?.total_distance_km === "number" ? existing.total_distance_km : 0;
+              const best = Math.max(prior, Math.round(km * 100) / 100);
               await upsertRows(supabaseAdmin, meta.clientId, [
-                {
-                  source: "garmin",
-                  date: meta.date,
-                  total_distance_km: Math.round(km * 100) / 100,
-                },
+                { source: "garmin", date: meta.date, total_distance_km: best },
               ]);
             }
           }

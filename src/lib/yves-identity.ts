@@ -2,6 +2,17 @@
 // This is a persona + boundaries block. It does not carry clinical rules —
 // those live in the yves_memory table and are injected per scope.
 
+export const YVES_SCOPES = [
+  "global",
+  "insight",
+  "triage",
+  "pain_symptoms",
+  "sleep",
+  "stress",
+  "wearable",
+  "risk",
+] as const;
+
 export type YvesScope =
   | "global"
   | "insight"

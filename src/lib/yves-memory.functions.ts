@@ -121,7 +121,9 @@ const PublishInput = z.object({
     .object({
       title: z.string().min(1).max(80).optional(),
       rule_type: z.enum(RULE_TYPES).optional(),
-      scope: z.string().min(1).max(40).optional(),
+      scope: z
+        .enum(["global", "insight", "triage", "pain_symptoms", "sleep", "stress", "wearable", "risk"])
+        .optional(),
       rule_text: z.string().min(1).max(600).optional(),
       rationale: z.string().max(400).nullable().optional(),
     })
