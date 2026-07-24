@@ -192,7 +192,8 @@ export const setInsightGrade = createServerFn({ method: "POST" })
         graded_by: context.userId,
         graded_at: new Date().toISOString(),
       })
-      .eq("id", data.insightId);
+      .eq("id", data.insightId)
+      .is("grade", null); // write-once: don't silently overwrite an existing grade
     if (error) throw new Error(error.message);
     return { ok: true };
   });

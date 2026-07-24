@@ -166,6 +166,18 @@ export const publishYvesRule = createServerFn({ method: 'POST' })
     };
     if (stg.status !== 'pending') throw new Error(`Cannot approve a rule with status "${stg.status}".`);
 
+    // Atomically claim this staging row so two concurrent approvals can't both
+    // publish. Only the update where status is still 'pending' succeeds.
+    const claim = await db
+      .from('yves_memory_staging')
+      .update({ status: 'approved', review_note: data.reviewNote ?? null })
+      .eq('id', data.stagingId)
+      .eq('status', 'pending')
+      .select('id');
+    if (!claim.data || (claim.data as unknown[]).length === 0) {
+      throw new Error('This rule was already processed.');
+    }
+
     // Merge edits.
     const e = data.edits ?? {};
     const title = e.title ?? stg.title;
@@ -227,15 +239,6 @@ export const publishYvesRule = createServerFn({ method: 'POST' })
       .maybeSingle();
     const newRuleId = (ins.data as { id?: string } | null)?.id;
     if (!newRuleId) throw new Error(ins.error?.message ?? 'Failed to publish rule.');
-
-    const upd = await db
-      .from('yves_memory_staging')
-      .update({
-        status: 'approved',
-        review_note: data.reviewNote ?? null,
-      })
-      .eq('id', data.stagingId);
-    if (upd.error) throw new Error(upd.error.message);
 
     const version = await snapshotActive(
       db,

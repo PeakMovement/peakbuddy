@@ -44,6 +44,14 @@ export const generateClientInsight = createServerFn({ method: "POST" })
 
     if (!clientRes.data) throw new Error("Client not found");
 
+    // POPIA / AI-consent gate — do not send this client's data to the AI
+    // provider unless they consented to AI processing (same rule triage uses).
+    if ((clientRes.data as { yves_ai_consent?: boolean }).yves_ai_consent !== true) {
+      throw new Error(
+        "This client hasn't consented to AI processing, so Yves Insight is unavailable for them until they enable AI consent in their Buddy profile.",
+      );
+    }
+
     const payload = buildInsightPayload({
       client: clientRes.data as Record<string, unknown> as never,
       wearables: (wearablesRes.data ?? []) as never,

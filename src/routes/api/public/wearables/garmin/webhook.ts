@@ -62,7 +62,14 @@ async function resolveClientId(
     .eq("status", "active")
     .order("updated_at", { ascending: false });
   if (rows && rows.length > 0) {
-    const pick = rows.find((r) => !r.provider_user_id) ?? rows[0];
+    // Only attribute when it is unambiguous: exactly one active Garmin client,
+    // or exactly one not-yet-bound token (the just-connected client being
+    // linked). With multiple active Garmin clients and no direct token/user
+    // match, NEVER guess — mis-binding one person's device to another is worse
+    // than skipping this push.
+    const unbound = rows.filter((r) => !r.provider_user_id);
+    const pick = rows.length === 1 ? rows[0] : unbound.length === 1 ? unbound[0] : null;
+    if (!pick) return null;
     if (allowSelfHeal && garminUserId) {
       await admin
         .from("wearable_tokens")
