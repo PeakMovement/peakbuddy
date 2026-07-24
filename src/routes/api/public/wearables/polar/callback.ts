@@ -23,6 +23,21 @@ export const Route = createFileRoute("/api/public/wearables/polar/callback")({
         if (!code || !state) return back("error");
 
         try {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+          // Consume the one-time server-side state (guards against OAuth CSRF /
+          // an attacker-chosen client_id).
+          const { data: stateRow } = await supabaseAdmin
+            .from("wearable_oauth_state")
+            .select("client_id, provider, expires_at")
+            .eq("state", state)
+            .eq("provider", "polar")
+            .maybeSingle();
+          if (!stateRow) return back("error");
+          await supabaseAdmin.from("wearable_oauth_state").delete().eq("state", state);
+          if (new Date(stateRow.expires_at).getTime() < Date.now()) return back("error");
+          const resolvedClientId = stateRow.client_id as string;
+
           const { clientId, clientSecret } = polarCreds();
           const tokens = await exchangePolarCode({
             code,
@@ -32,11 +47,9 @@ export const Route = createFileRoute("/api/public/wearables/polar/callback")({
           });
 
           // Register with AccessLink (idempotent; 403 => consent needed).
-          await registerPolarUser({ accessToken: tokens.access_token, memberId: state });
-
-          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          await registerPolarUser({ accessToken: tokens.access_token, memberId: resolvedClientId });
           await upsertToken(supabaseAdmin, {
-            client_id: state,
+            client_id: resolvedClientId,
             provider: "polar",
             access_token: tokens.access_token,
             refresh_token: null, // Polar tokens are long-lived
@@ -45,9 +58,9 @@ export const Route = createFileRoute("/api/public/wearables/polar/callback")({
           });
 
           try {
-            await syncPolarForClient(supabaseAdmin, state);
+            await syncPolarForClient(supabaseAdmin, resolvedClientId);
           } catch (e) {
-            log.warn(`Initial Polar sync failed for client ${state}`, e);
+            log.warn(`Initial Polar sync failed for client ${resolvedClientId}`, e);
           }
 
           return back("connected");

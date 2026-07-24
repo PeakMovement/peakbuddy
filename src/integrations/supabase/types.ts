@@ -650,6 +650,38 @@ export type Database = {
           },
         ]
       }
+      wearable_oauth_state: {
+        Row: {
+          client_id: string
+          created_at: string
+          expires_at: string
+          provider: string
+          state: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          expires_at: string
+          provider: string
+          state: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          expires_at?: string
+          provider?: string
+          state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wearable_oauth_state_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_calendar_oauth_state: {
         Row: {
           created_at: string

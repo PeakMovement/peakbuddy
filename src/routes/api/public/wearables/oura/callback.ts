@@ -24,6 +24,21 @@ export const Route = createFileRoute("/api/public/wearables/oura/callback")({
         if (!code || !state) return back("error");
 
         try {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+          // Consume the one-time server-side state (guards against OAuth CSRF /
+          // an attacker-chosen client_id).
+          const { data: stateRow } = await supabaseAdmin
+            .from("wearable_oauth_state")
+            .select("client_id, provider, expires_at")
+            .eq("state", state)
+            .eq("provider", "oura")
+            .maybeSingle();
+          if (!stateRow) return back("error");
+          await supabaseAdmin.from("wearable_oauth_state").delete().eq("state", state);
+          if (new Date(stateRow.expires_at).getTime() < Date.now()) return back("error");
+          const resolvedClientId = stateRow.client_id as string;
+
           const { clientId, clientSecret } = ouraCreds();
           const tokens = await exchangeOuraCode({
             code,
@@ -31,8 +46,6 @@ export const Route = createFileRoute("/api/public/wearables/oura/callback")({
             clientSecret,
             redirectUri: ouraRedirectUri(),
           });
-
-          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
           // Best-effort: fetch the stable Oura user id for webhook routing later.
           let providerUserId: string | null = null;
@@ -49,7 +62,7 @@ export const Route = createFileRoute("/api/public/wearables/oura/callback")({
           }
 
           await upsertToken(supabaseAdmin, {
-            client_id: state,
+            client_id: resolvedClientId,
             provider: "oura",
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
@@ -59,9 +72,9 @@ export const Route = createFileRoute("/api/public/wearables/oura/callback")({
 
           // Initial backfill (last 30 days) so data shows immediately.
           try {
-            await syncOuraForClient(supabaseAdmin, state, 30);
+            await syncOuraForClient(supabaseAdmin, resolvedClientId, 30);
           } catch (e) {
-            log.warn(`Initial Oura sync failed for client ${state}`, e);
+            log.warn(`Initial Oura sync failed for client ${resolvedClientId}`, e);
           }
 
           return back("connected");
