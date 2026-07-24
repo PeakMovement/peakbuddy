@@ -70,6 +70,12 @@ export const getMyWearableSnapshot = createServerFn({ method: "GET" })
       "avg_heart_rate",
       "spo2_avg",
       "training_load",
+      // New Garmin metrics — a day carrying only these must still count as data,
+      // otherwise its tiles go blank.
+      "stress_avg",
+      "body_battery_charged",
+      "body_battery_drained",
+      "vo2_max",
     ];
     const forProvider = provider ? rows.filter((r) => r.source === provider) : rows;
     const hasData = (r: any) =>
