@@ -703,6 +703,104 @@ You may agree or override. State your reasoning independently.
 // ─────────────────────────────────────────────────────────────────────────────
 // Route
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Server-side red-flag alert (reliability safety net) ──────────────────────
+// Yves detects red flags on the server, but the client browser is what fires
+// the practitioner alert. If the user closes the tab or loses network before
+// that runs, the practitioner is never notified — the worst failure mode for a
+// clinical product. Firing here (before we respond) guarantees delivery.
+//
+// Idempotent with the client path: this insert commits before the HTTP response
+// is sent, so the client's own findRecentOpenAlert() check then sees it and
+// no-ops — no double alert. notifyAlertPush also atomically claims push_fired,
+// so a push can never be sent twice. Fully wrapped: any failure here is logged
+// and swallowed so the triage response (and the client fallback) is unaffected.
+async function fireServerRedFlagAlert(
+  admin: (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"],
+  args: {
+    clientId: string;
+    practitionerId: string;
+    queryText: string;
+    urgency: string;
+    severity: number;
+  },
+): Promise<void> {
+  try {
+    const isRedFlag =
+      args.severity >= 5 || args.urgency === "urgent" || args.urgency === "emergency";
+    if (!isRedFlag) return;
+
+    // Same 24h open-alert dedup the client uses.
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: existing } = await admin
+      .from("alerts")
+      .select("id")
+      .eq("client_id", args.clientId)
+      .eq("alert_type", "red_flag")
+      .eq("is_read", false)
+      .gte("created_at", since)
+      .limit(1);
+    if (existing && existing.length > 0) return;
+
+    const { data: alertRow } = await admin
+      .from("alerts")
+      .insert({
+        practitioner_id: args.practitionerId,
+        client_id: args.clientId,
+        alert_type: "red_flag",
+        message: `Red flag detected: ${args.queryText.slice(0, 100)}`,
+        urgency: args.urgency,
+      })
+      .select("id")
+      .single();
+
+    const alertId = (alertRow?.id as string | undefined) ?? undefined;
+    if (!alertId) return;
+
+    // Use the service-role cores directly (the notifyAlert* serverFns are
+    // auth-middleware-gated for browser callers; here we are a trusted server
+    // that already authenticated the user and detected the red flag).
+
+    // Push — atomically claim push_fired so this can never double-send with the
+    // client path (mirrors notifyAlertPush's claim).
+    try {
+      const { data: claimed } = await admin
+        .from("alerts")
+        .update({ push_fired: true })
+        .eq("id", alertId)
+        .eq("push_fired", false)
+        .select("id")
+        .maybeSingle();
+      if (claimed) {
+        const { data: cli } = await admin
+          .from("clients")
+          .select("full_name")
+          .eq("id", args.clientId)
+          .maybeSingle();
+        const firstName = ((cli?.full_name as string | null) || "Your client").trim().split(/\s+/)[0];
+        const { sendPushCore } = await import("@/lib/push.functions");
+        await sendPushCore(admin, {
+          userId: args.practitionerId,
+          title: "Buddy alert",
+          body: `${firstName} reported symptoms that may need review`,
+          data: { clientId: args.clientId, kind: "yves" },
+        });
+      }
+    } catch (e) {
+      log.warn("[triage-query] server-side push failed:", e);
+    }
+
+    // Email — idempotent on email_fired inside the core.
+    try {
+      const { sendAlertEmailCore } = await import("@/lib/notify-practitioner.functions");
+      await sendAlertEmailCore(admin, alertId);
+    } catch (e) {
+      log.warn("[triage-query] server-side email failed:", e);
+    }
+  } catch (e) {
+    log.warn("[triage-query] server-side red-flag alert failed (client path is fallback):", e);
+  }
+}
+
 export const Route = createFileRoute("/api/public/triage-query")({
   server: {
     handlers: {
@@ -924,7 +1022,18 @@ export const Route = createFileRoute("/api/public/triage-query")({
                 attribution_detected: (extraction?.attributions.length ?? 0) > 0,
                 should_notify_practitioner: firstPass.severity >= 6,
               };
-              return json(applySafetyFloors(query_text, fallback));
+              const fallbackOut = applySafetyFloors(query_text, fallback);
+              await fireServerRedFlagAlert(supabaseAdmin, {
+                clientId: client_id,
+                practitionerId: c.practitioner_id,
+                queryText: query_text,
+                urgency: fallbackOut.urgency,
+                severity: fallbackOut.severity,
+              });
+              const cleanFallback = { ...fallbackOut } as Record<string, unknown>;
+              delete cleanFallback._floor_terms;
+              delete cleanFallback._combo_terms;
+              return json(cleanFallback);
             }
             return json({ error: "Triage service unavailable", retryable: true }, 502);
           }
@@ -959,6 +1068,16 @@ export const Route = createFileRoute("/api/public/triage-query")({
           } catch (e) {
             log.warn("[triage-query] failed to write triage log:", e);
           }
+
+          // Fire the practitioner alert server-side so delivery does not depend
+          // on the client keeping the tab open (idempotent with the client path).
+          await fireServerRedFlagAlert(supabaseAdmin, {
+            clientId: client_id,
+            practitionerId: c.practitioner_id,
+            queryText: query_text,
+            urgency: finalOutput.urgency,
+            severity: finalOutput.severity,
+          });
 
           // Strip internal debugging fields before returning
           const clean = { ...finalOutput } as Record<string, unknown>;

@@ -103,6 +103,101 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+type EmailAdminClient =
+  (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
+
+/**
+ * Service-role core for the practitioner-alert email. Loads the alert, gates on
+ * `email_fired` (idempotent), builds + sends the email, marks it fired. Does NOT
+ * check caller ownership — callers that reach this are already trusted (the
+ * auth-gated `notifyAlertEmail` wrapper, or the server-side red-flag safety net
+ * in triage-query which has just authenticated the user and detected the flag).
+ */
+export async function sendAlertEmailCore(
+  supabaseAdmin: EmailAdminClient,
+  alertId: string,
+): Promise<
+  | { ok: true; skipped?: "already_sent" }
+  | { ok: false; reason: "not_found" | "client_not_found" | "no_practitioner_email" | "send_failed" }
+> {
+  const { mintAlertActionToken } = await import("@/lib/alert-actions.server");
+
+  const { data: alert } = await supabaseAdmin
+    .from("alerts")
+    .select("id, practitioner_id, client_id, message, urgency, email_fired, created_at")
+    .eq("id", alertId)
+    .maybeSingle();
+  if (!alert) return { ok: false as const, reason: "not_found" as const };
+  if (alert.email_fired) return { ok: true as const, skipped: "already_sent" as const };
+
+  const { data: client } = await supabaseAdmin
+    .from("clients")
+    .select("id, full_name, phone")
+    .eq("id", alert.client_id)
+    .maybeSingle();
+  if (!client) return { ok: false as const, reason: "client_not_found" as const };
+
+  const [{ data: prof }, { data: userRes }] = await Promise.all([
+    supabaseAdmin.from("profiles").select("full_name").eq("id", alert.practitioner_id).maybeSingle(),
+    supabaseAdmin.auth.admin.getUserById(alert.practitioner_id),
+  ]);
+  const practitionerEmail = userRes?.user?.email;
+  if (!practitionerEmail) {
+    return { ok: false as const, reason: "no_practitioner_email" as const };
+  }
+  const practitionerName = (prof as { full_name?: string } | null)?.full_name || "Practitioner";
+
+  const [checkinToken, reviewedToken] = await Promise.all([
+    mintAlertActionToken({ alertId: alert.id, practitionerId: alert.practitioner_id, action: "checkin" }),
+    mintAlertActionToken({ alertId: alert.id, practitionerId: alert.practitioner_id, action: "reviewed" }),
+  ]);
+
+  const firstName = (client.full_name || "Your client").trim().split(/\s+/)[0];
+  const viewUrl = `${APP_BASE_URL}/practitioner/app/client-detail/${client.id}`;
+  const checkinUrl = `${APP_BASE_URL}/api/public/alerts/action?token=${encodeURIComponent(checkinToken)}`;
+  const reviewedUrl = `${APP_BASE_URL}/api/public/alerts/action?token=${encodeURIComponent(reviewedToken)}`;
+
+  const phoneDigits = (client.phone || "").replace(/\D/g, "");
+  const whatsappUrl = phoneDigits
+    ? `https://wa.me/${phoneDigits}?text=${encodeURIComponent(
+        `Hi ${firstName}, this is ${practitionerName} following up on your recent Buddy check-in.`,
+      )}`
+    : null;
+
+  const timestamp = new Date(alert.created_at || Date.now()).toLocaleString("en-ZA", {
+    timeZone: "Africa/Johannesburg",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+  const { sendTransactionalEmailServer } = await import("@/lib/email/send-server");
+  const send = await sendTransactionalEmailServer({
+    templateName: "practitioner-alert",
+    recipientEmail: practitionerEmail,
+    idempotencyKey: `alert-${alert.id}`,
+    templateData: {
+      clientName: client.full_name,
+      clientFirstName: firstName,
+      practitionerName,
+      alertMessage: alert.message,
+      urgency: alert.urgency,
+      timestamp,
+      viewUrl,
+      checkinUrl,
+      reviewedUrl,
+      whatsappUrl,
+    },
+  });
+
+  if (!send.ok) {
+    log.error("[notifyAlertEmail] send failed", send.error);
+    return { ok: false as const, reason: "send_failed" as const };
+  }
+
+  await supabaseAdmin.from("alerts").update({ email_fired: true }).eq("id", alert.id);
+  return { ok: true as const };
+}
+
 /**
  * Fires the "practitioner alert" email when a patient logs a symptom that
  * trips the risk profile. Idempotent on `alerts.email_fired`. Called
@@ -117,27 +212,21 @@ export const notifyAlertEmail = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { mintAlertActionToken } = await import("@/lib/alert-actions.server");
 
-    // Load the alert and gate on email_fired.
+    // Ownership check: the caller must own the alert's client, or be super_admin.
     const { data: alert } = await supabaseAdmin
       .from("alerts")
-      .select("id, practitioner_id, client_id, message, urgency, email_fired, created_at")
+      .select("client_id")
       .eq("id", data.alertId)
       .maybeSingle();
     if (!alert) return { ok: false as const, reason: "not_found" as const };
-    if (alert.email_fired) return { ok: true as const, skipped: "already_sent" as const };
-
-    // Load client (for name + phone + owner check) and validate the caller.
     const { data: client } = await supabaseAdmin
       .from("clients")
-      .select("id, full_name, phone, auth_user_id")
+      .select("auth_user_id")
       .eq("id", alert.client_id)
       .maybeSingle();
     if (!client) return { ok: false as const, reason: "client_not_found" as const };
     if (client.auth_user_id !== context.userId) {
-      // Server-side callers (nightly hooks, etc) can also trigger this via
-      // super_admin escalation.
       const { data: prof } = await supabaseAdmin
         .from("profiles")
         .select("role")
@@ -148,76 +237,6 @@ export const notifyAlertEmail = createServerFn({ method: "POST" })
       }
     }
 
-    // Load practitioner email + display name.
-    const [{ data: prof }, { data: userRes }] = await Promise.all([
-      supabaseAdmin.from("profiles").select("full_name").eq("id", alert.practitioner_id).maybeSingle(),
-      supabaseAdmin.auth.admin.getUserById(alert.practitioner_id),
-    ]);
-    const practitionerEmail = userRes?.user?.email;
-    if (!practitionerEmail) {
-      return { ok: false as const, reason: "no_practitioner_email" as const };
-    }
-    const practitionerName = (prof as { full_name?: string } | null)?.full_name || "Practitioner";
-
-    // Mint action tokens.
-    const [checkinToken, reviewedToken] = await Promise.all([
-      mintAlertActionToken({
-        alertId: alert.id,
-        practitionerId: alert.practitioner_id,
-        action: "checkin",
-      }),
-      mintAlertActionToken({
-        alertId: alert.id,
-        practitionerId: alert.practitioner_id,
-        action: "reviewed",
-      }),
-    ]);
-
-    const firstName = (client.full_name || "Your client").trim().split(/\s+/)[0];
-    const viewUrl = `${APP_BASE_URL}/practitioner/app/client-detail/${client.id}`;
-    const checkinUrl = `${APP_BASE_URL}/api/public/alerts/action?token=${encodeURIComponent(checkinToken)}`;
-    const reviewedUrl = `${APP_BASE_URL}/api/public/alerts/action?token=${encodeURIComponent(reviewedToken)}`;
-
-    // WhatsApp deep link — digits only, prefixed with country code. If the
-    // stored number is a plain local number this may not dial correctly, but
-    // wa.me will show a friendly picker.
-    const phoneDigits = (client.phone || "").replace(/\D/g, "");
-    const whatsappUrl = phoneDigits
-      ? `https://wa.me/${phoneDigits}?text=${encodeURIComponent(
-          `Hi ${firstName}, this is ${practitionerName} following up on your recent Buddy check-in.`,
-        )}`
-      : null;
-
-    const timestamp = new Date(alert.created_at || Date.now()).toLocaleString("en-ZA", {
-      timeZone: "Africa/Johannesburg",
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-
-    const { sendTransactionalEmailServer } = await import("@/lib/email/send-server");
-    const send = await sendTransactionalEmailServer({
-      templateName: "practitioner-alert",
-      recipientEmail: practitionerEmail,
-      idempotencyKey: `alert-${alert.id}`,
-      templateData: {
-        clientName: client.full_name,
-        clientFirstName: firstName,
-        practitionerName,
-        alertMessage: alert.message,
-        urgency: alert.urgency,
-        timestamp,
-        viewUrl,
-        checkinUrl,
-        reviewedUrl,
-        whatsappUrl,
-      },
-    });
-
-    if (!send.ok) {
-      log.error("[notifyAlertEmail] send failed", send.error);
-      return { ok: false as const, reason: "send_failed" as const };
-    }
-
-    await supabaseAdmin.from("alerts").update({ email_fired: true }).eq("id", alert.id);
-    return { ok: true as const };
+    return sendAlertEmailCore(supabaseAdmin, data.alertId);
   });
+
