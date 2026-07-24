@@ -19,10 +19,9 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
             (request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null);
           if (provided !== cronSecret) return new Response("Unauthorized", { status: 401 });
         } else {
-          const apiKey = request.headers.get("apikey") ?? request.headers.get("Apikey");
-          if (!apiKey || apiKey !== process.env.SUPABASE_PUBLISHABLE_KEY) {
-            return new Response("Unauthorized", { status: 401 });
-          }
+          // No CRON_SECRET configured -> fail closed. Never accept the public
+          // anon key (SUPABASE_PUBLISHABLE_KEY ships in the client bundle).
+          return new Response("Unauthorized", { status: 401 });
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

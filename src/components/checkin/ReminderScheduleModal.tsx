@@ -5,7 +5,7 @@ import {
   upsertMyReminder,
   disableMyReminder,
 } from "@/lib/checkin-reminders.functions";
-import { registerPushToken } from "@/lib/push";
+import { registerPushToken, registerWebPushToken } from "@/lib/push";
 import { log } from "@/lib/log";
 
 type Frequency = "daily" | "morning" | "evening" | "custom";
@@ -79,8 +79,11 @@ export function ReminderScheduleModal({
     setSaving(true);
     setPermMessage(null);
     try {
-      // Ask for push permission via Despia bridge (no-op on web).
+      // Native (Despia) push permission + token.
       try { await registerPushToken(); } catch (e) { log.warn("push perm", e); }
+      // Web / installed-PWA push — otherwise browser users set a reminder but
+      // never get a notification. Safe here: this runs from the Save gesture.
+      try { await registerWebPushToken(); } catch (e) { log.warn("web push perm", e); }
 
       const daysFinal = frequency === "custom" ? days : [0, 1, 2, 3, 4, 5, 6];
       const payload: Reminder = {

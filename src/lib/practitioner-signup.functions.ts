@@ -29,6 +29,13 @@ export const registerPractitioner = createServerFn({ method: "POST" })
     if ((authUser.user.email ?? "").toLowerCase() !== data.email.toLowerCase()) {
       return { ok: false as const, error: "Account and email do not match." };
     }
+    // Only a freshly-created account may register (signup runs before the email
+    // is confirmed, so there is no session yet). This stops the userId+email
+    // guard from being used to convert an established account into a practitioner.
+    const createdMs = new Date(authUser.user.created_at).getTime();
+    if (Number.isFinite(createdMs) && Date.now() - createdMs > 15 * 60 * 1000) {
+      return { ok: false as const, error: "Registration link expired. Please sign up again." };
+    }
 
     const { error: profErr } = await supabaseAdmin.from("profiles").upsert(
       {

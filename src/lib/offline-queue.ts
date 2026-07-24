@@ -109,13 +109,29 @@ export async function flushQueue(): Promise<{ synced: number; remaining: number 
 
             const existing = await findRecentOpenAlert(item.client_id, "red_flag");
             if (!existing || effectiveUrgency === "emergency") {
-              await supabase.rpc("insert_alert", {
+              const { data: alertId } = await supabase.rpc("insert_alert", {
                 p_practitioner_id: item.practitioner_id,
                 p_client_id: item.client_id,
                 p_alert_type: "red_flag",
                 p_message: `Red flag check-in synced after offline period (submitted ${item.queued_at}).`,
                 p_urgency: effectiveUrgency,
               });
+              // Push + email the practitioner (was webhook-only, so a red flag
+              // logged offline never reached practitioners without a webhook).
+              if (alertId) {
+                try {
+                  const [{ notifyAlertPush }, { notifyAlertEmail }] = await Promise.all([
+                    import("@/lib/push.functions"),
+                    import("@/lib/notify-practitioner.functions"),
+                  ]);
+                  await Promise.all([
+                    notifyAlertPush({ data: { alertId: alertId as string, kind: "checkin" } }),
+                    notifyAlertEmail({ data: { alertId: alertId as string } }),
+                  ]);
+                } catch (e) {
+                  log.warn("[offline-queue] practitioner notify failed:", e);
+                }
+              }
               await fireAlertWebhook({
                 practitionerId: item.practitioner_id,
                 clientName: item.client_name,
