@@ -42,7 +42,6 @@ import { Route as ClientAppProgressRouteImport } from './routes/client.app.progr
 import { Route as ClientAppProfileRouteImport } from './routes/client.app.profile'
 import { Route as ClientAppCheckinRouteImport } from './routes/client.app.checkin'
 import { Route as ApiPublicTriageQueryRouteImport } from './routes/api/public/triage-query'
-import { Route as ApiPublicEnvCheckRouteImport } from './routes/api/public/env-check'
 import { Route as AdminAppYvesTeachRouteImport } from './routes/admin.app.yves-teach'
 import { Route as AdminAppSettingsRouteImport } from './routes/admin.app.settings'
 import { Route as AdminAppProgramsRouteImport } from './routes/admin.app.programs'
@@ -241,11 +240,6 @@ const ApiPublicTriageQueryRoute = ApiPublicTriageQueryRouteImport.update({
   path: '/api/public/triage-query',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicEnvCheckRoute = ApiPublicEnvCheckRouteImport.update({
-  id: '/api/public/env-check',
-  path: '/api/public/env-check',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AdminAppYvesTeachRoute = AdminAppYvesTeachRouteImport.update({
   id: '/yves-teach',
   path: '/yves-teach',
@@ -436,7 +430,6 @@ export interface FileRoutesByFullPath {
   '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
   '/admin/app/yves-teach': typeof AdminAppYvesTeachRoute
-  '/api/public/env-check': typeof ApiPublicEnvCheckRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/profile': typeof ClientAppProfileRoute
@@ -500,7 +493,6 @@ export interface FileRoutesByTo {
   '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
   '/admin/app/yves-teach': typeof AdminAppYvesTeachRoute
-  '/api/public/env-check': typeof ApiPublicEnvCheckRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/profile': typeof ClientAppProfileRoute
@@ -566,7 +558,6 @@ export interface FileRoutesById {
   '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
   '/admin/app/yves-teach': typeof AdminAppYvesTeachRoute
-  '/api/public/env-check': typeof ApiPublicEnvCheckRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
   '/client/app/profile': typeof ClientAppProfileRoute
@@ -633,7 +624,6 @@ export interface FileRouteTypes {
     | '/admin/app/programs'
     | '/admin/app/settings'
     | '/admin/app/yves-teach'
-    | '/api/public/env-check'
     | '/api/public/triage-query'
     | '/client/app/checkin'
     | '/client/app/profile'
@@ -697,7 +687,6 @@ export interface FileRouteTypes {
     | '/admin/app/programs'
     | '/admin/app/settings'
     | '/admin/app/yves-teach'
-    | '/api/public/env-check'
     | '/api/public/triage-query'
     | '/client/app/checkin'
     | '/client/app/profile'
@@ -762,7 +751,6 @@ export interface FileRouteTypes {
     | '/admin/app/programs'
     | '/admin/app/settings'
     | '/admin/app/yves-teach'
-    | '/api/public/env-check'
     | '/api/public/triage-query'
     | '/client/app/checkin'
     | '/client/app/profile'
@@ -819,7 +807,6 @@ export interface RootRouteChildren {
   PractitionerOnboardingRoute: typeof PractitionerOnboardingRoute
   PractitionerPendingRoute: typeof PractitionerPendingRoute
   PractitionerSignupRoute: typeof PractitionerSignupRoute
-  ApiPublicEnvCheckRoute: typeof ApiPublicEnvCheckRoute
   ApiPublicTriageQueryRoute: typeof ApiPublicTriageQueryRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicAlertsActionRoute: typeof ApiPublicAlertsActionRoute
@@ -1072,13 +1059,6 @@ declare module '@tanstack/react-router' {
       path: '/api/public/triage-query'
       fullPath: '/api/public/triage-query'
       preLoaderRoute: typeof ApiPublicTriageQueryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/env-check': {
-      id: '/api/public/env-check'
-      path: '/api/public/env-check'
-      fullPath: '/api/public/env-check'
-      preLoaderRoute: typeof ApiPublicEnvCheckRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/app/yves-teach': {
@@ -1388,7 +1368,6 @@ const rootRouteChildren: RootRouteChildren = {
   PractitionerOnboardingRoute: PractitionerOnboardingRoute,
   PractitionerPendingRoute: PractitionerPendingRoute,
   PractitionerSignupRoute: PractitionerSignupRoute,
-  ApiPublicEnvCheckRoute: ApiPublicEnvCheckRoute,
   ApiPublicTriageQueryRoute: ApiPublicTriageQueryRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicAlertsActionRoute: ApiPublicAlertsActionRoute,
