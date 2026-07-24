@@ -796,6 +796,31 @@ async function fireServerRedFlagAlert(
     } catch (e) {
       log.warn("[triage-query] server-side email failed:", e);
     }
+
+    // Webhook (Zapier/Slack/central channel). The client used to fire this, but
+    // now that the server inserts the alert first the client's dedup short-
+    // circuits before its webhook call — so fire it here to keep that channel.
+    try {
+      const { data: cliName } = await admin
+        .from("clients")
+        .select("full_name")
+        .eq("id", args.clientId)
+        .maybeSingle();
+      const { fireAlertWebhookCore } = await import("@/lib/webhooks.functions");
+      const wh = await fireAlertWebhookCore({
+        practitionerId: args.practitionerId,
+        clientName: ((cliName?.full_name as string | null) || "Your client"),
+        clientId: args.clientId,
+        alertMessage: `Red flag in symptom query: "${args.queryText.slice(0, 200)}"`,
+        urgency: args.urgency,
+        redFlagDetected: true,
+      });
+      if (wh.fired) {
+        await admin.from("alerts").update({ webhook_fired: true }).eq("id", alertId);
+      }
+    } catch (e) {
+      log.warn("[triage-query] server-side webhook failed:", e);
+    }
   } catch (e) {
     log.warn("[triage-query] server-side red-flag alert failed (client path is fallback):", e);
   }

@@ -108,11 +108,16 @@ type WebhookResults = {
   practice?: DeliveryResult;
 };
 
-export const fireAlertWebhookServer = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => alertSchema.parse(input))
-  .handler(async ({ data }) => {
-    const ts = new Date().toISOString();
+type AlertWebhookInput = z.infer<typeof alertSchema>;
+
+/**
+ * Service-role core for firing the practitioner alert webhook(s). No auth
+ * context needed (all reads use supabaseAdmin, keyed by practitionerId). Shared
+ * by the auth-gated `fireAlertWebhookServer` wrapper and trusted server-side
+ * callers (the triage red-flag safety net in triage-query.ts).
+ */
+export async function fireAlertWebhookCore(data: AlertWebhookInput) {
+  const ts = new Date().toISOString();
     const [settings, central] = await Promise.all([
       loadWebhookSettings(data.practitionerId),
       loadCentralTarget(data.practitionerId),
@@ -150,9 +155,14 @@ export const fireAlertWebhookServer = createServerFn({ method: "POST" })
         timestamp: ts,
       });
     }
-    const fired = Boolean(results.central || results.practice);
-    return { fired, reason: fired ? undefined : ("not_configured" as const), results };
-  });
+  const fired = Boolean(results.central || results.practice);
+  return { fired, reason: fired ? undefined : ("not_configured" as const), results };
+}
+
+export const fireAlertWebhookServer = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => alertSchema.parse(input))
+  .handler(async ({ data }) => fireAlertWebhookCore(data));
 
 export const fireContactWebhookServer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
