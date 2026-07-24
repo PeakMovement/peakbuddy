@@ -3,6 +3,7 @@ import { ClientRewardsSection } from "@/components/ClientRewardsSection";
 import { RequestCheckInButton } from "@/components/RequestCheckInButton";
 import { ClientWearablesCard } from "@/components/ClientWearablesCard";
 import { ClientPatternsCard } from "@/components/ClientPatternsCard";
+import { YvesInsightCard } from "@/components/YvesInsightCard";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, X } from "lucide-react";
 import {
@@ -228,6 +229,7 @@ function ClientDetail() {
 
       <ClientWearablesCard clientId={client.id} />
       <ClientPatternsCard clientId={client.id} />
+      <YvesInsightCard clientId={client.id} />
       <RequestCheckInButton clientId={client.id} />
       <ClientRewardsSection clientId={client.id} />
 

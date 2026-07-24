@@ -12,20 +12,103 @@ const Input = z.object({
 
 const MODEL = "google/gemini-3.1-pro-preview";
 
+// Calls the insight model. Prefers a direct Google Gemini key (your billing) when
+// GEMINI_API_KEY is set; otherwise falls back to the Lovable AI gateway so nothing
+// breaks. Prompt + data are identical either way — only the route/billing differs.
+async function callInsightModel(system: string, user: string): Promise<{ text: string; model: string }> {
+  const gk = process.env.GEMINI_API_KEY;
+  if (gk) {
+    const model = process.env.GEMINI_MODEL || "gemini-2.5-pro";
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gk}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: "user", parts: [{ text: user }] }],
+        }),
+      },
+    );
+    if (res.status === 429) throw new Error("Gemini is rate-limited. Please try again in a moment.");
+    if (!res.ok) {
+      const b = await res.text();
+      throw new Error(`Gemini request failed (${res.status}): ${b.slice(0, 200)}`);
+    }
+    const j = (await res.json()) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    };
+    const text = (j.candidates?.[0]?.content?.parts ?? []).map((x) => x.text ?? "").join("").trim();
+    if (!text) throw new Error("Gemini returned an empty response.");
+    return { text, model: `google/${model}` };
+  }
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) throw new Error("AI is not configured (set GEMINI_API_KEY or LOVABLE_API_KEY).");
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    }),
+  });
+  if (res.status === 429) throw new Error("AI is rate-limited. Please try again in a moment.");
+  if (res.status === 402) throw new Error("AI credits exhausted. Add credits in workspace billing.");
+  if (!res.ok) {
+    const b = await res.text();
+    throw new Error(`AI request failed (${res.status}): ${b.slice(0, 200)}`);
+  }
+  const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  const text = j.choices?.[0]?.message?.content?.trim() ?? "";
+  if (!text) throw new Error("AI returned an empty response.");
+  return { text, model: MODEL };
+}
+
 export const generateClientInsight = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => Input.parse(input))
   .handler(async ({ data, context }): Promise<{ text: string; model: string; generatedAt: string; memoryVersion: number }> => {
-    // Super-admin only (matches admin data hub gate)
     const { data: prof } = await context.supabase
       .from("profiles").select("role").eq("id", context.userId).maybeSingle();
-    if (!prof || prof.role !== "super_admin") throw new Error("Forbidden");
-
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("AI is not configured (missing LOVABLE_API_KEY).");
+    const role = prof?.role;
+    const isSuperAdmin = role === "super_admin";
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as SupabaseClient;
+
+    // Authorize: super-admin (any client) or the practitioner who owns this client.
+    const { data: cAuth } = await db
+      .from("clients")
+      .select("practitioner_id, yves_ai_consent")
+      .eq("id", data.clientId)
+      .maybeSingle();
+    if (!cAuth) throw new Error("Client not found");
+    if (!isSuperAdmin && !(role === "practitioner" && cAuth.practitioner_id === context.userId)) {
+      throw new Error("Forbidden");
+    }
+    // POPIA / AI-consent gate — never send a client's data to the AI provider
+    // unless they consented (same rule triage uses).
+    if ((cAuth as { yves_ai_consent?: boolean }).yves_ai_consent !== true) {
+      throw new Error(
+        "This client hasn't consented to AI processing, so Yves Insight is unavailable for them until they enable AI consent in their Buddy profile.",
+      );
+    }
+    // Daily cap for non-super-admins (practitioners): 3 Yves insights per day.
+    if (!isSuperAdmin) {
+      const dayStart = new Date();
+      dayStart.setUTCHours(0, 0, 0, 0);
+      const { count } = await db
+        .from("client_insight_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("generated_by", context.userId)
+        .gte("created_at", dayStart.toISOString());
+      if ((count ?? 0) >= 3) {
+        throw new Error("You've reached today's limit of 3 Yves insights. Please try again tomorrow.");
+      }
+    }
 
     // Fetch everything we need, in parallel.
     const [
@@ -43,14 +126,6 @@ export const generateClientInsight = createServerFn({ method: "POST" })
     ]);
 
     if (!clientRes.data) throw new Error("Client not found");
-
-    // POPIA / AI-consent gate — do not send this client's data to the AI
-    // provider unless they consented to AI processing (same rule triage uses).
-    if ((clientRes.data as { yves_ai_consent?: boolean }).yves_ai_consent !== true) {
-      throw new Error(
-        "This client hasn't consented to AI processing, so Yves Insight is unavailable for them until they enable AI consent in their Buddy profile.",
-      );
-    }
 
     const payload = buildInsightPayload({
       client: clientRes.data as Record<string, unknown> as never,
@@ -97,28 +172,7 @@ export const generateClientInsight = createServerFn({ method: "POST" })
       JSON.stringify(payload),
     ].join("\n\n");
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMsg },
-        ],
-      }),
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      if (res.status === 429) throw new Error("AI is rate-limited. Please try again in a moment.");
-      if (res.status === 402) throw new Error("AI credits exhausted. Add credits in workspace billing.");
-      throw new Error(`AI request failed (${res.status}): ${body.slice(0, 200)}`);
-    }
-
-    const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    const text = json.choices?.[0]?.message?.content?.trim() ?? "";
-    if (!text) throw new Error("AI returned an empty response.");
+    const { text, model: usedModel } = await callInsightModel(systemPrompt, userMsg);
 
     // Best-effort log; never fail the request if logging fails.
     try {
@@ -126,11 +180,11 @@ export const generateClientInsight = createServerFn({ method: "POST" })
         client_id: data.clientId,
         generated_by: context.userId,
         focus: data.focus ?? null,
-        model: MODEL,
+        model: usedModel,
         response: text,
         memory_version: memoryVersion,
       });
     } catch { /* ignore */ }
 
-    return { text, model: MODEL, generatedAt: new Date().toISOString(), memoryVersion };
+    return { text, model: usedModel, generatedAt: new Date().toISOString(), memoryVersion };
   });
