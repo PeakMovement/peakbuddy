@@ -214,6 +214,11 @@ export async function requestGarminBackfill(args: {
 // Webhook payload → wearable_sessions partial rows (push path)
 // ---------------------------------------------------------------------------
 const num = (v: unknown): number | null => (typeof v === "number" ? v : null);
+// Garmin uses negative sentinels (-1 no data, -2 too much motion) for stress.
+const nonNeg = (v: unknown): number | null => {
+  const n = num(v);
+  return n !== null && n >= 0 ? n : null;
+};
 const min = (sec: unknown): number | null =>
   typeof sec === "number" ? Math.round(sec / 60) : null;
 
@@ -241,7 +246,7 @@ export function mapGarminDaily(
       // than making a second round-trip for stress / Body Battery.
       avg_heart_rate: num(item.averageHeartRateInBeatsPerMinute),
       max_heart_rate: num(item.maxHeartRateInBeatsPerMinute),
-      stress_avg: num(item.averageStressLevel),
+      stress_avg: nonNeg(item.averageStressLevel),
       body_battery_charged: num(item.bodyBatteryChargedValue),
       body_battery_drained: num(item.bodyBatteryDrainedValue),
       total_distance_km:

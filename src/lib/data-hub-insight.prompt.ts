@@ -67,8 +67,8 @@ export function buildInsightPayload(bundle: {
   const c = bundle.client;
   const wearables = bundle.wearables.map((w) => ({
     provider: w.provider,
-    connected: w.connected,
-    device: w.device_model ?? w.garmin_device_model ?? null,
+    connected: w.status === "active" || w.status === "connected",
+    device: w.garmin_device_model ?? null,
   }));
 
   const checkIns = bundle.checkIns.slice(0, 60).map((r) => ({

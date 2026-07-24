@@ -33,7 +33,7 @@ export const generateClientInsight = createServerFn({ method: "POST" })
       symptomsRes, alertsRes, baselineRes, patternsRes,
     ] = await Promise.all([
       db.from("clients").select("*").eq("id", data.clientId).maybeSingle(),
-      db.from("wearable_tokens").select("provider, status, connected, device_model, garmin_device_model").eq("client_id", data.clientId),
+      db.from("wearable_tokens").select("provider, status, garmin_device_model").eq("client_id", data.clientId),
       db.from("wearable_sessions").select("*").eq("client_id", data.clientId).order("date", { ascending: false }).limit(90),
       db.from("check_ins").select("*").eq("client_id", data.clientId).order("created_at", { ascending: false }).limit(90),
       db.from("symptom_queries").select("*").eq("client_id", data.clientId).order("created_at", { ascending: false }).limit(30),
