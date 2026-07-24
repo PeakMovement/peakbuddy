@@ -219,8 +219,12 @@ const nonNeg = (v: unknown): number | null => {
   const n = num(v);
   return n !== null && n >= 0 ? n : null;
 };
-const min = (sec: unknown): number | null =>
-  typeof sec === "number" ? Math.round(sec / 60) : null;
+// Sleep durations are stored in SECONDS (consumers — triage-query.ts and the
+// WearablesPanel — divide by 3600 for hours, matching Oura's raw-seconds
+// storage). Do NOT convert to minutes here, or 7d sleep debt inflates ~60x
+// and feeds a bogus "severely sleep-deprived" signal into Yves triage.
+const secs = (sec: unknown): number | null =>
+  typeof sec === "number" ? Math.round(sec) : null;
 
 export function mapGarminDaily(
   item: Record<string, unknown>,
@@ -281,10 +285,10 @@ export function mapGarminSleep(
       source: "garmin",
       date,
       sleep_score: score,
-      total_sleep_duration: min(item.durationInSeconds),
-      deep_sleep_duration: min(item.deepSleepDurationInSeconds),
-      rem_sleep_duration: min(item.remSleepInSeconds),
-      light_sleep_duration: min(item.lightSleepDurationInSeconds),
+      total_sleep_duration: secs(item.durationInSeconds),
+      deep_sleep_duration: secs(item.deepSleepDurationInSeconds),
+      rem_sleep_duration: secs(item.remSleepInSeconds),
+      light_sleep_duration: secs(item.lightSleepDurationInSeconds),
     },
   };
 }

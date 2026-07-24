@@ -115,10 +115,13 @@ export async function fetchPolarSleep(accessToken: string): Promise<PolarDailyRo
   for (const night of data.nights ?? []) {
     const date = night.date as string | undefined;
     if (!date) continue;
-    const toMin = (s: unknown) => (typeof s === "number" ? Math.round(s / 60) : 0);
-    const light = toMin(night.light_sleep);
-    const deep = toMin(night.deep_sleep);
-    const rem = toMin(night.rem_sleep);
+    // Store sleep phase durations in SECONDS (Polar returns seconds; consumers
+    // divide by 3600 for hours, matching Oura/Garmin). Storing minutes here
+    // under-reports sleep ~60x and inflates Yves sleep-debt.
+    const toSec = (s: unknown) => (typeof s === "number" ? Math.round(s) : 0);
+    const light = toSec(night.light_sleep);
+    const deep = toSec(night.deep_sleep);
+    const rem = toSec(night.rem_sleep);
     out.push({
       source: "polar",
       date,

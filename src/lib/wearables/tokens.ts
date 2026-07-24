@@ -3,6 +3,7 @@
 import type { Database } from "@/integrations/supabase/types";
 import { log } from "@/lib/log";
 import { OuraError, refreshOuraToken } from "./oura";
+import { GarminError, refreshGarminToken } from "./garmin";
 
 type AdminClient = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 type Provider = "oura" | "polar" | "garmin";
@@ -146,6 +147,59 @@ export async function getValidOuraAccessToken(
         .eq("provider", "oura");
     }
     log.warn(`Oura token refresh failed for client ${clientId}`, e);
+    throw e;
+  }
+}
+
+
+/**
+ * Return a valid Garmin access token for a client, refreshing if it expires
+ * within 5 minutes. Garmin access tokens live ~24h, so without this the
+ * "Sync now" backfill silently fails a day after connecting. On refresh
+ * failure the connection is marked token_expired so the UI prompts a reconnect.
+ */
+export async function getValidGarminAccessToken(
+  admin: AdminClient,
+  clientId: string,
+): Promise<string> {
+  const token = await getConnection(admin, clientId, "garmin");
+  if (!token?.access_token) {
+    throw new GarminError("NO_TOKEN", "No Garmin connection for this client");
+  }
+
+  const expiresAt = token.expires_at ? new Date(token.expires_at).getTime() : 0;
+  if (!token.refresh_token || expiresAt - Date.now() > REFRESH_BUFFER_MS) {
+    // No refresh token (legacy connection) — return what we have and let the
+    // call fail loudly if it's actually expired, prompting a reconnect.
+    return token.access_token;
+  }
+
+  const { clientId: cid, clientSecret } = garminCreds();
+  try {
+    const refreshed = await refreshGarminToken({
+      refreshToken: token.refresh_token,
+      clientId: cid,
+      clientSecret,
+    });
+    await admin
+      .from("wearable_tokens")
+      .update({
+        access_token: refreshed.access_token,
+        refresh_token: refreshed.refresh_token,
+        expires_at: new Date(Date.now() + (refreshed.expires_in - 600) * 1000).toISOString(),
+        status: "active",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("client_id", clientId)
+      .eq("provider", "garmin");
+    return refreshed.access_token;
+  } catch (e) {
+    await admin
+      .from("wearable_tokens")
+      .update({ status: "token_expired", updated_at: new Date().toISOString() })
+      .eq("client_id", clientId)
+      .eq("provider", "garmin");
+    log.warn(`Garmin token refresh failed for client ${clientId}`, e);
     throw e;
   }
 }

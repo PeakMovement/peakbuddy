@@ -4,7 +4,12 @@ import { log } from "@/lib/log";
 import { fetchOuraSessions } from "./oura";
 import { fetchPolarExercises, fetchPolarSleep, PolarError } from "./polar";
 import { requestGarminBackfill } from "./garmin";
-import { getConnection, getValidOuraAccessToken, resolveClientId } from "./tokens";
+import {
+  getConnection,
+  getValidGarminAccessToken,
+  getValidOuraAccessToken,
+  resolveClientId,
+} from "./tokens";
 import type { WearableProvider } from "./connect.functions";
 
 type AdminClient = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
@@ -75,9 +80,8 @@ export async function syncGarminForClient(
   clientId: string,
   days = 7,
 ): Promise<{ synced: number }> {
-  const token = await getConnection(admin, clientId, "garmin");
-  if (!token?.access_token) throw new Error("No Garmin connection for this client");
-  await requestGarminBackfill({ accessToken: token.access_token, days });
+  const accessToken = await getValidGarminAccessToken(admin, clientId);
+  await requestGarminBackfill({ accessToken, days });
   return { synced: 0 }; // data arrives asynchronously via the webhook
 }
 
