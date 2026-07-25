@@ -787,6 +787,7 @@ export type Database = {
           practice_name: string | null
           practitioner_id: string
           profession: string | null
+          programs_suggest_enabled: boolean
           webhook_enabled: boolean
           webhook_url: string | null
           yves_enabled: boolean
@@ -807,6 +808,7 @@ export type Database = {
           practice_name?: string | null
           practitioner_id: string
           profession?: string | null
+          programs_suggest_enabled?: boolean
           webhook_enabled?: boolean
           webhook_url?: string | null
           yves_enabled?: boolean
@@ -827,6 +829,7 @@ export type Database = {
           practice_name?: string | null
           practitioner_id?: string
           profession?: string | null
+          programs_suggest_enabled?: boolean
           webhook_enabled?: boolean
           webhook_url?: string | null
           yves_enabled?: boolean
