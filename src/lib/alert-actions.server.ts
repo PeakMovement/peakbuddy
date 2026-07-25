@@ -2,7 +2,7 @@
 // Mark reviewed). Tokens are HMAC-SHA256 signed with ALERT_ACTION_SECRET,
 // single-use (enforced by used_at), and expire after 7 days.
 
-import { createHmac, timingSafeEqual, randomBytes, createHash } from "crypto";
+import { createHmac, timingSafeEqual, randomBytes, createHash } from "node:crypto";
 
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
