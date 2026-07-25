@@ -1,0 +1,1 @@
+ALTER TABLE public.practices ADD COLUMN IF NOT EXISTS programs_suggest_enabled boolean NOT NULL DEFAULT true;

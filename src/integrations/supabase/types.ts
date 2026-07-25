@@ -650,38 +650,6 @@ export type Database = {
           },
         ]
       }
-      wearable_oauth_state: {
-        Row: {
-          client_id: string
-          created_at: string
-          expires_at: string
-          provider: string
-          state: string
-        }
-        Insert: {
-          client_id: string
-          created_at?: string
-          expires_at: string
-          provider: string
-          state: string
-        }
-        Update: {
-          client_id?: string
-          created_at?: string
-          expires_at?: string
-          provider?: string
-          state?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "wearable_oauth_state_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       google_calendar_oauth_state: {
         Row: {
           created_at: string
@@ -819,6 +787,7 @@ export type Database = {
           practice_name: string | null
           practitioner_id: string
           profession: string | null
+          programs_suggest_enabled: boolean
           webhook_enabled: boolean
           webhook_url: string | null
           yves_enabled: boolean
@@ -839,6 +808,7 @@ export type Database = {
           practice_name?: string | null
           practitioner_id: string
           profession?: string | null
+          programs_suggest_enabled?: boolean
           webhook_enabled?: boolean
           webhook_url?: string | null
           yves_enabled?: boolean
@@ -859,6 +829,7 @@ export type Database = {
           practice_name?: string | null
           practitioner_id?: string
           profession?: string | null
+          programs_suggest_enabled?: boolean
           webhook_enabled?: boolean
           webhook_url?: string | null
           yves_enabled?: boolean
@@ -1320,6 +1291,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      wearable_oauth_state: {
+        Row: {
+          client_id: string
+          created_at: string
+          expires_at: string
+          provider: string
+          state: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          expires_at: string
+          provider: string
+          state: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          expires_at?: string
+          provider?: string
+          state?: string
+        }
+        Relationships: []
       }
       wearable_sessions: {
         Row: {
