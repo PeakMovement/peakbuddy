@@ -1292,6 +1292,30 @@ export type Database = {
           },
         ]
       }
+      wearable_oauth_state: {
+        Row: {
+          client_id: string
+          created_at: string
+          expires_at: string
+          provider: string
+          state: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          expires_at: string
+          provider: string
+          state: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          expires_at?: string
+          provider?: string
+          state?: string
+        }
+        Relationships: []
+      }
       wearable_sessions: {
         Row: {
           active_calories: number | null
