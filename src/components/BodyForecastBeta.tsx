@@ -1,8 +1,10 @@
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { Sparkles, ChevronDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { computeForecast, type ForecastResult } from "@/lib/body-forecast";
+import { enhanceBodyForecast } from "@/lib/body-forecast.functions";
 import { GarminAttribution, YvesGarminCaption } from "@/components/wearables/GarminAttribution";
 
 // BETA GATE — only shows for these accounts. Expand/remove later.
@@ -18,6 +20,7 @@ const DOT: Record<string, string> = {
 /** Beta "Your Body Forecast" card. Renders nothing unless the client is in the beta gate. */
 export function BodyForecastBeta({ client }: { client: BetaClient }) {
   const [result, setResult] = useState<ForecastResult | null>(null);
+  const enhance = useServerFn(enhanceBodyForecast);
   const [hasGarmin, setHasGarmin] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [open, setOpen] = useState(false);
@@ -68,8 +71,42 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
           date: String(r.created_at).slice(0, 10),
           pain_level: r.pain_level ?? null,
         }));
-        setResult(computeForecast(wearables, checkins));
+        const det = computeForecast(wearables, checkins);
+        if (cancelled) return;
+        setResult(det);
         setStatus("ready");
+
+        // Progressive AI "coach" enhancement — consent-gated server-side, and
+        // falls back to the deterministic message on no-consent / thin data /
+        // model error / timeout. The instant forecast above stays until (and
+        // unless) a better message comes back.
+        if (det.hasWearable && det.level !== "unknown" && det.signals) {
+          try {
+            const r = await enhance({
+              data: {
+                level: det.level as "strong" | "moderate" | "low",
+                confidence: det.confidence,
+                painHigh: det.signals.painHigh,
+                painSettled: det.signals.painSettled,
+                hrvFalling: det.signals.hrvFalling,
+                rhrRising: det.signals.rhrRising,
+                sleepScore: det.signals.sleepScore,
+                sleepVsUsual: det.signals.sleepVsUsual,
+                factors: det.factors,
+                personalNote: det.personalNote,
+                deterministicMessage: det.message,
+                deterministicAction: det.action,
+              },
+            });
+            if (!cancelled && r && r.ai) {
+              setResult((prev) =>
+                prev ? { ...prev, message: r.message, action: r.action, prompt: r.prompt } : prev,
+              );
+            }
+          } catch {
+            /* keep the deterministic forecast */
+          }
+        }
       } catch {
         if (!cancelled) setStatus("error");
       }

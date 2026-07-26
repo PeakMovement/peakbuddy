@@ -20,7 +20,7 @@ describe("computeForecast", () => {
   it("returns the connect state with no wearable data", () => {
     const r = computeForecast([], [], NOW);
     expect(r.hasWearable).toBe(false);
-    expect(r.message).toMatch(/Connect your Oura/i);
+    expect(r.message).toMatch(/Connect a wearable/i);
   });
 
   it("flags stale data instead of presenting it as last night", () => {

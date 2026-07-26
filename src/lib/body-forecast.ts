@@ -26,6 +26,17 @@ export type ForecastResult = {
   factors: Factor[]; // the underlying data, for the reveal
   personalNote: string | null;
   prompt: string | null;
+  // Deterministic signals for the optional AI "coach" layer to ground on.
+  // Present only for a real (non-connect/non-stale) forecast.
+  signals?: {
+    painHigh: boolean;
+    painSettled: boolean;
+    hrvFalling: boolean;
+    rhrRising: boolean;
+    sleepScore: number | null;
+    sleepVsUsual: "above" | "below" | "about" | null;
+    checkinCount: number;
+  };
 };
 
 const nums = (xs: (number | null | undefined)[]) =>
@@ -216,5 +227,27 @@ export function computeForecast(
       ? "Check in on how you feel to sharpen your forecast. Buddy learns your body from every check-in."
       : null;
 
-  return { hasWearable: true, level, message, action, confidence, reasoning, factors, personalNote, prompt };
+  const sleepVsUsual: "above" | "below" | "about" | null =
+    s == null || Number.isNaN(sAvg) ? null : s >= sAvg + 8 ? "above" : s <= sAvg - 8 ? "below" : "about";
+
+  return {
+    hasWearable: true,
+    level,
+    message,
+    action,
+    confidence,
+    reasoning,
+    factors,
+    personalNote,
+    prompt,
+    signals: {
+      painHigh,
+      painSettled,
+      hrvFalling,
+      rhrRising,
+      sleepScore: s ?? null,
+      sleepVsUsual,
+      checkinCount,
+    },
+  };
 }

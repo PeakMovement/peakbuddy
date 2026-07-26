@@ -15,7 +15,7 @@ const MODEL = "google/gemini-3.1-pro-preview";
 // Calls the insight model. Prefers a direct Google Gemini key (your billing) when
 // GEMINI_API_KEY is set; otherwise falls back to the Lovable AI gateway so nothing
 // breaks. Prompt + data are identical either way — only the route/billing differs.
-async function callInsightModel(system: string, user: string): Promise<{ text: string; model: string }> {
+export async function callInsightModel(system: string, user: string): Promise<{ text: string; model: string }> {
   const gk = process.env.GEMINI_API_KEY;
   if (gk) {
     const model = process.env.GEMINI_MODEL || "gemini-2.5-pro";
