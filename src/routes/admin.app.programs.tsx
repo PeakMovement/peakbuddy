@@ -18,6 +18,8 @@ type Program = {
   id: string;
   name: string;
   description: string;
+  goal: string | null;
+  applicable_for: string | null;
   external_url: string;
   image_url: string | null;
   symptom_tags: string[];
@@ -34,6 +36,8 @@ const emptyForm: ProgramForm = {
   id: null,
   name: "",
   description: "",
+  goal: "",
+  applicable_for: "",
   external_url: "",
   image_url: "",
   symptom_tags: [],
@@ -101,6 +105,8 @@ function AdminPrograms() {
       id: p.id,
       name: p.name,
       description: p.description,
+      goal: p.goal ?? "",
+      applicable_for: p.applicable_for ?? "",
       external_url: p.external_url,
       image_url: p.image_url ?? "",
       symptom_tags: [...p.symptom_tags],
@@ -123,6 +129,8 @@ function AdminPrograms() {
           id: form.id ?? undefined,
           name: form.name.trim(),
           description: form.description.trim(),
+          goal: form.goal?.trim() || null,
+          applicable_for: form.applicable_for?.trim() || null,
           external_url: form.external_url.trim(),
           image_url: form.image_url?.trim() || null,
           symptom_tags: form.symptom_tags,
@@ -438,6 +446,22 @@ function AdminPrograms() {
               style={{ ...inputStyle, minHeight: 80, resize: "vertical" }}
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+
+            <label style={labelStyle}>Goal (what this program helps with)</label>
+            <textarea
+              style={{ ...inputStyle, minHeight: 56, resize: "vertical" }}
+              placeholder="e.g. Rebuild strength and confidence after a lower-back flare."
+              value={form.goal ?? ""}
+              onChange={(e) => setForm({ ...form, goal: e.target.value })}
+            />
+
+            <label style={labelStyle}>Who it's for</label>
+            <textarea
+              style={{ ...inputStyle, minHeight: 56, resize: "vertical" }}
+              placeholder="e.g. Clients with recurring low-back pain who can train unsupervised."
+              value={form.applicable_for ?? ""}
+              onChange={(e) => setForm({ ...form, applicable_for: e.target.value })}
             />
 
             <label style={labelStyle}>Sign-up link (external URL)</label>

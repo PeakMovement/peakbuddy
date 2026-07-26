@@ -8,6 +8,8 @@ const ProgramSchema = z.object({
   id: z.string().uuid().optional().nullable(),
   name: z.string().min(1).max(200),
   description: z.string().max(2000).default(""),
+  goal: z.string().max(600).optional().nullable(),
+  applicable_for: z.string().max(600).optional().nullable(),
   external_url: z.string().url().max(500),
   image_url: z.string().url().max(500).optional().nullable(),
   symptom_tags: z.array(z.string().min(1).max(50)).max(20).default([]),
@@ -47,6 +49,8 @@ export const upsertProgram = createServerFn({ method: "POST" })
     const payload = {
       name: data.name,
       description: data.description,
+      goal: data.goal?.trim() || null,
+      applicable_for: data.applicable_for?.trim() || null,
       external_url: data.external_url,
       image_url: data.image_url || null,
       symptom_tags: data.symptom_tags,

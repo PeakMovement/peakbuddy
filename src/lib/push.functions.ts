@@ -112,6 +112,11 @@ export async function sendPushCore(
         headings: { en: args.title },
         contents: { en: args.body },
         data: args.data ?? {},
+        // Deep-link the tap when a caller provides data.url (e.g. the library
+        // nudge). Omitted for existing callers, so their behaviour is unchanged.
+        ...(typeof (args.data as { url?: unknown } | undefined)?.url === "string"
+          ? { url: (args.data as { url: string }).url }
+          : {}),
       }),
     });
 
