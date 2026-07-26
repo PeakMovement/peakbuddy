@@ -20,7 +20,7 @@ export type LibraryProgram = {
  */
 export const getLibraryPrograms = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async (): Promise<{ programs: LibraryProgram[]; introSeen: boolean }> => {
+  .handler(async (): Promise<{ programs: LibraryProgram[] }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("programs")
@@ -46,7 +46,7 @@ export const getLibraryPrograms = createServerFn({ method: "GET" })
       duration_label: (p.duration_label as string | null) ?? null,
     }));
 
-    return { programs, introSeen: false };
+    return { programs };
   });
 
 /**
