@@ -40,6 +40,7 @@ import { Route as ClientAppYvesRouteImport } from './routes/client.app.yves'
 import { Route as ClientAppTimelineRouteImport } from './routes/client.app.timeline'
 import { Route as ClientAppProgressRouteImport } from './routes/client.app.progress'
 import { Route as ClientAppProfileRouteImport } from './routes/client.app.profile'
+import { Route as ClientAppLibraryRouteImport } from './routes/client.app.library'
 import { Route as ClientAppCheckinRouteImport } from './routes/client.app.checkin'
 import { Route as ApiPublicTriageQueryRouteImport } from './routes/api/public/triage-query'
 import { Route as AdminAppYvesTeachRouteImport } from './routes/admin.app.yves-teach'
@@ -58,6 +59,7 @@ import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/e
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as ApiPublicHooksWeeklyPractitionerDigestRouteImport } from './routes/api/public/hooks/weekly-practitioner-digest'
+import { Route as ApiPublicHooksOnboardingLibraryNudgeRouteImport } from './routes/api/public/hooks/onboarding-library-nudge'
 import { Route as ApiPublicHooksNightlyRiskAnalysisRouteImport } from './routes/api/public/hooks/nightly-risk-analysis'
 import { Route as ApiPublicHooksNightlyPatternDetectionRouteImport } from './routes/api/public/hooks/nightly-pattern-detection'
 import { Route as ApiPublicHooksCheckinRemindersRouteImport } from './routes/api/public/hooks/checkin-reminders'
@@ -230,6 +232,11 @@ const ClientAppProfileRoute = ClientAppProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => ClientAppRoute,
 } as any)
+const ClientAppLibraryRoute = ClientAppLibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
+  getParentRoute: () => ClientAppRoute,
+} as any)
 const ClientAppCheckinRoute = ClientAppCheckinRouteImport.update({
   id: '/checkin',
   path: '/checkin',
@@ -323,6 +330,12 @@ const ApiPublicHooksWeeklyPractitionerDigestRoute =
   ApiPublicHooksWeeklyPractitionerDigestRouteImport.update({
     id: '/api/public/hooks/weekly-practitioner-digest',
     path: '/api/public/hooks/weekly-practitioner-digest',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksOnboardingLibraryNudgeRoute =
+  ApiPublicHooksOnboardingLibraryNudgeRouteImport.update({
+    id: '/api/public/hooks/onboarding-library-nudge',
+    path: '/api/public/hooks/onboarding-library-nudge',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksNightlyRiskAnalysisRoute =
@@ -432,6 +445,7 @@ export interface FileRoutesByFullPath {
   '/admin/app/yves-teach': typeof AdminAppYvesTeachRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
+  '/client/app/library': typeof ClientAppLibraryRoute
   '/client/app/profile': typeof ClientAppProfileRoute
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
@@ -453,6 +467,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
+  '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -495,6 +510,7 @@ export interface FileRoutesByTo {
   '/admin/app/yves-teach': typeof AdminAppYvesTeachRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
+  '/client/app/library': typeof ClientAppLibraryRoute
   '/client/app/profile': typeof ClientAppProfileRoute
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
@@ -516,6 +532,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
+  '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -560,6 +577,7 @@ export interface FileRoutesById {
   '/admin/app/yves-teach': typeof AdminAppYvesTeachRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
+  '/client/app/library': typeof ClientAppLibraryRoute
   '/client/app/profile': typeof ClientAppProfileRoute
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
@@ -581,6 +599,7 @@ export interface FileRoutesById {
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
+  '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -626,6 +645,7 @@ export interface FileRouteTypes {
     | '/admin/app/yves-teach'
     | '/api/public/triage-query'
     | '/client/app/checkin'
+    | '/client/app/library'
     | '/client/app/profile'
     | '/client/app/progress'
     | '/client/app/timeline'
@@ -647,6 +667,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/checkin-reminders'
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
+    | '/api/public/hooks/onboarding-library-nudge'
     | '/api/public/hooks/weekly-practitioner-digest'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -689,6 +710,7 @@ export interface FileRouteTypes {
     | '/admin/app/yves-teach'
     | '/api/public/triage-query'
     | '/client/app/checkin'
+    | '/client/app/library'
     | '/client/app/profile'
     | '/client/app/progress'
     | '/client/app/timeline'
@@ -710,6 +732,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/checkin-reminders'
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
+    | '/api/public/hooks/onboarding-library-nudge'
     | '/api/public/hooks/weekly-practitioner-digest'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -753,6 +776,7 @@ export interface FileRouteTypes {
     | '/admin/app/yves-teach'
     | '/api/public/triage-query'
     | '/client/app/checkin'
+    | '/client/app/library'
     | '/client/app/profile'
     | '/client/app/progress'
     | '/client/app/timeline'
@@ -774,6 +798,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/checkin-reminders'
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
+    | '/api/public/hooks/onboarding-library-nudge'
     | '/api/public/hooks/weekly-practitioner-digest'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -815,6 +840,7 @@ export interface RootRouteChildren {
   ApiPublicHooksCheckinRemindersRoute: typeof ApiPublicHooksCheckinRemindersRoute
   ApiPublicHooksNightlyPatternDetectionRoute: typeof ApiPublicHooksNightlyPatternDetectionRoute
   ApiPublicHooksNightlyRiskAnalysisRoute: typeof ApiPublicHooksNightlyRiskAnalysisRoute
+  ApiPublicHooksOnboardingLibraryNudgeRoute: typeof ApiPublicHooksOnboardingLibraryNudgeRoute
   ApiPublicHooksWeeklyPractitionerDigestRoute: typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
@@ -1047,6 +1073,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientAppProfileRouteImport
       parentRoute: typeof ClientAppRoute
     }
+    '/client/app/library': {
+      id: '/client/app/library'
+      path: '/library'
+      fullPath: '/client/app/library'
+      preLoaderRoute: typeof ClientAppLibraryRouteImport
+      parentRoute: typeof ClientAppRoute
+    }
     '/client/app/checkin': {
       id: '/client/app/checkin'
       path: '/checkin'
@@ -1171,6 +1204,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/hooks/weekly-practitioner-digest'
       fullPath: '/api/public/hooks/weekly-practitioner-digest'
       preLoaderRoute: typeof ApiPublicHooksWeeklyPractitionerDigestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/onboarding-library-nudge': {
+      id: '/api/public/hooks/onboarding-library-nudge'
+      path: '/api/public/hooks/onboarding-library-nudge'
+      fullPath: '/api/public/hooks/onboarding-library-nudge'
+      preLoaderRoute: typeof ApiPublicHooksOnboardingLibraryNudgeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/nightly-risk-analysis': {
@@ -1302,6 +1342,7 @@ const AdminAppRouteWithChildren = AdminAppRoute._addFileChildren(
 
 interface ClientAppRouteChildren {
   ClientAppCheckinRoute: typeof ClientAppCheckinRoute
+  ClientAppLibraryRoute: typeof ClientAppLibraryRoute
   ClientAppProfileRoute: typeof ClientAppProfileRoute
   ClientAppProgressRoute: typeof ClientAppProgressRoute
   ClientAppTimelineRoute: typeof ClientAppTimelineRoute
@@ -1311,6 +1352,7 @@ interface ClientAppRouteChildren {
 
 const ClientAppRouteChildren: ClientAppRouteChildren = {
   ClientAppCheckinRoute: ClientAppCheckinRoute,
+  ClientAppLibraryRoute: ClientAppLibraryRoute,
   ClientAppProfileRoute: ClientAppProfileRoute,
   ClientAppProgressRoute: ClientAppProgressRoute,
   ClientAppTimelineRoute: ClientAppTimelineRoute,
@@ -1378,6 +1420,8 @@ const rootRouteChildren: RootRouteChildren = {
     ApiPublicHooksNightlyPatternDetectionRoute,
   ApiPublicHooksNightlyRiskAnalysisRoute:
     ApiPublicHooksNightlyRiskAnalysisRoute,
+  ApiPublicHooksOnboardingLibraryNudgeRoute:
+    ApiPublicHooksOnboardingLibraryNudgeRoute,
   ApiPublicHooksWeeklyPractitionerDigestRoute:
     ApiPublicHooksWeeklyPractitionerDigestRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,

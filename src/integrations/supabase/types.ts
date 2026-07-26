@@ -477,8 +477,8 @@ export type Database = {
           id?: string
           library_intro_seen_at?: string | null
           login_code: string
-          onboarding_library_nudge_sent_at?: string | null
           notes?: string | null
+          onboarding_library_nudge_sent_at?: string | null
           passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean
@@ -507,8 +507,8 @@ export type Database = {
           id?: string
           library_intro_seen_at?: string | null
           login_code?: string
-          onboarding_library_nudge_sent_at?: string | null
           notes?: string | null
+          onboarding_library_nudge_sent_at?: string | null
           passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean

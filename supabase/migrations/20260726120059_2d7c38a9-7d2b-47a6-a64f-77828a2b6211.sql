@@ -1,0 +1,2 @@
+ALTER TABLE public.programs ADD COLUMN IF NOT EXISTS goal text, ADD COLUMN IF NOT EXISTS applicable_for text;
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS library_intro_seen_at timestamptz, ADD COLUMN IF NOT EXISTS onboarding_library_nudge_sent_at timestamptz;

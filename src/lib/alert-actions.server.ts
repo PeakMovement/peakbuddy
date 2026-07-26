@@ -2,7 +2,8 @@
 // Mark reviewed). Tokens are HMAC-SHA256 signed with ALERT_ACTION_SECRET,
 // single-use (enforced by used_at), and expire after 7 days.
 
-import { createHmac, timingSafeEqual, randomBytes, createHash } from "node:crypto";
+// Uses Web Crypto (available in the Worker runtime) so this module never pulls
+// in Node's "crypto", which Vite's client scan cannot resolve.
 
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -14,12 +15,38 @@ function secret(): string {
   return s;
 }
 
-function signPayload(payload: string): string {
-  return createHmac("sha256", secret()).update(payload).digest("hex");
+function toHex(buf: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
-function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
+async function signPayload(payload: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret()),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  return toHex(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload)));
+}
+
+async function hashToken(token: string): Promise<string> {
+  return toHex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token)));
+}
+
+function randomHex(bytes: number): string {
+  const arr = new Uint8Array(bytes);
+  crypto.getRandomValues(arr);
+  return toHex(arr.buffer);
+}
+
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 /**
@@ -34,12 +61,12 @@ export async function mintAlertActionToken(args: {
   action: AlertAction;
 }): Promise<string> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const nonce = randomBytes(24).toString("hex");
+  const nonce = randomHex(24);
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
   const payload = `${args.alertId}|${args.practitionerId}|${args.action}|${expiresAt.toISOString()}|${nonce}`;
-  const sig = signPayload(payload);
+  const sig = await signPayload(payload);
   const token = `${nonce}.${sig}`;
-  const token_hash = hashToken(token);
+  const token_hash = await hashToken(token);
 
   const { error } = await supabaseAdmin.from("alert_action_tokens").insert({
     alert_id: args.alertId,
@@ -73,7 +100,7 @@ export async function verifyAlertActionToken(rawToken: string): Promise<VerifyRe
   if (!nonce || !sig) return { ok: false, reason: "not_found" };
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const token_hash = hashToken(rawToken);
+  const token_hash = await hashToken(rawToken);
   const { data: row } = await supabaseAdmin
     .from("alert_action_tokens")
     .select("id, alert_id, practitioner_id, action, expires_at, used_at")
@@ -85,10 +112,8 @@ export async function verifyAlertActionToken(rawToken: string): Promise<VerifyRe
 
   // Re-derive signature and compare.
   const payload = `${row.alert_id}|${row.practitioner_id}|${row.action}|${new Date(row.expires_at).toISOString()}|${nonce}`;
-  const expected = signPayload(payload);
-  const a = Buffer.from(sig, "hex");
-  const b = Buffer.from(expected, "hex");
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+  const expected = await signPayload(payload);
+  if (!timingSafeEqualHex(sig, expected)) {
     return { ok: false, reason: "bad_signature" };
   }
 
