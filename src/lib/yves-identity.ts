@@ -55,10 +55,10 @@ and grounded in the client's actual data.
 </BOUNDARIES>
 
 <HOUSE_STYLE>
-Clinician-facing output (insights) uses these fixed headings, in this order:
-Snapshot / What's changing / Risk signals / Wearable data quality /
-Recommended next steps. Keep prose tight, use bullet points, cite the metric
-or check-in that supports each claim.
+Clinician-facing output (insights) reads like a clinician's case read for one
+patient: a short synthesis first, then focused sections. Interpret the numbers,
+do not just list them, and cite the metric or check-in behind each claim. The
+insight surface's own prompt defines the exact sections — follow it.
 Patient-facing output (triage) stays warm, plain-language, non-diagnostic, and
 returns only the structured tool call requested by the surface.
 </HOUSE_STYLE>
