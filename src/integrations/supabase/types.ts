@@ -445,10 +445,8 @@ export type Database = {
           first_login_at: string | null
           full_name: string
           id: string
-          library_intro_seen_at: string | null
           login_code: string
           notes: string | null
-          onboarding_library_nudge_sent_at: string | null
           passive_monitoring_enabled: boolean
           phone: string | null
           popia_accepted: boolean
@@ -475,9 +473,7 @@ export type Database = {
           first_login_at?: string | null
           full_name: string
           id?: string
-          library_intro_seen_at?: string | null
           login_code: string
-          onboarding_library_nudge_sent_at?: string | null
           notes?: string | null
           passive_monitoring_enabled?: boolean
           phone?: string | null
@@ -505,9 +501,7 @@ export type Database = {
           first_login_at?: string | null
           full_name?: string
           id?: string
-          library_intro_seen_at?: string | null
           login_code?: string
-          onboarding_library_nudge_sent_at?: string | null
           notes?: string | null
           passive_monitoring_enabled?: boolean
           phone?: string | null
@@ -993,7 +987,6 @@ export type Database = {
       programs: {
         Row: {
           active: boolean
-          applicable_for: string | null
           approved_at: string | null
           approved_by: string | null
           approved_by_admin: boolean
@@ -1003,7 +996,6 @@ export type Database = {
           duration_label: string | null
           external_url: string
           focus_area: string | null
-          goal: string | null
           id: string
           image_url: string | null
           name: string
@@ -1016,7 +1008,6 @@ export type Database = {
         }
         Insert: {
           active?: boolean
-          applicable_for?: string | null
           approved_at?: string | null
           approved_by?: string | null
           approved_by_admin?: boolean
@@ -1026,7 +1017,6 @@ export type Database = {
           duration_label?: string | null
           external_url: string
           focus_area?: string | null
-          goal?: string | null
           id?: string
           image_url?: string | null
           name: string
@@ -1039,7 +1029,6 @@ export type Database = {
         }
         Update: {
           active?: boolean
-          applicable_for?: string | null
           approved_at?: string | null
           approved_by?: string | null
           approved_by_admin?: boolean
@@ -1049,7 +1038,6 @@ export type Database = {
           duration_label?: string | null
           external_url?: string
           focus_area?: string | null
-          goal?: string | null
           id?: string
           image_url?: string | null
           name?: string
