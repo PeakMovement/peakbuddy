@@ -1,11 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { log } from "@/lib/log";
-import {
-  exchangeGarminCode,
-  fetchGarminUserId,
-  GarminError,
-  requestGarminBackfill,
-} from "@/lib/wearables/garmin";
+import { exchangeGarminCode, fetchGarminUserId, GarminError } from "@/lib/wearables/garmin";
 import { garminCreds, garminRedirectUri, upsertToken } from "@/lib/wearables/tokens";
 
 // Garmin redirects here with ?code&state. We look up the PKCE verifier stashed at
@@ -63,22 +58,11 @@ export const Route = createFileRoute("/api/public/wearables/garmin/callback")({
             provider_user_id: providerUserId,
           });
 
-          // Request history; Garmin pushes it to our webhook asynchronously.
-          try {
-            const result = await requestGarminBackfill({
-              accessToken: tokens.access_token,
-              days: 30,
-            });
-            log.info(
-              `Garmin backfill for client ${clientId}: attempted=${result.attempted} accepted=${result.accepted} forbidden=${result.forbidden}`,
-            );
-          } catch (e) {
-            if (e instanceof GarminError && e.code === "consent_required") {
-              return back("consent");
-            }
-            log.warn(`Garmin backfill request failed for client ${clientId}`, e);
-          }
-
+          // Redirect back immediately. The 30-day backfill makes ~200 sequential
+          // Garmin calls (~25s) — running it here made the browser hang on Garmin's
+          // "Agree" page. Instead the client fires a background "sync" once it lands
+          // on the profile (see WearablesPanel), and Garmin also pushes new data to
+          // our webhook automatically. Consent/permission issues surface on that sync.
           return back("connected");
         } catch (e) {
           if (e instanceof GarminError && e.code === "consent_required") return back("consent");

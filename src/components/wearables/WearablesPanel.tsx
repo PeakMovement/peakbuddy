@@ -17,17 +17,36 @@ import {
   type WearableProvider,
 } from "@/lib/wearables/connect.functions";
 import { syncWearable } from "@/lib/wearables/sync.functions";
+import {
+  metricsForProvider,
+  readMetric,
+  type WearableMetricRow,
+} from "@/lib/wearables/metric-registry";
 
-type Session = {
-  date: string;
-  source: string;
-  sleep_score: number | null;
-  readiness_score: number | null;
-  activity_score: number | null;
-  resting_hr: number | null;
-  hrv_avg: number | null;
-  total_steps: number | null;
-  total_sleep_duration: number | null;
+// A session row carries every metric the tiles can read (WearableMetricRow) plus
+// the date + which device produced it, so the panel can scope to one provider.
+type Session = WearableMetricRow & { date: string; source: string };
+
+const SESSION_FIELDS =
+  "date, source, active_calories, total_calories, avg_heart_rate, max_heart_rate, resting_hr, hrv_avg, spo2_avg, sleep_score, readiness_score, activity_score, total_steps, training_load, total_distance_km, stress_avg, body_battery_max, body_battery_charged, body_battery_drained, vo2_max";
+
+// One or two numeric fields to plot per provider (the ones each device populates).
+const CHART_LINES: Record<
+  WearableProvider,
+  { key: keyof WearableMetricRow; name: string; color: string }[]
+> = {
+  oura: [
+    { key: "sleep_score", name: "Sleep", color: "var(--blue-accent)" },
+    { key: "hrv_avg", name: "HRV", color: "var(--green)" },
+  ],
+  polar: [
+    { key: "training_load", name: "Load", color: "var(--blue-accent)" },
+    { key: "avg_heart_rate", name: "Avg HR", color: "var(--green)" },
+  ],
+  garmin: [
+    { key: "total_steps", name: "Steps", color: "var(--blue-accent)" },
+    { key: "resting_hr", name: "Resting HR", color: "var(--green)" },
+  ],
 };
 
 const PROVIDER_LABEL: Record<WearableProvider, string> = {
@@ -40,6 +59,15 @@ const PROVIDER_TAGLINE: Record<WearableProvider, string> = {
   oura: "Sleep, readiness & HRV telemetry.",
   polar: "Cardiovascular & training load telemetry.",
   garmin: "Activity, stress & recovery telemetry.",
+};
+
+// Shown on a connected card that has no data yet — explains *why* rather than
+// looping on "awaiting first sync".
+const NO_DATA_HINT: Record<WearableProvider, string> = {
+  oura: "No readings yet — tap Sync now to pull your latest Oura data.",
+  polar:
+    "No recent Polar data. Polar only shares roughly the last 28 days — record or sync a workout or sleep in Polar Flow, then tap Sync now.",
+  garmin: "Waiting for Garmin to send data — this can take a few minutes after connecting.",
 };
 
 // All three providers are wired end-to-end.
@@ -105,8 +133,13 @@ export function WearablesPanel({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<WearableProvider | null>(null);
   const [busyAction, setBusyAction] = useState<"connect" | "sync" | "disconnect" | null>(null);
-  const [message, setMessage] = useState<{ kind: "info" | "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    kind: "info" | "success" | "error";
+    text: string;
+  } | null>(null);
   const [postConnectPolling, setPostConnectPolling] = useState(false);
+  // Which connected device the metrics + chart are showing. null = auto (most recent).
+  const [selected, setSelected] = useState<WearableProvider | null>(null);
 
   const refresh = useCallback(async () => {
     const clientId = getClientId();
@@ -115,15 +148,13 @@ export function WearablesPanel({
       loadConnections().catch(() => [] as ConnectionStatus[]),
       supabase
         .from("wearable_sessions")
-        .select(
-          "date, source, sleep_score, readiness_score, activity_score, resting_hr, hrv_avg, total_steps, total_sleep_duration",
-        )
+        .select(SESSION_FIELDS)
         .eq("client_id", clientId)
         .order("date", { ascending: true })
-        .limit(30),
+        .limit(90),
     ]);
     setConnections(conns);
-    setSessions((data ?? []) as Session[]);
+    setSessions((data ?? []) as unknown as Session[]);
     setLoading(false);
   }, [loadConnections]);
 
@@ -139,6 +170,21 @@ export function WearablesPanel({
         if (status === "connected") {
           setMessage({ kind: "success", text: `${label} connected — syncing your data…` });
           setPostConnectPolling(true);
+          // Garmin's history pull is heavy, so the OAuth callback no longer runs it
+          // (it hung on Garmin's page). Kick it off here as a background request; if
+          // Garmin needs data-sharing consent, surface that hint.
+          if (provider === "garmin") {
+            void runSync({ data: { provider: "garmin" } })
+              .then((res) => {
+                if (res && !res.ok && res.error === "consent") {
+                  setMessage({
+                    kind: "error",
+                    text: "Garmin: enable data sharing in Garmin Connect → Connected Apps, then reconnect.",
+                  });
+                }
+              })
+              .catch(() => {});
+          }
         } else if (status === "consent") {
           const hint =
             provider === "polar"
@@ -153,7 +199,7 @@ export function WearablesPanel({
         window.history.replaceState({}, "", window.location.pathname);
       }
     }
-  }, [refresh]);
+  }, [refresh, runSync]);
 
   useEffect(() => {
     if (!postConnectPolling) return;
@@ -165,7 +211,8 @@ export function WearablesPanel({
       if (cancelled) return;
       if (sessions.length > 0 || Date.now() - started > 45_000) {
         setPostConnectPolling(false);
-        if (sessions.length > 0) setMessage({ kind: "success", text: "Your latest data is ready." });
+        if (sessions.length > 0)
+          setMessage({ kind: "success", text: "Your latest data is ready." });
         return;
       }
       setTimeout(tick, 3000);
@@ -247,18 +294,49 @@ export function WearablesPanel({
     }
   };
 
-  const latest = sessions.length ? sessions[sessions.length - 1] : null;
-  const hasData = sessions.some(
-    (s) =>
-      s.sleep_score != null || s.resting_hr != null || s.hrv_avg != null || s.total_steps != null,
+  // Providers that have at least one synced session — these get a tab.
+  const providersWithData = useMemo(() => {
+    const order: WearableProvider[] = ["oura", "polar", "garmin"];
+    const present = new Set(sessions.map((s) => s.source));
+    return order.filter((p) => present.has(p));
+  }, [sessions]);
+
+  // Active provider: the user's pick if it still has data, else the one with the
+  // most recent session (sessions are date-ascending, so the last row wins).
+  const activeProvider: WearableProvider | null =
+    (selected && providersWithData.includes(selected) ? selected : null) ??
+    (sessions.length ? (sessions[sessions.length - 1].source as WearableProvider) : null) ??
+    providersWithData[0] ??
+    null;
+
+  const providerSessions = useMemo(
+    () => (activeProvider ? sessions.filter((s) => s.source === activeProvider) : []),
+    [sessions, activeProvider],
   );
+
+  // Newest row for the active provider that actually carries a displayed value.
+  const activeDefs = useMemo(
+    () => (activeProvider ? metricsForProvider(activeProvider) : []),
+    [activeProvider],
+  );
+  const latestRow = useMemo(() => {
+    for (let i = providerSessions.length - 1; i >= 0; i--) {
+      const row = providerSessions[i];
+      if (activeDefs.some((d) => readMetric(d, row) !== null)) return row;
+    }
+    return providerSessions[providerSessions.length - 1] ?? null;
+  }, [providerSessions, activeDefs]);
+
+  const hasData = providersWithData.length > 0;
 
   return (
     <section className={className} style={{ ...cardStyle, ...style }}>
       <header style={panelHeader}>
         <div>
           <h2 style={titleStyle}>Wearables Panel</h2>
-          <p style={subtitleStyle}>Connect a device to track sleep, recovery and activity automatically.</p>
+          <p style={subtitleStyle}>
+            Connect a device to track sleep, recovery and activity automatically.
+          </p>
         </div>
         <span style={eyebrowStyle}>External Device Integration</span>
       </header>
@@ -340,8 +418,11 @@ export function WearablesPanel({
                   <>
                     <div style={metaRowStyle}>
                       <span style={metaLabelStyle}>Last sync</span>
-                      <span style={metaValueStyle}>{lastSynced ?? "Awaiting first sync"}</span>
+                      <span style={metaValueStyle}>{lastSynced ?? "No data yet"}</span>
                     </div>
+                    {!lastSynced && !(isBusy && busyAction === "sync") && (
+                      <p style={{ ...emptyTextStyle, marginTop: 8 }}>{NO_DATA_HINT[provider]}</p>
+                    )}
                     {isBusy && busyAction === "sync" && (
                       <div style={{ ...syncingRow, color: BLUE }}>
                         <RefreshCw size={12} className="anim-spin" />
@@ -365,17 +446,19 @@ export function WearablesPanel({
                   <span style={mutedTagStyle}>Coming soon</span>
                 ) : connected ? (
                   <>
-                    <button
-                      style={syncBtn}
-                      disabled={isBusy}
-                      onClick={() => onSync(provider)}
-                    >
+                    <button style={syncBtn} disabled={isBusy} onClick={() => onSync(provider)}>
                       <RefreshCw
                         size={12}
                         className={isBusy && busyAction === "sync" ? "anim-spin" : undefined}
                         style={{ marginRight: 6, verticalAlign: "-1px" }}
                       />
-                      {isBusy && busyAction === "sync" ? "Syncing" : "Sync now"}
+                      {isBusy && busyAction === "sync"
+                        ? provider === "garmin"
+                          ? "Refreshing"
+                          : "Syncing"
+                        : provider === "garmin"
+                          ? "Refresh history"
+                          : "Sync now"}
                     </button>
                     <button
                       style={ghostBtn}
@@ -387,18 +470,19 @@ export function WearablesPanel({
                   </>
                 ) : expired ? (
                   <button
-                    style={{ ...primaryBtn, background: "rgba(239,68,68,0.12)", color: "var(--red-soft, #fecaca)", border: "1px solid rgba(239,68,68,0.5)" }}
+                    style={{
+                      ...primaryBtn,
+                      background: "rgba(239,68,68,0.12)",
+                      color: "var(--red-soft, #fecaca)",
+                      border: "1px solid rgba(239,68,68,0.5)",
+                    }}
                     disabled={isBusy}
                     onClick={() => onConnect(provider)}
                   >
                     {isBusy ? "Opening…" : "Reconnect"}
                   </button>
                 ) : (
-                  <button
-                    style={primaryBtn}
-                    disabled={isBusy}
-                    onClick={() => onConnect(provider)}
-                  >
+                  <button style={primaryBtn} disabled={isBusy} onClick={() => onConnect(provider)}>
                     {isBusy ? "Opening…" : "Connect device"}
                   </button>
                 )}
@@ -408,30 +492,45 @@ export function WearablesPanel({
         })}
       </div>
 
-      {/* Latest metrics */}
-      {!loading && hasData && latest && (
+      {/* Latest metrics — scoped to the selected device */}
+      {!loading && hasData && activeProvider && (
         <div style={{ marginTop: 18 }}>
-          <div style={sectionEyebrow}>Latest telemetry</div>
+          {/* Device selector — only when more than one device has data */}
+          {providersWithData.length > 1 && (
+            <div style={tabRow}>
+              {providersWithData.map((p) => {
+                const on = p === activeProvider;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setSelected(p)}
+                    style={{ ...tabBtn, ...(on ? tabBtnActive : null) }}
+                  >
+                    {PROVIDER_LABEL[p]}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div style={sectionEyebrow}>{PROVIDER_LABEL[activeProvider]} · latest telemetry</div>
           <div style={metricGrid}>
-            <Metric label="Sleep" value={latest.sleep_score} />
-            <Metric label="Readiness" value={latest.readiness_score} />
-            <Metric label="Resting HR" value={latest.resting_hr} unit="bpm" />
-            <Metric label="HRV" value={latest.hrv_avg} unit="ms" />
-            <Metric label="Steps" value={latest.total_steps} />
-            <Metric
-              label="Sleep time"
-              value={
-                latest.total_sleep_duration
-                  ? Math.round((latest.total_sleep_duration / 3600) * 10) / 10
-                  : null
-              }
-              unit="h"
-            />
+            {activeDefs.map((def) => (
+              <Metric
+                key={def.key}
+                label={def.label}
+                value={readMetric(def, latestRow)}
+                unit={def.unit}
+              />
+            ))}
           </div>
 
           <div style={{ height: 160, marginTop: 12 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={sessions} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
+              <LineChart
+                data={providerSessions}
+                margin={{ top: 8, right: 8, bottom: 0, left: -20 }}
+              >
                 <XAxis
                   dataKey="date"
                   tick={{ fill: "var(--white-muted)", fontSize: 10 }}
@@ -447,8 +546,18 @@ export function WearablesPanel({
                   }}
                   labelStyle={{ color: "var(--white-muted)" }}
                 />
-                <Line type="monotone" dataKey="sleep_score" name="Sleep" stroke="var(--blue-accent)" dot={false} strokeWidth={2} />
-                <Line type="monotone" dataKey="hrv_avg" name="HRV" stroke="var(--green)" dot={false} strokeWidth={2} />
+                {CHART_LINES[activeProvider].map((l) => (
+                  <Line
+                    key={l.key}
+                    type="monotone"
+                    dataKey={l.key}
+                    name={l.name}
+                    stroke={l.color}
+                    dot={false}
+                    strokeWidth={2}
+                    connectNulls
+                  />
+                ))}
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -517,21 +626,50 @@ function StatusPill({ tone, label }: { tone: "connected" | "expired" | "muted"; 
   );
 }
 
-function Metric({ label, value, unit }: { label: string; value: number | null; unit?: string }) {
+function Metric({ label, value, unit }: { label: string; value: string | null; unit?: string }) {
   return (
     <div style={metricCell}>
       <div style={{ fontFamily: "var(--font-data)", fontSize: 20, fontWeight: 700, color: WHITE }}>
-        {value == null ? "—" : Math.round(value * 10) / 10}
-        {value != null && unit ? (
-          <span style={{ fontSize: 11, color: MUTED }}> {unit}</span>
-        ) : null}
+        {value == null ? "—" : value}
+        {value != null && unit ? <span style={{ fontSize: 11, color: MUTED }}> {unit}</span> : null}
       </div>
-      <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, color: MUTED, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+      <div
+        style={{
+          fontFamily: "var(--font-ui)",
+          fontSize: 11,
+          color: MUTED,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+        }}
+      >
         {label}
       </div>
     </div>
   );
 }
+
+const tabRow: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  marginBottom: 14,
+  flexWrap: "wrap",
+};
+const tabBtn: React.CSSProperties = {
+  fontFamily: "var(--font-ui)",
+  fontSize: 12.5,
+  fontWeight: 600,
+  color: MUTED,
+  background: "rgba(255,255,255,0.04)",
+  border: `1px solid ${BORDER}`,
+  borderRadius: 999,
+  padding: "6px 14px",
+  cursor: "pointer",
+};
+const tabBtnActive: React.CSSProperties = {
+  color: WHITE,
+  background: "rgba(74,141,240,0.14)",
+  border: "1px solid rgba(74,141,240,0.5)",
+};
 
 // ---- styles ----
 const cardStyle: React.CSSProperties = {
