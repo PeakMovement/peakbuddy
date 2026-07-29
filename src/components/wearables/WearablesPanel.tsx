@@ -17,6 +17,7 @@ import {
   type WearableProvider,
 } from "@/lib/wearables/connect.functions";
 import { syncWearable } from "@/lib/wearables/sync.functions";
+import { setYvesAiConsent } from "@/lib/yves-consent.functions";
 import {
   metricsForProvider,
   readMetric,
