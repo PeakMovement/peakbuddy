@@ -114,6 +114,24 @@ function AdminDataHub() {
     } finally { setInsightBusy(false); }
   }
 
+  // ── Manual wearable refresh on behalf of the client ──
+  const syncFn = useServerFn(adminSyncClientWearables);
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncErr, setSyncErr] = useState<string | null>(null);
+  const [syncMsgs, setSyncMsgs] = useState<AdminSyncResult["results"]>([]);
+  useEffect(() => { setSyncMsgs([]); setSyncErr(null); }, [selected]);
+  async function runSync() {
+    if (!selected || syncBusy) return;
+    setSyncBusy(true); setSyncErr(null); setSyncMsgs([]);
+    try {
+      const r = await syncFn({ data: { clientId: selected } });
+      setSyncMsgs(r.results);
+      // reload the bundle so any freshly pulled rows show immediately
+      setBundle(await bundleFn({ data: { clientId: selected } }));
+    } catch (e) {
+      setSyncErr(e instanceof Error ? e.message : "Refresh failed");
+    } finally { setSyncBusy(false); }
+  }
 
 
   useEffect(() => {
