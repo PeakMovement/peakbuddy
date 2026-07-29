@@ -364,6 +364,37 @@ export function WearablesPanel({
 
   return (
     <section className={className} style={{ ...cardStyle, ...style }}>
+      {consentFor && (
+        <div style={overlayStyle} role="dialog" aria-modal="true" aria-label="AI consent">
+          <div style={modalStyle}>
+            <h3 style={{ ...titleStyle, fontSize: 16, margin: 0 }}>Consent to AI processing</h3>
+            <p style={{ color: MUTED, fontSize: 13, lineHeight: 1.55, marginTop: 10 }}>
+              Connecting your {PROVIDER_LABEL[consentFor]} shares its health data (sleep, heart
+              rate, activity and recovery) with Buddy and your practitioner. Do you consent to
+              Buddy&apos;s AI assistant (Yves) analysing this data to generate your insights and
+              alerts? You can withdraw consent at any time in your profile.
+            </p>
+            {consentErr && (
+              <div style={{ color: "var(--red-soft, #fecaca)", fontSize: 12, marginTop: 8 }}>
+                {consentErr}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
+              <button
+                style={ghostBtn}
+                disabled={consentSaving}
+                onClick={() => setConsentFor(null)}
+              >
+                Cancel
+              </button>
+              <button style={primaryBtn} disabled={consentSaving} onClick={onAgreeConsent}>
+                {consentSaving ? "Saving…" : "I consent"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header style={panelHeader}>
         <div>
           <h2 style={titleStyle}>Wearables Panel</h2>
