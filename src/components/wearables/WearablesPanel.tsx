@@ -950,3 +950,23 @@ const metricCell: React.CSSProperties = {
   padding: "10px 8px",
   textAlign: "center",
 };
+
+const overlayStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(4,17,31,0.72)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 20,
+  zIndex: 60,
+};
+
+const modalStyle: React.CSSProperties = {
+  background: CARD,
+  border: `1px solid ${BORDER}`,
+  borderRadius: 14,
+  padding: 20,
+  maxWidth: 440,
+  width: "100%",
+};
