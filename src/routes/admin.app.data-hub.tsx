@@ -11,6 +11,7 @@ import {
   type AdminClientListItem, type AdminClientBundle,
 } from "@/lib/admin-data-hub.functions";
 import { generateClientInsight } from "@/lib/data-hub-insight.functions";
+import { adminSyncClientWearables, type AdminSyncResult } from "@/lib/admin-wearable-sync.functions";
 import { log } from "@/lib/log";
 
 export const Route = createFileRoute("/admin/app/data-hub")({
@@ -114,6 +115,24 @@ function AdminDataHub() {
     } finally { setInsightBusy(false); }
   }
 
+  // ── Manual wearable refresh on behalf of the client ──
+  const syncFn = useServerFn(adminSyncClientWearables);
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncErr, setSyncErr] = useState<string | null>(null);
+  const [syncMsgs, setSyncMsgs] = useState<AdminSyncResult["results"]>([]);
+  useEffect(() => { setSyncMsgs([]); setSyncErr(null); }, [selected]);
+  async function runSync() {
+    if (!selected || syncBusy) return;
+    setSyncBusy(true); setSyncErr(null); setSyncMsgs([]);
+    try {
+      const r = await syncFn({ data: { clientId: selected } });
+      setSyncMsgs(r.results);
+      // reload the bundle so any freshly pulled rows show immediately
+      setBundle(await bundleFn({ data: { clientId: selected } }));
+    } catch (e) {
+      setSyncErr(e instanceof Error ? e.message : "Refresh failed");
+    } finally { setSyncBusy(false); }
+  }
 
 
   useEffect(() => {
@@ -354,7 +373,21 @@ function AdminDataHub() {
           {/* Wearable connection */}
           {visible.wearable && (
           <section style={card}>
-            <div style={sectionTitle}>Wearable connection</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div style={sectionTitle}>Wearable connection</div>
+              <button
+                type="button"
+                onClick={runSync}
+                disabled={syncBusy}
+                style={{
+                  padding: "8px 14px", borderRadius: 10, border: `1px solid ${C.border}`,
+                  background: syncBusy ? "rgba(255,255,255,0.06)" : "rgba(74,141,240,0.18)",
+                  color: C.white, fontSize: 13, cursor: syncBusy ? "default" : "pointer",
+                }}
+              >
+                {syncBusy ? "Refreshing…" : "Refresh data now"}
+              </button>
+            </div>
 
             {b.wearables.length === 0 ? (
               <div style={muted}>No wearable connected.</div>
@@ -369,8 +402,27 @@ function AdminDataHub() {
                 ))}
               </div>
             )}
+
+            {syncErr && (
+              <div style={{ ...muted, marginTop: 10, color: C.red }}>{syncErr}</div>
+            )}
+            {syncMsgs.length > 0 && (
+              <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+                {syncMsgs.map((m, i) => (
+                  <div key={i} style={{
+                    padding: "10px 12px", borderRadius: 10,
+                    border: `1px solid ${m.needsClientAction ? "rgba(251,191,36,0.4)" : C.border}`,
+                    background: m.needsClientAction ? "rgba(251,191,36,0.10)" : "rgba(255,255,255,0.04)",
+                    color: m.needsClientAction ? C.amber : C.muted, fontSize: 13, lineHeight: 1.45,
+                  }}>
+                    {m.needsClientAction ? "⚠ " : m.ok ? "✓ " : "• "}{m.message}
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
           )}
+
 
           {/* Training load & injury-risk — only when a wearable is connected */}
           {visible.load && b.wearables.some((w) => w.connected) && (
