@@ -17,6 +17,7 @@ import {
   type WearableProvider,
 } from "@/lib/wearables/connect.functions";
 import { syncWearable } from "@/lib/wearables/sync.functions";
+import { setYvesAiConsent } from "@/lib/yves-consent.functions";
 import {
   metricsForProvider,
   readMetric,
@@ -140,6 +141,11 @@ export function WearablesPanel({
   const [postConnectPolling, setPostConnectPolling] = useState(false);
   // Which connected device the metrics + chart are showing. null = auto (most recent).
   const [selected, setSelected] = useState<WearableProvider | null>(null);
+  // AI-consent gate shown before every wearable connection.
+  const [consentFor, setConsentFor] = useState<WearableProvider | null>(null);
+  const [consentSaving, setConsentSaving] = useState(false);
+  const [consentErr, setConsentErr] = useState<string | null>(null);
+  const saveConsent = useServerFn(setYvesAiConsent);
 
   const refresh = useCallback(async () => {
     const clientId = getClientId();
@@ -236,7 +242,13 @@ export function WearablesPanel({
     return map;
   }, [sessions]);
 
-  const onConnect = async (provider: WearableProvider) => {
+  // Connect always goes through the AI-consent gate first (first device or a new one).
+  const onConnect = (provider: WearableProvider) => {
+    setConsentFor(provider);
+    setConsentErr(null);
+  };
+
+  const startOAuth = async (provider: WearableProvider) => {
     setBusy(provider);
     setBusyAction("connect");
     try {
@@ -248,6 +260,27 @@ export function WearablesPanel({
       setBusyAction(null);
     }
   };
+
+  const onAgreeConsent = async () => {
+    const provider = consentFor;
+    if (!provider) return;
+    const clientId = getClientId();
+    setConsentSaving(true);
+    setConsentErr(null);
+    try {
+      if (clientId) {
+        const res = await saveConsent({ data: { clientId, consent: true } });
+        if (!res.ok) throw new Error(res.error);
+      }
+      setConsentFor(null);
+      await startOAuth(provider);
+    } catch (e) {
+      setConsentErr(e instanceof Error ? e.message : "Couldn't save your consent. Please try again.");
+    } finally {
+      setConsentSaving(false);
+    }
+  };
+
 
   const onDisconnect = async (provider: WearableProvider) => {
     setBusy(provider);
@@ -331,6 +364,37 @@ export function WearablesPanel({
 
   return (
     <section className={className} style={{ ...cardStyle, ...style }}>
+      {consentFor && (
+        <div style={overlayStyle} role="dialog" aria-modal="true" aria-label="AI consent">
+          <div style={modalStyle}>
+            <h3 style={{ ...titleStyle, fontSize: 16, margin: 0 }}>Consent to AI processing</h3>
+            <p style={{ color: MUTED, fontSize: 13, lineHeight: 1.55, marginTop: 10 }}>
+              Connecting your {PROVIDER_LABEL[consentFor]} shares its health data (sleep, heart
+              rate, activity and recovery) with Buddy and your practitioner. Do you consent to
+              Buddy&apos;s AI assistant (Yves) analysing this data to generate your insights and
+              alerts? You can withdraw consent at any time in your profile.
+            </p>
+            {consentErr && (
+              <div style={{ color: "var(--red-soft, #fecaca)", fontSize: 12, marginTop: 8 }}>
+                {consentErr}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
+              <button
+                style={ghostBtn}
+                disabled={consentSaving}
+                onClick={() => setConsentFor(null)}
+              >
+                Cancel
+              </button>
+              <button style={primaryBtn} disabled={consentSaving} onClick={onAgreeConsent}>
+                {consentSaving ? "Saving…" : "I consent"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header style={panelHeader}>
         <div>
           <h2 style={titleStyle}>Wearables Panel</h2>
@@ -885,4 +949,24 @@ const metricCell: React.CSSProperties = {
   borderRadius: 10,
   padding: "10px 8px",
   textAlign: "center",
+};
+
+const overlayStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(4,17,31,0.72)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 20,
+  zIndex: 60,
+};
+
+const modalStyle: React.CSSProperties = {
+  background: CARD,
+  border: `1px solid ${BORDER}`,
+  borderRadius: 14,
+  padding: 20,
+  maxWidth: 440,
+  width: "100%",
 };
