@@ -140,6 +140,11 @@ export function WearablesPanel({
   const [postConnectPolling, setPostConnectPolling] = useState(false);
   // Which connected device the metrics + chart are showing. null = auto (most recent).
   const [selected, setSelected] = useState<WearableProvider | null>(null);
+  // AI-consent gate shown before every wearable connection.
+  const [consentFor, setConsentFor] = useState<WearableProvider | null>(null);
+  const [consentSaving, setConsentSaving] = useState(false);
+  const [consentErr, setConsentErr] = useState<string | null>(null);
+  const saveConsent = useServerFn(setYvesAiConsent);
 
   const refresh = useCallback(async () => {
     const clientId = getClientId();
