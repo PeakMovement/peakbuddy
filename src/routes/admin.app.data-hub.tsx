@@ -11,6 +11,7 @@ import {
   type AdminClientListItem, type AdminClientBundle,
 } from "@/lib/admin-data-hub.functions";
 import { generateClientInsight } from "@/lib/data-hub-insight.functions";
+import { adminSyncClientWearables, type AdminSyncResult } from "@/lib/admin-wearable-sync.functions";
 import { log } from "@/lib/log";
 
 export const Route = createFileRoute("/admin/app/data-hub")({
