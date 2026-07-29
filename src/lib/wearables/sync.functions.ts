@@ -3,7 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { log } from "@/lib/log";
 import { fetchOuraSessions } from "./oura";
 import { fetchPolarExercises, fetchPolarSleep, PolarError } from "./polar";
-import { requestGarminBackfill } from "./garmin";
+import { fetchGarminUserId, requestGarminBackfill } from "./garmin";
 import {
   getConnection,
   getValidGarminAccessToken,
@@ -81,8 +81,38 @@ export async function syncGarminForClient(
   days = 7,
 ): Promise<{ synced: number }> {
   const accessToken = await getValidGarminAccessToken(admin, clientId);
+  // Self-heal the durable attribution key. Garmin webhooks are matched to a
+  // client by provider_user_id (stable) first, then access_token (which changes
+  // on refresh). If provider_user_id was never captured at connect, then once
+  // the token rotates AND more than one Garmin client exists, the webhook can no
+  // longer attribute this client's pushes and silently drops them — so history
+  // stalls. Binding it here (on any sync) makes attribution durable.
+  await ensureGarminProviderUserId(admin, clientId, accessToken);
   await requestGarminBackfill({ accessToken, days });
   return { synced: 0 }; // data arrives asynchronously via the webhook
+}
+
+/** Populate wearable_tokens.provider_user_id for a Garmin client if it's missing. */
+async function ensureGarminProviderUserId(
+  admin: AdminClient,
+  clientId: string,
+  accessToken: string,
+): Promise<void> {
+  try {
+    const conn = await getConnection(admin, clientId, "garmin");
+    if (!conn || conn.provider_user_id) return; // already bound
+    const uid = await fetchGarminUserId(accessToken);
+    if (!uid) return;
+    await admin
+      .from("wearable_tokens")
+      .update({ provider_user_id: uid })
+      .eq("client_id", clientId)
+      .eq("provider", "garmin")
+      .is("provider_user_id", null);
+    log.info(`Bound Garmin provider_user_id for client ${clientId}`);
+  } catch (e) {
+    log.warn(`ensureGarminProviderUserId failed for client ${clientId}`, e);
+  }
 }
 
 /** On-demand "Sync now" for the logged-in client. */

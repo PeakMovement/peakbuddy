@@ -33,7 +33,10 @@ export async function syncClientWearablesAsAdmin(clientId: string): Promise<Admi
     .select("provider, status")
     .eq("client_id", clientId);
 
-  const connected = (tokens ?? []).filter((t) => t.status === "connected");
+  // wearable_tokens.status is stored as "active" (never "connected"). Filtering
+  // on "connected" made this always empty, so the admin sync never actually
+  // re-requested a backfill. Match the real value.
+  const connected = (tokens ?? []).filter((t) => t.status === "active");
   if (connected.length === 0) {
     return {
       results: [
