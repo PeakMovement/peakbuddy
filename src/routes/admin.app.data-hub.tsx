@@ -766,7 +766,7 @@ function VitalChart({ title, data, color }: { title: string; data: { d: string; 
       </div>
       {data.length === 0 ? (
         <div style={{ ...muted, fontSize: 11, marginTop: 8, fontStyle: "italic" }}>
-          Data cannot be displayed — not supported by this wearable.
+          No data received yet — Garmin/Oura only report this after a synced night, and it can take a day or two after connecting to arrive.
         </div>
       ) : data.length < 2 ? (
         <div style={{ ...muted, fontSize: 11, marginTop: 8 }}>Only one reading so far — building history.</div>
