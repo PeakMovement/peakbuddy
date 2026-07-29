@@ -236,7 +236,13 @@ export function WearablesPanel({
     return map;
   }, [sessions]);
 
-  const onConnect = async (provider: WearableProvider) => {
+  // Connect always goes through the AI-consent gate first (first device or a new one).
+  const onConnect = (provider: WearableProvider) => {
+    setConsentFor(provider);
+    setConsentErr(null);
+  };
+
+  const startOAuth = async (provider: WearableProvider) => {
     setBusy(provider);
     setBusyAction("connect");
     try {
@@ -248,6 +254,27 @@ export function WearablesPanel({
       setBusyAction(null);
     }
   };
+
+  const onAgreeConsent = async () => {
+    const provider = consentFor;
+    if (!provider) return;
+    const clientId = getClientId();
+    setConsentSaving(true);
+    setConsentErr(null);
+    try {
+      if (clientId) {
+        const res = await saveConsent({ data: { clientId, consent: true } });
+        if (!res.ok) throw new Error(res.error);
+      }
+      setConsentFor(null);
+      await startOAuth(provider);
+    } catch (e) {
+      setConsentErr(e instanceof Error ? e.message : "Couldn't save your consent. Please try again.");
+    } finally {
+      setConsentSaving(false);
+    }
+  };
+
 
   const onDisconnect = async (provider: WearableProvider) => {
     setBusy(provider);
