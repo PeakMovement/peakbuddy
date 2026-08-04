@@ -59,6 +59,9 @@ function ClientProfile() {
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [openCheckInId, setOpenCheckInId] = useState<string | null>(null);
   const [rewardsOn, setRewardsOn] = useState(false);
+  const [consentSaving, setConsentSaving] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+  const saveConsent = useServerFn(setYvesAiConsent);
   useEffect(() => {
     getRewardsStatus()
       .then((r) => setRewardsOn(r.enabled))
