@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, ExternalLink, Trash2, ChevronDown, Phone, Check, Mail } from "lucide-react";
+import { LogOut, ExternalLink, Trash2, ChevronDown, Phone, Check, Mail, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId, clearClientId } from "@/lib/client-session";
 import type { CheckIn, Client } from "@/lib/types";
@@ -12,6 +12,7 @@ import {
 } from "@/lib/client-program.functions";
 import { deleteMyAccount } from "@/lib/account-delete.functions";
 import { updateClientPhone, updateMyEmail } from "@/lib/client-profile.functions";
+import { setYvesAiConsent } from "@/lib/yves-consent.functions";
 import { MyRewards } from "@/components/MyRewards";
 import { getRewardsStatus } from "@/lib/rewards.functions";
 import { NotificationSubscribeButton } from "@/components/NotificationSubscribeButton";
@@ -58,6 +59,9 @@ function ClientProfile() {
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [openCheckInId, setOpenCheckInId] = useState<string | null>(null);
   const [rewardsOn, setRewardsOn] = useState(false);
+  const [consentSaving, setConsentSaving] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+  const saveConsent = useServerFn(setYvesAiConsent);
   useEffect(() => {
     getRewardsStatus()
       .then((r) => setRewardsOn(r.enabled))
@@ -102,6 +106,29 @@ function ClientProfile() {
     if (res.ok) {
       const fresh = await loadProgram();
       setProgramState(fresh);
+    }
+  };
+
+  const toggleConsent = async () => {
+    if (!client || consentSaving) return;
+    setConsentSaving(true);
+    setConsentError(null);
+    try {
+      const next = !client.yves_ai_consent;
+      const res = await saveConsent({ data: { clientId: client.id, consent: next } });
+      if (res.ok) {
+        setClient({
+          ...client,
+          yves_ai_consent: next,
+          yves_ai_consent_at: next ? new Date().toISOString() : null,
+        });
+      } else {
+        setConsentError(res.error ?? "Could not update consent.");
+      }
+    } catch (e) {
+      setConsentError(e instanceof Error ? e.message : "Could not update consent.");
+    } finally {
+      setConsentSaving(false);
     }
   };
 
@@ -265,6 +292,98 @@ function ClientProfile() {
           }}
         />
       </div>
+
+      {/* Yves / AI consent */}
+      {client && (
+        <div
+          style={{
+            marginTop: 20,
+            background: "var(--navy-card)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 12,
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontFamily: "var(--font-ui)",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "var(--white-muted)",
+                  marginBottom: 4,
+                }}
+              >
+                Yves / AI consent
+              </div>
+              <div
+                style={{
+                  fontFamily: "var(--font-ui)",
+                  fontSize: 15,
+                  color: "var(--white)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <Sparkles size={16} color="var(--cold-blue, #7aa8ff)" />
+                {client.yves_ai_consent ? "Enabled" : "Disabled"}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={toggleConsent}
+              disabled={consentSaving}
+              style={{
+                minHeight: 36,
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "none",
+                background: client.yves_ai_consent ? "var(--red, #ef4444)" : "var(--blue-accent)",
+                color: "var(--white)",
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: consentSaving ? "default" : "pointer",
+                opacity: consentSaving ? 0.7 : 1,
+              }}
+            >
+              {consentSaving ? "Saving…" : client.yves_ai_consent ? "Withdraw consent" : "Enable consent"}
+            </button>
+          </div>
+          <p
+            style={{
+              margin: "10px 0 0",
+              fontSize: 13,
+              lineHeight: 1.5,
+              color: "var(--white-muted)",
+            }}
+          >
+            Allow Buddy&apos;s AI assistant, Yves, to analyse your symptoms, check-ins and
+            wearable data.{" "}
+            <a
+              href="/privacy-policy#ai"
+              style={{ color: "var(--blue-accent)", textDecoration: "underline" }}
+            >
+              How your data is used
+            </a>
+          </p>
+          {consentError && (
+            <p style={{ marginTop: 8, color: "var(--red)", fontSize: 13 }}>{consentError}</p>
+          )}
+        </div>
+      )}
 
       {/* Notification status */}
       <NotificationSubscribeButton />
