@@ -1,30 +1,37 @@
-# Restore the Demo Client login
+# Add an AI-consent toggle to the client Profile page
 
 ## What you asked
-Demo client login details — they are (from `scripts/seed-demo.ts`):
+The screenshot shows the practitioner Data Hub Yves Insight card with the message:
 
-- **URL:** `/client/login`
-- **Email:** `client@demo.com`
-- **Password:** `Demo1234!`
-- **Login code:** `1234`
+> "This client hasn't consented to AI processing, so Yves Insight is unavailable for them until they enable AI consent in their Buddy profile."
 
-## Problem found
-The credentials **won't work right now**. The auth user `client@demo.com` still exists, but its row in `public.clients` is gone (deleted in an earlier cleanup). The login flow authenticates, then fails with "No client record found for this account. Contact your practitioner."
+You asked: **how does a patient do this?**
 
-(Note: `practitioner@demo.com` and `admin@demo.com` from the seed script no longer exist in auth either — only the client auth user survives. This plan restores just the client login you asked about.)
+## Current state
+A patient can currently consent in two places, but neither is the Profile page the error message refers to:
 
-## Fix
-1. **Migration** — insert a fresh `public.clients` row:
-   - `full_name`: "Demo Client"
-   - `email`: `client@demo.com`
-   - `login_code`: `1234`
-   - `auth_user_id`: bound to the existing `client@demo.com` auth user (looked up by email from `auth.users`)
-   - `practitioner_id`: attached to the **Peak Movement** practitioner (`peakmvement@gmail.com`) — say the word if you'd rather it sit under the Asad Test Account practitioner
-   - `primary_complaint`, `notes`, `check_in_frequency: daily`, `popia_accepted: true` (mirroring the seed script)
-2. **Sample check-in** — insert one demo check-in row so the client dashboard isn't empty (same values as the seed script: pain 4, sleep 7, stress 5, energy 6).
-3. **Verify** — drive Playwright through `/client/login` with `client@demo.com` / `Demo1234!` and confirm it lands on `/client/app/checkin`.
+1. **Yves chat screen** (`/client/app/yves`) — a consent modal automatically appears the first time they open Yves if they haven't consented yet.
+2. **Wearables panel** (`/client/app/profile` → Wearables dropdown → Connect a device) — a consent dialog appears before every wearable OAuth connection.
+
+The Profile page itself has **no AI-consent toggle**, so the error message is misleading. Patients have no obvious, always-available place to enable or withdraw consent.
+
+## Proposed fix
+Add a dedicated **"Yves / AI consent"** card to the client Profile page (`/client/app/profile`) that:
+
+- Shows the current consent status clearly ("Enabled" / "Disabled").
+- Lets the patient toggle consent on or off with a single tap.
+- Calls the existing `setYvesAiConsent` server function used by Yves and Wearables.
+- Updates local client state immediately so the toggle reflects the change without a refresh.
+- Includes a short explanation of what consenting means, with a link to the privacy policy's AI section.
+- Is styled with the existing Buddy brand tokens (no new colors).
+
+## Why this matters
+It makes the error message in the Data Hub accurate, gives patients direct control, and reduces support burden on practitioners who currently see the "not consented" block but can't point the patient to a single place to fix it.
 
 ## Technical details
-- Plain data insert via migration; no schema changes, no RLS changes.
-- No application code is touched.
-- If you later want the full demo trio back (practitioner + admin logins too), that needs the seed script re-run with the service key — say so and I'll plan that separately.
+- File to edit: `src/routes/client.app.profile.tsx`.
+- Import `setYvesAiConsent` from `@/lib/yves-consent.functions` and wire it with `useServerFn`.
+- Add state for `consentSaving` and a local optimistic update to `client.yves_ai_consent`.
+- Place the new card below the existing profile fields and above the Notification status section.
+- No database or RLS changes needed — the existing `clients.yves_ai_consent` column and `setYvesAiConsent` server function already handle authorization (client themselves, their practitioner, or super admin).
+- No changes to the practitioner Data Hub error copy are required; after this change it will finally be true.
