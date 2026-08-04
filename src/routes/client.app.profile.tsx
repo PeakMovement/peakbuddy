@@ -109,6 +109,29 @@ function ClientProfile() {
     }
   };
 
+  const toggleConsent = async () => {
+    if (!client || consentSaving) return;
+    setConsentSaving(true);
+    setConsentError(null);
+    try {
+      const next = !client.yves_ai_consent;
+      const res = await saveConsent({ data: { clientId: client.id, consent: next } });
+      if (res.ok) {
+        setClient({
+          ...client,
+          yves_ai_consent: next,
+          yves_ai_consent_at: next ? new Date().toISOString() : null,
+        });
+      } else {
+        setConsentError(res.error ?? "Could not update consent.");
+      }
+    } catch (e) {
+      setConsentError(e instanceof Error ? e.message : "Could not update consent.");
+    } finally {
+      setConsentSaving(false);
+    }
+  };
+
   useEffect(() => {
     if (!timelineOpen) return;
     const id = getClientId();
