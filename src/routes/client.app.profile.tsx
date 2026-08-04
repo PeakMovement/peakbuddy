@@ -293,6 +293,98 @@ function ClientProfile() {
         />
       </div>
 
+      {/* Yves / AI consent */}
+      {client && (
+        <div
+          style={{
+            marginTop: 20,
+            background: "var(--navy-card)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 12,
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontFamily: "var(--font-ui)",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "var(--white-muted)",
+                  marginBottom: 4,
+                }}
+              >
+                Yves / AI consent
+              </div>
+              <div
+                style={{
+                  fontFamily: "var(--font-ui)",
+                  fontSize: 15,
+                  color: "var(--white)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <Sparkles size={16} color="var(--cold-blue, #7aa8ff)" />
+                {client.yves_ai_consent ? "Enabled" : "Disabled"}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={toggleConsent}
+              disabled={consentSaving}
+              style={{
+                minHeight: 36,
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "none",
+                background: client.yves_ai_consent ? "var(--red, #ef4444)" : "var(--blue-accent)",
+                color: "var(--white)",
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: consentSaving ? "default" : "pointer",
+                opacity: consentSaving ? 0.7 : 1,
+              }}
+            >
+              {consentSaving ? "Saving…" : client.yves_ai_consent ? "Withdraw consent" : "Enable consent"}
+            </button>
+          </div>
+          <p
+            style={{
+              margin: "10px 0 0",
+              fontSize: 13,
+              lineHeight: 1.5,
+              color: "var(--white-muted)",
+            }}
+          >
+            Allow Buddy&apos;s AI assistant, Yves, to analyse your symptoms, check-ins and
+            wearable data.{" "}
+            <a
+              href="/privacy-policy#ai"
+              style={{ color: "var(--blue-accent)", textDecoration: "underline" }}
+            >
+              How your data is used
+            </a>
+          </p>
+          {consentError && (
+            <p style={{ marginTop: 8, color: "var(--red)", fontSize: 13 }}>{consentError}</p>
+          )}
+        </div>
+      )}
+
       {/* Notification status */}
       <NotificationSubscribeButton />
       {client && <BodyForecastBeta client={client} />}
