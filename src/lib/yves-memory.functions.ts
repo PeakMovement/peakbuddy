@@ -53,23 +53,30 @@ function extractJson(raw: string): unknown {
 }
 
 async function chat(key: string, system: string, user: string): Promise<string> {
-  const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Lovable-API-Key': key },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-    }),
-  });
+  const call = () =>
+    fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Lovable-API-Key': key },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+      }),
+    });
+  let res = await call();
+  if (res.status === 429 || res.status >= 500) {
+    await new Promise((r) => setTimeout(r, 2000));
+    res = await call();
+  }
   if (!res.ok) {
     const body = await res.text();
-    if (res.status === 429) throw new Error('AI is rate-limited. Please try again in a moment.');
+    if (res.status === 429) throw new Error('Yves is busy right now — please try again in a minute.');
     if (res.status === 402) throw new Error('AI credits exhausted. Add credits in workspace billing.');
-    throw new Error(`AI request failed (${res.status}): ${body.slice(0, 200)}`);
+    throw new Error(`Yves request failed (${res.status}): ${body.slice(0, 200)}`);
   }
+
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
   return json.choices?.[0]?.message?.content?.trim() ?? '';
 }
