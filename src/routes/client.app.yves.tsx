@@ -293,7 +293,7 @@ function YvesScreen() {
   const submit = async () => {
     if (!client || text.trim().length < 3 || stage === "loading") return;
     if (!accessAllowed) return;
-    if (!hasAiConsent) {
+    if (!clientHasAiConsent) {
       setShowConsentModal(true);
       return;
     }
