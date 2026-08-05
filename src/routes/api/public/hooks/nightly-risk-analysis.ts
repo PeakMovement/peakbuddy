@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { log } from "@/lib/log";
+import { hasAiConsent } from "@/lib/ai-consent";
 
 const BATCH_SIZE = 50;
 const DRAFT_THRESHOLD = 60;
@@ -149,7 +150,7 @@ async function aiDraft(args: {
   programs: ProgramRow[];
 }): Promise<{ title: string; body: string; program_id?: string; reason?: string } | null> {
   const key = process.env.LOVABLE_API_KEY;
-  if (!key || !args.client.yves_ai_consent) return null;
+  if (!key || !hasAiConsent(args.client)) return null;
   const programsList = args.programs.map((p) => ({
     id: p.id, name: p.name, tags: p.symptom_tags,
   }));

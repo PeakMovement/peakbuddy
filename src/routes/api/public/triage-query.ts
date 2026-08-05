@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { log } from "@/lib/log";
+import { hasAiConsent } from "@/lib/ai-consent";
 import { applyCombinationFloor, applyKeywordFloor, type RedFlagCategory, type UrgencyTier } from "@/lib/yves";
 import {
   extractAndFirstPass,
@@ -887,7 +888,7 @@ export const Route = createFileRoute("/api/public/triage-query")({
             return json({ error: "Yves access disabled: no practitioner" }, 403);
           if (c.yves_enabled === false)
             return json({ error: "Yves access disabled for client" }, 403);
-          if (c.yves_ai_consent !== true) {
+          if (!hasAiConsent(c)) {
             return json(
               {
                 error:

@@ -15,6 +15,7 @@ import {
 } from "@/lib/yves";
 import { getClientYvesAccess } from "@/lib/yves-access.functions";
 import { setYvesAiConsent } from "@/lib/yves-consent.functions";
+import { hasAiConsent } from "@/lib/ai-consent";
 import { setPatientFeedback } from "@/lib/patient-feedback.functions";
 import type { Client, SymptomQuery } from "@/lib/types";
 import { CrosshairLogo } from "@/components/CrosshairLogo";
@@ -166,7 +167,7 @@ function YvesScreen() {
         cl.practitioner_id &&
         accessRes.practiceYvesEnabled &&
         cl.yves_enabled !== false &&
-        cl.yves_ai_consent !== true
+        !hasAiConsent(cl)
       ) {
         setShowConsentModal(true);
       }
@@ -276,8 +277,8 @@ function YvesScreen() {
 
   const accessAllowed =
     !!client?.practitioner_id && practiceYvesEnabled && client?.yves_enabled !== false;
-  const hasAiConsent = client?.yves_ai_consent === true;
-  const canUseYves = accessAllowed && hasAiConsent;
+  const clientHasAiConsent = hasAiConsent(client);
+  const canUseYves = accessAllowed && clientHasAiConsent;
 
   const accessBlockReason: string | null = !client
     ? null
@@ -292,7 +293,7 @@ function YvesScreen() {
   const submit = async () => {
     if (!client || text.trim().length < 3 || stage === "loading") return;
     if (!accessAllowed) return;
-    if (!hasAiConsent) {
+    if (!clientHasAiConsent) {
       setShowConsentModal(true);
       return;
     }

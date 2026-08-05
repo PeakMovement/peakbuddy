@@ -18,6 +18,7 @@ import {
 } from "@/lib/wearables/connect.functions";
 import { syncWearable } from "@/lib/wearables/sync.functions";
 import { setYvesAiConsent } from "@/lib/yves-consent.functions";
+import { AI_CONSENT_REQUIRED } from "@/lib/ai-consent";
 import {
   metricsForProvider,
   readMetric,
@@ -242,8 +243,13 @@ export function WearablesPanel({
     return map;
   }, [sessions]);
 
-  // Connect always goes through the AI-consent gate first (first device or a new one).
+  // Connect goes through the AI-consent gate only while consent is required
+  // (pre-rollout it is off, so connecting goes straight to OAuth).
   const onConnect = (provider: WearableProvider) => {
+    if (!AI_CONSENT_REQUIRED) {
+      void startOAuth(provider);
+      return;
+    }
     setConsentFor(provider);
     setConsentErr(null);
   };
