@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { INSIGHT_SYSTEM_PROMPT, buildInsightPayload } from "@/lib/data-hub-insight.prompt";
 import { buildYvesSystemPrompt, type YvesScope } from "@/lib/yves-identity";
+import { hasAiConsent } from "@/lib/ai-consent";
 
 const Input = z.object({
   clientId: z.string().uuid(),
@@ -89,9 +90,8 @@ export const generateClientInsight = createServerFn({ method: "POST" })
     if (!isSuperAdmin && !(role === "practitioner" && cAuth.practitioner_id === context.userId)) {
       throw new Error("Forbidden");
     }
-    // POPIA / AI-consent gate — never send a client's data to the AI provider
-    // unless they consented (same rule triage uses).
-    if ((cAuth as { yves_ai_consent?: boolean }).yves_ai_consent !== true) {
+    // POPIA / AI-consent gate — disabled pre-rollout via AI_CONSENT_REQUIRED.
+    if (!hasAiConsent(cAuth as { yves_ai_consent?: boolean })) {
       throw new Error(
         "This client hasn't consented to AI processing, so Yves Insight is unavailable for them until they enable AI consent in their Buddy profile.",
       );

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { hasAiConsent } from "@/lib/ai-consent";
 
 const InputSchema = z.object({
   pain: z.number().min(0).max(10),
@@ -201,7 +202,7 @@ export const suggestProgram = createServerFn({ method: "POST" })
     // 2) AI fallback for high-pain check-ins — ONLY with the patient's explicit
     // AI consent, since this path sends check-in data to a third-party AI
     // provider (Google, via the Lovable AI gateway). No consent => no AI call.
-    if (!chosenId && data.pain >= 7 && cur.yves_ai_consent === true) {
+    if (!chosenId && data.pain >= 7 && hasAiConsent(cur)) {
       const ai = await aiFallback(programs, data);
       if (ai) {
         chosenId = ai.program.id;

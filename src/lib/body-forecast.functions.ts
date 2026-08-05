@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { log } from "@/lib/log";
 import { FORECAST_COACH_SYSTEM_PROMPT, buildForecastUserPayload } from "@/lib/body-forecast.prompt";
 import { callInsightModel } from "@/lib/data-hub-insight.functions";
+import { hasAiConsent } from "@/lib/ai-consent";
 
 const Factor = z.object({
   label: z.string().max(40),
@@ -76,8 +77,8 @@ export const enhanceBodyForecast = createServerFn({ method: "POST" })
 
       if (!client) return { ai: false };
 
-      // POPIA / AI-consent gate — never send data to the AI provider without it.
-      if ((client as { yves_ai_consent?: boolean }).yves_ai_consent !== true) {
+      // POPIA / AI-consent gate — disabled pre-rollout via AI_CONSENT_REQUIRED.
+      if (!hasAiConsent(client as { yves_ai_consent?: boolean })) {
         return { ai: false };
       }
 
