@@ -16,35 +16,56 @@ const MODEL = "google/gemini-3.1-pro-preview";
 // Calls the insight model. Prefers a direct Google Gemini key (your billing) when
 // GEMINI_API_KEY is set; otherwise falls back to the Lovable AI gateway so nothing
 // breaks. Prompt + data are identical either way — only the route/billing differs.
-export async function callInsightModel(system: string, user: string): Promise<{ text: string; model: string }> {
-  const gk = process.env.GEMINI_API_KEY;
-  if (gk) {
-    const model = process.env.GEMINI_MODEL || "gemini-2.5-pro";
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gk}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: system }] },
-          contents: [{ role: "user", parts: [{ text: user }] }],
-        }),
-      },
-    );
-    if (res.status === 429) throw new Error("Gemini is rate-limited. Please try again in a moment.");
-    if (!res.ok) {
-      const b = await res.text();
-      throw new Error(`Gemini request failed (${res.status}): ${b.slice(0, 200)}`);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Tries the direct Google Gemini key (your billing) when GEMINI_API_KEY is set.
+// A 429 (quota) or 5xx retries once, then falls through to the Lovable AI gateway
+// so the user still gets their insight. Prompt + data are identical either way.
+async function callGeminiDirect(gk: string, system: string, user: string): Promise<{ text: string; model: string } | null> {
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-pro";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gk}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: system }] },
+            contents: [{ role: "user", parts: [{ text: user }] }],
+          }),
+        },
+      );
+    } catch {
+      return null; // network issue → fall back to the gateway
     }
+    if (res.status === 429 || res.status >= 500) {
+      if (attempt === 0) {
+        await sleep(2000);
+        continue;
+      }
+      return null; // still throttled → fall back to the gateway
+    }
+    if (!res.ok) return null; // bad key / bad model → fall back rather than fail
     const j = (await res.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] } }[];
     };
     const text = (j.candidates?.[0]?.content?.parts ?? []).map((x) => x.text ?? "").join("").trim();
-    if (!text) throw new Error("Gemini returned an empty response.");
+    if (!text) return null;
     return { text, model: `google/${model}` };
   }
+  return null;
+}
+
+export async function callInsightModel(system: string, user: string): Promise<{ text: string; model: string }> {
+  const gk = process.env.GEMINI_API_KEY;
+  if (gk) {
+    const direct = await callGeminiDirect(gk, system, user);
+    if (direct) return direct;
+  }
   const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("AI is not configured (set GEMINI_API_KEY or LOVABLE_API_KEY).");
+  if (!key) throw new Error("Yves is not configured (set GEMINI_API_KEY or LOVABLE_API_KEY).");
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
@@ -56,17 +77,18 @@ export async function callInsightModel(system: string, user: string): Promise<{ 
       ],
     }),
   });
-  if (res.status === 429) throw new Error("AI is rate-limited. Please try again in a moment.");
+  if (res.status === 429) throw new Error("Yves is busy right now — please try again in a minute.");
   if (res.status === 402) throw new Error("AI credits exhausted. Add credits in workspace billing.");
   if (!res.ok) {
     const b = await res.text();
-    throw new Error(`AI request failed (${res.status}): ${b.slice(0, 200)}`);
+    throw new Error(`Yves request failed (${res.status}): ${b.slice(0, 200)}`);
   }
   const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
   const text = j.choices?.[0]?.message?.content?.trim() ?? "";
-  if (!text) throw new Error("AI returned an empty response.");
+  if (!text) throw new Error("Yves returned an empty response.");
   return { text, model: MODEL };
 }
+
 
 export const generateClientInsight = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
