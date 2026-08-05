@@ -18,6 +18,7 @@ import {
 } from "@/lib/wearables/connect.functions";
 import { syncWearable } from "@/lib/wearables/sync.functions";
 import { setYvesAiConsent } from "@/lib/yves-consent.functions";
+import { AI_CONSENT_REQUIRED } from "@/lib/ai-consent";
 import {
   metricsForProvider,
   readMetric,
