@@ -1,20 +1,32 @@
-# Backend availability banner (admin portal)
+# Remove the AI-consent blocker (pre-rollout)
 
-## Why
+## Goal
 
-No users were deleted. All 13 accounts and 36 tables are present. The database was mid-restart when it was first queried, so it briefly returned nothing — the admin screens rendered that as "empty", which looked like data loss.
+Stop the "This client hasn't consented to AI processing…" message from blocking anything. Everyone currently on the app has already consented, so during this pre-rollout phase Yves should just work for all clients. The consent record stays in the database and the profile toggle stays visible — only the *blocking* behaviour is removed.
 
-## What to build
+## What changes
 
-A small safeguard so a restart never looks like deletion again:
+A single switch controls it, so it can be turned back on for public rollout with a one-line change.
 
-- A lightweight backend health check that distinguishes "database unreachable / starting up" from "query returned zero rows".
-- A banner at the top of the admin portal: "Backend is restarting — data is temporarily unavailable. Nothing has been lost." shown only when the check fails.
-- Admin lists (users, clients, data hub) show "Couldn't load — backend unavailable" instead of an empty-state when the health check is failing, so an outage is never rendered as "no records".
+- Add one shared setting, `AI_CONSENT_REQUIRED = false`, in a small helper module with a `hasAiConsent(client)` check that returns true for everyone while the flag is off.
+- Route every existing consent gate through that helper instead of checking the field directly:
+  - Yves Insight in the Admin/Practitioner Data Hub (the red message in the screenshot)
+  - Body Forecast
+  - Yves triage query
+  - Program suggestions
+  - Nightly risk analysis
+  - The client Yves screen's "consent required" state
+- Wearable connection: drop the mandatory consent modal that currently blocks the OAuth redirect, so connecting a Garmin/Polar/Oura goes straight through.
 
-No schema changes, no changes to any user or client data.
+## What stays
+
+- The `yves_ai_consent` / `yves_ai_consent_at` columns and all existing recorded consents — untouched.
+- The "Yves / AI consent" card on the client profile, so patients can still enable or withdraw consent, and the admin Data Hub still displays each client's consent status.
+- Withdrawal still recorded; when the flag is flipped back on for rollout, every gate re-enforces immediately with no other code changes.
 
 ## Technical notes
 
-- Add a public server function that runs a trivial `select 1`-style read and returns `{ ok }`, polled by the admin layout on an interval.
-- Surface it via a small context/hook so existing admin views can swap their empty-state for an outage state without restructuring their queries.
+- New file `src/lib/ai-consent.ts` exporting `AI_CONSENT_REQUIRED` and `hasAiConsent(client: { yves_ai_consent?: boolean | null })`.
+- Replace the direct `!== true` comparisons in `data-hub-insight.functions.ts`, `body-forecast.functions.ts`, `programs.functions.ts`, `api/public/triage-query.ts`, `api/public/hooks/nightly-risk-analysis.ts`, and `routes/client.app.yves.tsx`.
+- In `components/wearables/WearablesPanel.tsx`, gate the consent modal behind `AI_CONSENT_REQUIRED` rather than deleting it, so the flow is intact for rollout.
+- No migration, no data changes.
