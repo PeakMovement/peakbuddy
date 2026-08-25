@@ -641,7 +641,63 @@ function ClientDetail() {
             );
           })()}
         </div>
+
+        <div
+          style={{
+            marginTop: 12,
+            paddingTop: 12,
+            borderTop: "1px solid var(--navy-border)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                color: "var(--white)",
+                fontSize: 14,
+              }}
+            >
+              AI processing consent
+            </div>
+            <div
+              style={{
+                marginTop: 4,
+                color: "var(--white-muted)",
+                fontFamily: "var(--font-ui)",
+                fontSize: 12,
+              }}
+            >
+              {client.yves_ai_consent
+                ? `Given${
+                    client.yves_ai_consent_at
+                      ? ` on ${new Date(client.yves_ai_consent_at).toLocaleDateString()}`
+                      : ""
+                  } — client accepted the Yves consent form.`
+                : "Not yet given — the consent form shows the next time they open Yves."}
+            </div>
+          </div>
+          <span
+            style={{
+              padding: "4px 10px",
+              borderRadius: 999,
+              fontFamily: "var(--font-ui)",
+              fontSize: 12,
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+              border: `1px solid ${client.yves_ai_consent ? "var(--green)" : "var(--amber)"}`,
+              color: client.yves_ai_consent ? "var(--green)" : "var(--amber)",
+            }}
+          >
+            {client.yves_ai_consent ? "Consented" : "Pending"}
+          </span>
+        </div>
       </section>
+
 
       <button
         type="button"

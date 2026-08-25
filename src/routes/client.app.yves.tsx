@@ -162,15 +162,20 @@ function YvesScreen() {
       setHistory(((q as SymptomQuery[] | null) ?? []) as SymptomQuery[]);
       setPractitionerName((profRes.data as { full_name: string } | null)?.full_name ?? null);
       setPracticeYvesEnabled(accessRes.practiceYvesEnabled);
+      // First entry into Yves: always show the consent form until the client
+      // has recorded an explicit "yes". This is deliberately based on the
+      // stored flag (not hasAiConsent), so the pop-up still appears while the
+      // pre-rollout consent requirement is switched off.
       if (
         cl &&
         cl.practitioner_id &&
         accessRes.practiceYvesEnabled &&
         cl.yves_enabled !== false &&
-        !hasAiConsent(cl)
+        cl.yves_ai_consent !== true
       ) {
         setShowConsentModal(true);
       }
+
     })();
   }, []);
 
