@@ -104,6 +104,28 @@ function ClientDetailAdmin() {
         </div>
       )}
 
+      <div
+        style={{
+          marginTop: 12,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "6px 10px",
+          borderRadius: 8,
+          border: `1px solid ${client.yves_ai_consent ? "var(--green)" : "var(--amber)"}`,
+          color: client.yves_ai_consent ? "var(--green)" : "var(--amber)",
+          fontFamily: "var(--font-ui)",
+          fontSize: 12,
+          fontWeight: 600,
+        }}
+      >
+        AI consent: {client.yves_ai_consent ? "given" : "pending"}
+        {client.yves_ai_consent && client.yves_ai_consent_at
+          ? ` · ${new Date(client.yves_ai_consent_at).toLocaleDateString()}`
+          : ""}
+      </div>
+
+
       <h2
         style={{
           marginTop: 24,
