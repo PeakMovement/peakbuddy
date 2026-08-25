@@ -2,18 +2,89 @@ import { createFileRoute } from "@tanstack/react-router";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Dumbbell, ExternalLink, Sparkles, Target, Users, X, Tag } from "lucide-react";
+import { Dumbbell, ExternalLink, Sparkles, Target, Users, X, Tag, Clock } from "lucide-react";
 import {
   getLibraryPrograms,
   getLibraryIntroState,
   markLibraryIntroSeen,
   type LibraryProgram,
 } from "@/lib/library.functions";
+import { LIBRARY_COMING_SOON } from "@/lib/feature-flags";
 
 export const Route = createFileRoute("/client/app/library")({
   head: () => ({ meta: [{ title: "Exercise Library — Buddy" }] }),
-  component: LibraryPage,
+  component: LibraryRoute,
 });
+
+// Flip LIBRARY_COMING_SOON to false in src/lib/feature-flags.ts to restore the
+// full library — LibraryPage below is untouched and takes over again instantly.
+function LibraryRoute() {
+  if (LIBRARY_COMING_SOON) return <LibraryComingSoon />;
+  return <LibraryPage />;
+}
+
+function LibraryComingSoon() {
+  return (
+    <div style={wrap}>
+      <header style={{ marginBottom: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <Dumbbell size={20} color="var(--blue-accent)" aria-hidden />
+          <h1 style={h1}>Exercise Library</h1>
+        </div>
+      </header>
+
+      <div
+        style={{
+          marginTop: 24,
+          background: "var(--navy-card)",
+          border: "1px solid var(--navy-border)",
+          borderRadius: 16,
+          padding: "32px 20px",
+          textAlign: "center",
+        }}
+      >
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            margin: "0 auto 16px",
+            borderRadius: 16,
+            display: "grid",
+            placeItems: "center",
+            background: "color-mix(in oklab, var(--blue-accent) 16%, transparent)",
+            border: "1px solid color-mix(in oklab, var(--blue-accent) 40%, transparent)",
+          }}
+        >
+          <Clock size={26} color="var(--blue-accent)" aria-hidden />
+        </div>
+        <h2
+          style={{
+            fontFamily: "var(--font-hero)",
+            fontSize: 24,
+            fontWeight: 600,
+            color: "var(--white)",
+            marginBottom: 8,
+          }}
+        >
+          Coming soon
+        </h2>
+        <p
+          style={{
+            fontFamily: "var(--font-ui)",
+            fontSize: 14,
+            lineHeight: 1.5,
+            color: "var(--white-muted)",
+            maxWidth: 320,
+            margin: "0 auto",
+          }}
+        >
+          Your practitioner is putting together guided exercise programmes here. Keep checking in
+          daily — we'll let you know the moment the library opens.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function LibraryPage() {
   const loadPrograms = useServerFn(getLibraryPrograms);
@@ -23,6 +94,7 @@ function LibraryPage() {
   const [programs, setPrograms] = useState<LibraryProgram[] | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [showIntro, setShowIntro] = useState(false);
+
 
   useEffect(() => {
     let cancelled = false;
