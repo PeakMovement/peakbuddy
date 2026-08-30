@@ -203,10 +203,10 @@ export const Route = createFileRoute("/api/public/hooks/weekly-practitioner-dige
             (request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null);
           if (provided !== cronSecret) return new Response("Unauthorized", { status: 401 });
         } else {
-          const apiKey = request.headers.get("apikey") ?? request.headers.get("Apikey");
-          if (!apiKey || apiKey !== process.env.SUPABASE_PUBLISHABLE_KEY) {
-            return new Response("Unauthorized", { status: 401 });
-          }
+          // No CRON_SECRET configured -> fail closed. Never accept the public
+          // publishable/anon key (it ships in the client bundle, so it is not a
+          // secret). Matches checkin-reminders / onboarding-library-nudge.
+          return new Response("Unauthorized", { status: 401 });
         }
 
         const lovableKey = process.env.LOVABLE_API_KEY;

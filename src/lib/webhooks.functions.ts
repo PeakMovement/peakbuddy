@@ -159,15 +159,53 @@ export async function fireAlertWebhookCore(data: AlertWebhookInput) {
   return { fired, reason: fired ? undefined : ("not_configured" as const), results };
 }
 
+/**
+ * Verify the caller owns the client (or is super_admin) and return the client's
+ * REAL practitioner_id + name. Prevents a caller from firing a webhook with an
+ * arbitrary practitionerId / spoofed client name to another practice's channel.
+ */
+async function authorizeClientWebhook(
+  context: { userId: string; supabase: { from: (t: string) => any } },
+  clientId: string,
+): Promise<{ practitionerId: string; clientName: string }> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: client } = await supabaseAdmin
+    .from("clients")
+    .select("practitioner_id, full_name, auth_user_id")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (!client) throw new Error("Client not found");
+  if (client.auth_user_id !== context.userId) {
+    const { data: prof } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", context.userId)
+      .maybeSingle();
+    const isPractitioner = client.practitioner_id === context.userId;
+    if (!isPractitioner && (prof as { role?: string } | null)?.role !== "super_admin") {
+      throw new Error("Forbidden");
+    }
+  }
+  return {
+    practitionerId: client.practitioner_id as string,
+    clientName: (client.full_name as string | null) || "Your client",
+  };
+}
+
 export const fireAlertWebhookServer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => alertSchema.parse(input))
-  .handler(async ({ data }) => fireAlertWebhookCore(data));
+  .handler(async ({ data, context }) => {
+    const who = await authorizeClientWebhook(context, data.clientId);
+    return fireAlertWebhookCore({ ...data, practitionerId: who.practitionerId, clientName: who.clientName });
+  });
 
 export const fireContactWebhookServer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => contactSchema.parse(input))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const who = await authorizeClientWebhook(context, data.clientId);
+    data = { ...data, practitionerId: who.practitionerId, clientName: who.clientName };
     const ts = new Date().toISOString();
     const [settings, central] = await Promise.all([
       loadWebhookSettings(data.practitionerId),

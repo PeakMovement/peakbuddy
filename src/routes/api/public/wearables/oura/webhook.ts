@@ -28,8 +28,16 @@ export const Route = createFileRoute("/api/public/wearables/oura/webhook")({
         const timestamp = request.headers.get("x-oura-timestamp");
         const secret = process.env.OURA_CLIENT_SECRET;
 
-        // Verify HMAC when all parts are present.
-        if (signature && timestamp && secret) {
+        // When a secret is configured, REQUIRE a valid signature (fail closed).
+        // Previously the check was skipped if the caller simply omitted the
+        // signature/timestamp headers.
+        if (secret) {
+          if (!signature || !timestamp) {
+            return new Response(JSON.stringify({ error: "Signature required" }), {
+              status: 401,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
           const ok = await verifyOuraWebhookSignature({ secret, timestamp, rawBody, signature });
           if (!ok) {
             return new Response(JSON.stringify({ error: "Invalid signature" }), {

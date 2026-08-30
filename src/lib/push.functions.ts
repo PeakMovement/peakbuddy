@@ -229,6 +229,16 @@ export const sendPush = createServerFn({ method: "POST" })
         .parse(d),
   )
   .handler(async ({ data, context }) => {
+    // Super-admin only: this delivers a Buddy-branded push to ANY user id with
+    // caller-chosen title/body, so it must not be reachable by ordinary clients.
+    const { data: prof } = await context.supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if ((prof as { role?: string } | null)?.role !== "super_admin") {
+      return { ok: false as const, error: "Forbidden" };
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return sendPushCore(supabaseAdmin, { ...data, sentBy: context.userId });
   });
