@@ -224,7 +224,9 @@ export const Route = createFileRoute("/api/public/hooks/weekly-practitioner-dige
           const { data: practices, error } = await (supabaseAdmin.from("practices") as unknown as {
             select: (s: string) => {
               eq: (c: string, v: unknown) => {
-                range: (f: number, t: number) => Promise<{ data: { practitioner_id: string }[] | null; error: unknown }>;
+                order: (c: string, o: { ascending: boolean }) => {
+                  range: (f: number, t: number) => Promise<{ data: { practitioner_id: string }[] | null; error: unknown }>;
+                };
               };
             };
           })
