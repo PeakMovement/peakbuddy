@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabase";
 import { computeForecast, type ForecastResult } from "@/lib/body-forecast";
 import { enhanceBodyForecast } from "@/lib/body-forecast.functions";
 import { GarminAttribution, YvesGarminCaption } from "@/components/wearables/GarminAttribution";
+import { evaluateCheckIn } from "@/lib/yves";
+import { findRecentOpenAlert, fireAlertWebhook } from "@/lib/webhooks";
 
 // BETA GATE — only shows for these accounts. Expand/remove later.
 type BetaClient = { id: string; full_name: string | null; email: string | null };
@@ -125,6 +127,9 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
   const confirmToday = async (pain: number) => {
     if (!practitionerId || confirmState === "saving") return;
     setConfirmState("saving");
+    // Same triage the main check-in uses (flags at pain >= 7) — NOT >= 8 — so a
+    // high pain logged from this widget is treated identically.
+    const rt = evaluateCheckIn(pain, "");
     try {
       const { error } = await supabase.rpc("insert_check_in", {
         p_client_id: client.id,
@@ -136,13 +141,53 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
         p_mood: null,
         p_notes: "Quick confirm from Body Forecast",
         p_medication_taken: false,
-        p_flagged: pain >= 8,
+        p_flagged: rt.flagged,
       });
       if (error) throw error;
       setConfirmState("saved");
       setTodayDone(true);
     } catch {
       setConfirmState("error");
+      return;
+    }
+
+    // A red flag logged here must reach the practitioner. Previously this widget
+    // only set flagged and fired NO alert, so a pain 8-10 quick-confirm was
+    // silently invisible. Mirror the main check-in's alert flow (best-effort).
+    if (!rt.flagged) return;
+    try {
+      const existing = await findRecentOpenAlert(client.id, "red_flag");
+      if (existing && rt.urgency !== "emergency") return;
+      const { data: alertId } = await supabase.rpc("insert_alert", {
+        p_practitioner_id: practitionerId,
+        p_client_id: client.id,
+        p_alert_type: "red_flag",
+        p_message: `Pain level ${pain}/10 reported via Body Forecast.`,
+        p_urgency: rt.urgency,
+      });
+      const alertRowId = (alertId as string | null) ?? null;
+      if (!alertRowId) return;
+      const [{ notifyAlertPush }, { notifyAlertEmail }] = await Promise.all([
+        import("@/lib/push.functions"),
+        import("@/lib/notify-practitioner.functions"),
+      ]);
+      await Promise.all([
+        notifyAlertPush({ data: { alertId: alertRowId, kind: "checkin" } }),
+        notifyAlertEmail({ data: { alertId: alertRowId } }),
+      ]);
+      const result = await fireAlertWebhook({
+        practitionerId,
+        clientName: client.full_name ?? "Your client",
+        clientId: client.id,
+        alertMessage: "Red flag pain level reported via Body Forecast",
+        urgency: rt.urgency,
+        redFlagDetected: true,
+      });
+      if (result.fired) {
+        await supabase.from("alerts").update({ webhook_fired: true }).eq("id", alertRowId);
+      }
+    } catch {
+      /* best-effort — the check-in itself is already saved */
     }
   };
 
