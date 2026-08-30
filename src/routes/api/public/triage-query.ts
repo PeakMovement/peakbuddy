@@ -33,6 +33,19 @@ const RATE_WINDOW_MS = 60_000;
 const RATE_MAX_PER_CLIENT = 10;
 const rateBuckets = new Map<string, number[]>();
 
+// South Africa has no DST; SAST is a fixed UTC+2. Gate the per-client daily
+// Yves-question limit on the SAST calendar day, not the UTC one, so the
+// boundary matches when users actually experience "tomorrow" (was resetting
+// at 02:00 SAST instead of midnight).
+const SAST_OFFSET_MS = 2 * 60 * 60 * 1000;
+function sastDayStartUTC(): Date {
+  const shifted = new Date(Date.now() + SAST_OFFSET_MS);
+  const y = shifted.getUTCFullYear();
+  const m = shifted.getUTCMonth();
+  const d = shifted.getUTCDate();
+  return new Date(Date.UTC(y, m, d, 0, 0, 0, 0) - SAST_OFFSET_MS);
+}
+
 function isRateLimited(key: string): boolean {
   const now = Date.now();
   if (rateBuckets.size > 10_000) rateBuckets.clear();
@@ -899,9 +912,8 @@ export const Route = createFileRoute("/api/public/triage-query")({
             );
           }
 
-          // Per-client daily limit: max 3 Yves questions per calendar day.
-          const dayStart = new Date();
-          dayStart.setUTCHours(0, 0, 0, 0);
+          // Per-client daily limit: max 3 Yves questions per calendar day (SAST).
+          const dayStart = sastDayStartUTC();
           const { count: usedToday } = await supabaseAdmin
             .from("symptom_queries")
             .select("id", { count: "exact", head: true })
