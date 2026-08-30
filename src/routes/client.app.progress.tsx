@@ -139,13 +139,20 @@ function ProgressScreen() {
   const compliancePct = useMemo(() => {
     if (!client) return 0;
     const weeks = client.tracking_duration_weeks ?? 8;
-    const expected = client.check_in_frequency === "daily" ? weeks * 7 : weeks;
+    // Expected cadence in days, per the client's actual frequency (was: daily
+    // vs "everything else = weekly", which overstated compliance for
+    // every_2_days / every_3_days clients).
+    const intervalDays =
+      client.check_in_frequency === "every_2_days" ? 2
+      : client.check_in_frequency === "every_3_days" ? 3
+      : client.check_in_frequency === "weekly" ? 7
+      : client.check_in_frequency === "as_needed" ? 0
+      : 1; // daily
+    if (intervalDays === 0) return 100; // no fixed schedule to comply with
     const start = new Date(client.created_at).getTime();
     const elapsed = Math.max(1, Math.ceil((Date.now() - start) / (1000 * 60 * 60 * 24)));
-    const expectedSoFar =
-      client.check_in_frequency === "daily"
-        ? Math.min(elapsed, expected)
-        : Math.min(Math.ceil(elapsed / 7), expected);
+    const expected = Math.ceil((weeks * 7) / intervalDays);
+    const expectedSoFar = Math.min(Math.ceil(elapsed / intervalDays), expected);
     return Math.min(100, Math.round((items.length / Math.max(1, expectedSoFar)) * 100));
   }, [client, items]);
 

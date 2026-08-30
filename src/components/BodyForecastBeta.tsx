@@ -54,10 +54,10 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
         if (wr.error || cr.error) throw wr.error ?? cr.error;
         if (cancelled) return;
         setPractitionerId(((clientRow.data as { practitioner_id?: string } | null)?.practitioner_id) ?? null);
-        const todayKey = new Date().toISOString().slice(0, 10);
+        const todayKey = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local tz
         setTodayDone(
           ((cr.data ?? []) as { created_at: string }[]).some(
-            (c) => String(c.created_at).slice(0, 10) === todayKey,
+            (c) => new Date(c.created_at).toLocaleDateString("en-CA") === todayKey,
           ),
         );
         const rawRows = (wr.data ?? []) as Record<string, unknown>[];

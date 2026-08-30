@@ -86,7 +86,7 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
     const send = await sendTransactionalEmailServer({
       templateName: "practitioner-contact",
       recipientEmail: practitionerEmail,
-      idempotencyKey: `contact-${client.id}-${Date.now()}`,
+      idempotencyKey: `contact-${client.id}-${new Date().toISOString().slice(0, 16)}`,
       templateData: {
         clientName: client.full_name,
         practitionerName,
