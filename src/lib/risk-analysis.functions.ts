@@ -52,7 +52,10 @@ const MOOD_MAP: Record<string, number> = {
 function moodToNumber(m: string | null): number | null {
   if (!m) return null;
   const key = m.toLowerCase().trim();
-  return MOOD_MAP[key] ?? null;
+  if (key in MOOD_MAP) return MOOD_MAP[key];
+  // The check-in form stores mood as a numeric string ("1".."5"); accept that too.
+  const n = Number(key);
+  return Number.isFinite(n) ? n : null;
 }
 
 function meanStd(values: number[]): { mean: number; std: number } {

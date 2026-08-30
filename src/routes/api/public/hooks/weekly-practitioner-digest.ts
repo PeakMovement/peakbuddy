@@ -230,6 +230,7 @@ export const Route = createFileRoute("/api/public/hooks/weekly-practitioner-dige
           })
             .select("practitioner_id, weekly_digest_enabled")
             .eq("weekly_digest_enabled", true)
+            .order("practitioner_id", { ascending: true })
             .range(from, from + BATCH_SIZE - 1);
           if (error) {
             log.error("[weeklyDigest] practices fetch failed", error);

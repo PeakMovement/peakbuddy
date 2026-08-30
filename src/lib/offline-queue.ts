@@ -26,6 +26,8 @@ export interface QueuedCheckIn {
   notes: string;
   medication_taken: boolean;
   flagged: boolean;
+  condition_context?: string | null;
+  condition_note?: string | null;
 }
 
 export function getQueue(): QueuedCheckIn[] {
@@ -93,6 +95,8 @@ export async function flushQueue(): Promise<{ synced: number; remaining: number 
           p_notes: item.notes,
           p_medication_taken: item.medication_taken,
           p_flagged: item.flagged,
+          p_condition_context: item.condition_context ?? null,
+          p_condition_note: item.condition_note ?? null,
         });
         if (error || !newId) {
           remaining.push(item);
@@ -151,7 +155,11 @@ export async function flushQueue(): Promise<{ synced: number; remaining: number 
       }
     }
 
-    setQueue(remaining);
+    // A check-in may have been enqueued (appended) while we were awaiting the
+    // network above. Re-read and keep anything added after our snapshot so it
+    // isn't overwritten/lost.
+    const appendedDuringFlush = getQueue().slice(queue.length);
+    setQueue([...remaining, ...appendedDuringFlush]);
     if (synced > 0) log.debug("[offline-queue] synced", synced, "queued check-ins");
     return { synced, remaining: remaining.length };
   } finally {

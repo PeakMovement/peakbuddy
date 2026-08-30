@@ -130,6 +130,18 @@ export async function sendAlertEmailCore(
   if (!alert) return { ok: false as const, reason: "not_found" as const };
   if (alert.email_fired) return { ok: true as const, skipped: "already_sent" as const };
 
+  // Atomically claim the email so two near-simultaneous callers (client wrapper
+  // + server-side red-flag net) can't double-send. Only the caller that flips
+  // email_fired false->true proceeds; on send failure we reset it below.
+  const { data: claimed } = await supabaseAdmin
+    .from("alerts")
+    .update({ email_fired: true })
+    .eq("id", alert.id)
+    .eq("email_fired", false)
+    .select("id")
+    .maybeSingle();
+  if (!claimed) return { ok: true as const, skipped: "already_sent" as const };
+
   const { data: client } = await supabaseAdmin
     .from("clients")
     .select("id, full_name, phone")
@@ -191,10 +203,11 @@ export async function sendAlertEmailCore(
 
   if (!send.ok) {
     log.error("[notifyAlertEmail] send failed", send.error);
+    // Release the claim so a subsequent trigger can retry.
+    await supabaseAdmin.from("alerts").update({ email_fired: false }).eq("id", alert.id);
     return { ok: false as const, reason: "send_failed" as const };
   }
-
-  await supabaseAdmin.from("alerts").update({ email_fired: true }).eq("id", alert.id);
+  // email_fired already claimed above; nothing more to set.
   return { ok: true as const };
 }
 

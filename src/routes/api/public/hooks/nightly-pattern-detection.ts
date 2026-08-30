@@ -97,6 +97,7 @@ export const Route = createFileRoute("/api/public/hooks/nightly-pattern-detectio
             .from("clients")
             .select("id, practitioner_id")
             .eq("passive_monitoring_enabled", true)
+            .order("id", { ascending: true })
             .range(from, from + BATCH_SIZE - 1);
           if (error) {
             log.error("[patternDetect] client batch fetch failed", error);

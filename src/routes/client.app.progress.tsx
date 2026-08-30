@@ -120,7 +120,12 @@ function ProgressScreen() {
 
   const stats = useMemo(() => {
     const avg = (key: keyof CheckIn) => {
-      const vals = items.map((i) => i[key]).filter((v) => typeof v === "number") as number[];
+      const vals = items
+        .map((i) => {
+          const v = i[key];
+          return typeof v === "string" ? Number(v) : v;
+        })
+        .filter((v): v is number => typeof v === "number" && !Number.isNaN(v));
       return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
     };
     return {

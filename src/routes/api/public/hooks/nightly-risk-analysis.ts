@@ -46,7 +46,11 @@ const MOOD_MAP: Record<string, number> = {
 };
 function moodToNumber(m: string | null): number | null {
   if (!m) return null;
-  return MOOD_MAP[m.toLowerCase().trim()] ?? null;
+  const key = m.toLowerCase().trim();
+  if (key in MOOD_MAP) return MOOD_MAP[key];
+  // The check-in form stores mood as a numeric string ("1".."5"); accept that too.
+  const n = Number(key);
+  return Number.isFinite(n) ? n : null;
 }
 function meanStd(vals: number[]) {
   if (!vals.length) return { mean: 0, std: 0 };
@@ -399,6 +403,7 @@ export const Route = createFileRoute("/api/public/hooks/nightly-risk-analysis")(
             .from("clients")
             .select("id, full_name, practitioner_id, primary_complaint, passive_monitoring_enabled, yves_ai_consent")
             .eq("passive_monitoring_enabled", true)
+            .order("id", { ascending: true })
             .range(from, from + BATCH_SIZE - 1);
           if (error) {
             log.error("nightly batch fetch failed", error);

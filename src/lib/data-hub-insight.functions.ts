@@ -144,7 +144,7 @@ export const generateClientInsight = createServerFn({ method: "POST" })
       db.from("symptom_queries").select("*").eq("client_id", data.clientId).order("created_at", { ascending: false }).limit(30),
       db.from("alerts").select("*").eq("client_id", data.clientId).order("created_at", { ascending: false }).limit(30),
       db.from("client_baselines").select("*").eq("client_id", data.clientId).maybeSingle(),
-      db.from("client_patterns").select("*").eq("client_id", data.clientId).order("created_at", { ascending: false }).limit(20),
+      db.from("client_patterns").select("*").eq("client_id", data.clientId).order("last_detected_at", { ascending: false }).limit(20),
     ]);
 
     if (!clientRes.data) throw new Error("Client not found");
