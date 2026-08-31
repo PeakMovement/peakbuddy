@@ -243,6 +243,11 @@ function AdminSettings() {
 
       <PushTestPanel />
 
+      <div style={{ marginTop: 20 }}>
+        <QuickCodeManager />
+      </div>
+
+
 
 
       <button
