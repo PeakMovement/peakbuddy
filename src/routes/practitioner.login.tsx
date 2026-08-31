@@ -26,6 +26,8 @@ function PractitionerLogin() {
   const [magicLoading, setMagicLoading] = useState(false);
   const [magicNotice, setMagicNotice] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
+  const [mode, setMode] = useState<"password" | "quick">("password");
+
 
   useEffect(() => {
     if (typeof window === "undefined") return;
