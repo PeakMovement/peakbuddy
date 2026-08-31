@@ -176,8 +176,19 @@ function PractitionerLogin() {
           Practitioner Login
         </h1>
 
+        {mode === "quick" ? (
+          <QuickCodeSignIn
+            initialEmail={email}
+            onCancel={() => setMode("password")}
+            onSignedIn={async () => {
+              const problem = await routePractitioner();
+              if (problem) setError(problem);
+            }}
+          />
+        ) : (
         <form
           onSubmit={onSubmit}
+
           style={{
             width: "100%",
             marginTop: 32,
