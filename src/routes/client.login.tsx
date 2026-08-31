@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { setClientId } from "@/lib/client-session";
 import { BuddyLogo } from "@/components/CrosshairLogo";
+import { QuickCodeSignIn } from "@/components/QuickCodeSignIn";
+import { markQuickCodeSession } from "@/lib/quick-login";
+
 
 export const Route = createFileRoute("/client/login")({
   head: () => ({ meta: [{ title: "Client Login — Buddy" }] }),
