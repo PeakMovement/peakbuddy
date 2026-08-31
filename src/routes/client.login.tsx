@@ -320,6 +320,33 @@ function ClientLogin() {
             </p>
           )}
         </form>
+        )}
+
+        {mode === "password" && (
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setMagicNotice(null);
+              setMode("quick");
+            }}
+            style={{
+              marginTop: 16,
+              width: "100%",
+              minHeight: 48,
+              borderRadius: 8,
+              background: "transparent",
+              color: "var(--blue-accent)",
+              border: "1px solid var(--navy-border)",
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 15,
+            }}
+          >
+            Use my 4-digit code
+          </button>
+        )}
+
 
         <p
           style={{
