@@ -50,6 +50,41 @@ function PractitionerLogin() {
     return () => window.removeEventListener("pagehide", handler);
   }, [remember]);
 
+  // Route a signed-in practitioner to the right screen.
+  const routePractitioner = async (): Promise<string | null> => {
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData.user?.id;
+    if (!userId) return "Access denied.";
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!profile || profile.role !== "practitioner") {
+      await supabase.auth.signOut();
+      return "Access denied.";
+    }
+
+    const { data: practice } = await supabase
+      .from("practices")
+      .select("onboarding_complete,is_approved")
+      .eq("practitioner_id", userId)
+      .maybeSingle();
+
+    if (practice && practice.is_approved === false) {
+      navigate({ to: "/practitioner/pending" });
+      return null;
+    }
+    if (practice?.onboarding_complete) {
+      navigate({ to: "/practitioner/app/dashboard" });
+    } else {
+      navigate({ to: "/practitioner/onboarding" });
+    }
+    return null;
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -70,38 +105,13 @@ function PractitionerLogin() {
       if (remember) window.localStorage.setItem(EMAIL_KEY, email.trim());
       else window.localStorage.removeItem(EMAIL_KEY);
     }
+    markQuickCodeSession(false);
 
-    const userId = signIn.user.id;
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (!profile || profile.role !== "practitioner") {
-      await supabase.auth.signOut();
-      setLoading(false);
-      setError("Access denied.");
-      return;
-    }
-
-    const { data: practice } = await supabase
-      .from("practices")
-      .select("onboarding_complete,is_approved")
-      .eq("practitioner_id", userId)
-      .maybeSingle();
-
+    const problem = await routePractitioner();
     setLoading(false);
-    if (practice && practice.is_approved === false) {
-      navigate({ to: "/practitioner/pending" });
-      return;
-    }
-    if (practice?.onboarding_complete) {
-      navigate({ to: "/practitioner/app/dashboard" });
-    } else {
-      navigate({ to: "/practitioner/onboarding" });
-    }
+    if (problem) setError(problem);
   };
+
 
   const onMagicLink = async () => {
     setError(null);
