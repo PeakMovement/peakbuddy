@@ -63,6 +63,15 @@ function ResetPassword() {
       return;
     }
 
+    // A password reset always retires any existing 4-digit quick code.
+    try {
+      await clearQuickCode({});
+    } catch {
+      /* non-fatal */
+    }
+    markQuickCodeSession(false);
+
+
     // Route the user home based on their role.
     const { data: authData } = await supabase.auth.getUser();
     const userId = authData.user?.id ?? null;
