@@ -29,6 +29,27 @@ function AdminLogin() {
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<"password" | "quick">("password");
+
+  // Verify the signed-in account is a super admin, then land on the dashboard.
+  const routeAdmin = async (): Promise<string | null> => {
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData.user?.id;
+    if (!userId) return "Access denied.";
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!profile || profile.role !== "super_admin") {
+      await supabase.auth.signOut();
+      return "Access denied.";
+    }
+    navigate({ to: "/admin/app/dashboard" });
+    return null;
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,23 +65,13 @@ function AdminLogin() {
       setError("Email or password incorrect.");
       return;
     }
+    markQuickCodeSession(false);
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", signIn.user.id)
-      .maybeSingle();
-
-    if (!profile || profile.role !== "super_admin") {
-      await supabase.auth.signOut();
-      setLoading(false);
-      setError("Access denied.");
-      return;
-    }
-
+    const problem = await routeAdmin();
     setLoading(false);
-    navigate({ to: "/admin/app/dashboard" });
+    if (problem) setError(problem);
   };
+
 
   return (
     <main
