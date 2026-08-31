@@ -89,6 +89,7 @@ export function SetQuickCodePrompt() {
       role="dialog"
       aria-modal="true"
       aria-label="Set a quick sign-in code"
+      onClick={dismiss}
       style={{
         position: "fixed",
         inset: 0,
@@ -101,6 +102,7 @@ export function SetQuickCodePrompt() {
       }}
     >
       <div
+        onClick={(e) => e.stopPropagation()}
         style={{
           width: "100%",
           maxWidth: 360,
