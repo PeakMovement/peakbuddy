@@ -1,6 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
+import { QuickCodeManager } from "@/components/QuickCodeManager";
+
 import { RewardsManager } from "@/components/RewardsManager";
 import { PushTestPanel } from "@/components/PushTestPanel";
 import { DetectionSettingsPanel } from "@/components/DetectionSettingsPanel";
