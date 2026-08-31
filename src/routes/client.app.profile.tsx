@@ -630,6 +630,12 @@ function ClientProfile() {
         )}
       </div>
 
+      <div style={{ marginTop: 20 }}>
+        <QuickCodeManager />
+      </div>
+
+
+
       <button
         type="button"
         onClick={signOut}
