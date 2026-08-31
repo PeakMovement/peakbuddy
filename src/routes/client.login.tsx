@@ -55,26 +55,8 @@ function ClientLogin() {
     return () => window.removeEventListener("pagehide", handler);
   }, [remember]);
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setMagicNotice(null);
-    setLoading(true);
-    const trimmedEmail = email.trim();
-    const { error: signInErr } = await supabase.auth.signInWithPassword({
-      email: trimmedEmail,
-      password,
-    });
-    if (signInErr) {
-      setLoading(false);
-      setError("Invalid email or password.");
-      return;
-    }
-
-    if (typeof window !== "undefined") {
-      if (remember) window.localStorage.setItem(EMAIL_KEY, trimmedEmail);
-      else window.localStorage.removeItem(EMAIL_KEY);
-    }
+  // Resolve the client record for a signed-in account and land in the app.
+  const finishSignIn = async (trimmedEmail: string): Promise<string | null> => {
     const { data: authData } = await supabase.auth.getUser();
     const authUserId = authData.user?.id ?? null;
 
@@ -95,14 +77,40 @@ function ClientLogin() {
         .maybeSingle();
       client = data ?? null;
     }
-    setLoading(false);
     if (!client) {
-      setError("No client record found for this account. Contact your practitioner.");
-      return;
+      return "No client record found for this account. Contact your practitioner.";
     }
     setClientId(client.id);
     navigate({ to: "/client/app/checkin" });
+    return null;
   };
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setMagicNotice(null);
+    setLoading(true);
+    const trimmedEmail = email.trim();
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
+      email: trimmedEmail,
+      password,
+    });
+    if (signInErr) {
+      setLoading(false);
+      setError("Invalid email or password.");
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      if (remember) window.localStorage.setItem(EMAIL_KEY, trimmedEmail);
+      else window.localStorage.removeItem(EMAIL_KEY);
+    }
+    markQuickCodeSession(false);
+    const problem = await finishSignIn(trimmedEmail);
+    setLoading(false);
+    if (problem) setError(problem);
+  };
+
 
   const onMagicLink = async () => {
     setError(null);
