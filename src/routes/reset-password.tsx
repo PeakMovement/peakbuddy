@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { setClientId } from "@/lib/client-session";
 import { BuddyLogo } from "@/components/CrosshairLogo";
+import { clearQuickCode } from "@/lib/quick-login.functions";
+import { markQuickCodeSession } from "@/lib/quick-login";
+
 
 export const Route = createFileRoute("/reset-password")({
   head: () => ({ meta: [{ title: "Set your password — Buddy" }] }),
