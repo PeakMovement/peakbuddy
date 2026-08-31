@@ -25,6 +25,8 @@ function ClientLogin() {
   const [magicLoading, setMagicLoading] = useState(false);
   const [magicNotice, setMagicNotice] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
+  const [mode, setMode] = useState<"password" | "quick">("password");
+
 
   // Restore last preference
   useEffect(() => {
