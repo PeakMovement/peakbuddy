@@ -111,8 +111,19 @@ function AdminLogin() {
           Admin Login
         </h1>
 
+        {mode === "quick" ? (
+          <QuickCodeSignIn
+            initialEmail={email}
+            onCancel={() => setMode("password")}
+            onSignedIn={async () => {
+              const problem = await routeAdmin();
+              if (problem) setError(problem);
+            }}
+          />
+        ) : (
         <form
           onSubmit={onSubmit}
+
           style={{
             width: "100%",
             marginTop: 32,
