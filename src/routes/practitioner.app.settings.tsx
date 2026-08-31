@@ -1,6 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Info, LogOut } from "lucide-react";
+import { QuickCodeManager } from "@/components/QuickCodeManager";
+
 import { supabase } from "@/lib/supabase";
 import type { Practice, Profile } from "@/lib/types";
 
@@ -321,6 +323,12 @@ function Settings() {
           {saving ? "Saving…" : "Save"}
         </button>
       </form>
+
+      <div style={{ marginTop: 20 }}>
+        <QuickCodeManager />
+      </div>
+
+
 
       <button
         type="button"

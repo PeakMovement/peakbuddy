@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { setClientId } from "@/lib/client-session";
 import { BuddyLogo } from "@/components/CrosshairLogo";
+import { QuickCodeSignIn } from "@/components/QuickCodeSignIn";
+import { markQuickCodeSession } from "@/lib/quick-login";
+
 
 export const Route = createFileRoute("/client/login")({
   head: () => ({ meta: [{ title: "Client Login — Buddy" }] }),
@@ -22,6 +25,8 @@ function ClientLogin() {
   const [magicLoading, setMagicLoading] = useState(false);
   const [magicNotice, setMagicNotice] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
+  const [mode, setMode] = useState<"password" | "quick">("password");
+
 
   // Restore last preference
   useEffect(() => {
@@ -52,26 +57,8 @@ function ClientLogin() {
     return () => window.removeEventListener("pagehide", handler);
   }, [remember]);
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setMagicNotice(null);
-    setLoading(true);
-    const trimmedEmail = email.trim();
-    const { error: signInErr } = await supabase.auth.signInWithPassword({
-      email: trimmedEmail,
-      password,
-    });
-    if (signInErr) {
-      setLoading(false);
-      setError("Invalid email or password.");
-      return;
-    }
-
-    if (typeof window !== "undefined") {
-      if (remember) window.localStorage.setItem(EMAIL_KEY, trimmedEmail);
-      else window.localStorage.removeItem(EMAIL_KEY);
-    }
+  // Resolve the client record for a signed-in account and land in the app.
+  const finishSignIn = async (trimmedEmail: string): Promise<string | null> => {
     const { data: authData } = await supabase.auth.getUser();
     const authUserId = authData.user?.id ?? null;
 
@@ -92,14 +79,40 @@ function ClientLogin() {
         .maybeSingle();
       client = data ?? null;
     }
-    setLoading(false);
     if (!client) {
-      setError("No client record found for this account. Contact your practitioner.");
-      return;
+      return "No client record found for this account. Contact your practitioner.";
     }
     setClientId(client.id);
     navigate({ to: "/client/app/checkin" });
+    return null;
   };
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setMagicNotice(null);
+    setLoading(true);
+    const trimmedEmail = email.trim();
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
+      email: trimmedEmail,
+      password,
+    });
+    if (signInErr) {
+      setLoading(false);
+      setError("Invalid email or password.");
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      if (remember) window.localStorage.setItem(EMAIL_KEY, trimmedEmail);
+      else window.localStorage.removeItem(EMAIL_KEY);
+    }
+    markQuickCodeSession(false);
+    const problem = await finishSignIn(trimmedEmail);
+    setLoading(false);
+    if (problem) setError(problem);
+  };
+
 
   const onMagicLink = async () => {
     setError(null);
@@ -161,8 +174,19 @@ function ClientLogin() {
           Sign in
         </h1>
 
+        {mode === "quick" ? (
+          <QuickCodeSignIn
+            initialEmail={email}
+            onCancel={() => setMode("password")}
+            onSignedIn={async (signedInEmail) => {
+              const problem = await finishSignIn(signedInEmail);
+              if (problem) setError(problem);
+            }}
+          />
+        ) : (
         <form
           onSubmit={onSubmit}
+
           style={{
             width: "100%",
             marginTop: 32,
@@ -309,6 +333,33 @@ function ClientLogin() {
             </p>
           )}
         </form>
+        )}
+
+        {mode === "password" && (
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setMagicNotice(null);
+              setMode("quick");
+            }}
+            style={{
+              marginTop: 16,
+              width: "100%",
+              minHeight: 48,
+              borderRadius: 8,
+              background: "transparent",
+              color: "var(--blue-accent)",
+              border: "1px solid var(--navy-border)",
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 15,
+            }}
+          >
+            Use my 4-digit code
+          </button>
+        )}
+
 
         <p
           style={{

@@ -2,6 +2,8 @@ import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-rout
 import { useEffect, useState } from "react";
 import { Activity, Users, User, Bell, Settings as SettingsIcon, Sparkles, ClipboardCheck, Database, GraduationCap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { SetQuickCodePrompt } from "@/components/SetQuickCodePrompt";
+
 
 export const Route = createFileRoute("/admin/app")({
   component: AdminAppLayout,
@@ -71,9 +73,12 @@ function AdminAppLayout() {
         flexDirection: "column",
       }}
     >
+      <SetQuickCodePrompt />
+
       <main style={{ flex: 1, paddingBottom: 80, overflowX: "hidden" }}>
         <Outlet />
       </main>
+
 
       <nav
         aria-label="Primary"

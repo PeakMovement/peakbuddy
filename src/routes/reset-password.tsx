@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { setClientId } from "@/lib/client-session";
 import { BuddyLogo } from "@/components/CrosshairLogo";
+import { clearQuickCode } from "@/lib/quick-login.functions";
+import { markQuickCodeSession } from "@/lib/quick-login";
+
 
 export const Route = createFileRoute("/reset-password")({
   head: () => ({ meta: [{ title: "Set your password — Buddy" }] }),
@@ -62,6 +65,15 @@ function ResetPassword() {
       setError(updErr.message || "Could not update your password. Please try again.");
       return;
     }
+
+    // A password reset always retires any existing 4-digit quick code.
+    try {
+      await clearQuickCode({});
+    } catch {
+      /* non-fatal */
+    }
+    markQuickCodeSession(false);
+
 
     // Route the user home based on their role.
     const { data: authData } = await supabase.auth.getUser();

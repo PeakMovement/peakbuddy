@@ -13,6 +13,8 @@ import {
   getProgramsFeatureEnabled,
 } from "@/lib/client-program.functions";
 import { countMyDrafts } from "@/lib/practitioner-drafts.functions";
+import { SetQuickCodePrompt } from "@/components/SetQuickCodePrompt";
+
 
 export const Route = createFileRoute("/practitioner/app")({
   component: PractitionerAppLayout,
@@ -111,9 +113,12 @@ function PractitionerAppLayout() {
         flexDirection: "column",
       }}
     >
+      <SetQuickCodePrompt />
+
       <main style={{ flex: 1, paddingBottom: 80, overflowX: "hidden" }}>
         <Outlet />
       </main>
+
 
       <nav
         aria-label="Primary"

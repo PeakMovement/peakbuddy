@@ -24,6 +24,8 @@ import { log } from "@/lib/log";
 import { registerServiceWorker } from "@/lib/runtime-context";
 import { initOneSignalWeb } from "@/lib/onesignal-web";
 import { initIdleSignout } from "@/lib/idle-signout";
+import { isQuickCodeSession } from "@/lib/quick-login";
+
 
 
 function NotFoundComponent() {
@@ -171,7 +173,12 @@ function RootComponent() {
     if (typeof Notification !== "undefined" && Notification.permission === "granted") {
       initOneSignalWeb();
     }
-    const cleanup = initIdleSignout({ maxIdleMs: 24 * 60 * 60 * 1000 });
+    // Quick-code sessions are intentionally long-lived (90 days); password
+    // sessions keep the tighter 24-hour idle window.
+    const cleanup = initIdleSignout({
+      maxIdleMs: isQuickCodeSession() ? 90 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
+    });
+
     return cleanup;
   }, []);
 

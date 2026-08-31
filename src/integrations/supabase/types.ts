@@ -1134,6 +1134,42 @@ export type Database = {
         }
         Relationships: []
       }
+      quick_login_codes: {
+        Row: {
+          code_hash: string
+          code_salt: string
+          created_at: string
+          failed_attempts: number
+          last_failed_at: string | null
+          last_used_at: string | null
+          locked_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          code_hash: string
+          code_salt: string
+          created_at?: string
+          failed_attempts?: number
+          last_failed_at?: string | null
+          last_used_at?: string | null
+          locked_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          code_hash?: string
+          code_salt?: string
+          created_at?: string
+          failed_attempts?: number
+          last_failed_at?: string | null
+          last_used_at?: string | null
+          locked_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       rewards: {
         Row: {
           active: boolean

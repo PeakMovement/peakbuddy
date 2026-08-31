@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { BuddyLogo } from "@/components/CrosshairLogo";
+import { QuickCodeSignIn } from "@/components/QuickCodeSignIn";
+import { markQuickCodeSession } from "@/lib/quick-login";
+
 
 export const Route = createFileRoute("/practitioner/login")({
   head: () => ({ meta: [{ title: "Practitioner Login — Buddy" }] }),
@@ -23,6 +26,8 @@ function PractitionerLogin() {
   const [magicLoading, setMagicLoading] = useState(false);
   const [magicNotice, setMagicNotice] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
+  const [mode, setMode] = useState<"password" | "quick">("password");
+
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -50,6 +55,41 @@ function PractitionerLogin() {
     return () => window.removeEventListener("pagehide", handler);
   }, [remember]);
 
+  // Route a signed-in practitioner to the right screen.
+  const routePractitioner = async (): Promise<string | null> => {
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData.user?.id;
+    if (!userId) return "Access denied.";
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!profile || profile.role !== "practitioner") {
+      await supabase.auth.signOut();
+      return "Access denied.";
+    }
+
+    const { data: practice } = await supabase
+      .from("practices")
+      .select("onboarding_complete,is_approved")
+      .eq("practitioner_id", userId)
+      .maybeSingle();
+
+    if (practice && practice.is_approved === false) {
+      navigate({ to: "/practitioner/pending" });
+      return null;
+    }
+    if (practice?.onboarding_complete) {
+      navigate({ to: "/practitioner/app/dashboard" });
+    } else {
+      navigate({ to: "/practitioner/onboarding" });
+    }
+    return null;
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -70,38 +110,13 @@ function PractitionerLogin() {
       if (remember) window.localStorage.setItem(EMAIL_KEY, email.trim());
       else window.localStorage.removeItem(EMAIL_KEY);
     }
+    markQuickCodeSession(false);
 
-    const userId = signIn.user.id;
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (!profile || profile.role !== "practitioner") {
-      await supabase.auth.signOut();
-      setLoading(false);
-      setError("Access denied.");
-      return;
-    }
-
-    const { data: practice } = await supabase
-      .from("practices")
-      .select("onboarding_complete,is_approved")
-      .eq("practitioner_id", userId)
-      .maybeSingle();
-
+    const problem = await routePractitioner();
     setLoading(false);
-    if (practice && practice.is_approved === false) {
-      navigate({ to: "/practitioner/pending" });
-      return;
-    }
-    if (practice?.onboarding_complete) {
-      navigate({ to: "/practitioner/app/dashboard" });
-    } else {
-      navigate({ to: "/practitioner/onboarding" });
-    }
+    if (problem) setError(problem);
   };
+
 
   const onMagicLink = async () => {
     setError(null);
@@ -163,8 +178,19 @@ function PractitionerLogin() {
           Practitioner Login
         </h1>
 
+        {mode === "quick" ? (
+          <QuickCodeSignIn
+            initialEmail={email}
+            onCancel={() => setMode("password")}
+            onSignedIn={async () => {
+              const problem = await routePractitioner();
+              if (problem) setError(problem);
+            }}
+          />
+        ) : (
         <form
           onSubmit={onSubmit}
+
           style={{
             width: "100%",
             marginTop: 32,
@@ -327,6 +353,33 @@ function PractitionerLogin() {
             </p>
           )}
         </form>
+        )}
+
+        {mode === "password" && (
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setMagicNotice(null);
+              setMode("quick");
+            }}
+            style={{
+              marginTop: 16,
+              width: "100%",
+              minHeight: 48,
+              borderRadius: 8,
+              background: "transparent",
+              color: "var(--blue-accent)",
+              border: "1px solid var(--navy-border)",
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 15,
+            }}
+          >
+            Use my 4-digit code
+          </button>
+        )}
+
 
 
         <Link

@@ -3,6 +3,9 @@ import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { BuddyLogo } from "@/components/CrosshairLogo";
+import { QuickCodeSignIn } from "@/components/QuickCodeSignIn";
+import { markQuickCodeSession } from "@/lib/quick-login";
+
 
 export const Route = createFileRoute("/admin/login")({
   head: () => ({ meta: [{ title: "Admin Login — Buddy" }] }),
@@ -29,6 +32,27 @@ function AdminLogin() {
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<"password" | "quick">("password");
+
+  // Verify the signed-in account is a super admin, then land on the dashboard.
+  const routeAdmin = async (): Promise<string | null> => {
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData.user?.id;
+    if (!userId) return "Access denied.";
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!profile || profile.role !== "super_admin") {
+      await supabase.auth.signOut();
+      return "Access denied.";
+    }
+    navigate({ to: "/admin/app/dashboard" });
+    return null;
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,23 +68,13 @@ function AdminLogin() {
       setError("Email or password incorrect.");
       return;
     }
+    markQuickCodeSession(false);
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", signIn.user.id)
-      .maybeSingle();
-
-    if (!profile || profile.role !== "super_admin") {
-      await supabase.auth.signOut();
-      setLoading(false);
-      setError("Access denied.");
-      return;
-    }
-
+    const problem = await routeAdmin();
     setLoading(false);
-    navigate({ to: "/admin/app/dashboard" });
+    if (problem) setError(problem);
   };
+
 
   return (
     <main
@@ -97,8 +111,19 @@ function AdminLogin() {
           Admin Login
         </h1>
 
+        {mode === "quick" ? (
+          <QuickCodeSignIn
+            initialEmail={email}
+            onCancel={() => setMode("password")}
+            onSignedIn={async () => {
+              const problem = await routeAdmin();
+              if (problem) setError(problem);
+            }}
+          />
+        ) : (
         <form
           onSubmit={onSubmit}
+
           style={{
             width: "100%",
             marginTop: 32,
@@ -187,6 +212,32 @@ function AdminLogin() {
             {loading ? "Signing in…" : "Log in"}
           </button>
         </form>
+        )}
+
+        {mode === "password" && (
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setMode("quick");
+            }}
+            style={{
+              marginTop: 16,
+              width: "100%",
+              minHeight: 48,
+              borderRadius: 8,
+              background: "transparent",
+              color: "var(--blue-accent)",
+              border: "1px solid var(--navy-border)",
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 15,
+            }}
+          >
+            Use my 4-digit code
+          </button>
+        )}
+
 
         <Link
           to="/"
