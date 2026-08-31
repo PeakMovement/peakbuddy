@@ -171,7 +171,12 @@ function RootComponent() {
     if (typeof Notification !== "undefined" && Notification.permission === "granted") {
       initOneSignalWeb();
     }
-    const cleanup = initIdleSignout({ maxIdleMs: 24 * 60 * 60 * 1000 });
+    // Quick-code sessions are intentionally long-lived (90 days); password
+    // sessions keep the tighter 24-hour idle window.
+    const cleanup = initIdleSignout({
+      maxIdleMs: isQuickCodeSession() ? 90 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
+    });
+
     return cleanup;
   }, []);
 

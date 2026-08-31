@@ -9,6 +9,8 @@ import { ProgramIntroModal } from "@/components/ProgramIntroModal";
 import { registerPushToken, captureWebPushToken } from "@/lib/push";
 import { SyncStatusBanner } from "@/components/SyncStatusBanner";
 import { InstallPrompt } from "@/components/InstallPrompt";
+import { SetQuickCodePrompt } from "@/components/SetQuickCodePrompt";
+
 
 export const Route = createFileRoute("/client/app")({
   component: ClientAppLayout,

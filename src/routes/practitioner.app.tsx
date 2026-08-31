@@ -13,6 +13,8 @@ import {
   getProgramsFeatureEnabled,
 } from "@/lib/client-program.functions";
 import { countMyDrafts } from "@/lib/practitioner-drafts.functions";
+import { SetQuickCodePrompt } from "@/components/SetQuickCodePrompt";
+
 
 export const Route = createFileRoute("/practitioner/app")({
   component: PractitionerAppLayout,
