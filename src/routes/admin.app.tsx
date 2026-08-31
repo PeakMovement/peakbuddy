@@ -73,9 +73,12 @@ function AdminAppLayout() {
         flexDirection: "column",
       }}
     >
+      <SetQuickCodePrompt />
+
       <main style={{ flex: 1, paddingBottom: 80, overflowX: "hidden" }}>
         <Outlet />
       </main>
+
 
       <nav
         aria-label="Primary"

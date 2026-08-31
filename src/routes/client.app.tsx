@@ -166,9 +166,12 @@ function ClientAppLayout() {
         </button>
       )}
 
+      <SetQuickCodePrompt />
+
       <main style={{ flex: 1, paddingBottom: 96, overflowX: "hidden" }}>
         <Outlet />
       </main>
+
 
       <nav
         aria-label="Primary"
