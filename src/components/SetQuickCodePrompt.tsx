@@ -89,6 +89,7 @@ export function SetQuickCodePrompt() {
       role="dialog"
       aria-modal="true"
       aria-label="Set a quick sign-in code"
+      onClick={dismiss}
       style={{
         position: "fixed",
         inset: 0,
@@ -101,6 +102,7 @@ export function SetQuickCodePrompt() {
       }}
     >
       <div
+        onClick={(e) => e.stopPropagation()}
         style={{
           width: "100%",
           maxWidth: 360,
@@ -111,8 +113,30 @@ export function SetQuickCodePrompt() {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
+          position: "relative",
         }}
       >
+        <button
+          type="button"
+          onClick={dismiss}
+          aria-label="Close"
+          style={{
+            position: "absolute",
+            top: 10,
+            right: 10,
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            background: "transparent",
+            border: "none",
+            color: "var(--white-muted)",
+            fontSize: 18,
+            lineHeight: 1,
+            cursor: "pointer",
+          }}
+        >
+          ✕
+        </button>
         <h2
           style={{
             fontFamily: "var(--font-hero)",
