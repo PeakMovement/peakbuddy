@@ -61,6 +61,11 @@ export const recordReport = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const admin = await assertAccess(context.userId, data.clientId);
     if (!admin) return { ok: false as const, error: "Not authorized for this client." };
+    // The path MUST live inside this client's folder — otherwise a caller could
+    // record a row pointing at another client's file and read it via listReports.
+    if (!data.storagePath.startsWith(`${data.clientId}/`)) {
+      return { ok: false as const, error: "Invalid report path." };
+    }
     // Bind the report to the client's practice for group visibility.
     const { data: client } = await admin
       .from("clients")
@@ -208,10 +213,11 @@ export const analyzeReports = createServerFn({ method: "POST" })
     const inlineParts: { inlineData: { mimeType: string; data: string } }[] = [];
     let totalBytes = 0;
     for (const r of repRows) {
-      if (totalBytes + (r.size_bytes as number) > 16 * 1024 * 1024) break; // keep under provider limits
       const { data: blob } = await admin.storage.from(REPORTS_BUCKET).download(r.storage_path as string);
       if (!blob) continue;
       const buf = await blob.arrayBuffer();
+      // Cap on ACTUAL downloaded bytes (declared size can't be trusted).
+      if (totalBytes + buf.byteLength > 16 * 1024 * 1024) break;
       totalBytes += buf.byteLength;
       inlineParts.push({ inlineData: { mimeType: r.mime_type as string, data: bufToBase64(buf) } });
     }
