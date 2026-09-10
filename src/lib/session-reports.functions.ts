@@ -289,13 +289,45 @@ export const analyzeReports = createServerFn({ method: "POST" })
     ];
 
     const gk = process.env.GEMINI_API_KEY;
+    const lovKey = process.env.LOVABLE_API_KEY;
     let text = "";
     let usedModel = "";
 
-    // 1) Direct Google Gemini API (native PDF + image support). GEMINI_MODEL may
-    //    be set to a gateway-only name that 404s on the direct API, so try a list
-    //    of known-good direct models instead of trusting it blindly.
-    if (gk) {
+    // 1) Lovable AI gateway FIRST — the proven-working path on this account
+    //    (same one Yves insight uses). Reports go as multimodal image_url parts.
+    if (lovKey) {
+      try {
+        const content: unknown[] = [
+          { type: "text", text: (userParts[0] as { text: string }).text },
+          ...inlineParts.map((p) => ({
+            type: "image_url",
+            image_url: { url: `data:${p.inlineData.mimeType};base64,${p.inlineData.data}` },
+          })),
+        ];
+        const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Lovable-API-Key": lovKey },
+          body: JSON.stringify({
+            model: "google/gemini-3.1-pro-preview",
+            messages: [
+              { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
+              { role: "user", content },
+            ],
+          }),
+        });
+        if (res.ok) {
+          const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+          text = j.choices?.[0]?.message?.content?.trim() ?? "";
+          if (text) usedModel = "gateway/gemini-3.1-pro-preview";
+        }
+      } catch {
+        /* fall through to the direct API */
+      }
+    }
+
+    // 2) Fallback: direct Google Gemini API (native PDF/image). Tries known-good
+    //    models since GEMINI_MODEL may be a gateway-only name that 404s here.
+    if (!text && gk) {
       const configured = (process.env.GEMINI_MODEL || "").replace(/^google\//, "").trim();
       const candidates = [configured, "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
         .filter((m, i, a) => m && a.indexOf(m) === i);
@@ -314,47 +346,11 @@ export const analyzeReports = createServerFn({ method: "POST" })
           );
           if (res.ok) {
             const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-            text = (j.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
+            text = (j.candidates?.[0]?.content?.parts ?? []).map((pp) => pp.text ?? "").join("").trim();
             if (text) { usedModel = `google/${m}`; break; }
           }
-          // non-ok (e.g. 404 unknown model) → try the next candidate
         } catch {
           /* try the next candidate */
-        }
-      }
-    }
-
-    // 2) Fallback: the Lovable AI gateway (the same path Yves insight uses), with
-    //    the reports sent as multimodal image_url parts.
-    if (!text) {
-      const key = process.env.LOVABLE_API_KEY;
-      if (key) {
-        try {
-          const content: unknown[] = [
-            { type: "text", text: (userParts[0] as { text: string }).text },
-            ...inlineParts.map((p) => ({
-              type: "image_url",
-              image_url: { url: `data:${p.inlineData.mimeType};base64,${p.inlineData.data}` },
-            })),
-          ];
-          const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-            body: JSON.stringify({
-              model: "google/gemini-3.1-pro-preview",
-              messages: [
-                { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
-                { role: "user", content },
-              ],
-            }),
-          });
-          if (res.ok) {
-            const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-            text = j.choices?.[0]?.message?.content?.trim() ?? "";
-            if (text) usedModel = "gateway/gemini-3.1-pro-preview";
-          }
-        } catch {
-          /* fall through to the error below */
         }
       }
     }
