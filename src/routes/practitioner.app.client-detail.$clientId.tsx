@@ -5,7 +5,7 @@ import { ClientWearablesCard } from "@/components/ClientWearablesCard";
 import { ClientPatternsCard } from "@/components/ClientPatternsCard";
 import { YvesInsightCard } from "@/components/YvesInsightCard";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, X } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -39,6 +39,7 @@ function ClientDetail() {
   const [items, setItems] = useState<CheckIn[]>([]);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [practiceYves, setPracticeYves] = useState<boolean>(true);
   const [savingYves, setSavingYves] = useState(false);
   const [chartType, setChartType] = useState<"line" | "bar" | "rings">("line");
@@ -474,20 +475,46 @@ function ClientDetail() {
       )}
 
       <section style={{ marginTop: 24 }}>
-        <h2
+        <button
+          type="button"
+          onClick={() => setHistoryOpen((o) => !o)}
+          aria-expanded={historyOpen}
           style={{
-            fontFamily: "var(--font-ui)",
-            fontWeight: 600,
-            fontSize: 14,
-            color: "var(--white-muted)",
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            marginBottom: 10,
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+            background: "var(--navy-card)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 10,
+            padding: "12px 14px",
+            cursor: "pointer",
+            marginBottom: historyOpen ? 10 : 0,
           }}
         >
-          Check-in History
-        </h2>
-        {items.length === 0 ? (
+          <span
+            style={{
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 14,
+              color: "var(--white-muted)",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
+            Check-in History ({items.length})
+          </span>
+          <ChevronDown
+            size={18}
+            color="var(--white-muted)"
+            style={{
+              transition: "transform 0.15s ease",
+              transform: historyOpen ? "rotate(180deg)" : "rotate(0deg)",
+            }}
+          />
+        </button>
+        {!historyOpen ? null : items.length === 0 ? (
           <div style={{ color: "var(--white-muted)", fontSize: 13 }}>No check-ins yet.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

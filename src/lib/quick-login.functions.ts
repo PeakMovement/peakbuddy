@@ -218,10 +218,13 @@ export const signInWithQuickCode = createServerFn({ method: "POST" })
     }
 
     // Atomically consume an attempt (bounded lockout — brute-force safe).
-    const { data: claimRows } = await admin.rpc("claim_quick_login_attempt", {
-      p_user_id: userId,
-    });
-    const claim = Array.isArray(claimRows) ? claimRows[0] : claimRows;
+    const { data: claimRows } = await (admin.rpc as CallableFunction)(
+      "claim_quick_login_attempt",
+      { p_user_id: userId },
+    );
+    const claim = (Array.isArray(claimRows) ? claimRows[0] : claimRows) as
+      | { allowed?: boolean }
+      | null;
     if (!claim || !claim.allowed) {
       // Locked or no code — keep the response generic (no enumeration) and
       // equalize timing.
