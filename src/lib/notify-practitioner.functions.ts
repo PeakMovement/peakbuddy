@@ -29,7 +29,7 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
     // Load client
     const { data: client, error: clErr } = await admin
       .from("clients")
-      .select("id, full_name, practitioner_id, auth_user_id, practice_id")
+      .select("id, full_name, practitioner_id, auth_user_id")
       .eq("id", data.clientId)
       .maybeSingle();
     if (clErr || !client) return { ok: false as const, error: "Client not found" };
@@ -64,7 +64,15 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
     }
     // Centralised per-practice contact (falls back to the practitioner's email).
     let recipientEmail: string = practitionerEmail;
-    const _pid = (client as { practice_id?: string | null }).practice_id ?? null;
+    let _pid: string | null = null;
+    try {
+      const { data: _cp } = await admin
+        .from("clients")
+        .select("practice_id")
+        .eq("id", client.id)
+        .maybeSingle();
+      _pid = (_cp as { practice_id?: string | null } | null)?.practice_id ?? null;
+    } catch { _pid = null; }
     if (_pid) {
       const { data: _prac } = await admin
         .from("practices")
@@ -156,7 +164,7 @@ export async function sendAlertEmailCore(
 
   const { data: client } = await supabaseAdmin
     .from("clients")
-    .select("id, full_name, phone, practice_id")
+    .select("id, full_name, phone")
     .eq("id", alert.client_id)
     .maybeSingle();
   if (!client) return { ok: false as const, reason: "client_not_found" as const };
@@ -170,7 +178,15 @@ export async function sendAlertEmailCore(
   // contact inbox, not the individual practitioner's personal email. Falls back
   // to the practitioner's auth email if a practice contact isn't set.
   let practiceContactEmail: string | null = null;
-  const practiceId = (client as { practice_id?: string | null }).practice_id ?? null;
+  let practiceId: string | null = null;
+  try {
+    const { data: _cp } = await supabaseAdmin
+      .from("clients")
+      .select("practice_id")
+      .eq("id", client.id)
+      .maybeSingle();
+    practiceId = (_cp as { practice_id?: string | null } | null)?.practice_id ?? null;
+  } catch { practiceId = null; }
   if (practiceId) {
     const { data: prac } = await supabaseAdmin
       .from("practices")
