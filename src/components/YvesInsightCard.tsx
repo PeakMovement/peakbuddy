@@ -1,10 +1,19 @@
 import type { CSSProperties } from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Sparkles, FileText, Upload, Download, Stethoscope } from "lucide-react";
+import { Sparkles, FileText, Upload, Download, Stethoscope, Trash2 } from "lucide-react";
 import { generateClientInsight } from "@/lib/data-hub-insight.functions";
-
-type StoredReport = { name: string; size: number; addedAt: string; url: string };
+import { supabase } from "@/lib/supabase";
+import {
+  createReportUpload,
+  recordReport,
+  listReports,
+  deleteReport,
+  analyzeReports,
+  getLatestReportAnalysis,
+  REPORTS_BUCKET,
+  type ReportListItem,
+} from "@/lib/session-reports.functions";
 
 const FOCUSES = ["General overview", "Pain & symptoms", "Sleep & recovery", "Training load", "Risk factors"];
 
@@ -17,32 +26,84 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // --- Session reports (UI shell; storage/analysis backend to be wired up) ---
+  // --- Session reports (persistent storage + Yves analysis) ---
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const [reports, setReports] = useState<StoredReport[]>([]);
+  const startUpload = useServerFn(createReportUpload);
+  const saveReport = useServerFn(recordReport);
+  const fetchReports = useServerFn(listReports);
+  const removeReport = useServerFn(deleteReport);
+  const runReportAnalysis = useServerFn(analyzeReports);
+  const fetchLatestAnalysis = useServerFn(getLatestReportAnalysis);
+
+  const [reports, setReports] = useState<ReportListItem[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [reportErr, setReportErr] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState("");
   const [analysing, setAnalysing] = useState(false);
 
-  const addReports = (files: FileList | null) => {
-    if (!files) return;
-    const next = Array.from(files).map((f) => ({
-      name: f.name,
-      size: f.size,
-      addedAt: new Date().toISOString(),
-      url: URL.createObjectURL(f),
-    }));
-    setReports((r) => [...next, ...r]);
+  const refreshReports = async () => {
+    try {
+      const r = await fetchReports({ data: { clientId } });
+      setReports(r.reports ?? []);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  useEffect(() => {
+    void refreshReports();
+    fetchLatestAnalysis({ data: { clientId } })
+      .then((r) => { if (r.ok && r.text) setAnalysis(r.text); })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
+
+  const addReports = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    setReportErr(null);
+    try {
+      for (const f of Array.from(files)) {
+        const up = await startUpload({
+          data: { clientId, fileName: f.name, mimeType: f.type || "application/octet-stream", sizeBytes: f.size },
+        });
+        if (!up.ok) { setReportErr(up.error); continue; }
+        const { error: upErr } = await supabase.storage
+          .from(REPORTS_BUCKET)
+          .uploadToSignedUrl(up.path, up.token, f);
+        if (upErr) { setReportErr("Upload failed. Please try again."); continue; }
+        await saveReport({
+          data: { clientId, storagePath: up.path, fileName: f.name, mimeType: f.type || "application/octet-stream", sizeBytes: f.size },
+        });
+      }
+      await refreshReports();
+    } catch {
+      setReportErr("Something went wrong uploading. Please try again.");
+    }
+    setUploading(false);
+  };
+
+  const onDeleteReport = async (id: string) => {
+    try {
+      await removeReport({ data: { reportId: id } });
+      await refreshReports();
+    } catch {
+      /* ignore */
+    }
   };
 
   const runAnalysis = async () => {
     if (analysing) return;
     setAnalysing(true);
-    // Backend placeholder: Yves will read the stored reports alongside this
-    // client's check-in and wearable data and return a combined analysis.
-    setTimeout(() => {
-      setAnalysis("");
-      setAnalysing(false);
-    }, 800);
+    setReportErr(null);
+    try {
+      const r = await runReportAnalysis({ data: { clientId, focus } });
+      if (r.ok && r.text) setAnalysis(r.text);
+      else setReportErr(r.error ?? "Could not analyse the reports.");
+    } catch {
+      setReportErr("Analysis failed. Please try again.");
+    }
+    setAnalysing(false);
   };
 
   const run = async () => {
@@ -98,29 +159,43 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
           onChange={(e) => { addReports(e.target.files); e.target.value = ""; }}
         />
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
-          <button type="button" onClick={() => fileRef.current?.click()} style={ghostBtn}>
+          <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} style={ghostBtn}>
             <Upload size={14} style={{ marginRight: 6, verticalAlign: -2 }} />
-            Upload report
+            {uploading ? "Uploading…" : "Upload report"}
           </button>
-          <span style={{ color: "var(--white-muted)", fontSize: 11 }}>
-            Storage coming soon — files added now stay only until you leave this page.
-          </span>
+          <span style={{ color: "var(--white-muted)", fontSize: 11 }}>PDF or images, up to 20 MB each.</span>
         </div>
+        {reportErr && (
+          <div style={{ color: "var(--red, #f87171)", fontSize: 12, marginTop: 8 }}>{reportErr}</div>
+        )}
         {reports.length > 0 && (
           <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
             {reports.map((r) => (
-              <div key={r.url} style={reportRow}>
+              <div key={r.id} style={reportRow}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ color: "var(--white)", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {r.name}
+                    {r.fileName}
                   </div>
                   <div style={{ color: "var(--white-muted)", fontSize: 11 }}>
-                    {(r.size / 1024).toFixed(0)} KB · added {new Date(r.addedAt).toLocaleString()}
+                    {(r.sizeBytes / 1024).toFixed(0)} KB · added {new Date(r.createdAt).toLocaleString()}
                   </div>
                 </div>
-                <a href={r.url} download={r.name} style={downloadLink} title="Download">
-                  <Download size={15} />
-                </a>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {r.downloadUrl && (
+                    <a href={r.downloadUrl} target="_blank" rel="noopener noreferrer" style={downloadLink} title="Download">
+                      <Download size={15} />
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onDeleteReport(r.id)}
+                    style={{ ...downloadLink, color: "var(--red, #f87171)" }}
+                    title="Delete"
+                    aria-label={`Delete ${r.fileName}`}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
