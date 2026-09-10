@@ -10,8 +10,6 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 // ---------------------------------------------------------------------------
 
 const MAX_FAILED_ATTEMPTS = 5;
-const SOFT_THROTTLE_AFTER = 3;
-const SOFT_THROTTLE_MS = 30_000;
 const PBKDF2_ITERATIONS = 150_000;
 
 const WEAK_CODES = new Set([
@@ -79,6 +77,18 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+// Run a throwaway PBKDF2 so "no such email / no code / locked" paths take about
+// the same time as a real verify — removes the timing oracle that would reveal
+// which emails have quick sign-in enabled.
+const DUMMY_SALT = "00000000000000000000000000000000";
+async function dummyHash(code: string): Promise<void> {
+  try {
+    await hashCode(code, DUMMY_SALT);
+  } catch {
+    /* ignore */
+  }
+}
+
 // --- Status -----------------------------------------------------------------
 
 export const getQuickCodeStatus = createServerFn({ method: "GET" })
@@ -103,6 +113,18 @@ export const setQuickCode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ code: codeSchema }).parse(input))
   .handler(async ({ data, context }) => {
+    const { supabaseAdmin: gadmin } = await import("@/integrations/supabase/client.server");
+    const { data: gProf } = await gadmin
+      .from("profiles")
+      .select("role")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (gProf?.role === "super_admin") {
+      return {
+        ok: false as const,
+        error: "Quick sign-in isn't available for admin accounts. Use your full password.",
+      };
+    }
     if (WEAK_CODES.has(data.code)) {
       return {
         ok: false as const,
@@ -169,47 +191,48 @@ export const signInWithQuickCode = createServerFn({ method: "POST" })
       if (match) userId = match.id;
       if (users.length < 200) break;
     }
-    if (!userId) return { ok: false as const, error: GENERIC_ERROR };
+    if (!userId) {
+      await dummyHash(data.code);
+      return { ok: false as const, error: GENERIC_ERROR };
+    }
+
+    // Never allow quick sign-in for admin accounts (4 digits is too weak for
+    // the highest-privilege role), regardless of any code they may have set.
+    const { data: prof } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle();
+    if (prof?.role === "super_admin") {
+      await dummyHash(data.code);
+      return { ok: false as const, error: GENERIC_ERROR };
+    }
 
     const { data: row } = await admin
       .from("quick_login_codes")
-      .select("code_hash, code_salt, failed_attempts, locked_at, last_failed_at")
+      .select("code_hash, code_salt")
       .eq("user_id", userId)
       .maybeSingle();
-    if (!row) return { ok: false as const, error: GENERIC_ERROR };
-
-    if (row.locked_at) {
-      return {
-        ok: false as const,
-        error: "Quick sign-in is locked. Sign in with your email and password to unlock it.",
-      };
+    if (!row) {
+      await dummyHash(data.code);
+      return { ok: false as const, error: GENERIC_ERROR };
     }
 
-    if (
-      row.failed_attempts >= SOFT_THROTTLE_AFTER &&
-      row.last_failed_at &&
-      Date.now() - new Date(row.last_failed_at).getTime() < SOFT_THROTTLE_MS
-    ) {
-      return { ok: false as const, error: "Too many attempts. Wait a moment and try again." };
+    // Atomically consume an attempt (bounded lockout — brute-force safe).
+    const { data: claimRows } = await admin.rpc("claim_quick_login_attempt", {
+      p_user_id: userId,
+    });
+    const claim = Array.isArray(claimRows) ? claimRows[0] : claimRows;
+    if (!claim || !claim.allowed) {
+      // Locked or no code — keep the response generic (no enumeration) and
+      // equalize timing.
+      await dummyHash(data.code);
+      return { ok: false as const, error: GENERIC_ERROR };
     }
 
     const candidate = await hashCode(data.code, row.code_salt);
     if (!safeEqual(candidate, row.code_hash)) {
-      const attempts = row.failed_attempts + 1;
-      await admin
-        .from("quick_login_codes")
-        .update({
-          failed_attempts: attempts,
-          last_failed_at: new Date().toISOString(),
-          locked_at: attempts >= MAX_FAILED_ATTEMPTS ? new Date().toISOString() : null,
-        })
-        .eq("user_id", userId);
-      if (attempts >= MAX_FAILED_ATTEMPTS) {
-        return {
-          ok: false as const,
-          error: "Quick sign-in is now locked. Sign in with your email and password to unlock it.",
-        };
-      }
+      // The attempt was already consumed atomically by the RPC above.
       return { ok: false as const, error: GENERIC_ERROR };
     }
 
@@ -227,6 +250,7 @@ export const signInWithQuickCode = createServerFn({ method: "POST" })
       .from("quick_login_codes")
       .update({
         failed_attempts: 0,
+        locked_at: null,
         last_failed_at: null,
         last_used_at: new Date().toISOString(),
       })

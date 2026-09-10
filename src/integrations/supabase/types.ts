@@ -1902,6 +1902,10 @@ export type Database = {
             }
             Returns: string
           }
+      claim_quick_login_attempt: {
+        Args: { p_user_id: string }
+        Returns: { allowed: boolean; locked: boolean }[]
+      }
       is_super_admin: { Args: { _uid: string }; Returns: boolean }
       move_to_dlq: {
         Args: {
