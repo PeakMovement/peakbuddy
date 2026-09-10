@@ -341,7 +341,7 @@ export const analyzeReports = createServerFn({ method: "POST" })
             method: "POST",
             headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
             body: JSON.stringify({
-              model: "google/gemini-2.5-pro",
+              model: "google/gemini-3.1-pro-preview",
               messages: [
                 { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
                 { role: "user", content },
@@ -351,7 +351,7 @@ export const analyzeReports = createServerFn({ method: "POST" })
           if (res.ok) {
             const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
             text = j.choices?.[0]?.message?.content?.trim() ?? "";
-            if (text) usedModel = "gateway/gemini-2.5-pro";
+            if (text) usedModel = "gateway/gemini-3.1-pro-preview";
           }
         } catch {
           /* fall through to the error below */
