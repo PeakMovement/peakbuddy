@@ -3,6 +3,25 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export const REPORTS_BUCKET = "session-reports";
+
+type Admin = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
+
+/**
+ * Ensure the private reports bucket exists. Idempotent — a migration also
+ * creates it, but doing it here means uploads work even if the storage
+ * migration hasn't been applied (or a runner skips storage DDL).
+ */
+async function ensureReportsBucket(admin: Admin): Promise<void> {
+  try {
+    const { error } = await admin.storage.createBucket(REPORTS_BUCKET, { public: false });
+    if (error && !/exist/i.test(error.message)) {
+      // Non-"already exists" errors are non-fatal here; the signed-URL call below
+      // will surface a clear failure if the bucket truly isn't available.
+    }
+  } catch {
+    /* ignore — bucket may already exist */
+  }
+}
 const MAX_BYTES = 20 * 1024 * 1024; // 20 MB
 const ALLOWED_MIME = /^(application\/pdf|image\/(png|jpe?g|webp|heic|heif))$/i;
 
@@ -38,6 +57,7 @@ export const createReportUpload = createServerFn({ method: "POST" })
     const admin = await assertAccess(context.userId, data.clientId);
     if (!admin) return { ok: false as const, error: "Not authorized for this client." };
 
+    await ensureReportsBucket(admin);
     const path = `${data.clientId}/${crypto.randomUUID()}_${safeName(data.fileName)}`;
     const { data: signed, error } = await admin.storage.from(REPORTS_BUCKET).createSignedUploadUrl(path);
     if (error || !signed) return { ok: false as const, error: "Could not start the upload. Try again." };
