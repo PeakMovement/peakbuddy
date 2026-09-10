@@ -21,7 +21,6 @@ import { Route as PractitionerPendingRouteImport } from './routes/practitioner.p
 import { Route as PractitionerOnboardingRouteImport } from './routes/practitioner.onboarding'
 import { Route as PractitionerLoginRouteImport } from './routes/practitioner.login'
 import { Route as PractitionerAppRouteImport } from './routes/practitioner.app'
-import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as ClientLoginRouteImport } from './routes/client.login'
 import { Route as ClientAppRouteImport } from './routes/client.app'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
@@ -36,7 +35,6 @@ import { Route as PractitionerAppInsightsRouteImport } from './routes/practition
 import { Route as PractitionerAppDashboardRouteImport } from './routes/practitioner.app.dashboard'
 import { Route as PractitionerAppAlertsRouteImport } from './routes/practitioner.app.alerts'
 import { Route as PractitionerAppAddClientRouteImport } from './routes/practitioner.app.add-client'
-import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as LovableEmailEventsRouteImport } from './routes/lovable/email/events'
 import { Route as ClientAppYvesRouteImport } from './routes/client.app.yves'
 import { Route as ClientAppTimelineRouteImport } from './routes/client.app.timeline'
@@ -55,9 +53,7 @@ import { Route as AdminAppDashboardRouteImport } from './routes/admin.app.dashbo
 import { Route as AdminAppClientsRouteImport } from './routes/admin.app.clients'
 import { Route as AdminAppAlertsRouteImport } from './routes/admin.app.alerts'
 import { Route as PractitionerAppClientDetailClientIdRouteImport } from './routes/practitioner.app.client-detail.$clientId'
-import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
-import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as ApiPublicHooksWeeklyPractitionerDigestRouteImport } from './routes/api/public/hooks/weekly-practitioner-digest'
@@ -136,11 +132,6 @@ const PractitionerAppRoute = PractitionerAppRouteImport.update({
   path: '/practitioner/app',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
-  id: '/email/unsubscribe',
-  path: '/email/unsubscribe',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ClientLoginRoute = ClientLoginRouteImport.update({
   id: '/client/login',
   path: '/client/login',
@@ -214,11 +205,6 @@ const PractitionerAppAddClientRoute =
     path: '/add-client',
     getParentRoute: () => PractitionerAppRoute,
   } as any)
-const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
-  id: '/lovable/email/suppression',
-  path: '/lovable/email/suppression',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LovableEmailEventsRoute = LovableEmailEventsRouteImport.update({
   id: '/lovable/email/events',
   path: '/lovable/email/events',
@@ -310,22 +296,10 @@ const PractitionerAppClientDetailClientIdRoute =
     path: '/client-detail/$clientId',
     getParentRoute: () => PractitionerAppRoute,
   } as any)
-const LovableEmailTransactionalSendRoute =
-  LovableEmailTransactionalSendRouteImport.update({
-    id: '/lovable/email/transactional/send',
-    path: '/lovable/email/transactional/send',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const LovableEmailTransactionalPreviewRoute =
   LovableEmailTransactionalPreviewRouteImport.update({
     id: '/lovable/email/transactional/preview',
     path: '/lovable/email/transactional/preview',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const LovableEmailQueueProcessRoute =
-  LovableEmailQueueProcessRouteImport.update({
-    id: '/lovable/email/queue/process',
-    path: '/lovable/email/queue/process',
     getParentRoute: () => rootRouteImport,
   } as any)
 const LovableEmailAuthWebhookRoute = LovableEmailAuthWebhookRouteImport.update({
@@ -440,7 +414,6 @@ export interface FileRoutesByFullPath {
   '/auth/callback': typeof AuthCallbackRoute
   '/client/app': typeof ClientAppRouteWithChildren
   '/client/login': typeof ClientLoginRoute
-  '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
   '/practitioner/onboarding': typeof PractitionerOnboardingRoute
@@ -463,7 +436,6 @@ export interface FileRoutesByFullPath {
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
   '/lovable/email/events': typeof LovableEmailEventsRoute
-  '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
@@ -485,9 +457,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
-  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
-  '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
   '/api/public/wearables/garmin/callback': typeof ApiPublicWearablesGarminCallbackRoute
   '/api/public/wearables/garmin/webhook': typeof ApiPublicWearablesGarminWebhookRoute
@@ -507,7 +477,6 @@ export interface FileRoutesByTo {
   '/admin/login': typeof AdminLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/client/login': typeof ClientLoginRoute
-  '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
   '/practitioner/onboarding': typeof PractitionerOnboardingRoute
@@ -530,7 +499,6 @@ export interface FileRoutesByTo {
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
   '/lovable/email/events': typeof LovableEmailEventsRoute
-  '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
@@ -552,9 +520,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
-  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
-  '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
   '/api/public/wearables/garmin/callback': typeof ApiPublicWearablesGarminCallbackRoute
   '/api/public/wearables/garmin/webhook': typeof ApiPublicWearablesGarminWebhookRoute
@@ -576,7 +542,6 @@ export interface FileRoutesById {
   '/auth/callback': typeof AuthCallbackRoute
   '/client/app': typeof ClientAppRouteWithChildren
   '/client/login': typeof ClientLoginRoute
-  '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
   '/practitioner/onboarding': typeof PractitionerOnboardingRoute
@@ -599,7 +564,6 @@ export interface FileRoutesById {
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
   '/lovable/email/events': typeof LovableEmailEventsRoute
-  '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
   '/practitioner/app/dashboard': typeof PractitionerAppDashboardRoute
@@ -621,9 +585,7 @@ export interface FileRoutesById {
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
-  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
-  '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/practitioner/app/client-detail/$clientId': typeof PractitionerAppClientDetailClientIdRoute
   '/api/public/wearables/garmin/callback': typeof ApiPublicWearablesGarminCallbackRoute
   '/api/public/wearables/garmin/webhook': typeof ApiPublicWearablesGarminWebhookRoute
@@ -646,7 +608,6 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/client/app'
     | '/client/login'
-    | '/email/unsubscribe'
     | '/practitioner/app'
     | '/practitioner/login'
     | '/practitioner/onboarding'
@@ -669,7 +630,6 @@ export interface FileRouteTypes {
     | '/client/app/timeline'
     | '/client/app/yves'
     | '/lovable/email/events'
-    | '/lovable/email/suppression'
     | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
@@ -691,9 +651,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/weekly-practitioner-digest'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
-    | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
-    | '/lovable/email/transactional/send'
     | '/practitioner/app/client-detail/$clientId'
     | '/api/public/wearables/garmin/callback'
     | '/api/public/wearables/garmin/webhook'
@@ -713,7 +671,6 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/auth/callback'
     | '/client/login'
-    | '/email/unsubscribe'
     | '/practitioner/app'
     | '/practitioner/login'
     | '/practitioner/onboarding'
@@ -736,7 +693,6 @@ export interface FileRouteTypes {
     | '/client/app/timeline'
     | '/client/app/yves'
     | '/lovable/email/events'
-    | '/lovable/email/suppression'
     | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
@@ -758,9 +714,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/weekly-practitioner-digest'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
-    | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
-    | '/lovable/email/transactional/send'
     | '/practitioner/app/client-detail/$clientId'
     | '/api/public/wearables/garmin/callback'
     | '/api/public/wearables/garmin/webhook'
@@ -781,7 +735,6 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/client/app'
     | '/client/login'
-    | '/email/unsubscribe'
     | '/practitioner/app'
     | '/practitioner/login'
     | '/practitioner/onboarding'
@@ -804,7 +757,6 @@ export interface FileRouteTypes {
     | '/client/app/timeline'
     | '/client/app/yves'
     | '/lovable/email/events'
-    | '/lovable/email/suppression'
     | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
     | '/practitioner/app/dashboard'
@@ -826,9 +778,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/weekly-practitioner-digest'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
-    | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
-    | '/lovable/email/transactional/send'
     | '/practitioner/app/client-detail/$clientId'
     | '/api/public/wearables/garmin/callback'
     | '/api/public/wearables/garmin/webhook'
@@ -850,7 +800,6 @@ export interface RootRouteChildren {
   AuthCallbackRoute: typeof AuthCallbackRoute
   ClientAppRoute: typeof ClientAppRouteWithChildren
   ClientLoginRoute: typeof ClientLoginRoute
-  EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   PractitionerAppRoute: typeof PractitionerAppRouteWithChildren
   PractitionerLoginRoute: typeof PractitionerLoginRoute
   PractitionerOnboardingRoute: typeof PractitionerOnboardingRoute
@@ -858,7 +807,6 @@ export interface RootRouteChildren {
   PractitionerSignupRoute: typeof PractitionerSignupRoute
   ApiPublicTriageQueryRoute: typeof ApiPublicTriageQueryRoute
   LovableEmailEventsRoute: typeof LovableEmailEventsRoute
-  LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicAlertsActionRoute: typeof ApiPublicAlertsActionRoute
   ApiPublicCalendarTokenRoute: typeof ApiPublicCalendarTokenRoute
   ApiPublicGoogleCalendarCallbackRoute: typeof ApiPublicGoogleCalendarCallbackRoute
@@ -869,9 +817,7 @@ export interface RootRouteChildren {
   ApiPublicHooksWeeklyPractitionerDigestRoute: typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
-  LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
-  LovableEmailTransactionalSendRoute: typeof LovableEmailTransactionalSendRoute
   ApiPublicWearablesGarminCallbackRoute: typeof ApiPublicWearablesGarminCallbackRoute
   ApiPublicWearablesGarminWebhookRoute: typeof ApiPublicWearablesGarminWebhookRoute
   ApiPublicWearablesOuraCallbackRoute: typeof ApiPublicWearablesOuraCallbackRoute
@@ -963,13 +909,6 @@ declare module '@tanstack/react-router' {
       path: '/practitioner/app'
       fullPath: '/practitioner/app'
       preLoaderRoute: typeof PractitionerAppRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/email/unsubscribe': {
-      id: '/email/unsubscribe'
-      path: '/email/unsubscribe'
-      fullPath: '/email/unsubscribe'
-      preLoaderRoute: typeof EmailUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/client/login': {
@@ -1069,13 +1008,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/practitioner/app/add-client'
       preLoaderRoute: typeof PractitionerAppAddClientRouteImport
       parentRoute: typeof PractitionerAppRoute
-    }
-    '/lovable/email/suppression': {
-      id: '/lovable/email/suppression'
-      path: '/lovable/email/suppression'
-      fullPath: '/lovable/email/suppression'
-      preLoaderRoute: typeof LovableEmailSuppressionRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/lovable/email/events': {
       id: '/lovable/email/events'
@@ -1203,25 +1135,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PractitionerAppClientDetailClientIdRouteImport
       parentRoute: typeof PractitionerAppRoute
     }
-    '/lovable/email/transactional/send': {
-      id: '/lovable/email/transactional/send'
-      path: '/lovable/email/transactional/send'
-      fullPath: '/lovable/email/transactional/send'
-      preLoaderRoute: typeof LovableEmailTransactionalSendRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/lovable/email/transactional/preview': {
       id: '/lovable/email/transactional/preview'
       path: '/lovable/email/transactional/preview'
       fullPath: '/lovable/email/transactional/preview'
       preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/lovable/email/queue/process': {
-      id: '/lovable/email/queue/process'
-      path: '/lovable/email/queue/process'
-      fullPath: '/lovable/email/queue/process'
-      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lovable/email/auth/webhook': {
@@ -1445,7 +1363,6 @@ const rootRouteChildren: RootRouteChildren = {
   AuthCallbackRoute: AuthCallbackRoute,
   ClientAppRoute: ClientAppRouteWithChildren,
   ClientLoginRoute: ClientLoginRoute,
-  EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   PractitionerAppRoute: PractitionerAppRouteWithChildren,
   PractitionerLoginRoute: PractitionerLoginRoute,
   PractitionerOnboardingRoute: PractitionerOnboardingRoute,
@@ -1453,7 +1370,6 @@ const rootRouteChildren: RootRouteChildren = {
   PractitionerSignupRoute: PractitionerSignupRoute,
   ApiPublicTriageQueryRoute: ApiPublicTriageQueryRoute,
   LovableEmailEventsRoute: LovableEmailEventsRoute,
-  LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicAlertsActionRoute: ApiPublicAlertsActionRoute,
   ApiPublicCalendarTokenRoute: ApiPublicCalendarTokenRoute,
   ApiPublicGoogleCalendarCallbackRoute: ApiPublicGoogleCalendarCallbackRoute,
@@ -1468,9 +1384,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiPublicHooksWeeklyPractitionerDigestRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
-  LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
-  LovableEmailTransactionalSendRoute: LovableEmailTransactionalSendRoute,
   ApiPublicWearablesGarminCallbackRoute: ApiPublicWearablesGarminCallbackRoute,
   ApiPublicWearablesGarminWebhookRoute: ApiPublicWearablesGarminWebhookRoute,
   ApiPublicWearablesOuraCallbackRoute: ApiPublicWearablesOuraCallbackRoute,
