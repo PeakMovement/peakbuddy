@@ -240,8 +240,31 @@ export const Route = createFileRoute("/api/public/hooks/weekly-practitioner-dige
           }
           const rows = (practices ?? []) as { practitioner_id: string }[];
           if (rows.length === 0) break;
+          const todayKey = new Date().toISOString().slice(0, 10);
           for (const p of rows) {
             try {
+              // Atomically claim this practitioner's digest for today so a retry
+              // or double-schedule can't re-email them.
+              const { data: claimed } = await (supabaseAdmin.from("practices") as unknown as {
+                update: (v: Record<string, unknown>) => {
+                  eq: (c: string, v: unknown) => {
+                    or: (f: string) => {
+                      select: (s: string) => {
+                        maybeSingle: () => Promise<{ data: { practitioner_id: string } | null }>;
+                      };
+                    };
+                  };
+                };
+              })
+                .update({ last_digest_sent_on: todayKey })
+                .eq("practitioner_id", p.practitioner_id)
+                .or(`last_digest_sent_on.is.null,last_digest_sent_on.neq.${todayKey}`)
+                .select("practitioner_id")
+                .maybeSingle();
+              if (!claimed) {
+                stats.skipped += 1;
+                continue;
+              }
               const r = await buildAndSend(supabaseAdmin, p.practitioner_id, sinceIso, lovableKey, resendKey);
               stats[r === "sent" ? "sent" : r === "skipped" ? "skipped" : "errors"] += 1;
             } catch (e) {
