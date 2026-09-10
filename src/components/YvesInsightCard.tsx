@@ -17,6 +17,34 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // --- Session reports (UI shell; storage/analysis backend to be wired up) ---
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [reports, setReports] = useState<StoredReport[]>([]);
+  const [analysis, setAnalysis] = useState("");
+  const [analysing, setAnalysing] = useState(false);
+
+  const addReports = (files: FileList | null) => {
+    if (!files) return;
+    const next = Array.from(files).map((f) => ({
+      name: f.name,
+      size: f.size,
+      addedAt: new Date().toISOString(),
+      url: URL.createObjectURL(f),
+    }));
+    setReports((r) => [...next, ...r]);
+  };
+
+  const runAnalysis = async () => {
+    if (analysing) return;
+    setAnalysing(true);
+    // Backend placeholder: Yves will read the stored reports alongside this
+    // client's check-in and wearable data and return a combined analysis.
+    setTimeout(() => {
+      setAnalysis("");
+      setAnalysing(false);
+    }, 800);
+  };
+
   const run = async () => {
     if (busy) return;
     setBusy(true); setErr(null);
@@ -50,6 +78,81 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
           {at && <div style={{ color: "var(--white-muted)", fontSize: 11, marginTop: 10 }}>Generated {new Date(at).toLocaleString()}</div>}
         </div>
       )}
+
+      {/* Session reports — stored for this client, downloadable any time */}
+      <div style={subCard}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <FileText size={15} color="var(--cold-blue, #7aa8ff)" />
+          <div style={subTitle}>Session reports</div>
+        </div>
+        <p style={sub}>
+          Upload reports from sessions (PDF or images). They'll be stored against this client so you
+          can download them again later.
+        </p>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".pdf,image/*"
+          multiple
+          style={{ display: "none" }}
+          onChange={(e) => { addReports(e.target.files); e.target.value = ""; }}
+        />
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+          <button type="button" onClick={() => fileRef.current?.click()} style={ghostBtn}>
+            <Upload size={14} style={{ marginRight: 6, verticalAlign: -2 }} />
+            Upload report
+          </button>
+          <span style={{ color: "var(--white-muted)", fontSize: 11 }}>
+            Storage coming soon — files added now stay only until you leave this page.
+          </span>
+        </div>
+        {reports.length > 0 && (
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+            {reports.map((r) => (
+              <div key={r.url} style={reportRow}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ color: "var(--white)", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {r.name}
+                  </div>
+                  <div style={{ color: "var(--white-muted)", fontSize: 11 }}>
+                    {(r.size / 1024).toFixed(0)} KB · added {new Date(r.addedAt).toLocaleString()}
+                  </div>
+                </div>
+                <a href={r.url} download={r.name} style={downloadLink} title="Download">
+                  <Download size={15} />
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Yves analysis across reports + fitness data */}
+      <div style={subCard}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Stethoscope size={15} color="var(--cold-blue, #7aa8ff)" />
+          <div style={subTitle}>Yves report analysis</div>
+        </div>
+        <p style={sub}>
+          Yves reads the uploaded reports together with this client's check-ins and wearable data to
+          spot trends, flag problems, and summarise anything that needs attention.
+        </p>
+        <button
+          type="button"
+          onClick={runAnalysis}
+          disabled={analysing || reports.length === 0}
+          style={{ ...btn, marginTop: 8, opacity: reports.length === 0 ? 0.5 : 1 }}
+          title={reports.length === 0 ? "Upload at least one report first" : undefined}
+        >
+          {analysing ? "Analysing…" : "Analyse reports"}
+        </button>
+        {reports.length === 0 && (
+          <span style={{ color: "var(--white-muted)", fontSize: 11, marginLeft: 8 }}>
+            Upload a report above to enable this.
+          </span>
+        )}
+        {analysis && <div style={out}>{renderMarkdown(analysis)}</div>}
+      </div>
     </section>
   );
 }
