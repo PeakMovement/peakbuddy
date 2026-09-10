@@ -9,7 +9,6 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 // salt. Verification, lockout and throttling all happen server-side.
 // ---------------------------------------------------------------------------
 
-const MAX_FAILED_ATTEMPTS = 5;
 const PBKDF2_ITERATIONS = 150_000;
 
 const WEAK_CODES = new Set([

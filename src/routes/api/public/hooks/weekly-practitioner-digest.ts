@@ -97,6 +97,21 @@ function renderDigest(d: DigestData) {
 
 type AdminClient = typeof import("@/integrations/supabase/client.server")["supabaseAdmin"];
 
+async function releaseDigestClaim(admin: unknown, practitionerId: string): Promise<void> {
+  try {
+    await (admin as {
+      from: (t: string) => {
+        update: (v: Record<string, unknown>) => { eq: (c: string, v: unknown) => Promise<unknown> };
+      };
+    })
+      .from("practices")
+      .update({ last_digest_sent_on: null })
+      .eq("practitioner_id", practitionerId);
+  } catch {
+    /* best effort */
+  }
+}
+
 async function buildAndSend(
   supabaseAdmin: AdminClient,
   practitionerId: string,
@@ -267,8 +282,14 @@ export const Route = createFileRoute("/api/public/hooks/weekly-practitioner-dige
               }
               const r = await buildAndSend(supabaseAdmin, p.practitioner_id, sinceIso, lovableKey, resendKey);
               stats[r === "sent" ? "sent" : r === "skipped" ? "skipped" : "errors"] += 1;
+              if (r !== "sent" && r !== "skipped") {
+                // Send failed (not a real skip) — release the claim so the next
+                // run retries instead of losing this practitioner's digest.
+                await releaseDigestClaim(supabaseAdmin, p.practitioner_id);
+              }
             } catch (e) {
               stats.errors += 1;
+              await releaseDigestClaim(supabaseAdmin, p.practitioner_id);
               log.error(`[weeklyDigest] practitioner ${p.practitioner_id} failed`, e);
             }
           }
