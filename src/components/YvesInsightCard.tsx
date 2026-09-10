@@ -72,9 +72,10 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
           .from(REPORTS_BUCKET)
           .uploadToSignedUrl(up.path, up.token, f);
         if (upErr) { setReportErr("Upload failed. Please try again."); continue; }
-        await saveReport({
+        const saved = await saveReport({
           data: { clientId, storagePath: up.path, fileName: f.name, mimeType: f.type || "application/octet-stream", sizeBytes: f.size },
         });
+        if (!saved.ok) { setReportErr(saved.error || "Couldn't save the report."); continue; }
       }
       await refreshReports();
     } catch {
