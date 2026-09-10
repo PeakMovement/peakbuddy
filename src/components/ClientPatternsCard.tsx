@@ -19,11 +19,16 @@ type Row = {
 
 const MIN_CONFIDENCE = 0.45;
 
-export function ClientPatternsCard({ clientId }: { clientId: string }) {
+export function ClientPatternsCard({ clientId, patterns }: { clientId: string; patterns?: Row[] }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    if (patterns !== undefined) {
+      setRows(patterns.filter((r) => (r.confidence ?? 0) >= MIN_CONFIDENCE));
+      setReady(true);
+      return;
+    }
     let cancelled = false;
     (async () => {
       const { data } = await supabase
@@ -41,7 +46,7 @@ export function ClientPatternsCard({ clientId }: { clientId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [clientId]);
+  }, [clientId, patterns]);
 
   if (!ready || rows.length === 0) return null;
 

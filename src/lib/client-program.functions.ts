@@ -281,17 +281,9 @@ export const getClientProgramForPractitioner = createServerFn({ method: "POST" }
       .maybeSingle();
     if (!c) return null;
     const row = c as ClientRow & { practitioner_id: string };
-    const isOwner = row.practitioner_id === context.userId;
-    let allowed = isOwner;
-    if (!allowed) {
-      const { data: prof } = await supabaseAdmin
-        .from("profiles")
-        .select("role")
-        .eq("id", context.userId)
-        .maybeSingle();
-      allowed = (prof as { role?: string } | null)?.role === "super_admin";
-    }
-    if (!allowed) return null;
+    const { canAccessClient } = await import("@/lib/practice-members.functions");
+    const access = await canAccessClient(supabaseAdmin, context.userId, data.clientId);
+    if (!access.allowed) return null;
     if (!(await isProgramsSuggestEnabledForPractitioner(row.practitioner_id))) return null;
     const program = await loadProgram(row.suggested_program_id);
     return {

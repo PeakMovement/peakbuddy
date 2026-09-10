@@ -22,6 +22,7 @@ import type { CheckIn, Client } from "@/lib/types";
 import { CircularRing, ringColor } from "@/components/CircularRing";
 import { useServerFn } from "@tanstack/react-start";
 import { TransferClientButton } from "@/components/TransferClientButton";
+import { getPractitionerClientBundle } from "@/lib/practice-members.functions";
 import { getClientProgramForPractitioner, type ProgramLite } from "@/lib/client-program.functions";
 
 export const Route = createFileRoute("/practitioner/app/client-detail/$clientId")({
@@ -51,30 +52,31 @@ function ClientDetail() {
     decided_at: string | null;
   } | null>(null);
   const getProgram = useServerFn(getClientProgramForPractitioner);
+  const loadBundle = useServerFn(getPractitionerClientBundle);
+  const [wearSessions, setWearSessions] = useState<Record<string, unknown>[]>([]);
+  const [patternRows, setPatternRows] = useState<Record<string, unknown>[]>([]);
 
   const load = async () => {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
-    const [{ data: c }, { data: ci }, { data: pr }] = await Promise.all([
-      supabase
-        .from("clients")
-        .select("*")
-        .eq("id", clientId)
-        .eq("practitioner_id", u.user.id)
-        .maybeSingle(),
-      supabase
-        .from("check_ins")
-        .select("*")
-        .eq("client_id", clientId)
-        .order("created_at", { ascending: false }),
+    // Access-checked bundle: works for the client's own practitioner AND for the
+    // practice admin viewing a member's client (server-side ownership check).
+    const [bundle, { data: pr }] = await Promise.all([
+      loadBundle({ data: { clientId } }).catch(() => null),
       supabase
         .from("practices")
         .select("yves_enabled")
         .eq("practitioner_id", u.user.id)
         .maybeSingle(),
     ]);
-    setClient(c as Client | null);
-    setItems((ci as CheckIn[]) ?? []);
+    if (bundle && bundle.ok) {
+      setClient(bundle.client as Client | null);
+      setItems((bundle.checkIns as CheckIn[]) ?? []);
+      setWearSessions((bundle.wearableSessions as Record<string, unknown>[]) ?? []);
+      setPatternRows((bundle.patterns as Record<string, unknown>[]) ?? []);
+    } else {
+      setClient(null);
+    }
     setPracticeYves((pr as { yves_enabled: boolean } | null)?.yves_enabled !== false);
     setLoading(false);
   };
@@ -235,8 +237,8 @@ function ClientDetail() {
         <ProgramStatusRow info={programInfo} />
       )}
 
-      <ClientWearablesCard clientId={client.id} />
-      <ClientPatternsCard clientId={client.id} />
+      <ClientWearablesCard clientId={client.id} sessions={wearSessions as never} checkins={items as never} />
+      <ClientPatternsCard clientId={client.id} patterns={patternRows as never} />
       <YvesInsightCard clientId={client.id} />
       <RequestCheckInButton clientId={client.id} />
       <ClientRewardsSection clientId={client.id} />

@@ -241,3 +241,73 @@ export const transferClient = createServerFn({ method: "POST" })
     if (error) return { ok: false as const, error: error.message };
     return { ok: true as const };
   });
+
+/**
+ * Can this practitioner access this client? True if they're the client's own
+ * practitioner, the OWNER (admin) of the client's practice, or a super admin.
+ * Returns the client's practitioner_id/practice_id when found.
+ */
+export async function canAccessClient(
+  admin: Admin,
+  userId: string,
+  clientId: string,
+): Promise<{ allowed: boolean }> {
+  const { data: c } = await admin
+    .from("clients")
+    .select("practitioner_id, practice_id")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (!c) return { allowed: false };
+  if (c.practitioner_id === userId) return { allowed: true };
+  const practiceId = (c as { practice_id?: string | null }).practice_id ?? null;
+  const ctx = await resolvePractitionerPracticeId(admin, userId);
+  if (ctx && ctx.isOwner && practiceId && ctx.practiceId === practiceId) return { allowed: true };
+  if (await isSuperAdmin(admin, userId)) return { allowed: true };
+  return { allowed: false };
+}
+
+/**
+ * Full client-detail bundle for a practitioner, access-checked (own client OR
+ * practice admin OR super admin). Lets a practice admin open a member's client
+ * without changing table RLS. Returns everything the detail page + its cards
+ * need, so those cards don't have to run their own RLS-scoped queries.
+ */
+export const getPractitionerClientBundle = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ clientId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const access = await canAccessClient(supabaseAdmin, context.userId, data.clientId);
+    if (!access.allowed) return { ok: false as const, error: "Not authorized for this client." };
+
+    const [{ data: client }, { data: checkIns }, { data: sessions }, { data: patterns }] =
+      await Promise.all([
+        supabaseAdmin.from("clients").select("*").eq("id", data.clientId).maybeSingle(),
+        supabaseAdmin
+          .from("check_ins")
+          .select("*")
+          .eq("client_id", data.clientId)
+          .order("created_at", { ascending: false }),
+        supabaseAdmin
+          .from("wearable_sessions")
+          .select("date, source, sleep_score, readiness_score, resting_hr, hrv_avg, total_steps")
+          .eq("client_id", data.clientId)
+          .order("date", { ascending: false })
+          .limit(30),
+        supabaseAdmin
+          .from("client_patterns")
+          .select("pattern_type, day_of_week, metric, avg_value, confidence, sample_size")
+          .eq("client_id", data.clientId)
+          .eq("active", true)
+          .order("confidence", { ascending: false })
+          .limit(4),
+      ]);
+
+    return {
+      ok: true as const,
+      client: client ?? null,
+      checkIns: checkIns ?? [],
+      wearableSessions: sessions ?? [],
+      patterns: patterns ?? [],
+    };
+  });

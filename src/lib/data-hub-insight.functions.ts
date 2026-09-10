@@ -109,7 +109,11 @@ export const generateClientInsight = createServerFn({ method: "POST" })
       .eq("id", data.clientId)
       .maybeSingle();
     if (!cAuth) throw new Error("Client not found");
-    if (!isSuperAdmin && !(role === "practitioner" && cAuth.practitioner_id === context.userId)) {
+    // Access: super-admin, the client's own practitioner, or the practice admin
+    // (owner) of the client's practice.
+    const { canAccessClient } = await import("@/lib/practice-members.functions");
+    const access = await canAccessClient(supabaseAdmin, context.userId, data.clientId);
+    if (!isSuperAdmin && !access.allowed) {
       throw new Error("Forbidden");
     }
     // POPIA / AI-consent gate — disabled pre-rollout via AI_CONSENT_REQUIRED.

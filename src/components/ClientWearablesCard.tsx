@@ -20,12 +20,34 @@ type WRow = {
  * Reads wearable_sessions (RLS already allows the client's practitioner).
  * Renders nothing when the client has no wearable data.
  */
-export function ClientWearablesCard({ clientId }: { clientId: string }) {
+type WCheckin = { created_at: string; pain_level: number | null };
+export function ClientWearablesCard({
+  clientId,
+  sessions,
+  checkins,
+}: {
+  clientId: string;
+  sessions?: WRow[];
+  checkins?: WCheckin[];
+}) {
   const [rows, setRows] = useState<WRow[]>([]);
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    // Pre-loaded path (e.g. a practice admin viewing a member's client via the
+    // access-checked bundle) — use provided data instead of self-loading.
+    if (sessions !== undefined) {
+      const wrows = sessions;
+      setRows(wrows);
+      const cis = (checkins ?? []).map((r) => ({
+        date: String(r.created_at).slice(0, 10),
+        pain_level: r.pain_level ?? null,
+      }));
+      setForecast(computeForecast(wrows, cis));
+      setLoaded(true);
+      return;
+    }
     (async () => {
       const [{ data }, { data: ci }] = await Promise.all([
         supabase
@@ -43,14 +65,14 @@ export function ClientWearablesCard({ clientId }: { clientId: string }) {
       ]);
       const wrows = (data ?? []) as WRow[];
       setRows(wrows);
-      const checkins = ((ci ?? []) as { created_at: string; pain_level: number | null }[]).map((r) => ({
+      const cis = ((ci ?? []) as { created_at: string; pain_level: number | null }[]).map((r) => ({
         date: String(r.created_at).slice(0, 10),
         pain_level: r.pain_level ?? null,
       }));
-      setForecast(computeForecast(wrows, checkins));
+      setForecast(computeForecast(wrows, cis));
       setLoaded(true);
     })();
-  }, [clientId]);
+  }, [clientId, sessions, checkins]);
 
   if (!loaded || rows.length === 0) return null;
 

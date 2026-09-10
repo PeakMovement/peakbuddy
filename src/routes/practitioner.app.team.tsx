@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -204,7 +204,12 @@ function TeamPage() {
             {allClients.map((c) => {
               const who = info.members.find((m) => m.userId === c.practitioner_id)?.name ?? "Unassigned";
               return (
-                <div key={c.id} style={memberRow}>
+                <Link
+                  key={c.id}
+                  to="/practitioner/app/client-detail/$clientId"
+                  params={{ clientId: c.id }}
+                  style={{ ...memberRow, textDecoration: "none" }}
+                >
                   <div>
                     <div style={{ color: "var(--white)", fontWeight: 600, fontSize: 14 }}>{c.full_name}</div>
                     <div style={{ color: "var(--white-muted)", fontSize: 12 }}>
@@ -212,7 +217,7 @@ function TeamPage() {
                     </div>
                   </div>
                   <span style={{ ...badge, color: "var(--white-muted)" }}>{who}</span>
-                </div>
+                </Link>
               );
             })}
           </div>
