@@ -94,10 +94,17 @@ export const createClientAccount = createServerFn({ method: "POST" })
       return { ok: false as const, error: "Failed to create auth user." };
     }
 
+    // Stamp the owning practice so group-practice visibility + centralised
+    // notifications resolve correctly (the assigned practitioner may be a member,
+    // not the practice owner).
+    const { resolvePractitionerPracticeId } = await import("@/lib/practice-members.functions");
+    const practiceCtx = await resolvePractitionerPracticeId(admin, data.practitionerId);
+
     const { data: inserted, error: insErr } = await admin
       .from("clients")
       .insert({
         practitioner_id: data.practitionerId,
+        practice_id: practiceCtx?.practiceId ?? null,
         auth_user_id: userId,
         full_name: data.fullName,
         email: data.email,

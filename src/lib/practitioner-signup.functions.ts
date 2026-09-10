@@ -11,6 +11,7 @@ const inputSchema = z.object({
   fullName: z.string().trim().min(1).max(120),
   email: z.string().trim().email().max(255),
   profession: z.string().trim().min(1).max(80),
+  practiceType: z.enum(["individual", "group"]).optional().default("individual"),
 });
 
 export const registerPractitioner = createServerFn({ method: "POST" })
@@ -48,21 +49,49 @@ export const registerPractitioner = createServerFn({ method: "POST" })
     );
     if (profErr) return { ok: false as const, error: profErr.message };
 
-    // Idempotent insert: a retry or double-submit (e.g. slow iPad connection)
-    // must not fail on the practices_practitioner_id_key unique constraint.
-    // ignoreDuplicates makes the conflict a no-op instead of an error, and
-    // never overwrites an existing practice row.
-    const { error: prErr } = await supabaseAdmin.from("practices").upsert(
-      {
-        practitioner_id: data.userId,
-        practice_name: "",
-        profession: data.profession,
-        onboarding_complete: false,
-        is_approved: false,
-      },
-      { onConflict: "practitioner_id", ignoreDuplicates: true },
-    );
-    if (prErr) return { ok: false as const, error: prErr.message };
+    // If this practitioner was invited into a practice (they already have an
+    // active membership), they do NOT get their own practice row — they belong
+    // to the inviting practice.
+    const { data: existingMembership } = await supabaseAdmin
+      .from("practice_members")
+      .select("practice_id, role")
+      .eq("user_id", data.userId)
+      .eq("status", "active")
+      .maybeSingle();
+    const isInvitedMember =
+      !!existingMembership && (existingMembership as { role?: string }).role === "member";
+
+    if (!isInvitedMember) {
+      // Idempotent insert: a retry or double-submit must not fail on the
+      // practices_practitioner_id_key unique constraint. ignoreDuplicates makes
+      // the conflict a no-op and never overwrites an existing practice row.
+      const { error: prErr } = await supabaseAdmin.from("practices").upsert(
+        {
+          practitioner_id: data.userId,
+          practice_name: "",
+          profession: data.profession,
+          onboarding_complete: false,
+          is_approved: false,
+          practice_type: data.practiceType,
+          contact_email: data.email,
+        },
+        { onConflict: "practitioner_id", ignoreDuplicates: true },
+      );
+      if (prErr) return { ok: false as const, error: prErr.message };
+
+      // The owner is an active 'owner' member of their own practice.
+      const { data: ownPractice } = await supabaseAdmin
+        .from("practices")
+        .select("id")
+        .eq("practitioner_id", data.userId)
+        .maybeSingle();
+      if (ownPractice?.id) {
+        await supabaseAdmin.from("practice_members").upsert(
+          { practice_id: ownPractice.id as string, user_id: data.userId, role: "owner", status: "active" },
+          { onConflict: "practice_id,user_id" },
+        );
+      }
+    }
 
     // Fire platform webhook (best effort, never fail the signup).
     try {
