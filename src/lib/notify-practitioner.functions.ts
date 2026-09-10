@@ -29,7 +29,7 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
     // Load client
     const { data: client, error: clErr } = await admin
       .from("clients")
-      .select("id, full_name, practitioner_id, auth_user_id")
+      .select("id, full_name, practitioner_id, auth_user_id, practice_id")
       .eq("id", data.clientId)
       .maybeSingle();
     if (clErr || !client) return { ok: false as const, error: "Client not found" };
@@ -62,6 +62,18 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
     if (!practitionerEmail) {
       return { ok: false as const, error: "Practitioner email not found" };
     }
+    // Centralised per-practice contact (falls back to the practitioner's email).
+    let recipientEmail: string = practitionerEmail;
+    const _pid = (client as { practice_id?: string | null }).practice_id ?? null;
+    if (_pid) {
+      const { data: _prac } = await admin
+        .from("practices")
+        .select("contact_email")
+        .eq("id", _pid)
+        .maybeSingle();
+      const _ce = (_prac as { contact_email?: string | null } | null)?.contact_email;
+      if (_ce) recipientEmail = _ce;
+    }
 
     // Insert alert row so it shows in-app too (best-effort).
     try {
@@ -85,7 +97,7 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
     const { sendTransactionalEmailServer } = await import("@/lib/email/send-server");
     const send = await sendTransactionalEmailServer({
       templateName: "practitioner-contact",
-      recipientEmail: practitionerEmail,
+      recipientEmail,
       idempotencyKey: `contact-${client.id}-${new Date().toISOString().slice(0, 16)}`,
       templateData: {
         clientName: client.full_name,
@@ -144,7 +156,7 @@ export async function sendAlertEmailCore(
 
   const { data: client } = await supabaseAdmin
     .from("clients")
-    .select("id, full_name, phone")
+    .select("id, full_name, phone, practice_id")
     .eq("id", alert.client_id)
     .maybeSingle();
   if (!client) return { ok: false as const, reason: "client_not_found" as const };
@@ -153,8 +165,22 @@ export async function sendAlertEmailCore(
     supabaseAdmin.from("profiles").select("full_name").eq("id", alert.practitioner_id).maybeSingle(),
     supabaseAdmin.auth.admin.getUserById(alert.practitioner_id),
   ]);
-  const practitionerEmail = userRes?.user?.email;
-  if (!practitionerEmail) {
+
+  // Notifications are CENTRALISED per practice: send to the practice's shared
+  // contact inbox, not the individual practitioner's personal email. Falls back
+  // to the practitioner's auth email if a practice contact isn't set.
+  let practiceContactEmail: string | null = null;
+  const practiceId = (client as { practice_id?: string | null }).practice_id ?? null;
+  if (practiceId) {
+    const { data: prac } = await supabaseAdmin
+      .from("practices")
+      .select("contact_email")
+      .eq("id", practiceId)
+      .maybeSingle();
+    practiceContactEmail = (prac as { contact_email?: string | null } | null)?.contact_email ?? null;
+  }
+  const recipientEmail = practiceContactEmail || userRes?.user?.email;
+  if (!recipientEmail) {
     return { ok: false as const, reason: "no_practitioner_email" as const };
   }
   const practitionerName = (prof as { full_name?: string } | null)?.full_name || "Practitioner";
@@ -185,7 +211,7 @@ export async function sendAlertEmailCore(
   const { sendTransactionalEmailServer } = await import("@/lib/email/send-server");
   const send = await sendTransactionalEmailServer({
     templateName: "practitioner-alert",
-    recipientEmail: practitionerEmail,
+    recipientEmail,
     idempotencyKey: `alert-${alert.id}`,
     templateData: {
       clientName: client.full_name,
