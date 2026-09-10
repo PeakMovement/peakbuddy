@@ -53,21 +53,26 @@ export const getMyPractice = createServerFn({ method: "GET" })
       .eq("status", "active")
       .order("created_at", { ascending: true });
 
-    // Attach names/emails (owner view only).
+    // Roster with names (needed by everyone for the transfer picker); emails are
+    // included for the owner only.
     const members: { userId: string; role: string; name: string; email: string | null }[] = [];
-    if (ctx.isOwner) {
-      for (const m of memberRows ?? []) {
-        const [{ data: prof }, { data: u }] = await Promise.all([
-          supabaseAdmin.from("profiles").select("full_name").eq("id", m.user_id).maybeSingle(),
-          supabaseAdmin.auth.admin.getUserById(m.user_id as string),
-        ]);
-        members.push({
-          userId: m.user_id as string,
-          role: m.role as string,
-          name: (prof as { full_name?: string } | null)?.full_name || "Practitioner",
-          email: u?.user?.email ?? null,
-        });
+    for (const m of memberRows ?? []) {
+      const { data: prof } = await supabaseAdmin
+        .from("profiles")
+        .select("full_name")
+        .eq("id", m.user_id)
+        .maybeSingle();
+      let email: string | null = null;
+      if (ctx.isOwner) {
+        const { data: u } = await supabaseAdmin.auth.admin.getUserById(m.user_id as string);
+        email = u?.user?.email ?? null;
       }
+      members.push({
+        userId: m.user_id as string,
+        role: m.role as string,
+        name: (prof as { full_name?: string } | null)?.full_name || "Practitioner",
+        email,
+      });
     }
 
     return {

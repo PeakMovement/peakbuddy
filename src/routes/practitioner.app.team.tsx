@@ -7,6 +7,7 @@ import {
   getMyPractice,
   invitePracticeMember,
   removePracticeMember,
+  listPracticeClients,
 } from "@/lib/practice-members.functions";
 
 export const Route = createFileRoute("/practitioner/app/team")({
@@ -20,6 +21,7 @@ function TeamPage() {
   const load = useServerFn(getMyPractice);
   const invite = useServerFn(invitePracticeMember);
   const remove = useServerFn(removePracticeMember);
+  const loadClients = useServerFn(listPracticeClients);
 
   const [info, setInfo] = useState<PracticeInfo | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -27,12 +29,23 @@ function TeamPage() {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [allClients, setAllClients] = useState<
+    { id: string; full_name: string; primary_complaint: string | null; practitioner_id: string }[]
+  >([]);
 
   const refresh = useCallback(async () => {
     try {
       const r = await load();
       setInfo(r);
       setStatus("ready");
+      if (r && r.inPractice && r.isOwner && r.practiceType === "group") {
+        try {
+          const c = await loadClients();
+          if (c.ok) setAllClients(c.clients as typeof allClients);
+        } catch {
+          /* non-fatal */
+        }
+      }
     } catch {
       setStatus("error");
     }
@@ -182,6 +195,28 @@ function TeamPage() {
             </div>
           )}
         </>
+      )}
+
+      {status === "ready" && info && info.inPractice && info.isOwner && info.practiceType === "group" && allClients.length > 0 && (
+        <div style={card}>
+          <span style={sub}>All clients ({allClients.length})</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+            {allClients.map((c) => {
+              const who = info.members.find((m) => m.userId === c.practitioner_id)?.name ?? "Unassigned";
+              return (
+                <div key={c.id} style={memberRow}>
+                  <div>
+                    <div style={{ color: "var(--white)", fontWeight: 600, fontSize: 14 }}>{c.full_name}</div>
+                    <div style={{ color: "var(--white-muted)", fontSize: 12 }}>
+                      {c.primary_complaint || "—"}
+                    </div>
+                  </div>
+                  <span style={{ ...badge, color: "var(--white-muted)" }}>{who}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {msg && (

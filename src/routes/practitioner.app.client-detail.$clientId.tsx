@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ClientRewardsSection } from "@/components/ClientRewardsSection";
 import { RequestCheckInButton } from "@/components/RequestCheckInButton";
 import { ClientWearablesCard } from "@/components/ClientWearablesCard";
@@ -21,6 +21,7 @@ import { supabase } from "@/lib/supabase";
 import type { CheckIn, Client } from "@/lib/types";
 import { CircularRing, ringColor } from "@/components/CircularRing";
 import { useServerFn } from "@tanstack/react-start";
+import { TransferClientButton } from "@/components/TransferClientButton";
 import { getClientProgramForPractitioner, type ProgramLite } from "@/lib/client-program.functions";
 
 export const Route = createFileRoute("/practitioner/app/client-detail/$clientId")({
@@ -34,6 +35,7 @@ function avg(items: CheckIn[], key: keyof CheckIn) {
 }
 
 function ClientDetail() {
+  const navigate = useNavigate();
   const { clientId } = Route.useParams();
   const [client, setClient] = useState<Client | null>(null);
   const [items, setItems] = useState<CheckIn[]>([]);
@@ -222,6 +224,12 @@ function ClientDetail() {
       >
         {client.primary_complaint || "—"}
       </div>
+
+      <TransferClientButton
+        clientId={client.id}
+        currentPractitionerId={(client as { practitioner_id?: string | null }).practitioner_id ?? null}
+        onTransferred={() => navigate({ to: "/practitioner/app/dashboard" })}
+      />
 
       {programInfo?.program && programInfo.status !== "none" && (
         <ProgramStatusRow info={programInfo} />
