@@ -28,6 +28,7 @@ import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as AdminAppRouteImport } from './routes/admin.app'
 import { Route as ClientAppIndexRouteImport } from './routes/client.app.index'
+import { Route as PractitionerAppTeamRouteImport } from './routes/practitioner.app.team'
 import { Route as PractitionerAppSettingsRouteImport } from './routes/practitioner.app.settings'
 import { Route as PractitionerAppProgramQueueRouteImport } from './routes/practitioner.app.program-queue'
 import { Route as PractitionerAppProfileRouteImport } from './routes/practitioner.app.profile'
@@ -168,6 +169,11 @@ const ClientAppIndexRoute = ClientAppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ClientAppRoute,
+} as any)
+const PractitionerAppTeamRoute = PractitionerAppTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => PractitionerAppRoute,
 } as any)
 const PractitionerAppSettingsRoute = PractitionerAppSettingsRouteImport.update({
   id: '/settings',
@@ -458,6 +464,7 @@ export interface FileRoutesByFullPath {
   '/practitioner/app/profile': typeof PractitionerAppProfileRoute
   '/practitioner/app/program-queue': typeof PractitionerAppProgramQueueRoute
   '/practitioner/app/settings': typeof PractitionerAppSettingsRoute
+  '/practitioner/app/team': typeof PractitionerAppTeamRoute
   '/client/app/': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
@@ -523,6 +530,7 @@ export interface FileRoutesByTo {
   '/practitioner/app/profile': typeof PractitionerAppProfileRoute
   '/practitioner/app/program-queue': typeof PractitionerAppProgramQueueRoute
   '/practitioner/app/settings': typeof PractitionerAppSettingsRoute
+  '/practitioner/app/team': typeof PractitionerAppTeamRoute
   '/client/app': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
@@ -590,6 +598,7 @@ export interface FileRoutesById {
   '/practitioner/app/profile': typeof PractitionerAppProfileRoute
   '/practitioner/app/program-queue': typeof PractitionerAppProgramQueueRoute
   '/practitioner/app/settings': typeof PractitionerAppSettingsRoute
+  '/practitioner/app/team': typeof PractitionerAppTeamRoute
   '/client/app/': typeof ClientAppIndexRoute
   '/admin/app/client-detail/$clientId': typeof AdminAppClientDetailClientIdRoute
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
@@ -658,6 +667,7 @@ export interface FileRouteTypes {
     | '/practitioner/app/profile'
     | '/practitioner/app/program-queue'
     | '/practitioner/app/settings'
+    | '/practitioner/app/team'
     | '/client/app/'
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
@@ -723,6 +733,7 @@ export interface FileRouteTypes {
     | '/practitioner/app/profile'
     | '/practitioner/app/program-queue'
     | '/practitioner/app/settings'
+    | '/practitioner/app/team'
     | '/client/app'
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
@@ -789,6 +800,7 @@ export interface FileRouteTypes {
     | '/practitioner/app/profile'
     | '/practitioner/app/program-queue'
     | '/practitioner/app/settings'
+    | '/practitioner/app/team'
     | '/client/app/'
     | '/admin/app/client-detail/$clientId'
     | '/admin/app/practitioner/$practitionerId'
@@ -988,6 +1000,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/client/app/'
       preLoaderRoute: typeof ClientAppIndexRouteImport
       parentRoute: typeof ClientAppRoute
+    }
+    '/practitioner/app/team': {
+      id: '/practitioner/app/team'
+      path: '/team'
+      fullPath: '/practitioner/app/team'
+      preLoaderRoute: typeof PractitionerAppTeamRouteImport
+      parentRoute: typeof PractitionerAppRoute
     }
     '/practitioner/app/settings': {
       id: '/practitioner/app/settings'
@@ -1372,6 +1391,7 @@ interface PractitionerAppRouteChildren {
   PractitionerAppProfileRoute: typeof PractitionerAppProfileRoute
   PractitionerAppProgramQueueRoute: typeof PractitionerAppProgramQueueRoute
   PractitionerAppSettingsRoute: typeof PractitionerAppSettingsRoute
+  PractitionerAppTeamRoute: typeof PractitionerAppTeamRoute
   PractitionerAppClientDetailClientIdRoute: typeof PractitionerAppClientDetailClientIdRoute
 }
 
@@ -1383,6 +1403,7 @@ const PractitionerAppRouteChildren: PractitionerAppRouteChildren = {
   PractitionerAppProfileRoute: PractitionerAppProfileRoute,
   PractitionerAppProgramQueueRoute: PractitionerAppProgramQueueRoute,
   PractitionerAppSettingsRoute: PractitionerAppSettingsRoute,
+  PractitionerAppTeamRoute: PractitionerAppTeamRoute,
   PractitionerAppClientDetailClientIdRoute:
     PractitionerAppClientDetailClientIdRoute,
 }
