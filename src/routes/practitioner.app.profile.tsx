@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, Trash2, Mail, Phone, ClipboardCheck, Settings as SettingsIcon, ChevronRight } from "lucide-react";
+import { LogOut, Trash2, Mail, Phone, ClipboardCheck, Settings as SettingsIcon, ChevronRight, Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { deleteMyAccount } from "@/lib/account-delete.functions";
 import { NotificationSubscribeButton } from "@/components/NotificationSubscribeButton";
@@ -252,6 +252,12 @@ function MoreSection({ queueCount, showQueue }: { queueCount: number; showQueue:
       badge: queueCount,
     });
   }
+  items.push({
+    to: "/practitioner/app/team",
+    label: "Team",
+    desc: "Your practice and its practitioners",
+    Icon: Users,
+  });
   items.push({
     to: "/practitioner/app/settings",
     label: "Settings",

@@ -26,6 +26,7 @@ function PractitionerSignup() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [profession, setProfession] = useState("");
+  const [practiceType, setPracticeType] = useState<"individual" | "group">("individual");
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -94,6 +95,7 @@ function PractitionerSignup() {
         fullName: fullName.trim(),
         email: email.trim(),
         profession,
+        practiceType,
       },
     });
     setLoading(false);
@@ -242,6 +244,38 @@ function PractitionerSignup() {
                     </option>
                   ))}
                 </select>
+              </Field>
+              <Field label="Account type">
+                <div style={{ display: "flex", gap: 8 }}>
+                  {([
+                    ["individual", "Just me", "You and your own clients"],
+                    ["group", "A practice", "Add up to 6 practitioners"],
+                  ] as const).map(([val, label, hint]) => {
+                    const active = practiceType === val;
+                    return (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setPracticeType(val)}
+                        style={{
+                          flex: 1,
+                          textAlign: "left",
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          cursor: "pointer",
+                          background: active ? "rgba(74,141,240,0.16)" : "transparent",
+                          border: `1px solid ${active ? "var(--blue-accent)" : "var(--navy-border)"}`,
+                          color: "var(--white)",
+                        }}
+                      >
+                        <div style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 14 }}>{label}</div>
+                        <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--white-muted)", marginTop: 2 }}>
+                          {hint}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </Field>
               <Field label="Password">
                 <div style={{ position: "relative" }}>
