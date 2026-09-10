@@ -37,6 +37,7 @@ import { Route as PractitionerAppDashboardRouteImport } from './routes/practitio
 import { Route as PractitionerAppAlertsRouteImport } from './routes/practitioner.app.alerts'
 import { Route as PractitionerAppAddClientRouteImport } from './routes/practitioner.app.add-client'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as LovableEmailEventsRouteImport } from './routes/lovable/email/events'
 import { Route as ClientAppYvesRouteImport } from './routes/client.app.yves'
 import { Route as ClientAppTimelineRouteImport } from './routes/client.app.timeline'
 import { Route as ClientAppProgressRouteImport } from './routes/client.app.progress'
@@ -216,6 +217,11 @@ const PractitionerAppAddClientRoute =
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LovableEmailEventsRoute = LovableEmailEventsRouteImport.update({
+  id: '/lovable/email/events',
+  path: '/lovable/email/events',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientAppYvesRoute = ClientAppYvesRouteImport.update({
@@ -456,6 +462,7 @@ export interface FileRoutesByFullPath {
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
+  '/lovable/email/events': typeof LovableEmailEventsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
@@ -522,6 +529,7 @@ export interface FileRoutesByTo {
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
+  '/lovable/email/events': typeof LovableEmailEventsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
@@ -590,6 +598,7 @@ export interface FileRoutesById {
   '/client/app/progress': typeof ClientAppProgressRoute
   '/client/app/timeline': typeof ClientAppTimelineRoute
   '/client/app/yves': typeof ClientAppYvesRoute
+  '/lovable/email/events': typeof LovableEmailEventsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/practitioner/app/add-client': typeof PractitionerAppAddClientRoute
   '/practitioner/app/alerts': typeof PractitionerAppAlertsRoute
@@ -659,6 +668,7 @@ export interface FileRouteTypes {
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
+    | '/lovable/email/events'
     | '/lovable/email/suppression'
     | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
@@ -725,6 +735,7 @@ export interface FileRouteTypes {
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
+    | '/lovable/email/events'
     | '/lovable/email/suppression'
     | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
@@ -792,6 +803,7 @@ export interface FileRouteTypes {
     | '/client/app/progress'
     | '/client/app/timeline'
     | '/client/app/yves'
+    | '/lovable/email/events'
     | '/lovable/email/suppression'
     | '/practitioner/app/add-client'
     | '/practitioner/app/alerts'
@@ -845,6 +857,7 @@ export interface RootRouteChildren {
   PractitionerPendingRoute: typeof PractitionerPendingRoute
   PractitionerSignupRoute: typeof PractitionerSignupRoute
   ApiPublicTriageQueryRoute: typeof ApiPublicTriageQueryRoute
+  LovableEmailEventsRoute: typeof LovableEmailEventsRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicAlertsActionRoute: typeof ApiPublicAlertsActionRoute
   ApiPublicCalendarTokenRoute: typeof ApiPublicCalendarTokenRoute
@@ -1062,6 +1075,13 @@ declare module '@tanstack/react-router' {
       path: '/lovable/email/suppression'
       fullPath: '/lovable/email/suppression'
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/events': {
+      id: '/lovable/email/events'
+      path: '/lovable/email/events'
+      fullPath: '/lovable/email/events'
+      preLoaderRoute: typeof LovableEmailEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/client/app/yves': {
@@ -1432,6 +1452,7 @@ const rootRouteChildren: RootRouteChildren = {
   PractitionerPendingRoute: PractitionerPendingRoute,
   PractitionerSignupRoute: PractitionerSignupRoute,
   ApiPublicTriageQueryRoute: ApiPublicTriageQueryRoute,
+  LovableEmailEventsRoute: LovableEmailEventsRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicAlertsActionRoute: ApiPublicAlertsActionRoute,
   ApiPublicCalendarTokenRoute: ApiPublicCalendarTokenRoute,
