@@ -99,6 +99,22 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
               continue;
             }
 
+            // Atomically claim today's send BEFORE pushing, so two overlapping
+            // cron runs can't both send (the fire window spans >1 run).
+            const { data: claimed } = await supabaseAdmin
+              .from("checkin_reminders")
+              .update({ last_sent_on: localDate })
+              .eq("id", r.id)
+              // Claim rows never sent (NULL) OR last sent on a different day;
+              // .neq alone would exclude NULLs and skip first-ever reminders.
+              .or(`last_sent_on.is.null,last_sent_on.neq.${localDate}`)
+              .select("id")
+              .maybeSingle();
+            if (!claimed) {
+              skipped++;
+              continue;
+            }
+
             await sendPushCore(supabaseAdmin, {
               userId: client.auth_user_id,
               title: "Time for your check-in",
@@ -106,11 +122,6 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
               data: { type: "checkin_reminder", path: "/client/app/checkin" },
               sentBy: null,
             });
-
-            await supabaseAdmin
-              .from("checkin_reminders")
-              .update({ last_sent_on: localDate })
-              .eq("id", r.id);
             sent++;
           } catch (e) {
             console.error("[checkin-reminders] failed for", r.id, e);

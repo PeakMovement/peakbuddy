@@ -126,6 +126,7 @@ function CheckInScreen() {
 
   const submit = async () => {
     if (!client) return;
+    if (submitting) return; // guard against a double-tap firing two check-ins
     setSubmitError(null);
     setSubmitting(true);
 

@@ -72,12 +72,18 @@ export async function upsertToken(
   admin: AdminClient,
   row: Database["public"]["Tables"]["wearable_tokens"]["Insert"],
 ) {
-  const { error } = await admin.from("wearable_tokens").upsert(
-    { ...row, status: "active", updated_at: new Date().toISOString() },
-    {
-      onConflict: "client_id,provider",
-    },
-  );
+  // Never clobber an existing provider_user_id with null: on reconnect the
+  // best-effort id fetch can fail, and nulling it silently breaks webhook
+  // attribution (Oura has no self-heal). Omit it from the upsert when absent so
+  // the stored value is preserved on conflict.
+  const { provider_user_id, ...rest } = row;
+  const payload =
+    provider_user_id == null
+      ? { ...rest, status: "active" as const, updated_at: new Date().toISOString() }
+      : { ...row, status: "active" as const, updated_at: new Date().toISOString() };
+  const { error } = await admin.from("wearable_tokens").upsert(payload, {
+    onConflict: "client_id,provider",
+  });
   if (error) throw new Error(`Failed to store ${row.provider} token: ${error.message}`);
 }
 
@@ -194,11 +200,15 @@ export async function getValidGarminAccessToken(
       .eq("provider", "garmin");
     return refreshed.access_token;
   } catch (e) {
-    await admin
-      .from("wearable_tokens")
-      .update({ status: "token_expired", updated_at: new Date().toISOString() })
-      .eq("client_id", clientId)
-      .eq("provider", "garmin");
+    // Only mark the connection expired on a genuine invalid_grant; a transient
+    // 5xx/network error must not flip a healthy connection to "reconnect".
+    if (e instanceof GarminError && e.code === "invalid_grant") {
+      await admin
+        .from("wearable_tokens")
+        .update({ status: "token_expired", updated_at: new Date().toISOString() })
+        .eq("client_id", clientId)
+        .eq("provider", "garmin");
+    }
     log.warn(`Garmin token refresh failed for client ${clientId}`, e);
     throw e;
   }

@@ -138,8 +138,13 @@ export async function refreshGarminToken(args: {
       refresh_token: args.refreshToken,
     }),
   });
-  if (!res.ok)
-    throw new GarminError("refresh_failed", `Garmin refresh failed: ${await res.text()}`);
+  if (!res.ok) {
+    const body = await res.text();
+    // Only a real invalid_grant means the connection is dead; a 5xx/network
+    // blip is transient and must NOT flip the connection to "expired".
+    const code = res.status === 400 && /invalid_grant/i.test(body) ? "invalid_grant" : "refresh_failed";
+    throw new GarminError(code, `Garmin refresh failed (${res.status}): ${body}`);
+  }
   const data = (await res.json()) as Partial<GarminTokenResponse>;
   if (!data.access_token)
     throw new GarminError("INVALID_RESPONSE", "Garmin refresh missing access_token");

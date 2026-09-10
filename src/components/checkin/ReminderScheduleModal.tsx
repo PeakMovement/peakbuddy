@@ -76,6 +76,10 @@ export function ReminderScheduleModal({
   };
 
   const save = async () => {
+    if (frequency === "custom" && days.length === 0) {
+      setPermMessage("Pick at least one day for a custom reminder.");
+      return;
+    }
     setSaving(true);
     setPermMessage(null);
     try {
