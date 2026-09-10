@@ -22,8 +22,7 @@ export const acceptPopiaConsent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ ok: true }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin
-      .from("clients")
+    await (supabaseAdmin.from("clients") as any)
       .update({ popia_accepted: true, popia_accepted_at: new Date().toISOString() })
       .eq("auth_user_id", context.userId)
       .eq("popia_accepted", false);
