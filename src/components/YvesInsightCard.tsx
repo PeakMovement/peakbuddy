@@ -1,8 +1,10 @@
 import type { CSSProperties } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Sparkles } from "lucide-react";
+import { Sparkles, FileText, Upload, Download, Stethoscope } from "lucide-react";
 import { generateClientInsight } from "@/lib/data-hub-insight.functions";
+
+type StoredReport = { name: string; size: number; addedAt: string; url: string };
 
 const FOCUSES = ["General overview", "Pain & symptoms", "Sleep & recovery", "Training load", "Risk factors"];
 
