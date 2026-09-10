@@ -10,6 +10,7 @@ import { registerPushToken, captureWebPushToken } from "@/lib/push";
 import { SyncStatusBanner } from "@/components/SyncStatusBanner";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { SetQuickCodePrompt } from "@/components/SetQuickCodePrompt";
+import { PopiaConsentModal } from "@/components/PopiaConsentModal";
 
 
 export const Route = createFileRoute("/client/app")({
@@ -166,6 +167,7 @@ function ClientAppLayout() {
         </button>
       )}
 
+      <PopiaConsentModal />
       <SetQuickCodePrompt />
 
       <main style={{ flex: 1, paddingBottom: 96, overflowX: "hidden" }}>

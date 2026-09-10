@@ -452,6 +452,7 @@ export type Database = {
           passive_monitoring_enabled: boolean
           phone: string | null
           popia_accepted: boolean
+          popia_accepted_at: string | null
           practitioner_id: string
           predictive_nudges_enabled: boolean
           primary_complaint: string | null
@@ -482,6 +483,7 @@ export type Database = {
           passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean
+          popia_accepted_at?: string | null
           practitioner_id: string
           predictive_nudges_enabled?: boolean
           primary_complaint?: string | null
@@ -512,6 +514,7 @@ export type Database = {
           passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean
+          popia_accepted_at?: string | null
           practitioner_id?: string
           predictive_nudges_enabled?: boolean
           primary_complaint?: string | null
