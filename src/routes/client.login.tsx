@@ -370,8 +370,9 @@ function ClientLogin() {
             lineHeight: 1.5,
           }}
         >
-          Your practitioner gives you a login code. There is no charge to you and nothing to buy
-          inside the app.
+          New here? Check your welcome email to set your password, then sign in with your email
+          above — or tap “Email me a sign-in link”. Once you’re in, you can set a 4-digit quick code
+          for faster sign-in. There is no charge to you and nothing to buy inside the app.
         </p>
 
         <Link

@@ -66,6 +66,21 @@ export const createClientAccount = createServerFn({ method: "POST" })
         if (!existing) {
           return { ok: false as const, error: "Email already in use but user not found." };
         }
+        // Never take over an existing STAFF account. Adding a client re-uses an
+        // existing auth user (e.g. re-adding a previously removed client whose
+        // login lingered), but if the email belongs to a practitioner or
+        // super-admin, resetting its password here would be an account takeover.
+        const { data: existingProf } = await admin
+          .from("profiles")
+          .select("role")
+          .eq("id", existing.id)
+          .maybeSingle();
+        if (existingProf?.role === "super_admin" || existingProf?.role === "practitioner") {
+          return {
+            ok: false as const,
+            error: "This email already belongs to a staff account and can't be used for a client.",
+          };
+        }
         await admin.auth.admin.updateUserById(existing.id, { password: data.password });
         userId = existing.id;
       } else {
