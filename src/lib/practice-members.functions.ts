@@ -252,14 +252,30 @@ export async function canAccessClient(
   userId: string,
   clientId: string,
 ): Promise<{ allowed: boolean }> {
+  // Own-client check first, selecting ONLY practitioner_id — this must never
+  // depend on the practice_id column, so a practitioner can always open their
+  // own client even if the group-practice migration hasn't been applied yet.
   const { data: c } = await admin
     .from("clients")
-    .select("practitioner_id, practice_id")
+    .select("practitioner_id")
     .eq("id", clientId)
     .maybeSingle();
   if (!c) return { allowed: false };
   if (c.practitioner_id === userId) return { allowed: true };
-  const practiceId = (c as { practice_id?: string | null }).practice_id ?? null;
+
+  // Practice-owner path (needs practice_id). Tolerate a missing column / table
+  // (returns null) so this degrades to the super-admin check rather than failing.
+  let practiceId: string | null = null;
+  try {
+    const { data: c2 } = await admin
+      .from("clients")
+      .select("practice_id")
+      .eq("id", clientId)
+      .maybeSingle();
+    practiceId = (c2 as { practice_id?: string | null } | null)?.practice_id ?? null;
+  } catch {
+    practiceId = null;
+  }
   const ctx = await resolvePractitionerPracticeId(admin, userId);
   if (ctx && ctx.isOwner && practiceId && ctx.practiceId === practiceId) return { allowed: true };
   if (await isSuperAdmin(admin, userId)) return { allowed: true };
