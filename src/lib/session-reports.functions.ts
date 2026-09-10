@@ -289,39 +289,83 @@ export const analyzeReports = createServerFn({ method: "POST" })
     ];
 
     const gk = process.env.GEMINI_API_KEY;
-    const model = process.env.GEMINI_MODEL || "gemini-2.5-pro";
     let text = "";
     let usedModel = "";
+
+    // 1) Direct Google Gemini API (native PDF + image support). GEMINI_MODEL may
+    //    be set to a gateway-only name that 404s on the direct API, so try a list
+    //    of known-good direct models instead of trusting it blindly.
     if (gk) {
-      try {
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gk}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              systemInstruction: { parts: [{ text: ANALYSIS_SYSTEM_PROMPT }] },
-              contents: [{ role: "user", parts: userParts }],
-            }),
-          },
-        );
-        if (res.ok) {
-          const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-          text = (j.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
-          usedModel = `google/${model}`;
-        } else {
-          return { ok: false, error: `Analysis failed (${res.status}). Please try again.` };
+      const configured = (process.env.GEMINI_MODEL || "").replace(/^google\//, "").trim();
+      const candidates = [configured, "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
+        .filter((m, i, a) => m && a.indexOf(m) === i);
+      for (const m of candidates) {
+        try {
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${gk}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                systemInstruction: { parts: [{ text: ANALYSIS_SYSTEM_PROMPT }] },
+                contents: [{ role: "user", parts: userParts }],
+              }),
+            },
+          );
+          if (res.ok) {
+            const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+            text = (j.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
+            if (text) { usedModel = `google/${m}`; break; }
+          }
+          // non-ok (e.g. 404 unknown model) → try the next candidate
+        } catch {
+          /* try the next candidate */
         }
-      } catch {
-        return { ok: false, error: "Analysis service is unavailable. Please try again." };
       }
-    } else {
+    }
+
+    // 2) Fallback: the Lovable AI gateway (the same path Yves insight uses), with
+    //    the reports sent as multimodal image_url parts.
+    if (!text) {
+      const key = process.env.LOVABLE_API_KEY;
+      if (key) {
+        try {
+          const content: unknown[] = [
+            { type: "text", text: (userParts[0] as { text: string }).text },
+            ...inlineParts.map((p) => ({
+              type: "image_url",
+              image_url: { url: `data:${p.inlineData.mimeType};base64,${p.inlineData.data}` },
+            })),
+          ];
+          const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-pro",
+              messages: [
+                { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
+                { role: "user", content },
+              ],
+            }),
+          });
+          if (res.ok) {
+            const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+            text = j.choices?.[0]?.message?.content?.trim() ?? "";
+            if (text) usedModel = "gateway/gemini-2.5-pro";
+          }
+        } catch {
+          /* fall through to the error below */
+        }
+      }
+    }
+
+    if (!text) {
       return {
         ok: false,
-        error: "Report analysis needs the Gemini API key configured (it reads the report files directly).",
+        error:
+          "Yves couldn't analyse the reports right now — the AI model didn't respond. Please try again in a moment.",
       };
     }
-    if (!text) return { ok: false, error: "The analysis came back empty. Please try again." };
 
     // Persist (best-effort).
     try {
