@@ -452,8 +452,6 @@ export type Database = {
           passive_monitoring_enabled: boolean
           phone: string | null
           popia_accepted: boolean
-          popia_accepted_at: string | null
-          practice_id: string | null
           practitioner_id: string
           predictive_nudges_enabled: boolean
           primary_complaint: string | null
@@ -484,8 +482,6 @@ export type Database = {
           passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean
-          popia_accepted_at?: string | null
-          practice_id?: string | null
           practitioner_id: string
           predictive_nudges_enabled?: boolean
           primary_complaint?: string | null
@@ -516,8 +512,6 @@ export type Database = {
           passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean
-          popia_accepted_at?: string | null
-          practice_id?: string | null
           practitioner_id?: string
           predictive_nudges_enabled?: boolean
           primary_complaint?: string | null
@@ -782,109 +776,11 @@ export type Database = {
         }
         Relationships: []
       }
-      session_reports: {
-        Row: {
-          client_id: string
-          created_at: string
-          file_name: string
-          id: string
-          mime_type: string
-          practice_id: string | null
-          size_bytes: number
-          storage_path: string
-          uploaded_by: string | null
-        }
-        Insert: {
-          client_id: string
-          created_at?: string
-          file_name: string
-          id?: string
-          mime_type: string
-          practice_id?: string | null
-          size_bytes?: number
-          storage_path: string
-          uploaded_by?: string | null
-        }
-        Update: {
-          client_id?: string
-          created_at?: string
-          file_name?: string
-          id?: string
-          mime_type?: string
-          practice_id?: string | null
-          size_bytes?: number
-          storage_path?: string
-          uploaded_by?: string | null
-        }
-        Relationships: []
-      }
-      session_report_analyses: {
-        Row: {
-          analysis_text: string
-          client_id: string
-          created_at: string
-          focus: string | null
-          generated_by: string | null
-          id: string
-          model: string | null
-          report_count: number
-        }
-        Insert: {
-          analysis_text: string
-          client_id: string
-          created_at?: string
-          focus?: string | null
-          generated_by?: string | null
-          id?: string
-          model?: string | null
-          report_count?: number
-        }
-        Update: {
-          analysis_text?: string
-          client_id?: string
-          created_at?: string
-          focus?: string | null
-          generated_by?: string | null
-          id?: string
-          model?: string | null
-          report_count?: number
-        }
-        Relationships: []
-      }
-      practice_members: {
-        Row: {
-          created_at: string
-          id: string
-          practice_id: string
-          role: string
-          status: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          practice_id: string
-          role?: string
-          status?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          practice_id?: string
-          role?: string
-          status?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       practices: {
         Row: {
           ai_features_enabled: boolean
           alert_sensitivity: string
           contact_webhook_enabled: boolean
-          contact_email: string | null
-          contact_phone: string | null
           contact_webhook_url: string | null
           created_at: string
           data_processing_agreed: boolean
@@ -894,9 +790,7 @@ export type Database = {
           onboarding_complete: boolean
           popia_agreed: boolean
           popia_agreed_at: string | null
-          max_members: number
           practice_name: string | null
-          practice_type: string
           practitioner_id: string
           profession: string | null
           programs_suggest_enabled: boolean
@@ -908,11 +802,7 @@ export type Database = {
           ai_features_enabled?: boolean
           alert_sensitivity?: string
           contact_webhook_enabled?: boolean
-          contact_email?: string | null
-          contact_phone?: string | null
           contact_webhook_url?: string | null
-          max_members?: number
-          practice_type?: string
           created_at?: string
           data_processing_agreed?: boolean
           data_processing_agreed_at?: string | null
@@ -933,11 +823,7 @@ export type Database = {
           ai_features_enabled?: boolean
           alert_sensitivity?: string
           contact_webhook_enabled?: boolean
-          contact_email?: string | null
-          contact_phone?: string | null
           contact_webhook_url?: string | null
-          max_members?: number
-          practice_type?: string
           created_at?: string
           data_processing_agreed?: boolean
           data_processing_agreed_at?: string | null
@@ -1964,15 +1850,6 @@ export type Database = {
     }
     Functions: {
       current_client_id: { Args: never; Returns: string }
-      delete_email: {
-        Args: { message_id: number; queue_name: string }
-        Returns: boolean
-      }
-      email_queue_dispatch: { Args: never; Returns: undefined }
-      enqueue_email: {
-        Args: { payload: Json; queue_name: string }
-        Returns: number
-      }
       insert_alert: {
         Args: {
           p_alert_type: string
@@ -2016,32 +1893,7 @@ export type Database = {
             }
             Returns: string
           }
-      claim_quick_login_attempt: {
-        Args: { p_user_id: string }
-        Returns: { allowed: boolean; locked: boolean }[]
-      }
-      is_active_practice_member: {
-        Args: { p_practice: string; p_user: string }
-        Returns: boolean
-      }
       is_super_admin: { Args: { _uid: string }; Returns: boolean }
-      move_to_dlq: {
-        Args: {
-          dlq_name: string
-          message_id: number
-          payload: Json
-          source_queue: string
-        }
-        Returns: number
-      }
-      read_email_batch: {
-        Args: { batch_size: number; queue_name: string; vt: number }
-        Returns: {
-          message: Json
-          msg_id: number
-          read_ct: number
-        }[]
-      }
     }
     Enums: {
       [_ in never]: never
