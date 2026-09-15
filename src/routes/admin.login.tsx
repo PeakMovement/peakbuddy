@@ -65,8 +65,12 @@ function AdminLogin() {
     }
     setResetBusy(true);
     try {
+      // Pin to the canonical (allow-listed) URL. window.location.origin on a
+      // preview/non-production host is NOT in Supabase's redirect allow-list, so
+      // the recovery link would bounce to the site root and never reach this
+      // page — leaving the password unchanged.
       await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: "https://peakbuddy.lovable.app/reset-password",
       });
     } catch {
       /* ignore */

@@ -22,16 +22,37 @@ function ResetPassword() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Wait for Supabase to parse the recovery token from the URL hash and
-  // establish a session, then let the user pick a new password.
+  // Establish the recovery session from the email link, however Supabase
+  // delivered it: a hash token (implicit flow) is auto-parsed by
+  // detectSessionInUrl; a ?code= (PKCE) is exchanged explicitly; and we also
+  // listen for the PASSWORD_RECOVERY / SIGNED_IN event as it lands.
   useEffect(() => {
     let cancelled = false;
+
+    const markReady = () => {
+      if (!cancelled) setReady(true);
+    };
+
+    const sub = supabase.auth.onAuthStateChange((event, session) => {
+      if (session || event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") markReady();
+    });
+
     (async () => {
+      // If the link came back as ?code=..., exchange it for a session.
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("code")) {
+          await supabase.auth.exchangeCodeForSession(window.location.href);
+        }
+      } catch {
+        /* fall through to polling */
+      }
+
       let attempt = 0;
-      while (attempt < 25 && !cancelled) {
+      while (attempt < 30 && !cancelled) {
         const { data } = await supabase.auth.getUser();
         if (data.user) {
-          setReady(true);
+          markReady();
           return;
         }
         await new Promise((r) => setTimeout(r, 150));
@@ -43,8 +64,10 @@ function ResetPassword() {
         );
       }
     })();
+
     return () => {
       cancelled = true;
+      sub.data.subscription.unsubscribe();
     };
   }, []);
 
