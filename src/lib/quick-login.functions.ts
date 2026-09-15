@@ -53,10 +53,11 @@ async function hashCode(code: string, saltHex: string): Promise<string> {
   const enc = new TextEncoder();
   const salt = Uint8Array.from(saltHex.match(/.{2}/g) ?? [], (h) => parseInt(h, 16));
   try {
-    const key = await crypto.subtle.importKey("raw", enc.encode(code), "PBKDF2", false, [
+    const subtle = (globalThis.crypto ?? crypto).subtle;
+    const key = await subtle.importKey("raw", enc.encode(code), "PBKDF2", false, [
       "deriveBits",
     ]);
-    const bits = await crypto.subtle.deriveBits(
+    const bits = await subtle.deriveBits(
       { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
       key,
       256,
@@ -72,8 +73,15 @@ async function hashCode(code: string, saltHex: string): Promise<string> {
 
 function newSalt(): string {
   const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  return toHex(bytes.buffer);
+  try {
+    (globalThis.crypto ?? crypto).getRandomValues(bytes);
+    return toHex(bytes.buffer);
+  } catch {
+    // Non-crypto fallback for runtimes without WebCrypto (the salt only needs to
+    // be unique per user, not cryptographically strong on its own).
+    for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    return toHex(bytes.buffer);
+  }
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -119,31 +127,35 @@ export const setQuickCode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ code: codeSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const { supabaseAdmin: gadmin } = await import("@/integrations/supabase/client.server");
-    const { data: gProf } = await gadmin
-      .from("profiles")
-      .select("role")
-      .eq("id", context.userId)
-      .maybeSingle();
-    if (gProf?.role === "super_admin") {
-      return {
-        ok: false as const,
-        error: "Quick sign-in isn't available for admin accounts. Use your full password.",
-      };
-    }
-    if (WEAK_CODES.has(data.code)) {
-      return {
-        ok: false as const,
-        error: "That code is too easy to guess. Choose another 4 digits.",
-      };
-    }
+    // Fully guarded: this handler must never reject, so the client always gets a
+    // precise reason instead of a generic "couldn't save".
     try {
+      const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+
+      const { data: gProf } = await admin
+        .from("profiles")
+        .select("role")
+        .eq("id", context.userId)
+        .maybeSingle();
+      if (gProf?.role === "super_admin") {
+        return {
+          ok: false as const,
+          error: "Quick sign-in isn't available for admin accounts. Use your full password.",
+        };
+      }
+      if (WEAK_CODES.has(data.code)) {
+        return {
+          ok: false as const,
+          error: "That code is too easy to guess. Choose another 4 digits.",
+        };
+      }
+
       const salt = newSalt();
       const hash = await hashCode(data.code, salt);
-      const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-      // Replace any existing row for this user. Using delete-then-insert avoids a
-      // dependency on a unique constraint for ON CONFLICT (which, if missing,
-      // makes upsert fail every time).
+
+      // Replace any existing row for this user. delete-then-insert avoids a
+      // dependency on an ON CONFLICT unique constraint (which, if missing, makes
+      // upsert fail every time).
       await admin.from("quick_login_codes").delete().eq("user_id", context.userId);
       const { error } = await admin.from("quick_login_codes").insert({
         user_id: context.userId,
