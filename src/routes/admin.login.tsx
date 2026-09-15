@@ -33,6 +33,7 @@ function AdminLogin() {
   const [error, setError] = useState<string | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetNotice, setResetNotice] = useState<string | null>(null);
+  const [resetCooldown, setResetCooldown] = useState(0);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"password" | "quick">("password");
 

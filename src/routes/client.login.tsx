@@ -27,6 +27,7 @@ function ClientLogin() {
   const [magicNotice, setMagicNotice] = useState<string | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [resetCooldown, setResetCooldown] = useState(0);
   const [mode, setMode] = useState<"password" | "quick">("password");
 
 
