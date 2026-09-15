@@ -38,6 +38,29 @@ export const registerPractitioner = createServerFn({ method: "POST" })
       return { ok: false as const, error: "Registration link expired. Please sign up again." };
     }
 
+    // Never convert an existing client account into a practitioner. A client
+    // created via /join is a real auth user < 15 min old, so the age gate alone
+    // wouldn't stop this public endpoint from re-roling it.
+    const [{ data: clientById }, { data: clientByEmail }] = await Promise.all([
+      supabaseAdmin.from("clients").select("id").eq("auth_user_id", data.userId).limit(1),
+      supabaseAdmin.from("clients").select("id").ilike("email", data.email).limit(1),
+    ]);
+    if (
+      (Array.isArray(clientById) && clientById.length > 0) ||
+      (Array.isArray(clientByEmail) && clientByEmail.length > 0)
+    ) {
+      return { ok: false as const, error: "This email is already registered as a client." };
+    }
+    const { data: existingProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", data.userId)
+      .maybeSingle();
+    const existingRole = (existingProfile as { role?: string } | null)?.role ?? null;
+    if (existingRole && existingRole !== "practitioner") {
+      return { ok: false as const, error: "This account can't be registered as a practitioner." };
+    }
+
     const { error: profErr } = await supabaseAdmin.from("profiles").upsert(
       {
         id: data.userId,

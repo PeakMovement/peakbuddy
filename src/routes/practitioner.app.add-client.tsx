@@ -68,19 +68,26 @@ function AddClient() {
       setSubmitting(false);
       return;
     }
-    const result = await createClientAccount({
-      data: {
-        practitionerId: u.user.id,
-        fullName: fullName.trim(),
-        email: email.trim(),
-        password,
-        primaryComplaint: complaint.trim(),
-        notes: notes.trim(),
-        checkInFrequency: freq,
-        suggestedProgramId: suggestedProgramId || null,
-        programPersonalNote: suggestedProgramId ? programNote.trim() : "",
-      },
-    });
+    let result;
+    try {
+      result = await createClientAccount({
+        data: {
+          practitionerId: u.user.id,
+          fullName: fullName.trim(),
+          email: email.trim(),
+          password,
+          primaryComplaint: complaint.trim(),
+          notes: notes.trim(),
+          checkInFrequency: freq,
+          suggestedProgramId: suggestedProgramId || null,
+          programPersonalNote: suggestedProgramId ? programNote.trim() : "",
+        },
+      });
+    } catch {
+      setError("Something went wrong creating the account. Please try again.");
+      setSubmitting(false);
+      return;
+    }
     if (!result.ok) {
       setError(result.error);
       setSubmitting(false);

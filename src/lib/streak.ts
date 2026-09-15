@@ -85,7 +85,9 @@ export function computeStreak(
   }
 
   const unlockedMilestones = STREAK_MILESTONES.filter((m) => longest >= m);
-  const nextMilestone = STREAK_MILESTONES.find((m) => m > current) ?? null;
+  // Next goal must be one not already unlocked — base it on the same counter
+  // that drives unlockedMilestones (longest), not the current run.
+  const nextMilestone = STREAK_MILESTONES.find((m) => m > longest) ?? null;
 
   return { current, longest, total, isAsNeeded, unlockedMilestones, nextMilestone };
 }

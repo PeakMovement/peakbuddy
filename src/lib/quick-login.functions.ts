@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { findAuthUserIdByEmail } from "@/lib/find-auth-user";
 
 // ---------------------------------------------------------------------------
 // Quick sign-in with a 4-digit code.
@@ -214,15 +215,8 @@ export const signInWithQuickCode = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
 
-    // Resolve the auth user for this email.
-    let userId: string | null = null;
-    for (let page = 1; page <= 5 && !userId; page += 1) {
-      const { data: list } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-      const users = list?.users ?? [];
-      const match = users.find((u) => u.email?.toLowerCase() === data.email.toLowerCase());
-      if (match) userId = match.id;
-      if (users.length < 200) break;
-    }
+    // Resolve the auth user for this email (pages through the full user list).
+    const userId: string | null = await findAuthUserIdByEmail(admin, data.email);
     if (!userId) {
       await dummyHash(data.code);
       return { ok: false as const, error: GENERIC_ERROR };

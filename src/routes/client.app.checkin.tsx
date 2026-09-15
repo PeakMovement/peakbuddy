@@ -260,17 +260,23 @@ function CheckInScreen() {
           }
         }
 
-        const result = await fireAlertWebhook({
-          practitionerId: client.practitioner_id,
-          clientName: client.full_name,
-          clientId: client.id,
-          alertMessage: "Red flag symptom detected in daily check-in",
-          urgency: effectiveUrgency,
-          redFlagDetected: true,
-        });
+        // Never let a webhook network/server error abort the submit — the
+        // check-in is already saved and the button must be released.
+        try {
+          const result = await fireAlertWebhook({
+            practitionerId: client.practitioner_id,
+            clientName: client.full_name,
+            clientId: client.id,
+            alertMessage: "Red flag symptom detected in daily check-in",
+            urgency: effectiveUrgency,
+            redFlagDetected: true,
+          });
 
-        if (result.fired && alertRowId) {
-          await supabase.from("alerts").update({ webhook_fired: true }).eq("id", alertRowId);
+          if (result.fired && alertRowId) {
+            await supabase.from("alerts").update({ webhook_fired: true }).eq("id", alertRowId);
+          }
+        } catch (e) {
+          log.warn("[Check-in] alert webhook failed:", e);
         }
       } else {
         log.debug("[Buddy] Duplicate alert suppressed for client:", client.id);

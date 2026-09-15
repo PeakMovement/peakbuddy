@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { findAuthUserIdByEmail } from "@/lib/find-auth-user";
 
 const SITE_ORIGIN = process.env.BUDDY_APP_BASE_URL || "https://peakbuddy.lovable.app";
 
@@ -127,11 +128,10 @@ export const invitePracticeMember = createServerFn({ method: "POST" })
       redirectTo: `${SITE_ORIGIN}/practitioner/login`,
     });
     if (invErr || !invited?.user) {
-      // Already registered? Find them.
-      const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
-      const existing = list?.users.find((u) => u.email?.toLowerCase() === data.email.toLowerCase());
-      if (!existing) return { ok: false as const, error: invErr?.message ?? "Could not invite this email." };
-      userId = existing.id;
+      // Already registered? Find them (full paged lookup).
+      const existingId = await findAuthUserIdByEmail(supabaseAdmin, data.email);
+      if (!existingId) return { ok: false as const, error: invErr?.message ?? "Could not invite this email." };
+      userId = existingId;
     } else {
       userId = invited.user.id;
     }

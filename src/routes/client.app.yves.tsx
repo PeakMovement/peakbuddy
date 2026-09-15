@@ -416,48 +416,58 @@ function YvesScreen() {
     if (!client || contacting || contacted) return;
     if (!result && !fromModal) return;
     setContacting(true);
-    const dup = await checkRecentRedFlagQuery();
-    // Even if duplicate, mark UI as "Notified" so the user gets feedback
-    if (!dup) {
-      await notifyAssignedPractitioner({
-        data: {
-          clientId: client.id,
-          symptomDescription: result?.rationale ?? resultText ?? text.trim(),
-          symptomScore: result?.severity ?? 0,
-          urgency: (result?.urgency ?? "urgent") as
-            | "emergency"
-            | "urgent"
-            | "soon"
-            | "monitor"
-            | "routine",
-        },
-      });
+    try {
+      const dup = await checkRecentRedFlagQuery();
+      // Even if duplicate, mark UI as "Notified" so the user gets feedback
+      if (!dup) {
+        await notifyAssignedPractitioner({
+          data: {
+            clientId: client.id,
+            symptomDescription: result?.rationale ?? resultText ?? text.trim(),
+            symptomScore: result?.severity ?? 0,
+            urgency: (result?.urgency ?? "urgent") as
+              | "emergency"
+              | "urgent"
+              | "soon"
+              | "monitor"
+              | "routine",
+          },
+        });
+      }
+      setContacted(true);
+    } catch (e) {
+      log.warn("[Yves] contact practitioner failed:", e);
+    } finally {
+      setContacting(false);
     }
-    setContacting(false);
-    setContacted(true);
   };
 
   const realTimeContact = async () => {
     if (!client || contacted) return;
     setContacting(true);
-    const dup = await checkRecentRedFlagQuery();
-    if (!dup) {
-      await notifyAssignedPractitioner({
-        data: {
-          clientId: client.id,
-          symptomDescription: text.trim(),
-          symptomScore: realTime?.severity ?? 0,
-          urgency: (realTime?.urgency ?? "urgent") as
-            | "emergency"
-            | "urgent"
-            | "soon"
-            | "monitor"
-            | "routine",
-        },
-      });
+    try {
+      const dup = await checkRecentRedFlagQuery();
+      if (!dup) {
+        await notifyAssignedPractitioner({
+          data: {
+            clientId: client.id,
+            symptomDescription: text.trim(),
+            symptomScore: realTime?.severity ?? 0,
+            urgency: (realTime?.urgency ?? "urgent") as
+              | "emergency"
+              | "urgent"
+              | "soon"
+              | "monitor"
+              | "routine",
+          },
+        });
+      }
+      setContacted(true);
+    } catch (e) {
+      log.warn("[Yves] real-time contact failed:", e);
+    } finally {
+      setContacting(false);
     }
-    setContacting(false);
-    setContacted(true);
   };
 
   const askAnother = () => {

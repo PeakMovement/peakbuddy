@@ -90,25 +90,31 @@ function ClientProfile() {
   const handleAccept = async () => {
     if (busy) return;
     setBusy(true);
-    const res = await respond({ data: { decision: "accepted" } });
-    setBusy(false);
-    if (res.ok && programState?.program?.external_url) {
-      window.open(programState.program.external_url, "_blank", "noopener,noreferrer");
-    }
-    if (res.ok) {
-      const fresh = await loadProgram();
-      setProgramState(fresh);
+    try {
+      const res = await respond({ data: { decision: "accepted" } });
+      if (res.ok && programState?.program?.external_url) {
+        window.open(programState.program.external_url, "_blank", "noopener,noreferrer");
+      }
+      if (res.ok) {
+        const fresh = await loadProgram();
+        setProgramState(fresh);
+      }
+    } finally {
+      setBusy(false);
     }
   };
 
   const handleDecline = async () => {
     if (busy) return;
     setBusy(true);
-    const res = await respond({ data: { decision: "declined" } });
-    setBusy(false);
-    if (res.ok) {
-      const fresh = await loadProgram();
-      setProgramState(fresh);
+    try {
+      const res = await respond({ data: { decision: "declined" } });
+      if (res.ok) {
+        const fresh = await loadProgram();
+        setProgramState(fresh);
+      }
+    } finally {
+      setBusy(false);
     }
   };
 

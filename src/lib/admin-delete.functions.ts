@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { findAuthUserIdByEmail } from "@/lib/find-auth-user";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -32,9 +33,7 @@ export const adminDeleteClient = createServerFn({ method: "POST" })
 
     let authUserId: string | null = client.auth_user_id ?? null;
     if (!authUserId && client.email) {
-      const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
-      authUserId =
-        list?.users.find((u) => u.email?.toLowerCase() === client.email!.toLowerCase())?.id ?? null;
+      authUserId = await findAuthUserIdByEmail(supabaseAdmin, client.email);
     }
     if (authUserId) {
       await supabaseAdmin.auth.admin.deleteUser(authUserId);
