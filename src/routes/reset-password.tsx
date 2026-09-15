@@ -9,7 +9,22 @@ import { markQuickCodeSession } from "@/lib/quick-login";
 
 
 export const Route = createFileRoute("/reset-password")({
-  head: () => ({ meta: [{ title: "Set your password — Buddy" }] }),
+  head: () => ({
+    meta: [
+      { title: "Reset Password — Buddy" },
+      {
+        name: "description",
+        content: "Choose a new password for your Buddy account.",
+      },
+      { property: "og:title", content: "Reset Password — Buddy" },
+      {
+        property: "og:description",
+        content: "Choose a new password for your Buddy account.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: ResetPassword,
 });
 
@@ -32,17 +47,20 @@ function ResetPassword() {
     const tryRecover = async () => {
       const hash = window.location.hash?.slice(1) ?? "";
       const params = new URLSearchParams(hash);
+      const query = new URLSearchParams(window.location.search);
       const hasRecoveryToken =
-        params.get("type") === "recovery" || params.has("access_token");
+        params.get("type") === "recovery" ||
+        params.has("access_token") ||
+        query.has("code");
+      let recovered = false;
 
-      if (!hasRecoveryToken) {
-        if (!cancelled) {
-          setLinkError(
-            "This link is invalid. Please request a new one from the sign in screen.",
-          );
-        }
-        return;
-      }
+      const acceptSession = () => {
+        if (cancelled || recovered) return;
+        recovered = true;
+        setLinkError(null);
+        setReady(true);
+        clearRecoveryUrl();
+      };
 
       // Listen for the session that Supabase creates from the recovery token.
       const { data: listener } = supabase.auth.onAuthStateChange(
@@ -54,33 +72,36 @@ function ResetPassword() {
               event === "PASSWORD_RECOVERY") &&
             session?.user
           ) {
-            setReady(true);
-            clearHash();
+            acceptSession();
           }
         },
       );
       unsubscribe = () => listener.subscription.unsubscribe();
 
-      // Also poll getSession for environments where the listener fires late.
+      // The auth client can consume and remove the URL hash before React mounts.
+      // Check the resulting session even when the token is no longer visible.
       for (let attempt = 0; attempt < 50; attempt++) {
         if (cancelled) break;
-        const { data: sessionData } = await supabase.auth.getSession();
+        const { data: sessionData, error: sessionError } =
+          await supabase.auth.getSession();
         if (sessionData.session?.user) {
-          setReady(true);
-          clearHash();
+          acceptSession();
           break;
         }
+        if (sessionError && hasRecoveryToken) break;
         await new Promise((r) => setTimeout(r, 150));
       }
 
-      if (!cancelled && !ready) {
+      if (!cancelled && !recovered) {
         setLinkError(
-          "This link has expired or is invalid. Please request a new one from the sign in screen.",
+          hasRecoveryToken
+            ? "This link has expired or has already been used. Please request a new one from the sign in screen."
+            : "This link is invalid. Please request a new one from the sign in screen.",
         );
       }
     };
 
-    const clearHash = () => {
+    const clearRecoveryUrl = () => {
       if (window.history.replaceState) {
         window.history.replaceState(
           null,
@@ -153,10 +174,14 @@ function ResetPassword() {
         return;
       }
       if (role === "practitioner") {
+        if (!userId) {
+          navigate({ to: "/practitioner/login" });
+          return;
+        }
         const { data: practice } = await supabase
           .from("practices")
           .select("onboarding_complete,is_approved")
-          .eq("practitioner_id", userId!)
+          .eq("practitioner_id", userId)
           .maybeSingle();
         if (practice && practice.is_approved === false) {
           navigate({ to: "/practitioner/pending" });
