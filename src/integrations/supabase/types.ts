@@ -452,8 +452,6 @@ export type Database = {
           passive_monitoring_enabled: boolean
           phone: string | null
           popia_accepted: boolean
-          popia_accepted_at: string | null
-          practice_id: string | null
           practitioner_id: string
           predictive_nudges_enabled: boolean
           primary_complaint: string | null
@@ -484,8 +482,6 @@ export type Database = {
           passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean
-          popia_accepted_at?: string | null
-          practice_id?: string | null
           practitioner_id: string
           predictive_nudges_enabled?: boolean
           primary_complaint?: string | null
@@ -516,8 +512,6 @@ export type Database = {
           passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean
-          popia_accepted_at?: string | null
-          practice_id?: string | null
           practitioner_id?: string
           predictive_nudges_enabled?: boolean
           primary_complaint?: string | null
@@ -782,33 +776,11 @@ export type Database = {
         }
         Relationships: []
       }
-      practice_members: {
-        Row: { created_at: string; id: string; practice_id: string; role: string; status: string; user_id: string }
-        Insert: { created_at?: string; id?: string; practice_id: string; role?: string; status?: string; user_id: string }
-        Update: { created_at?: string; id?: string; practice_id?: string; role?: string; status?: string; user_id?: string }
-        Relationships: []
-      }
-      session_reports: {
-        Row: { client_id: string; created_at: string; file_name: string; id: string; mime_type: string; practice_id: string | null; size_bytes: number; storage_path: string; uploaded_by: string | null }
-        Insert: { client_id: string; created_at?: string; file_name: string; id?: string; mime_type: string; practice_id?: string | null; size_bytes?: number; storage_path: string; uploaded_by?: string | null }
-        Update: { client_id?: string; created_at?: string; file_name?: string; id?: string; mime_type?: string; practice_id?: string | null; size_bytes?: number; storage_path?: string; uploaded_by?: string | null }
-        Relationships: []
-      }
-      session_report_analyses: {
-        Row: { analysis_text: string; client_id: string; created_at: string; focus: string | null; generated_by: string | null; id: string; model: string | null; report_count: number }
-        Insert: { analysis_text: string; client_id: string; created_at?: string; focus?: string | null; generated_by?: string | null; id?: string; model?: string | null; report_count?: number }
-        Update: { analysis_text?: string; client_id?: string; created_at?: string; focus?: string | null; generated_by?: string | null; id?: string; model?: string | null; report_count?: number }
-        Relationships: []
-      }
       practices: {
         Row: {
-          join_token: string | null
-          join_enabled: boolean
           ai_features_enabled: boolean
           alert_sensitivity: string
           contact_webhook_enabled: boolean
-          contact_email: string | null
-          contact_phone: string | null
           contact_webhook_url: string | null
           created_at: string
           data_processing_agreed: boolean
@@ -818,9 +790,7 @@ export type Database = {
           onboarding_complete: boolean
           popia_agreed: boolean
           popia_agreed_at: string | null
-          max_members: number
           practice_name: string | null
-          practice_type: string
           practitioner_id: string
           profession: string | null
           programs_suggest_enabled: boolean
@@ -829,16 +799,10 @@ export type Database = {
           yves_enabled: boolean
         }
         Insert: {
-          join_token?: string | null
-          join_enabled?: boolean
           ai_features_enabled?: boolean
           alert_sensitivity?: string
           contact_webhook_enabled?: boolean
-          contact_email?: string | null
-          contact_phone?: string | null
           contact_webhook_url?: string | null
-          max_members?: number
-          practice_type?: string
           created_at?: string
           data_processing_agreed?: boolean
           data_processing_agreed_at?: string | null
@@ -856,16 +820,10 @@ export type Database = {
           yves_enabled?: boolean
         }
         Update: {
-          join_token?: string | null
-          join_enabled?: boolean
           ai_features_enabled?: boolean
           alert_sensitivity?: string
           contact_webhook_enabled?: boolean
-          contact_email?: string | null
-          contact_phone?: string | null
           contact_webhook_url?: string | null
-          max_members?: number
-          practice_type?: string
           created_at?: string
           data_processing_agreed?: boolean
           data_processing_agreed_at?: string | null
@@ -1279,6 +1237,91 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "risk_scores_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_report_analyses: {
+        Row: {
+          analysis_text: string
+          client_id: string
+          created_at: string
+          focus: string | null
+          generated_by: string | null
+          id: string
+          model: string | null
+          report_count: number
+        }
+        Insert: {
+          analysis_text: string
+          client_id: string
+          created_at?: string
+          focus?: string | null
+          generated_by?: string | null
+          id?: string
+          model?: string | null
+          report_count?: number
+        }
+        Update: {
+          analysis_text?: string
+          client_id?: string
+          created_at?: string
+          focus?: string | null
+          generated_by?: string | null
+          id?: string
+          model?: string | null
+          report_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_report_analyses_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_reports: {
+        Row: {
+          client_id: string
+          created_at: string
+          file_name: string
+          id: string
+          mime_type: string
+          practice_id: string | null
+          size_bytes: number
+          storage_path: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          file_name: string
+          id?: string
+          mime_type: string
+          practice_id?: string | null
+          size_bytes?: number
+          storage_path: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          file_name?: string
+          id?: string
+          mime_type?: string
+          practice_id?: string | null
+          size_bytes?: number
+          storage_path?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_reports_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
@@ -1935,8 +1978,6 @@ export type Database = {
             }
             Returns: string
           }
-      claim_quick_login_attempt: { Args: { p_user_id: string }; Returns: { allowed: boolean; locked: boolean }[] }
-      is_active_practice_member: { Args: { p_practice: string; p_user: string }; Returns: boolean }
       is_super_admin: { Args: { _uid: string }; Returns: boolean }
     }
     Enums: {
