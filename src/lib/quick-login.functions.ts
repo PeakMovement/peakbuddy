@@ -52,15 +52,22 @@ function toHex(buf: ArrayBuffer): string {
 async function hashCode(code: string, saltHex: string): Promise<string> {
   const enc = new TextEncoder();
   const salt = Uint8Array.from(saltHex.match(/.{2}/g) ?? [], (h) => parseInt(h, 16));
-  const key = await crypto.subtle.importKey("raw", enc.encode(code), "PBKDF2", false, [
-    "deriveBits",
-  ]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
-    key,
-    256,
-  );
-  return toHex(bits);
+  try {
+    const key = await crypto.subtle.importKey("raw", enc.encode(code), "PBKDF2", false, [
+      "deriveBits",
+    ]);
+    const bits = await crypto.subtle.deriveBits(
+      { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+      key,
+      256,
+    );
+    return toHex(bits);
+  } catch {
+    // Fallback for server runtimes where WebCrypto PBKDF2 isn't available.
+    const nodeCrypto = await import("node:crypto");
+    const derived = nodeCrypto.pbkdf2Sync(code, Buffer.from(saltHex, "hex"), PBKDF2_ITERATIONS, 32, "sha256");
+    return derived.toString("hex");
+  }
 }
 
 function newSalt(): string {
@@ -130,22 +137,32 @@ export const setQuickCode = createServerFn({ method: "POST" })
         error: "That code is too easy to guess. Choose another 4 digits.",
       };
     }
-    const salt = newSalt();
-    const hash = await hashCode(data.code, salt);
-    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const { error } = await admin.from("quick_login_codes").upsert(
-      {
+    try {
+      const salt = newSalt();
+      const hash = await hashCode(data.code, salt);
+      const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+      // Replace any existing row for this user. Using delete-then-insert avoids a
+      // dependency on a unique constraint for ON CONFLICT (which, if missing,
+      // makes upsert fail every time).
+      await admin.from("quick_login_codes").delete().eq("user_id", context.userId);
+      const { error } = await admin.from("quick_login_codes").insert({
         user_id: context.userId,
         code_hash: hash,
         code_salt: salt,
         failed_attempts: 0,
         locked_at: null,
         last_failed_at: null,
-      },
-      { onConflict: "user_id" },
-    );
-    if (error) return { ok: false as const, error: "Could not save your code. Try again." };
-    return { ok: true as const };
+      });
+      if (error) {
+        return { ok: false as const, error: error.message || "Could not save your code. Try again." };
+      }
+      return { ok: true as const };
+    } catch (e) {
+      return {
+        ok: false as const,
+        error: e instanceof Error ? e.message : "Could not save your code. Try again.",
+      };
+    }
   });
 
 // --- Remove -----------------------------------------------------------------
