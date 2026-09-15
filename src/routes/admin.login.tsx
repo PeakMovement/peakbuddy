@@ -258,7 +258,7 @@ function AdminLogin() {
           <button
             type="button"
             onClick={onResetPassword}
-            disabled={resetBusy}
+            disabled={resetBusy || resetCooldown > 0}
             style={{
               marginTop: 12,
               alignSelf: "center",
@@ -268,11 +268,15 @@ function AdminLogin() {
               fontFamily: "var(--font-ui)",
               fontSize: 13,
               textDecoration: "underline",
-              cursor: resetBusy ? "default" : "pointer",
-              opacity: resetBusy ? 0.6 : 1,
+              cursor: resetBusy || resetCooldown > 0 ? "default" : "pointer",
+              opacity: resetBusy || resetCooldown > 0 ? 0.6 : 1,
             }}
           >
-            {resetBusy ? "Sending…" : "Forgot your password?"}
+            {resetBusy
+              ? "Sending…"
+              : resetCooldown > 0
+                ? `Sent (${resetCooldown}s)`
+                : "Forgot your password?"}
           </button>
           {resetNotice && (
             <p style={{ color: "var(--white)", fontSize: 13, textAlign: "center", lineHeight: 1.5, marginTop: 4 }}>
