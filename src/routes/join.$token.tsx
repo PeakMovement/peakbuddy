@@ -203,8 +203,8 @@ function JoinPractice() {
                 name="complaint"
                 value={complaint}
                 onChange={(e) => setComplaint(e.target.value)}
-                placeholder="What are you coming in for?"
-                aria-label="What are you coming in for?"
+                placeholder="What is your complaint?"
+                aria-label="What is your complaint?"
                 required
                 style={inputStyle}
               />
