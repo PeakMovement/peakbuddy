@@ -37,6 +37,14 @@ function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"password" | "quick">("password");
 
+  // Cooldown tick for the reset button
+  useEffect(() => {
+    if (resetCooldown <= 0) return;
+    const t = setTimeout(() => setResetCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [resetCooldown]);
+
+
   // Verify the signed-in account is a super admin, then land on the dashboard.
   const routeAdmin = async (): Promise<string | null> => {
     const { data: authData } = await supabase.auth.getUser();
