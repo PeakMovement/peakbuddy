@@ -40,12 +40,15 @@ function ClientLogin() {
     if (savedEmail) setEmail(savedEmail);
   }, []);
 
-  // Cooldown tick for the magic-link button
+  // Cooldown tick for the magic-link and reset buttons
   useEffect(() => {
-    if (cooldown <= 0) return;
-    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    if (cooldown <= 0 && resetCooldown <= 0) return;
+    const t = setTimeout(() => {
+      setCooldown((c) => Math.max(0, c - 1));
+      setResetCooldown((c) => Math.max(0, c - 1));
+    }, 1000);
     return () => clearTimeout(t);
-  }, [cooldown]);
+  }, [cooldown, resetCooldown]);
 
   // If user opts out of remember-me, sign out when the tab/app closes.
   useEffect(() => {
