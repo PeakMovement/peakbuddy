@@ -452,6 +452,7 @@ export type Database = {
           passive_monitoring_enabled: boolean
           phone: string | null
           popia_accepted: boolean
+          practice_id: string | null
           practitioner_id: string
           predictive_nudges_enabled: boolean
           primary_complaint: string | null
@@ -482,6 +483,7 @@ export type Database = {
           passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean
+          practice_id?: string | null
           practitioner_id: string
           predictive_nudges_enabled?: boolean
           primary_complaint?: string | null
@@ -512,6 +514,7 @@ export type Database = {
           passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean
+          practice_id?: string | null
           practitioner_id?: string
           predictive_nudges_enabled?: boolean
           primary_complaint?: string | null
@@ -528,6 +531,13 @@ export type Database = {
           yves_enabled?: boolean
         }
         Relationships: [
+          {
+            foreignKeyName: "clients_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practices"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "clients_suggested_program_id_fkey"
             columns: ["suggested_program_id"]
@@ -776,10 +786,47 @@ export type Database = {
         }
         Relationships: []
       }
+      practice_members: {
+        Row: {
+          created_at: string
+          id: string
+          practice_id: string
+          role: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          practice_id: string
+          role?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          practice_id?: string
+          role?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practice_members_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       practices: {
         Row: {
           ai_features_enabled: boolean
           alert_sensitivity: string
+          contact_email: string | null
+          contact_phone: string | null
           contact_webhook_enabled: boolean
           contact_webhook_url: string | null
           created_at: string
@@ -787,10 +834,14 @@ export type Database = {
           data_processing_agreed_at: string | null
           id: string
           is_approved: boolean
+          join_enabled: boolean
+          join_token: string | null
+          max_members: number
           onboarding_complete: boolean
           popia_agreed: boolean
           popia_agreed_at: string | null
           practice_name: string | null
+          practice_type: string
           practitioner_id: string
           profession: string | null
           programs_suggest_enabled: boolean
@@ -801,6 +852,8 @@ export type Database = {
         Insert: {
           ai_features_enabled?: boolean
           alert_sensitivity?: string
+          contact_email?: string | null
+          contact_phone?: string | null
           contact_webhook_enabled?: boolean
           contact_webhook_url?: string | null
           created_at?: string
@@ -808,10 +861,14 @@ export type Database = {
           data_processing_agreed_at?: string | null
           id?: string
           is_approved?: boolean
+          join_enabled?: boolean
+          join_token?: string | null
+          max_members?: number
           onboarding_complete?: boolean
           popia_agreed?: boolean
           popia_agreed_at?: string | null
           practice_name?: string | null
+          practice_type?: string
           practitioner_id: string
           profession?: string | null
           programs_suggest_enabled?: boolean
@@ -822,6 +879,8 @@ export type Database = {
         Update: {
           ai_features_enabled?: boolean
           alert_sensitivity?: string
+          contact_email?: string | null
+          contact_phone?: string | null
           contact_webhook_enabled?: boolean
           contact_webhook_url?: string | null
           created_at?: string
@@ -829,10 +888,14 @@ export type Database = {
           data_processing_agreed_at?: string | null
           id?: string
           is_approved?: boolean
+          join_enabled?: boolean
+          join_token?: string | null
+          max_members?: number
           onboarding_complete?: boolean
           popia_agreed?: boolean
           popia_agreed_at?: string | null
           practice_name?: string | null
+          practice_type?: string
           practitioner_id?: string
           profession?: string | null
           programs_suggest_enabled?: boolean

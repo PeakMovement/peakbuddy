@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789445121230,
+      "tag": "0000_practice_members_and_join",
+      "breakpoints": true
+    }
+  ]
+}
