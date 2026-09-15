@@ -1997,6 +1997,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_quick_login_attempt: {
+        Args: { p_user_id: string }
+        Returns: {
+          allowed: boolean
+        }[]
+      }
       current_client_id: { Args: never; Returns: string }
       insert_alert: {
         Args: {
