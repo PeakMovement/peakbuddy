@@ -40,10 +40,13 @@ function PractitionerLogin() {
   }, []);
 
   useEffect(() => {
-    if (cooldown <= 0) return;
-    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    if (cooldown <= 0 && resetCooldown <= 0) return;
+    const t = setTimeout(() => {
+      setCooldown((c) => Math.max(0, c - 1));
+      setResetCooldown((c) => Math.max(0, c - 1));
+    }, 1000);
     return () => clearTimeout(t);
-  }, [cooldown]);
+  }, [cooldown, resetCooldown]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
