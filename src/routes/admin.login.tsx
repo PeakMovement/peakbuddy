@@ -63,19 +63,28 @@ function AdminLogin() {
       setError("Enter your email above, then tap 'Forgot your password?'.");
       return;
     }
+    if (resetCooldown > 0) return;
     setResetBusy(true);
-    try {
+    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       // Pin to the canonical (allow-listed) URL. window.location.origin on a
       // preview/non-production host is NOT in Supabase's redirect allow-list, so
       // the recovery link would bounce to the site root and never reach this
       // page — leaving the password unchanged.
-      await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: "https://peakbuddy.lovable.app/reset-password",
-      });
-    } catch {
-      /* ignore */
-    }
+      redirectTo: "https://peakbuddy.lovable.app/reset-password",
+    });
     setResetBusy(false);
+    if (resetErr) {
+      const msg = resetErr.message?.toLowerCase() ?? "";
+      if (msg.includes("rate") || msg.includes("limit") || msg.includes("too many")) {
+        setError("Too many reset requests. Please wait a few minutes before trying again.");
+      } else if (msg.includes("email") || msg.includes("address")) {
+        setError("Please check the email address and try again.");
+      } else {
+        setError("Could not send reset link. Please try again.");
+      }
+      return;
+    }
+    setResetCooldown(60);
     setResetNotice("If that email is registered, a link to set a new password is on its way.");
   };
 
