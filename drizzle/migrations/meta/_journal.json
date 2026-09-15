@@ -8,6 +8,13 @@
       "when": 1789445121230,
       "tag": "0000_practice_members_and_join",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789458843329,
+      "tag": "0001_claim_quick_login_attempt",
+      "breakpoints": true
     }
   ]
 }
