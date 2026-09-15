@@ -5,16 +5,29 @@ interface Props {
   onChange: (next: string) => void;
   label?: string;
   disabled?: boolean;
+  /** When provided, renders an explicit confirm button under the keypad. */
+  onSubmit?: () => void;
+  /** Label for the confirm button (e.g. "Save code", "Sign in"). */
+  submitLabel?: string;
 }
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"] as const;
 
-export function QuickCodeKeypad({ value, onChange, label, disabled }: Props) {
+export function QuickCodeKeypad({
+  value,
+  onChange,
+  label,
+  disabled,
+  onSubmit,
+  submitLabel = "Continue",
+}: Props) {
   const press = (k: string) => {
     if (disabled) return;
     if (k === "del") onChange(value.slice(0, -1));
     else if (k && value.length < 4) onChange(value + k);
   };
+
+  const complete = value.length === 4;
 
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -92,6 +105,33 @@ export function QuickCodeKeypad({ value, onChange, label, disabled }: Props) {
           ),
         )}
       </div>
+
+      {onSubmit && (
+        <button
+          type="button"
+          onClick={() => {
+            if (!disabled && complete) onSubmit();
+          }}
+          disabled={disabled || !complete}
+          style={{
+            marginTop: 18,
+            width: "100%",
+            maxWidth: 280,
+            minHeight: 48,
+            borderRadius: 8,
+            background: "var(--blue-accent)",
+            border: "none",
+            color: "var(--white)",
+            fontFamily: "var(--font-ui)",
+            fontWeight: 600,
+            fontSize: 15,
+            cursor: disabled || !complete ? "default" : "pointer",
+            opacity: disabled || !complete ? 0.5 : 1,
+          }}
+        >
+          {submitLabel}
+        </button>
+      )}
     </div>
   );
 }

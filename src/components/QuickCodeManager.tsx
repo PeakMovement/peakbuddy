@@ -62,7 +62,6 @@ export function QuickCodeManager() {
       if (next.length === 4) setStep("confirm");
     } else {
       setSecond(next);
-      if (next.length === 4) void submit(first, next);
     }
   };
 
@@ -142,6 +141,8 @@ export function QuickCodeManager() {
             onChange={onDigits}
             disabled={busy}
             label={step === "enter" ? "Choose a 4-digit code" : "Confirm your code"}
+            onSubmit={step === "confirm" ? () => void submit(first, second) : undefined}
+            submitLabel={busy ? "Saving…" : "Save code"}
           />
           {error && (
             <p role="alert" style={{ color: "var(--red)", fontSize: 13, textAlign: "center" }}>

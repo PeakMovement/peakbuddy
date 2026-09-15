@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
 import { QuickCodeManager } from "@/components/QuickCodeManager";
+import { ChangePasswordCard } from "@/components/ChangePasswordCard";
 
 import { RewardsManager } from "@/components/RewardsManager";
 import { PushTestPanel } from "@/components/PushTestPanel";
@@ -245,6 +246,7 @@ function AdminSettings() {
 
       <div style={{ marginTop: 20 }}>
         <QuickCodeManager />
+        <ChangePasswordCard />
       </div>
 
 

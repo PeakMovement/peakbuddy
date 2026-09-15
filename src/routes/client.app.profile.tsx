@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { QuickCodeManager } from "@/components/QuickCodeManager";
+import { ChangePasswordCard } from "@/components/ChangePasswordCard";
 
 import { LogOut, ExternalLink, Trash2, ChevronDown, Phone, Check, Mail, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -634,6 +635,7 @@ function ClientProfile() {
 
       <div style={{ marginTop: 20 }}>
         <QuickCodeManager />
+        <ChangePasswordCard />
       </div>
 
 

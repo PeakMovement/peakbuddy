@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/lib/supabase";
 import { signInWithQuickCode } from "@/lib/quick-login.functions";
@@ -19,11 +19,6 @@ export function QuickCodeSignIn({ onSignedIn, initialEmail = "", onCancel }: Pro
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (code.length === 4 && !busy) void submit(code);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code]);
 
   const submit = async (value: string) => {
     const trimmed = email.trim();
@@ -96,6 +91,8 @@ export function QuickCodeSignIn({ onSignedIn, initialEmail = "", onCancel }: Pro
         onChange={setCode}
         disabled={busy}
         label={busy ? "Signing in…" : "Enter your 4-digit code"}
+        onSubmit={() => void submit(code)}
+        submitLabel={busy ? "Signing in…" : "Sign in"}
       />
 
       {error && (

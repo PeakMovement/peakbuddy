@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Info, LogOut } from "lucide-react";
 import { QuickCodeManager } from "@/components/QuickCodeManager";
+import { ChangePasswordCard } from "@/components/ChangePasswordCard";
 
 import { supabase } from "@/lib/supabase";
 import type { Practice, Profile } from "@/lib/types";
@@ -326,6 +327,7 @@ function Settings() {
 
       <div style={{ marginTop: 20 }}>
         <QuickCodeManager />
+        <ChangePasswordCard />
       </div>
 
 

@@ -57,7 +57,6 @@ export function SetQuickCodePrompt() {
       if (next.length === 4) setStep("confirm");
     } else {
       setSecond(next);
-      if (next.length === 4) void submit(first, next);
     }
   };
 
@@ -165,6 +164,8 @@ export function SetQuickCodePrompt() {
           onChange={onDigits}
           disabled={busy}
           label={step === "enter" ? "Choose a code" : "Confirm your code"}
+          onSubmit={step === "confirm" ? () => void submit(first, second) : undefined}
+          submitLabel={busy ? "Saving…" : "Save code"}
         />
 
         {error && (
