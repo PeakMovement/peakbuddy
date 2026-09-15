@@ -48,12 +48,33 @@ function ResetPassword() {
       const hash = window.location.hash?.slice(1) ?? "";
       const params = new URLSearchParams(hash);
       const query = new URLSearchParams(window.location.search);
-      const hasRecoveryToken =
-        params.get("type") === "recovery" ||
-        params.has("access_token") ||
-        query.has("code");
-      let recovered = false;
 
+      // An expired / already-used one-time token comes back as an explicit error
+      // in the link — show that plainly instead of a vague "invalid".
+      const errCode =
+        params.get("error_code") ||
+        query.get("error_code") ||
+        params.get("error") ||
+        query.get("error");
+      const errDesc = params.get("error_description") || query.get("error_description");
+
+      // Every token format Supabase might deliver a recovery link in:
+      const tokenHash = query.get("token_hash") || params.get("token_hash");
+      const otpType = (query.get("type") || params.get("type")) as
+        | "recovery"
+        | "email"
+        | "magiclink"
+        | "signup"
+        | "invite"
+        | null;
+      const code = query.get("code");
+      const accessToken = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
+
+      const hasRecoveryToken =
+        !!tokenHash || !!code || !!accessToken || params.get("type") === "recovery";
+
+      let recovered = false;
       const acceptSession = () => {
         if (cancelled || recovered) return;
         recovered = true;
@@ -62,20 +83,44 @@ function ResetPassword() {
         clearRecoveryUrl();
       };
 
-      // Listen for the session that Supabase creates from the recovery token.
-      const { data: listener } = supabase.auth.onAuthStateChange(
-        (event, session) => {
-          if (cancelled) return;
-          if (
-            (event === "PASSWORD_RECOVERY" ||
-              (hasRecoveryToken &&
-                (event === "INITIAL_SESSION" || event === "SIGNED_IN"))) &&
-            session?.user
-          ) {
-            acceptSession();
-          }
-        },
-      );
+      if (errCode) {
+        setLinkError(
+          "This reset link has expired or was already used. Please request a new one from the sign in screen." +
+            (errDesc ? ` (${errDesc.replace(/\+/g, " ")})` : ""),
+        );
+        return;
+      }
+
+      // Establish the session from whichever token format the link carries.
+      // token_hash (verifyOtp) is the scanner-safe format; ?code= is PKCE;
+      // #access_token=… is the implicit hash format.
+      try {
+        if (tokenHash && otpType) {
+          await supabase.auth.verifyOtp({ type: otpType, token_hash: tokenHash });
+        } else if (code) {
+          await supabase.auth.exchangeCodeForSession(window.location.href);
+        } else if (accessToken && refreshToken) {
+          await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+        }
+      } catch {
+        /* fall through to the listener + polling checks below */
+      }
+
+      // Also catch the session if the client parsed the link on its own.
+      const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+        if (cancelled) return;
+        if (
+          (event === "PASSWORD_RECOVERY" ||
+            event === "INITIAL_SESSION" ||
+            event === "SIGNED_IN") &&
+          session?.user
+        ) {
+          acceptSession();
+        }
+      });
       unsubscribe = () => listener.subscription.unsubscribe();
 
       // The auth client can consume and remove the URL hash before React mounts.
