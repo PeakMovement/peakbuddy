@@ -422,18 +422,6 @@ function PractitionerLogin() {
 
 
 
-        <Link
-          to="/practitioner/signup"
-          style={{
-            marginTop: 32,
-            color: "var(--blue-accent)",
-            fontSize: 14,
-            textDecoration: "underline",
-            textUnderlineOffset: 4,
-          }}
-        >
-          New to Buddy? Request access
-        </Link>
 
         <Link
           to="/"
