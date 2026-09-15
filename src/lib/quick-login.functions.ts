@@ -9,7 +9,11 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 // salt. Verification, lockout and throttling all happen server-side.
 // ---------------------------------------------------------------------------
 
-const PBKDF2_ITERATIONS = 150_000;
+// Cloudflare Workers' WebCrypto caps PBKDF2 at 100k iterations; going higher
+// throws "iteration counts above 100000 are not supported". 100k is the max
+// supported and is ample here — the real brute-force protection is the
+// server-side 5-attempt lockout, not the hash cost of a 4-digit code.
+const PBKDF2_ITERATIONS = 100_000;
 
 const WEAK_CODES = new Set([
   "0000",
