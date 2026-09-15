@@ -35,6 +35,29 @@ async function practicePractitioners(
       isAdmin: (r.role as string) === "owner",
     });
   }
+  // Fallback: a practice always has at least its owner. If no member rows exist
+  // yet (e.g. the membership backfill hasn't run), use the practice owner so the
+  // sign-up link always has a practitioner to attach clients to.
+  if (out.length === 0) {
+    const { data: prac } = await admin
+      .from("practices")
+      .select("practitioner_id")
+      .eq("id", practiceId)
+      .maybeSingle();
+    const ownerId = (prac as { practitioner_id?: string } | null)?.practitioner_id ?? null;
+    if (ownerId) {
+      const { data: prof } = await admin
+        .from("profiles")
+        .select("full_name")
+        .eq("id", ownerId)
+        .maybeSingle();
+      out.push({
+        id: ownerId,
+        name: (prof as { full_name?: string } | null)?.full_name || "Practitioner",
+        isAdmin: true,
+      });
+    }
+  }
   out.sort((a, b) => Number(b.isAdmin) - Number(a.isAdmin));
   return out;
 }
@@ -62,8 +85,8 @@ export const getPracticeJoinInfo = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const practice = await practiceByToken(admin, data.token);
-    if (!practice || !practice.join_enabled) {
-      return { ok: false as const, error: "This sign-up link is no longer active." };
+    if (!practice) {
+      return { ok: false as const, error: "This sign-up link isn't valid." };
     }
     const practitioners = await practicePractitioners(admin, practice.id);
     return {
@@ -89,8 +112,8 @@ export const selfSignUpClient = createServerFn({ method: "POST" })
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
 
     const practice = await practiceByToken(admin, data.token);
-    if (!practice || !practice.join_enabled) {
-      return { ok: false as const, error: "This sign-up link is no longer active." };
+    if (!practice) {
+      return { ok: false as const, error: "This sign-up link isn't valid." };
     }
 
     // Resolve the chosen practitioner. Must be an active member of THIS practice.
@@ -203,7 +226,7 @@ export const getPracticeJoinLink = createServerFn({ method: "GET" })
     if (!ctx) return { ok: false as const, error: "You're not part of a practice." };
     const { data: p } = await admin
       .from("practices")
-      .select("join_token, join_enabled")
+      .select("join_token")
       .eq("id", ctx.practiceId)
       .maybeSingle();
     let token = (p as { join_token?: string | null } | null)?.join_token ?? null;
@@ -215,28 +238,10 @@ export const getPracticeJoinLink = createServerFn({ method: "GET" })
     return {
       ok: true as const,
       isOwner: ctx.isOwner,
-      enabled: (p as { join_enabled?: boolean } | null)?.join_enabled ?? true,
       url: token ? `${SITE_ORIGIN}/join/${token}` : null,
     };
   });
 
-/** Enable/disable the practice's public sign-up link (admin only). */
-export const setPracticeJoinEnabled = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ enabled: z.boolean() }).parse(input))
-  .handler(async ({ data, context }) => {
-    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const ctx = await resolvePractitionerPracticeId(admin, context.userId);
-    if (!ctx || !ctx.isOwner) {
-      return { ok: false as const, error: "Only the practice admin can change the sign-up link." };
-    }
-    const { error } = await admin
-      .from("practices")
-      .update({ join_enabled: data.enabled })
-      .eq("id", ctx.practiceId);
-    if (error) return { ok: false as const, error: error.message };
-    return { ok: true as const, enabled: data.enabled };
-  });
 
 /** Rotate the token, invalidating the old link (admin only). */
 export const regeneratePracticeJoinToken = createServerFn({ method: "POST" })

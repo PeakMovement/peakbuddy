@@ -1,24 +1,19 @@
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Link2, Copy, Check, RefreshCw } from "lucide-react";
-import {
-  getPracticeJoinLink,
-  setPracticeJoinEnabled,
-  regeneratePracticeJoinToken,
-} from "@/lib/practice-join.functions";
+import { getPracticeJoinLink, regeneratePracticeJoinToken } from "@/lib/practice-join.functions";
 
 /**
- * "Client sign-up link" card for the Team page. Any practitioner in the practice
- * can view and copy the link; only the admin can disable or regenerate it.
+ * "Client sign-up link" card for the Team / Settings pages. Any practitioner in
+ * the practice can view and copy the link; only the admin can regenerate it.
+ * Sign-ups are always open — there is no on/off.
  */
 export function PracticeJoinLinkCard() {
   const load = useServerFn(getPracticeJoinLink);
-  const setEnabled = useServerFn(setPracticeJoinEnabled);
   const regenerate = useServerFn(regeneratePracticeJoinToken);
 
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
-  const [enabled, setEnabledState] = useState(true);
   const [url, setUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -31,7 +26,6 @@ export function PracticeJoinLinkCard() {
         if (!alive) return;
         if (r.ok) {
           setIsOwner(r.isOwner);
-          setEnabledState(r.enabled);
           setUrl(r.url);
         }
       } catch {
@@ -56,21 +50,11 @@ export function PracticeJoinLinkCard() {
     }
   };
 
-  const toggle = async () => {
-    setBusy(true);
-    const r = await setEnabled({ data: { enabled: !enabled } });
-    setBusy(false);
-    if (r.ok) setEnabledState(r.enabled);
-  };
-
   const rotate = async () => {
     setBusy(true);
     const r = await regenerate({});
     setBusy(false);
-    if (r.ok) {
-      setUrl(r.url);
-      setEnabledState(true);
-    }
+    if (r.ok) setUrl(r.url);
   };
 
   if (loading) return null;
@@ -100,105 +84,89 @@ export function PracticeJoinLinkCard() {
         practice — and if you have several practitioners, they pick who they're seeing.
       </p>
 
-      {url && enabled ? (
-        <>
-          <div
+      {url && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: "var(--navy)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 8,
+            padding: "10px 12px",
+          }}
+        >
+          <span
+            style={{
+              flex: 1,
+              color: "var(--white)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 13,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {url}
+          </span>
+          <button
+            type="button"
+            onClick={() => void copy()}
+            aria-label="Copy link"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 8,
-              background: "var(--navy)",
-              border: "1px solid var(--navy-border)",
-              borderRadius: 8,
-              padding: "10px 12px",
+              gap: 6,
+              background: "var(--blue-accent)",
+              border: "none",
+              borderRadius: 6,
+              color: "var(--white)",
+              fontFamily: "var(--font-ui)",
+              fontWeight: 600,
+              fontSize: 13,
+              padding: "8px 12px",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
             }}
           >
-            <span
-              style={{
-                flex: 1,
-                color: "var(--white)",
-                fontFamily: "var(--font-ui)",
-                fontSize: 13,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {url}
-            </span>
-            <button
-              type="button"
-              onClick={() => void copy()}
-              aria-label="Copy link"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                background: "var(--blue-accent)",
-                border: "none",
-                borderRadius: 6,
-                color: "var(--white)",
-                fontFamily: "var(--font-ui)",
-                fontWeight: 600,
-                fontSize: 13,
-                padding: "8px 12px",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-              {copied ? "Copied" : "Copy"}
-            </button>
-          </div>
-        </>
-      ) : (
-        <p style={{ color: "var(--white-muted)", fontSize: 13 }}>
-          The sign-up link is currently turned off. New clients can't self-register until it's turned back on.
-        </p>
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
       )}
 
       {isOwner && (
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 2 }}>
-          <button
-            type="button"
-            onClick={() => void toggle()}
-            disabled={busy}
-            style={secondaryBtn}
-          >
-            {enabled ? "Turn off link" : "Turn on link"}
-          </button>
+        <>
           <button
             type="button"
             onClick={() => void rotate()}
             disabled={busy}
-            style={secondaryBtn}
+            style={{
+              alignSelf: "flex-start",
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 40,
+              padding: "0 14px",
+              borderRadius: 8,
+              background: "transparent",
+              border: "1px solid var(--navy-border)",
+              color: "var(--white-muted)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 13,
+              cursor: busy ? "default" : "pointer",
+              opacity: busy ? 0.6 : 1,
+            }}
           >
             <RefreshCw size={13} style={{ marginRight: 6 }} />
             Reset link
           </button>
-        </div>
-      )}
-      {isOwner && (
-        <p style={{ color: "var(--white-muted)", fontSize: 11, lineHeight: 1.5 }}>
-          Resetting creates a new link and immediately stops the old one from working.
-        </p>
+          <p style={{ color: "var(--white-muted)", fontSize: 11, lineHeight: 1.5 }}>
+            Resetting creates a new link and immediately stops the old one from working.
+          </p>
+        </>
       )}
     </section>
   );
 }
-
-const secondaryBtn: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  minHeight: 40,
-  padding: "0 14px",
-  borderRadius: 8,
-  background: "transparent",
-  border: "1px solid var(--navy-border)",
-  color: "var(--white-muted)",
-  fontFamily: "var(--font-ui)",
-  fontSize: 13,
-  cursor: "pointer",
-};
 
 export default PracticeJoinLinkCard;
