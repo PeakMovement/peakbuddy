@@ -21,54 +21,82 @@ function ResetPassword() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
 
-  // Establish the recovery session from the email link, however Supabase
-  // delivered it: a hash token (implicit flow) is auto-parsed by
-  // detectSessionInUrl; a ?code= (PKCE) is exchanged explicitly; and we also
-  // listen for the PASSWORD_RECOVERY / SIGNED_IN event as it lands.
+  // Wait for Supabase to parse the recovery token from the URL hash and
+  // establish a session, then let the user pick a new password.
   useEffect(() => {
     let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
 
-    const markReady = () => {
-      if (!cancelled) setReady(true);
-    };
+    const tryRecover = async () => {
+      const hash = window.location.hash?.slice(1) ?? "";
+      const params = new URLSearchParams(hash);
+      const hasRecoveryToken =
+        params.get("type") === "recovery" || params.has("access_token");
 
-    const sub = supabase.auth.onAuthStateChange((event, session) => {
-      if (session || event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") markReady();
-    });
-
-    (async () => {
-      // If the link came back as ?code=..., exchange it for a session.
-      try {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get("code")) {
-          await supabase.auth.exchangeCodeForSession(window.location.href);
+      if (!hasRecoveryToken) {
+        if (!cancelled) {
+          setLinkError(
+            "This link is invalid. Please request a new one from the sign in screen.",
+          );
         }
-      } catch {
-        /* fall through to polling */
+        return;
       }
 
-      let attempt = 0;
-      while (attempt < 30 && !cancelled) {
-        const { data } = await supabase.auth.getUser();
-        if (data.user) {
-          markReady();
-          return;
+      // Listen for the session that Supabase creates from the recovery token.
+      const { data: listener } = supabase.auth.onAuthStateChange(
+        (event, session) => {
+          if (cancelled) return;
+          if (
+            (event === "INITIAL_SESSION" ||
+              event === "SIGNED_IN" ||
+              event === "PASSWORD_RECOVERY") &&
+            session?.user
+          ) {
+            setReady(true);
+            clearHash();
+          }
+        },
+      );
+      unsubscribe = () => listener.subscription.unsubscribe();
+
+      // Also poll getSession for environments where the listener fires late.
+      for (let attempt = 0; attempt < 50; attempt++) {
+        if (cancelled) break;
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData.session?.user) {
+          setReady(true);
+          clearHash();
+          break;
         }
         await new Promise((r) => setTimeout(r, 150));
-        attempt++;
       }
-      if (!cancelled) {
+
+      if (!cancelled && !ready) {
         setLinkError(
           "This link has expired or is invalid. Please request a new one from the sign in screen.",
         );
       }
-    })();
+    };
+
+    const clearHash = () => {
+      if (window.history.replaceState) {
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + window.location.search,
+        );
+      }
+    };
+
+    void tryRecover();
 
     return () => {
       cancelled = true;
-      sub.data.subscription.unsubscribe();
+      if (unsubscribe) unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -86,7 +114,14 @@ function ResetPassword() {
     const { error: updErr } = await supabase.auth.updateUser({ password });
     if (updErr) {
       setLoading(false);
-      setError(updErr.message || "Could not update your password. Please try again.");
+      const msg = updErr.message?.toLowerCase() ?? "";
+      if (msg.includes("expired") || msg.includes("invalid")) {
+        setError("This reset link has expired. Please request a new one.");
+      } else if (msg.includes("weak") || msg.includes("strength")) {
+        setError("Please choose a stronger password.");
+      } else {
+        setError(updErr.message || "Could not update your password. Please try again.");
+      }
       return;
     }
 
@@ -97,52 +132,54 @@ function ResetPassword() {
       /* non-fatal */
     }
     markQuickCodeSession(false);
+    setSaved(true);
 
+    // Give the user a moment to see the success state, then route by role.
+    setTimeout(async () => {
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData.user?.id ?? null;
+      let role = "client";
+      if (userId) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", userId)
+          .maybeSingle();
+        role = profile?.role ?? "client";
+      }
 
-    // Route the user home based on their role.
-    const { data: authData } = await supabase.auth.getUser();
-    const userId = authData.user?.id ?? null;
-    let role = "client";
-    if (userId) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", userId)
-        .maybeSingle();
-      role = profile?.role ?? "client";
-    }
-
-    if (role === "super_admin") {
-      navigate({ to: "/admin/app/dashboard" });
-      return;
-    }
-    if (role === "practitioner") {
-      const { data: practice } = await supabase
-        .from("practices")
-        .select("onboarding_complete,is_approved")
-        .eq("practitioner_id", userId!)
-        .maybeSingle();
-      if (practice && practice.is_approved === false) {
-        navigate({ to: "/practitioner/pending" });
+      if (role === "super_admin") {
+        navigate({ to: "/admin/app/dashboard" });
         return;
       }
-      navigate({
-        to: practice?.onboarding_complete
-          ? "/practitioner/app/dashboard"
-          : "/practitioner/onboarding",
-      });
-      return;
-    }
+      if (role === "practitioner") {
+        const { data: practice } = await supabase
+          .from("practices")
+          .select("onboarding_complete,is_approved")
+          .eq("practitioner_id", userId!)
+          .maybeSingle();
+        if (practice && practice.is_approved === false) {
+          navigate({ to: "/practitioner/pending" });
+          return;
+        }
+        navigate({
+          to: practice?.onboarding_complete
+            ? "/practitioner/app/dashboard"
+            : "/practitioner/onboarding",
+        });
+        return;
+      }
 
-    if (userId) {
-      const { data: client } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("auth_user_id", userId)
-        .maybeSingle();
-      if (client) setClientId(client.id);
-    }
-    navigate({ to: "/client/app/checkin" });
+      if (userId) {
+        const { data: client } = await supabase
+          .from("clients")
+          .select("id")
+          .eq("auth_user_id", userId)
+          .maybeSingle();
+        if (client) setClientId(client.id);
+      }
+      navigate({ to: "/client/app/checkin" });
+    }, 1200);
   };
 
   return (
@@ -205,6 +242,30 @@ function ResetPassword() {
             >
               Go to sign in
             </Link>
+          </div>
+        ) : saved ? (
+          <div style={{ marginTop: 32, textAlign: "center" }}>
+            <p
+              style={{
+                color: "var(--white)",
+                fontFamily: "var(--font-ui)",
+                fontSize: 16,
+                lineHeight: 1.5,
+                marginBottom: 8,
+              }}
+            >
+              Password saved.
+            </p>
+            <p
+              style={{
+                color: "var(--white-muted)",
+                fontFamily: "var(--font-ui)",
+                fontSize: 14,
+                lineHeight: 1.5,
+              }}
+            >
+              Taking you to the app…
+            </p>
           </div>
         ) : !ready ? (
           <p

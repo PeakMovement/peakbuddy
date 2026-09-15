@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { BuddyLogo } from "@/components/CrosshairLogo";
@@ -33,8 +33,17 @@ function AdminLogin() {
   const [error, setError] = useState<string | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetNotice, setResetNotice] = useState<string | null>(null);
+  const [resetCooldown, setResetCooldown] = useState(0);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"password" | "quick">("password");
+
+  // Cooldown tick for the reset button
+  useEffect(() => {
+    if (resetCooldown <= 0) return;
+    const t = setTimeout(() => setResetCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [resetCooldown]);
+
 
   // Verify the signed-in account is a super admin, then land on the dashboard.
   const routeAdmin = async (): Promise<string | null> => {
@@ -63,19 +72,28 @@ function AdminLogin() {
       setError("Enter your email above, then tap 'Forgot your password?'.");
       return;
     }
+    if (resetCooldown > 0) return;
     setResetBusy(true);
-    try {
+    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       // Pin to the canonical (allow-listed) URL. window.location.origin on a
       // preview/non-production host is NOT in Supabase's redirect allow-list, so
       // the recovery link would bounce to the site root and never reach this
       // page — leaving the password unchanged.
-      await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: "https://peakbuddy.lovable.app/reset-password",
-      });
-    } catch {
-      /* ignore */
-    }
+      redirectTo: "https://peakbuddy.lovable.app/reset-password",
+    });
     setResetBusy(false);
+    if (resetErr) {
+      const msg = resetErr.message?.toLowerCase() ?? "";
+      if (msg.includes("rate") || msg.includes("limit") || msg.includes("too many")) {
+        setError("Too many reset requests. Please wait a few minutes before trying again.");
+      } else if (msg.includes("email") || msg.includes("address")) {
+        setError("Please check the email address and try again.");
+      } else {
+        setError("Could not send reset link. Please try again.");
+      }
+      return;
+    }
+    setResetCooldown(60);
     setResetNotice("If that email is registered, a link to set a new password is on its way.");
   };
 
@@ -240,7 +258,7 @@ function AdminLogin() {
           <button
             type="button"
             onClick={onResetPassword}
-            disabled={resetBusy}
+            disabled={resetBusy || resetCooldown > 0}
             style={{
               marginTop: 12,
               alignSelf: "center",
@@ -250,11 +268,15 @@ function AdminLogin() {
               fontFamily: "var(--font-ui)",
               fontSize: 13,
               textDecoration: "underline",
-              cursor: resetBusy ? "default" : "pointer",
-              opacity: resetBusy ? 0.6 : 1,
+              cursor: resetBusy || resetCooldown > 0 ? "default" : "pointer",
+              opacity: resetBusy || resetCooldown > 0 ? 0.6 : 1,
             }}
           >
-            {resetBusy ? "Sending…" : "Forgot your password?"}
+            {resetBusy
+              ? "Sending…"
+              : resetCooldown > 0
+                ? `Sent (${resetCooldown}s)`
+                : "Forgot your password?"}
           </button>
           {resetNotice && (
             <p style={{ color: "var(--white)", fontSize: 13, textAlign: "center", lineHeight: 1.5, marginTop: 4 }}>
