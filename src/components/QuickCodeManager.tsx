@@ -7,6 +7,7 @@ import {
   setQuickCode,
 } from "@/lib/quick-login.functions";
 import { QuickCodeKeypad } from "@/components/QuickCodeKeypad";
+import { withTimeout } from "@/lib/with-timeout";
 
 /**
  * Reusable "Quick sign-in code" card for the client profile and the
@@ -74,19 +75,27 @@ export function QuickCodeManager() {
       return;
     }
     setBusy(true);
-    const res = await saveCode({ data: { code: a } });
-    setBusy(false);
-    if (!res.ok) {
-      setError(res.error);
+    try {
+      const res = await withTimeout(saveCode({ data: { code: a } }));
+      if (!res.ok) {
+        setError(res.error);
+        setStep("enter");
+        setFirst("");
+        setSecond("");
+        return;
+      }
+      setEnabled(true);
+      setLocked(false);
+      setNotice("Quick code saved.");
+      reset();
+    } catch {
+      setError("Couldn't save your code. Please try again.");
       setStep("enter");
       setFirst("");
       setSecond("");
-      return;
+    } finally {
+      setBusy(false);
     }
-    setEnabled(true);
-    setLocked(false);
-    setNotice("Quick code saved.");
-    reset();
   };
 
   const onRemove = async () => {

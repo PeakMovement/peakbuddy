@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { getQuickCodeStatus, setQuickCode, unlockQuickCode } from "@/lib/quick-login.functions";
 import { QuickCodeKeypad } from "@/components/QuickCodeKeypad";
+import { withTimeout } from "@/lib/with-timeout";
 import { hasBeenPrompted, markPrompted, isQuickCodeSession } from "@/lib/quick-login";
 
 /**
@@ -69,16 +70,24 @@ export function SetQuickCodePrompt() {
       return;
     }
     setBusy(true);
-    const res = await saveCode({ data: { code: a } });
-    setBusy(false);
-    if (!res.ok) {
-      setError(res.error);
+    try {
+      const res = await withTimeout(saveCode({ data: { code: a } }));
+      if (!res.ok) {
+        setError(res.error);
+        setStep("enter");
+        setFirst("");
+        setSecond("");
+        return;
+      }
+      dismiss();
+    } catch {
+      setError("Couldn't save your code. Please try again.");
       setStep("enter");
       setFirst("");
       setSecond("");
-      return;
+    } finally {
+      setBusy(false);
     }
-    dismiss();
   };
 
   if (!open) return null;

@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { signInWithQuickCode } from "@/lib/quick-login.functions";
 import { QuickCodeKeypad } from "@/components/QuickCodeKeypad";
 import { markQuickCodeSession } from "@/lib/quick-login";
+import { withTimeout } from "@/lib/with-timeout";
 
 interface Props {
   /** Called once a Supabase session exists. */
@@ -30,7 +31,7 @@ export function QuickCodeSignIn({ onSignedIn, initialEmail = "", onCancel }: Pro
     setBusy(true);
     setError(null);
     try {
-      const res = await quickSignIn({ data: { email: trimmed, code: value } });
+      const res = await withTimeout(quickSignIn({ data: { email: trimmed, code: value } }));
       if (!res.ok) {
         setError(res.error);
         setCode("");
