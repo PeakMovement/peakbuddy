@@ -25,6 +25,7 @@ function PractitionerLogin() {
   const [loading, setLoading] = useState(false);
   const [magicLoading, setMagicLoading] = useState(false);
   const [magicNotice, setMagicNotice] = useState<string | null>(null);
+  const [resetBusy, setResetBusy] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [mode, setMode] = useState<"password" | "quick">("password");
 
@@ -117,6 +118,25 @@ function PractitionerLogin() {
     if (problem) setError(problem);
   };
 
+
+  const onResetPassword = async () => {
+    setError(null);
+    setMagicNotice(null);
+    if (!email.trim()) {
+      setError("Enter your email above, then tap 'Forgot your password?'.");
+      return;
+    }
+    setResetBusy(true);
+    try {
+      await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+    } catch {
+      /* ignore — show the same generic notice either way */
+    }
+    setResetBusy(false);
+    setMagicNotice("If that email is registered, a link to set a new password is on its way.");
+  };
 
   const onMagicLink = async () => {
     setError(null);
@@ -352,6 +372,26 @@ function PractitionerLogin() {
               {magicNotice}
             </p>
           )}
+
+          <button
+            type="button"
+            onClick={onResetPassword}
+            disabled={resetBusy}
+            style={{
+              marginTop: 10,
+              alignSelf: "center",
+              background: "transparent",
+              border: "none",
+              color: "var(--blue-accent)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 13,
+              textDecoration: "underline",
+              cursor: resetBusy ? "default" : "pointer",
+              opacity: resetBusy ? 0.6 : 1,
+            }}
+          >
+            {resetBusy ? "Sending…" : "Forgot your password?"}
+          </button>
         </form>
         )}
 

@@ -31,6 +31,8 @@ function AdminLogin() {
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"password" | "quick">("password");
 
@@ -52,6 +54,25 @@ function AdminLogin() {
     }
     navigate({ to: "/admin/app/dashboard" });
     return null;
+  };
+
+  const onResetPassword = async () => {
+    setError(null);
+    setResetNotice(null);
+    if (!email.trim()) {
+      setError("Enter your email above, then tap 'Forgot your password?'.");
+      return;
+    }
+    setResetBusy(true);
+    try {
+      await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+    } catch {
+      /* ignore */
+    }
+    setResetBusy(false);
+    setResetNotice("If that email is registered, a link to set a new password is on its way.");
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -211,6 +232,31 @@ function AdminLogin() {
           >
             {loading ? "Signing in…" : "Log in"}
           </button>
+
+          <button
+            type="button"
+            onClick={onResetPassword}
+            disabled={resetBusy}
+            style={{
+              marginTop: 12,
+              alignSelf: "center",
+              background: "transparent",
+              border: "none",
+              color: "var(--blue-accent)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 13,
+              textDecoration: "underline",
+              cursor: resetBusy ? "default" : "pointer",
+              opacity: resetBusy ? 0.6 : 1,
+            }}
+          >
+            {resetBusy ? "Sending…" : "Forgot your password?"}
+          </button>
+          {resetNotice && (
+            <p style={{ color: "var(--white)", fontSize: 13, textAlign: "center", lineHeight: 1.5, marginTop: 4 }}>
+              {resetNotice}
+            </p>
+          )}
         </form>
         )}
 
