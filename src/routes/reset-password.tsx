@@ -67,9 +67,9 @@ function ResetPassword() {
         (event, session) => {
           if (cancelled) return;
           if (
-            (event === "INITIAL_SESSION" ||
-              event === "SIGNED_IN" ||
-              event === "PASSWORD_RECOVERY") &&
+            (event === "PASSWORD_RECOVERY" ||
+              (hasRecoveryToken &&
+                (event === "INITIAL_SESSION" || event === "SIGNED_IN"))) &&
             session?.user
           ) {
             acceptSession();
@@ -84,7 +84,7 @@ function ResetPassword() {
         if (cancelled) break;
         const { data: sessionData, error: sessionError } =
           await supabase.auth.getSession();
-        if (sessionData.session?.user) {
+        if (hasRecoveryToken && sessionData.session?.user) {
           acceptSession();
           break;
         }
