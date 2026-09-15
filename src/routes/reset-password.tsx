@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { setClientId } from "@/lib/client-session";
 import { BuddyLogo } from "@/components/CrosshairLogo";
+import { PasswordInput } from "@/components/PasswordInput";
 import { clearQuickCode } from "@/lib/quick-login.functions";
 import { markQuickCodeSession } from "@/lib/quick-login";
 
@@ -204,26 +205,24 @@ function ResetPassword() {
               gap: 14,
             }}
           >
-            <input
-              type="password"
+            <PasswordInput
               name="new-password"
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="New password"
-              aria-label="New password"
+              ariaLabel="New password"
               required
               minLength={8}
               style={inputStyle}
             />
-            <input
-              type="password"
+            <PasswordInput
               name="confirm-password"
               autoComplete="new-password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               placeholder="Confirm new password"
-              aria-label="Confirm new password"
+              ariaLabel="Confirm new password"
               required
               minLength={8}
               style={inputStyle}

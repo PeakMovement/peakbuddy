@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { setClientId } from "@/lib/client-session";
 import { BuddyLogo } from "@/components/CrosshairLogo";
 import { getPracticeJoinInfo, selfSignUpClient } from "@/lib/practice-join.functions";
+import { PasswordInput } from "@/components/PasswordInput";
 
 export const Route = createFileRoute("/join/$token")({
   head: () => ({ meta: [{ title: "Join your practice — Buddy" }] }),
@@ -186,14 +187,13 @@ function JoinPractice() {
                 required
                 style={inputStyle}
               />
-              <input
-                type="password"
+              <PasswordInput
                 name="new-password"
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Choose a password (8+ characters)"
-                aria-label="Password"
+                ariaLabel="Password"
                 required
                 minLength={8}
                 style={inputStyle}

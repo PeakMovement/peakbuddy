@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { KeyRound } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { PasswordInput } from "@/components/PasswordInput";
 
 /**
  * Reusable "Change password" card for the client profile and the
@@ -105,37 +106,34 @@ export function ChangePasswordCard() {
       </p>
 
       <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <input
-          type="password"
+        <PasswordInput
           name="current-password"
           autoComplete="current-password"
           value={current}
           onChange={(e) => setCurrent(e.target.value)}
           placeholder="Current password"
-          aria-label="Current password"
+          ariaLabel="Current password"
           required
           style={inputStyle}
         />
-        <input
-          type="password"
+        <PasswordInput
           name="new-password"
           autoComplete="new-password"
           value={next}
           onChange={(e) => setNext(e.target.value)}
           placeholder="New password"
-          aria-label="New password"
+          ariaLabel="New password"
           required
           minLength={8}
           style={inputStyle}
         />
-        <input
-          type="password"
+        <PasswordInput
           name="confirm-password"
           autoComplete="new-password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           placeholder="Confirm new password"
-          aria-label="Confirm new password"
+          ariaLabel="Confirm new password"
           required
           minLength={8}
           style={inputStyle}

@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { setClientId } from "@/lib/client-session";
 import { BuddyLogo } from "@/components/CrosshairLogo";
 import { QuickCodeSignIn } from "@/components/QuickCodeSignIn";
+import { PasswordInput } from "@/components/PasswordInput";
 import { markQuickCodeSession } from "@/lib/quick-login";
 
 
@@ -230,14 +231,13 @@ function ClientLogin() {
             required
             style={inputStyle}
           />
-          <input
-            type="password"
+          <PasswordInput
             name="password"
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
-            aria-label="Password"
+            ariaLabel="Password"
             required
             style={inputStyle}
           />
