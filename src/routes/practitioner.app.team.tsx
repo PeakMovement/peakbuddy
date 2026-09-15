@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Users, UserPlus, Trash2 } from "lucide-react";
+import { PracticeJoinLinkCard } from "@/components/PracticeJoinLinkCard";
 import {
   getMyPractice,
   invitePracticeMember,
@@ -102,6 +103,8 @@ function TeamPage() {
 
       {status === "loading" && <p style={muted}>Loading…</p>}
       {status === "error" && <p style={muted}>Couldn't load your practice. Please refresh.</p>}
+
+      {status === "ready" && info && info.inPractice && <PracticeJoinLinkCard />}
 
       {status === "ready" && info && !info.inPractice && (
         <p style={muted}>No practice found for your account. Contact support.</p>

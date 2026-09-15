@@ -802,6 +802,8 @@ export type Database = {
       }
       practices: {
         Row: {
+          join_token: string | null
+          join_enabled: boolean
           ai_features_enabled: boolean
           alert_sensitivity: string
           contact_webhook_enabled: boolean
@@ -827,6 +829,8 @@ export type Database = {
           yves_enabled: boolean
         }
         Insert: {
+          join_token?: string | null
+          join_enabled?: boolean
           ai_features_enabled?: boolean
           alert_sensitivity?: string
           contact_webhook_enabled?: boolean
@@ -852,6 +856,8 @@ export type Database = {
           yves_enabled?: boolean
         }
         Update: {
+          join_token?: string | null
+          join_enabled?: boolean
           ai_features_enabled?: boolean
           alert_sensitivity?: string
           contact_webhook_enabled?: boolean
