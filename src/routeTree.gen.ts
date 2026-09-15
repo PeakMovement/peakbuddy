@@ -21,6 +21,7 @@ import { Route as PractitionerPendingRouteImport } from './routes/practitioner.p
 import { Route as PractitionerOnboardingRouteImport } from './routes/practitioner.onboarding'
 import { Route as PractitionerLoginRouteImport } from './routes/practitioner.login'
 import { Route as PractitionerAppRouteImport } from './routes/practitioner.app'
+import { Route as JoinTokenRouteImport } from './routes/join.$token'
 import { Route as ClientLoginRouteImport } from './routes/client.login'
 import { Route as ClientAppRouteImport } from './routes/client.app'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
@@ -130,6 +131,11 @@ const PractitionerLoginRoute = PractitionerLoginRouteImport.update({
 const PractitionerAppRoute = PractitionerAppRouteImport.update({
   id: '/practitioner/app',
   path: '/practitioner/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JoinTokenRoute = JoinTokenRouteImport.update({
+  id: '/join/$token',
+  path: '/join/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientLoginRoute = ClientLoginRouteImport.update({
@@ -414,6 +420,7 @@ export interface FileRoutesByFullPath {
   '/auth/callback': typeof AuthCallbackRoute
   '/client/app': typeof ClientAppRouteWithChildren
   '/client/login': typeof ClientLoginRoute
+  '/join/$token': typeof JoinTokenRoute
   '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
   '/practitioner/onboarding': typeof PractitionerOnboardingRoute
@@ -477,6 +484,7 @@ export interface FileRoutesByTo {
   '/admin/login': typeof AdminLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/client/login': typeof ClientLoginRoute
+  '/join/$token': typeof JoinTokenRoute
   '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
   '/practitioner/onboarding': typeof PractitionerOnboardingRoute
@@ -542,6 +550,7 @@ export interface FileRoutesById {
   '/auth/callback': typeof AuthCallbackRoute
   '/client/app': typeof ClientAppRouteWithChildren
   '/client/login': typeof ClientLoginRoute
+  '/join/$token': typeof JoinTokenRoute
   '/practitioner/app': typeof PractitionerAppRouteWithChildren
   '/practitioner/login': typeof PractitionerLoginRoute
   '/practitioner/onboarding': typeof PractitionerOnboardingRoute
@@ -608,6 +617,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/client/app'
     | '/client/login'
+    | '/join/$token'
     | '/practitioner/app'
     | '/practitioner/login'
     | '/practitioner/onboarding'
@@ -671,6 +681,7 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/auth/callback'
     | '/client/login'
+    | '/join/$token'
     | '/practitioner/app'
     | '/practitioner/login'
     | '/practitioner/onboarding'
@@ -735,6 +746,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/client/app'
     | '/client/login'
+    | '/join/$token'
     | '/practitioner/app'
     | '/practitioner/login'
     | '/practitioner/onboarding'
@@ -800,6 +812,7 @@ export interface RootRouteChildren {
   AuthCallbackRoute: typeof AuthCallbackRoute
   ClientAppRoute: typeof ClientAppRouteWithChildren
   ClientLoginRoute: typeof ClientLoginRoute
+  JoinTokenRoute: typeof JoinTokenRoute
   PractitionerAppRoute: typeof PractitionerAppRouteWithChildren
   PractitionerLoginRoute: typeof PractitionerLoginRoute
   PractitionerOnboardingRoute: typeof PractitionerOnboardingRoute
@@ -909,6 +922,13 @@ declare module '@tanstack/react-router' {
       path: '/practitioner/app'
       fullPath: '/practitioner/app'
       preLoaderRoute: typeof PractitionerAppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/join/$token': {
+      id: '/join/$token'
+      path: '/join/$token'
+      fullPath: '/join/$token'
+      preLoaderRoute: typeof JoinTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/client/login': {
@@ -1363,6 +1383,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthCallbackRoute: AuthCallbackRoute,
   ClientAppRoute: ClientAppRouteWithChildren,
   ClientLoginRoute: ClientLoginRoute,
+  JoinTokenRoute: JoinTokenRoute,
   PractitionerAppRoute: PractitionerAppRouteWithChildren,
   PractitionerLoginRoute: PractitionerLoginRoute,
   PractitionerOnboardingRoute: PractitionerOnboardingRoute,
