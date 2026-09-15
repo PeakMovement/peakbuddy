@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { practitionerDestination } from "@/lib/practitioner-routing";
 import { BuddyLogo } from "@/components/CrosshairLogo";
 import { QuickCodeSignIn } from "@/components/QuickCodeSignIn";
 import { markQuickCodeSession } from "@/lib/quick-login";
@@ -77,21 +78,8 @@ function PractitionerLogin() {
       return "Access denied.";
     }
 
-    const { data: practice } = await supabase
-      .from("practices")
-      .select("onboarding_complete,is_approved")
-      .eq("practitioner_id", userId)
-      .maybeSingle();
-
-    if (practice && practice.is_approved === false) {
-      navigate({ to: "/practitioner/pending" });
-      return null;
-    }
-    if (practice?.onboarding_complete) {
-      navigate({ to: "/practitioner/app/dashboard" });
-    } else {
-      navigate({ to: "/practitioner/onboarding" });
-    }
+    // Owner or practice member — practitionerDestination() handles both.
+    navigate({ to: await practitionerDestination(userId) });
     return null;
   };
 

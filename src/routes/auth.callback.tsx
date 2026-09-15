@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { practitionerDestination } from "@/lib/practitioner-routing";
 import { setClientId } from "@/lib/client-session";
 import { BuddyLogo } from "@/components/CrosshairLogo";
 
@@ -55,20 +56,8 @@ function AuthCallback() {
       }
 
       if (role === "practitioner") {
-        const { data: practice } = await supabase
-          .from("practices")
-          .select("onboarding_complete,is_approved")
-          .eq("practitioner_id", userId)
-          .maybeSingle();
-        if (practice && practice.is_approved === false) {
-          navigate({ to: "/practitioner/pending" });
-          return;
-        }
-        if (practice?.onboarding_complete) {
-          navigate({ to: "/practitioner/app/dashboard" });
-        } else {
-          navigate({ to: "/practitioner/onboarding" });
-        }
+        // Owner or practice member — practitionerDestination() handles both.
+        navigate({ to: await practitionerDestination(userId) });
         return;
       }
 
