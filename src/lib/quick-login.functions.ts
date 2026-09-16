@@ -16,6 +16,14 @@ import { findAuthUserIdByEmail } from "@/lib/find-auth-user";
 // server-side 5-attempt lockout, not the hash cost of a 4-digit code.
 const PBKDF2_ITERATIONS = 100_000;
 
+// Codes set before the 100k change were hashed at 150k, so they stopped
+// verifying the moment the constant moved — the client typed their usual code,
+// got "that email and code combination didn't work", and burned their five
+// attempts into a lockout. Hashes are one-way so they can't be migrated in
+// place; instead we verify against the old cost as a fallback and silently
+// re-hash to the current cost on the next successful sign-in.
+const LEGACY_PBKDF2_ITERATIONS = 150_000;
+
 const WEAK_CODES = new Set([
   "0000",
   "1111",
@@ -54,7 +62,11 @@ function toHex(buf: ArrayBuffer): string {
     .join("");
 }
 
-async function hashCode(code: string, saltHex: string): Promise<string> {
+async function hashCode(
+  code: string,
+  saltHex: string,
+  iterations: number = PBKDF2_ITERATIONS,
+): Promise<string> {
   const enc = new TextEncoder();
   const salt = Uint8Array.from(saltHex.match(/.{2}/g) ?? [], (h) => parseInt(h, 16));
   try {
@@ -63,16 +75,32 @@ async function hashCode(code: string, saltHex: string): Promise<string> {
       "deriveBits",
     ]);
     const bits = await subtle.deriveBits(
-      { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+      { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
       key,
       256,
     );
     return toHex(bits);
   } catch {
-    // Fallback for server runtimes where WebCrypto PBKDF2 isn't available.
+    // Fallback for server runtimes where WebCrypto PBKDF2 isn't available, and
+    // for the legacy cost — Cloudflare's WebCrypto refuses iteration counts
+    // above 100k outright, so the old 150k hash can only be recomputed here.
     const nodeCrypto = await import("node:crypto");
-    const derived = nodeCrypto.pbkdf2Sync(code, Buffer.from(saltHex, "hex"), PBKDF2_ITERATIONS, 32, "sha256");
+    const derived = nodeCrypto.pbkdf2Sync(code, Buffer.from(saltHex, "hex"), iterations, 32, "sha256");
     return derived.toString("hex");
+  }
+}
+
+/** Same as hashCode but yields null instead of throwing — used for the
+ *  best-effort legacy check, which must never break a normal sign-in. */
+async function hashCodeOrNull(
+  code: string,
+  saltHex: string,
+  iterations: number,
+): Promise<string | null> {
+  try {
+    return await hashCode(code, saltHex, iterations);
+  } catch {
+    return null;
   }
 }
 
@@ -260,7 +288,20 @@ export const signInWithQuickCode = createServerFn({ method: "POST" })
     }
 
     const candidate = await hashCode(data.code, row.code_salt);
-    if (!safeEqual(candidate, row.code_hash)) {
+    let matched = safeEqual(candidate, row.code_hash);
+    let needsRehash = false;
+
+    if (!matched) {
+      // Fall back to the pre-100k cost so codes set before that change still
+      // work. Silent to the client either way.
+      const legacy = await hashCodeOrNull(data.code, row.code_salt, LEGACY_PBKDF2_ITERATIONS);
+      if (legacy && safeEqual(legacy, row.code_hash)) {
+        matched = true;
+        needsRehash = true;
+      }
+    }
+
+    if (!matched) {
       // The attempt was already consumed atomically by the RPC above.
       return { ok: false as const, error: GENERIC_ERROR };
     }
@@ -282,6 +323,9 @@ export const signInWithQuickCode = createServerFn({ method: "POST" })
         locked_at: null,
         last_failed_at: null,
         last_used_at: new Date().toISOString(),
+        // Carry a legacy-cost hash forward to the current cost so this only
+        // ever happens once per user.
+        ...(needsRehash ? { code_hash: candidate } : {}),
       })
       .eq("user_id", userId);
 
