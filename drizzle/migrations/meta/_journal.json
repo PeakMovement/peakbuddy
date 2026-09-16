@@ -15,6 +15,20 @@
       "when": 1789458843329,
       "tag": "0001_claim_quick_login_attempt",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789548916516,
+      "tag": "0002_reapply_grants_and_missing_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789548978862,
+      "tag": "0003_popia_accepted_at",
+      "breakpoints": true
     }
   ]
 }

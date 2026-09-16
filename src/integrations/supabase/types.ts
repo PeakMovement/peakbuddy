@@ -439,6 +439,7 @@ export type Database = {
       clients: {
         Row: {
           auth_user_id: string | null
+          calendar_feed_token: string | null
           check_in_frequency: string
           created_at: string
           email: string | null
@@ -452,6 +453,7 @@ export type Database = {
           passive_monitoring_enabled: boolean
           phone: string | null
           popia_accepted: boolean
+          popia_accepted_at: string | null
           practice_id: string | null
           practitioner_id: string
           predictive_nudges_enabled: boolean
@@ -470,6 +472,7 @@ export type Database = {
         }
         Insert: {
           auth_user_id?: string | null
+          calendar_feed_token?: string | null
           check_in_frequency?: string
           created_at?: string
           email?: string | null
@@ -483,6 +486,7 @@ export type Database = {
           passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean
+          popia_accepted_at?: string | null
           practice_id?: string | null
           practitioner_id: string
           predictive_nudges_enabled?: boolean
@@ -501,6 +505,7 @@ export type Database = {
         }
         Update: {
           auth_user_id?: string | null
+          calendar_feed_token?: string | null
           check_in_frequency?: string
           created_at?: string
           email?: string | null
@@ -514,6 +519,7 @@ export type Database = {
           passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean
+          popia_accepted_at?: string | null
           practice_id?: string | null
           practitioner_id?: string
           predictive_nudges_enabled?: boolean
@@ -825,6 +831,7 @@ export type Database = {
         Row: {
           ai_features_enabled: boolean
           alert_sensitivity: string
+          auto_reward_enabled: boolean
           contact_email: string | null
           contact_phone: string | null
           contact_webhook_enabled: boolean
@@ -832,6 +839,7 @@ export type Database = {
           created_at: string
           data_processing_agreed: boolean
           data_processing_agreed_at: string | null
+          gamification_enabled: boolean
           id: string
           is_approved: boolean
           join_enabled: boolean
@@ -852,6 +860,7 @@ export type Database = {
         Insert: {
           ai_features_enabled?: boolean
           alert_sensitivity?: string
+          auto_reward_enabled?: boolean
           contact_email?: string | null
           contact_phone?: string | null
           contact_webhook_enabled?: boolean
@@ -859,6 +868,7 @@ export type Database = {
           created_at?: string
           data_processing_agreed?: boolean
           data_processing_agreed_at?: string | null
+          gamification_enabled?: boolean
           id?: string
           is_approved?: boolean
           join_enabled?: boolean
@@ -879,6 +889,7 @@ export type Database = {
         Update: {
           ai_features_enabled?: boolean
           alert_sensitivity?: string
+          auto_reward_enabled?: boolean
           contact_email?: string | null
           contact_phone?: string | null
           contact_webhook_enabled?: boolean
@@ -886,6 +897,7 @@ export type Database = {
           created_at?: string
           data_processing_agreed?: boolean
           data_processing_agreed_at?: string | null
+          gamification_enabled?: boolean
           id?: string
           is_approved?: boolean
           join_enabled?: boolean
