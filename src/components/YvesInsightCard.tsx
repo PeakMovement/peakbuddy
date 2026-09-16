@@ -41,6 +41,17 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
   const [uploading, setUploading] = useState(false);
   const [reportErr, setReportErr] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState("");
+  // Honest elapsed time, not a fake percentage: the analysis is one round trip
+  // and the browser has no visibility of server-side progress.
+  const [elapsed, setElapsed] = useState(0);
+  const tickRef = useRef<number | null>(null);
+  // Clear the counter if the practitioner navigates away mid-analysis.
+  useEffect(
+    () => () => {
+      if (tickRef.current !== null) window.clearInterval(tickRef.current);
+    },
+    [],
+  );
   // Brief is the working default — a practitioner reading between patients
   // wants the short read. The choice is remembered per device.
   const [depth, setDepth] = useState<"brief" | "full">(() => {
@@ -108,7 +119,14 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
   const runAnalysis = async () => {
     if (analysing) return;
     setAnalysing(true);
+    setElapsed(0);
     setReportErr(null);
+    const startedAt = Date.now();
+    const tick = window.setInterval(
+      () => setElapsed(Math.round((Date.now() - startedAt) / 1000)),
+      1000,
+    );
+    tickRef.current = tick;
     try {
       const r = await runReportAnalysis({ data: { clientId, focus, depth } });
       if (r.ok && r.text) setAnalysis(r.text);
@@ -116,6 +134,8 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
     } catch {
       setReportErr("Analysis failed. Please try again.");
     }
+    window.clearInterval(tick);
+    tickRef.current = null;
     setAnalysing(false);
   };
 
@@ -280,12 +300,19 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
           style={{ ...btn, marginTop: 8, opacity: reports.length === 0 ? 0.5 : 1 }}
           title={reports.length === 0 ? "Upload at least one report first" : undefined}
         >
-          {analysing ? "Analysing…" : "Analyse reports"}
+          {analysing ? `Analysing… ${elapsed}s` : "Analyse reports"}
         </button>
         {reports.length === 0 && (
           <span style={{ color: "var(--white-muted)", fontSize: 11, marginLeft: 8 }}>
             Upload a report above to enable this.
           </span>
+        )}
+        {analysing && elapsed >= 15 && (
+          <p style={{ ...sub, marginTop: 8 }}>
+            {elapsed >= 45
+              ? "Still going. Large or scanned reports take longer — it will stop itself if it can't finish."
+              : "Reading the reports. This usually takes 20 to 40 seconds."}
+          </p>
         )}
         {analysis && <div style={out}>{renderMarkdown(analysis)}</div>}
       </div>

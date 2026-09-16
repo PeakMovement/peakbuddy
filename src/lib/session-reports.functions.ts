@@ -217,6 +217,13 @@ Up to 3 short numbered actions.
 
 Brevity here means fewer words per point. It never means dropping a clinically important point.`;
 
+// Time budget. Previously none of these calls had a timeout, so a stalled
+// gateway hung the practitioner's request indefinitely — and because each
+// failure was swallowed, a slow run was indistinguishable from a broken one.
+const ANALYSIS_DEADLINE_MS = 90_000; // overall ceiling for the whole attempt
+const GATEWAY_TIMEOUT_MS = 45_000;
+const CANDIDATE_TIMEOUT_MS = 25_000;
+
 const analysisPrompt = (depth: "brief" | "full"): string =>
   ANALYSIS_BASE_PROMPT + (depth === "brief" ? ANALYSIS_FORMAT_BRIEF : ANALYSIS_FORMAT_FULL);
 
@@ -337,6 +344,16 @@ export const analyzeReports = createServerFn({ method: "POST" })
     let text = "";
     let usedModel = "";
 
+    const startedAt = Date.now();
+    const msLeft = () => ANALYSIS_DEADLINE_MS - (Date.now() - startedAt);
+    // Why each path failed, so a dead gateway reports as a dead gateway
+    // instead of a generic "didn't respond".
+    const failures: string[] = [];
+    const describe = (e: unknown): string => {
+      const msg = e instanceof Error ? e.message : String(e);
+      return /abort|timeout|timed out/i.test(msg) ? "timed out" : msg.slice(0, 120);
+    };
+
     // 1) Lovable AI gateway FIRST — the proven-working path on this account
     //    (same one Yves insight uses). Reports go as multimodal image_url parts.
     if (lovKey) {
@@ -358,14 +375,18 @@ export const analyzeReports = createServerFn({ method: "POST" })
               { role: "user", content },
             ],
           }),
+          signal: AbortSignal.timeout(Math.max(1_000, Math.min(GATEWAY_TIMEOUT_MS, msLeft()))),
         });
         if (res.ok) {
           const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
           text = j.choices?.[0]?.message?.content?.trim() ?? "";
           if (text) usedModel = "gateway/gemini-3.1-pro-preview";
+          else failures.push("gateway: empty response");
+        } else {
+          failures.push(`gateway: HTTP ${res.status}`);
         }
-      } catch {
-        /* fall through to the direct API */
+      } catch (e) {
+        failures.push(`gateway: ${describe(e)}`);
       }
     }
 
@@ -376,6 +397,12 @@ export const analyzeReports = createServerFn({ method: "POST" })
       const candidates = [configured, "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
         .filter((m, i, a) => m && a.indexOf(m) === i);
       for (const m of candidates) {
+        // Don't start another candidate we haven't time to finish — five
+        // sequential retries is how a "slow" analysis was really being made.
+        if (msLeft() < 5_000) {
+          failures.push("out of time before trying remaining models");
+          break;
+        }
         try {
           const res = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${gk}`,
@@ -386,24 +413,31 @@ export const analyzeReports = createServerFn({ method: "POST" })
                 systemInstruction: { parts: [{ text: analysisPrompt(data.depth ?? "full") }] },
                 contents: [{ role: "user", parts: userParts }],
               }),
+              signal: AbortSignal.timeout(Math.max(1_000, Math.min(CANDIDATE_TIMEOUT_MS, msLeft()))),
             },
           );
           if (res.ok) {
             const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
             text = (j.candidates?.[0]?.content?.parts ?? []).map((pp) => pp.text ?? "").join("").trim();
             if (text) { usedModel = `google/${m}`; break; }
+            failures.push(`${m}: empty response`);
+          } else {
+            failures.push(`${m}: HTTP ${res.status}`);
           }
-        } catch {
-          /* try the next candidate */
+        } catch (e) {
+          failures.push(`${m}: ${describe(e)}`);
         }
       }
     }
 
     if (!text) {
+      const detail = failures.length ? ` (${failures.join("; ")})` : "";
+      const timedOut = failures.some((f) => f.includes("timed out")) || msLeft() <= 0;
       return {
         ok: false,
-        error:
-          "Yves couldn't analyse the reports right now — the AI model didn't respond. Please try again in a moment.",
+        error: timedOut
+          ? `Yves ran out of time reading these reports${detail}. Large or scanned files take longer — try again, or remove the biggest report and re-run.`
+          : `Yves couldn't analyse the reports right now${detail}. Please try again in a moment.`,
       };
     }
 
