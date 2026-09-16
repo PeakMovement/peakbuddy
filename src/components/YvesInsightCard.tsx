@@ -18,6 +18,8 @@ import {
 const FOCUSES = ["General overview", "Pain & symptoms", "Sleep & recovery", "Training load", "Risk factors"];
 
 /** Practitioner-facing "Generate Yves insight" panel (own clients, 3/day). */
+const ANALYSIS_DEPTH_KEY = "buddy.report_analysis_depth";
+
 export function YvesInsightCard({ clientId }: { clientId: string }) {
   const gen = useServerFn(generateClientInsight);
   const [focus, setFocus] = useState(FOCUSES[0]);
@@ -39,6 +41,16 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
   const [uploading, setUploading] = useState(false);
   const [reportErr, setReportErr] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState("");
+  // Brief is the working default — a practitioner reading between patients
+  // wants the short read. The choice is remembered per device.
+  const [depth, setDepth] = useState<"brief" | "full">(() => {
+    if (typeof window === "undefined") return "brief";
+    try {
+      return window.localStorage.getItem(ANALYSIS_DEPTH_KEY) === "full" ? "full" : "brief";
+    } catch {
+      return "brief";
+    }
+  });
   const [analysing, setAnalysing] = useState(false);
 
   const refreshReports = async () => {
@@ -98,7 +110,7 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
     setAnalysing(true);
     setReportErr(null);
     try {
-      const r = await runReportAnalysis({ data: { clientId, focus } });
+      const r = await runReportAnalysis({ data: { clientId, focus, depth } });
       if (r.ok && r.text) setAnalysis(r.text);
       else setReportErr(r.error ?? "Could not analyse the reports.");
     } catch {
@@ -212,6 +224,54 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
         <p style={sub}>
           Yves reads the uploaded reports together with this client's check-ins and wearable data to
           spot trends, flag problems, and summarise anything that needs attention.
+        </p>
+        <div
+          role="radiogroup"
+          aria-label="Analysis depth"
+          style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}
+        >
+          {([
+            { key: "brief" as const, label: "Brief", hint: "Short read, flags first" },
+            { key: "full" as const, label: "Full detail", hint: "The complete analysis" },
+          ]).map((opt) => {
+            const on = depth === opt.key;
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                title={opt.hint}
+                onClick={() => {
+                  setDepth(opt.key);
+                  try {
+                    window.localStorage.setItem(ANALYSIS_DEPTH_KEY, opt.key);
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                style={{
+                  minHeight: 36,
+                  padding: "0 14px",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  background: on ? "var(--cold-blue, #7aa8ff)" : "transparent",
+                  border: `1px solid ${on ? "var(--cold-blue, #7aa8ff)" : "var(--navy-border)"}`,
+                  color: on ? "var(--navy-deep, #0b1733)" : "var(--white)",
+                  fontFamily: "var(--font-ui)",
+                  fontWeight: 600,
+                  fontSize: 13,
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <p style={{ ...sub, marginTop: 6 }}>
+          {depth === "brief"
+            ? "A short read for between patients. Anything urgent is still flagged in full."
+            : "The complete analysis, with report findings and how they fit the symptom and wearable trends."}
         </p>
         <button
           type="button"

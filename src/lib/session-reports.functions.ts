@@ -169,18 +169,56 @@ export const deleteReport = createServerFn({ method: "POST" })
 
 // --- Yves analysis of reports + symptom/wearable data --------------------------
 
-const ANALYSIS_SYSTEM_PROMPT = `You are a clinical decision-support assistant helping the treating practitioner review a patient.
+const ANALYSIS_BASE_PROMPT = `You are a clinical decision-support assistant helping the treating practitioner review a patient.
 
 You are given: (1) one or more of the patient's uploaded REPORTS (PDFs or images — e.g. lab results, referral letters, imaging, clinical notes), and (2) a JSON summary of the patient's recent SYMPTOM check-ins and WEARABLE data.
 
-Read the reports TOGETHER with the symptom and wearable data and produce a practitioner-facing analysis:
-- Lead with a short synthesis of what matters most.
-- Notable findings from the reports (quote specific values/statements; never invent results).
-- How the reports relate to the symptom trends and wearable signals (corroborating or conflicting).
-- Clear medical viewpoints and suggestions the practitioner should CONSIDER (investigations, monitoring, management options) — framed as considerations, not directives.
-- Flag anything that looks urgent or needs prompt attention.
+Read the reports TOGETHER with the symptom and wearable data and write for a clinician who is reading this between patients.
 
-Rules: base everything strictly on the supplied reports + data; if a report is unreadable or a value is absent, say so; cite the time window for symptom/wearable claims. This is decision support for a qualified clinician, NOT a diagnosis and NOT a substitute for their judgement. Keep it focused (~300–500 words), markdown, no preamble.`;
+Rules: base everything strictly on the supplied reports + data; never invent results; quote specific values or statements from the reports; if a report is unreadable or a value is absent, say so; cite the time window for symptom/wearable claims. Frame clinical input as considerations for the practitioner's judgement, never directives. This is decision support for a qualified clinician, NOT a diagnosis and NOT a substitute for their judgement. Markdown, no preamble, no closing pleasantries.`;
+
+// Safety-critical ordering: the flags section is FIRST and is never dropped,
+// in either depth. Brief means fewer words per point, never fewer findings —
+// a practitioner scanning between patients must not have to read to the bottom
+// of an essay to discover something urgent.
+const ANALYSIS_FORMAT_FULL = `
+FORMAT — roughly 300–450 words. Use exactly these headings, in this order:
+
+**Bottom line:** one or two sentences naming what matters most for this patient today.
+
+### Flags
+Anything urgent or needing prompt attention, most serious first. If there is genuinely nothing urgent, write "Nothing urgent in this data." and name briefly what you checked. Never omit this section.
+
+### Report findings
+What the reports actually say, quoting specific values or statements.
+
+### Fit with symptoms and wearables
+Where the reports corroborate or conflict with the check-in and wearable trends, with the time window for each claim.
+
+### Consider next
+Up to 3 numbered considerations, each tied to something specific above.`;
+
+const ANALYSIS_FORMAT_BRIEF = `
+FORMAT — 120–180 words MAXIMUM. Use exactly these headings, in this order:
+
+**Bottom line:** one sentence.
+
+### Flags
+Anything urgent or needing prompt attention, most serious first. If there is genuinely nothing urgent, write "Nothing urgent in this data." NEVER omit, shorten or merge away this section to save words — trim everywhere else first. A clinically important finding always survives the word limit.
+
+### Report findings
+Up to 3 bullets, the most decision-relevant only, each carrying its specific value or quote.
+
+### Fit with symptoms and wearables
+One or two lines.
+
+### Consider next
+Up to 3 short numbered actions.
+
+Brevity here means fewer words per point. It never means dropping a clinically important point.`;
+
+const analysisPrompt = (depth: "brief" | "full"): string =>
+  ANALYSIS_BASE_PROMPT + (depth === "brief" ? ANALYSIS_FORMAT_BRIEF : ANALYSIS_FORMAT_FULL);
 
 function bufToBase64(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf);
@@ -202,7 +240,13 @@ function mean(xs: (number | null)[]): number | null {
 export const analyzeReports = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ clientId: z.string().uuid(), focus: z.string().max(80).optional() }).parse(input),
+    z
+      .object({
+        clientId: z.string().uuid(),
+        focus: z.string().max(80).optional(),
+        depth: z.enum(["brief", "full"]).optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: boolean; text?: string; error?: string }> => {
     const admin = await assertAccess(context.userId, data.clientId);
@@ -310,7 +354,7 @@ export const analyzeReports = createServerFn({ method: "POST" })
           body: JSON.stringify({
             model: "google/gemini-3.1-pro-preview",
             messages: [
-              { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
+              { role: "system", content: analysisPrompt(data.depth ?? "full") },
               { role: "user", content },
             ],
           }),
@@ -339,7 +383,7 @@ export const analyzeReports = createServerFn({ method: "POST" })
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                systemInstruction: { parts: [{ text: ANALYSIS_SYSTEM_PROMPT }] },
+                systemInstruction: { parts: [{ text: analysisPrompt(data.depth ?? "full") }] },
                 contents: [{ role: "user", parts: userParts }],
               }),
             },
