@@ -243,7 +243,7 @@ function JoinPractice() {
                       }}
                     >
                       {p.name}
-                      {p.isAdmin ? "  ·  Practice lead" : ""}
+                      {p.isAdmin ? "  ·  Justin Muller" : ""}
                     </button>
                   ))}
                 </div>
