@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/lib/supabase";
@@ -277,6 +277,25 @@ function JoinPractice() {
             </form>
           </>
         )}
+
+        {/* Always reachable: the join link was previously a dead end — someone
+            who landed here by mistake, or hit a broken link, had no way back to
+            the client/practitioner home screen without editing the URL. */}
+        <Link
+          to="/"
+          style={{
+            marginTop: 28,
+            minHeight: 44,
+            display: "inline-flex",
+            alignItems: "center",
+            color: "var(--white-muted)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 14,
+            textDecoration: "underline",
+          }}
+        >
+          Back to Buddy home
+        </Link>
       </div>
     </main>
   );
