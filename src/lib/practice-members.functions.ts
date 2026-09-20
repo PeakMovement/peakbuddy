@@ -2,8 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { findAuthUserIdByEmail } from "@/lib/find-auth-user";
+import { appBaseUrl } from "@/lib/app-url";
 
-const SITE_ORIGIN = process.env.BUDDY_APP_BASE_URL || "https://peakbuddy.lovable.app";
+const SITE_ORIGIN = appBaseUrl();
 
 type Admin = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 
@@ -94,13 +95,17 @@ export const invitePracticeMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z
-      .object({ email: z.string().trim().email().max(255), fullName: z.string().trim().min(1).max(120) })
+      .object({
+        email: z.string().trim().email().max(255),
+        fullName: z.string().trim().min(1).max(120),
+      })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const ctx = await resolvePractitionerPracticeId(supabaseAdmin, context.userId);
-    if (!ctx || !ctx.isOwner) return { ok: false as const, error: "Only the practice admin can add members." };
+    if (!ctx || !ctx.isOwner)
+      return { ok: false as const, error: "Only the practice admin can add members." };
 
     const { data: practice } = await supabaseAdmin
       .from("practices")
@@ -108,7 +113,10 @@ export const invitePracticeMember = createServerFn({ method: "POST" })
       .eq("id", ctx.practiceId)
       .maybeSingle();
     if ((practice as { practice_type?: string } | null)?.practice_type !== "group") {
-      return { ok: false as const, error: "This is an individual practice. Switch to a practice account to add members." };
+      return {
+        ok: false as const,
+        error: "This is an individual practice. Switch to a practice account to add members.",
+      };
     }
     const max = (practice as { max_members?: number } | null)?.max_members ?? 6;
 
@@ -123,14 +131,18 @@ export const invitePracticeMember = createServerFn({ method: "POST" })
 
     // Create or find the invited auth user.
     let userId: string | null = null;
-    const { data: invited, error: invErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
-      data: { full_name: data.fullName, role: "practitioner" },
-      redirectTo: `${SITE_ORIGIN}/practitioner/login`,
-    });
+    const { data: invited, error: invErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+      data.email,
+      {
+        data: { full_name: data.fullName, role: "practitioner" },
+        redirectTo: `${SITE_ORIGIN}/practitioner/login`,
+      },
+    );
     if (invErr || !invited?.user) {
       // Already registered? Find them (full paged lookup).
       const existingId = await findAuthUserIdByEmail(supabaseAdmin, data.email);
-      if (!existingId) return { ok: false as const, error: invErr?.message ?? "Could not invite this email." };
+      if (!existingId)
+        return { ok: false as const, error: invErr?.message ?? "Could not invite this email." };
       userId = existingId;
     } else {
       userId = invited.user.id;
@@ -139,7 +151,10 @@ export const invitePracticeMember = createServerFn({ method: "POST" })
     // Guard: don't pull in someone who already owns their own practice or is in another practice.
     const existingCtx = await resolvePractitionerPracticeId(supabaseAdmin, userId);
     if (existingCtx && existingCtx.practiceId !== ctx.practiceId) {
-      return { ok: false as const, error: "That practitioner already belongs to another practice." };
+      return {
+        ok: false as const,
+        error: "That practitioner already belongs to another practice.",
+      };
     }
 
     const { error: memErr } = await supabaseAdmin
@@ -159,8 +174,10 @@ export const removePracticeMember = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const ctx = await resolvePractitionerPracticeId(supabaseAdmin, context.userId);
-    if (!ctx || !ctx.isOwner) return { ok: false as const, error: "Only the practice admin can remove members." };
-    if (data.userId === context.userId) return { ok: false as const, error: "You can't remove yourself (you're the admin)." };
+    if (!ctx || !ctx.isOwner)
+      return { ok: false as const, error: "Only the practice admin can remove members." };
+    if (data.userId === context.userId)
+      return { ok: false as const, error: "You can't remove yourself (you're the admin)." };
 
     const { count } = await supabaseAdmin
       .from("clients")
@@ -231,7 +248,10 @@ export const transferClient = createServerFn({ method: "POST" })
     // Target must be an active practitioner in the SAME practice (member or owner).
     const targetCtx = await resolvePractitionerPracticeId(supabaseAdmin, data.toUserId);
     if (!targetCtx || targetCtx.practiceId !== practiceId) {
-      return { ok: false as const, error: "You can only transfer to a practitioner in your practice." };
+      return {
+        ok: false as const,
+        error: "You can only transfer to a practitioner in your practice.",
+      };
     }
 
     const { error } = await supabaseAdmin
@@ -280,6 +300,26 @@ export async function canAccessClient(
   if (ctx && ctx.isOwner && practiceId && ctx.practiceId === practiceId) return { allowed: true };
   if (await isSuperAdmin(admin, userId)) return { allowed: true };
   return { allowed: false };
+}
+
+/**
+ * Client themselves, assigned practitioner / practice owner, or super admin.
+ * Use before returning PHI via the service-role client.
+ */
+export async function callerMayAccessClient(
+  admin: Admin,
+  userId: string,
+  clientId: string,
+): Promise<boolean> {
+  const { data: c } = await admin
+    .from("clients")
+    .select("auth_user_id")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (!c) return false;
+  if (c.auth_user_id === userId) return true;
+  const { allowed } = await canAccessClient(admin, userId, clientId);
+  return allowed;
 }
 
 /**

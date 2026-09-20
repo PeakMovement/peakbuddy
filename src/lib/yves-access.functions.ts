@@ -1,5 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { callerMayAccessClient } from "@/lib/practice-members.functions";
+
+const DENY = {
+  practiceYvesEnabled: false,
+  clientYvesEnabled: false,
+  practitionerId: null as string | null,
+};
 
 export const getClientYvesAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -9,8 +16,11 @@ export const getClientYvesAccess = createServerFn({ method: "POST" })
     }
     return data;
   })
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const allowed = await callerMayAccessClient(supabaseAdmin, context.userId, data.clientId);
+    if (!allowed) return DENY;
 
     const { data: c, error: cErr } = await supabaseAdmin
       .from("clients")
@@ -18,13 +28,7 @@ export const getClientYvesAccess = createServerFn({ method: "POST" })
       .eq("id", data.clientId)
       .maybeSingle();
 
-    if (cErr || !c) {
-      return {
-        practiceYvesEnabled: true,
-        clientYvesEnabled: true,
-        practitionerId: null as string | null,
-      };
-    }
+    if (cErr || !c) return DENY;
 
     let practiceYvesEnabled = true;
     if (c.practitioner_id) {
