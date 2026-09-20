@@ -4,6 +4,7 @@ import { Info, LogOut } from "lucide-react";
 import { QuickCodeManager } from "@/components/QuickCodeManager";
 import { ChangePasswordCard } from "@/components/ChangePasswordCard";
 import { PracticeJoinLinkCard } from "@/components/PracticeJoinLinkCard";
+import { RestaurantPartnersManager } from "@/components/RestaurantPartnersManager";
 
 import { supabase } from "@/lib/supabase";
 import type { Practice, Profile } from "@/lib/types";
@@ -351,6 +352,7 @@ function Settings() {
       </form>
 
       <div style={{ marginTop: 20 }}>
+        <RestaurantPartnersManager scope="practice" />
         <PracticeJoinLinkCard />
         <QuickCodeManager />
         <ChangePasswordCard />

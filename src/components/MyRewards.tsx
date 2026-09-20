@@ -101,7 +101,7 @@ export function MyRewards() {
       <div style={{ marginTop: 8 }}>
         <div style={emptyStyle}>
           <Gift size={16} color="var(--white-muted)" aria-hidden />
-          <span>No rewards yet. Keep checking in to earn vouchers.</span>
+          <span>No rewards yet. Keep checking in to earn restaurant discounts and vouchers.</span>
         </div>
       </div>
     );
@@ -122,6 +122,13 @@ export function MyRewards() {
               </div>
               {isNew && <span style={newBadge}>NEW</span>}
             </div>
+            {(rw.partner_name || rw.discount_percent) && (
+              <div style={{ color: "var(--white-muted)", fontSize: 12, marginTop: 6 }}>
+                {rw.discount_percent ? `${rw.discount_percent}% off` : "Discount"}
+                {rw.partner_name ? ` at ${rw.partner_name}` : ""}
+                {rw.partner_city ? ` · ${rw.partner_city}` : ""}
+              </div>
+            )}
             {rw.description && (
               <div style={{ color: "var(--white-muted)", fontSize: 12, marginTop: 6 }}>
                 {rw.description}

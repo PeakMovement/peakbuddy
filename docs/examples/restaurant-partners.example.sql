@@ -1,0 +1,38 @@
+-- EXAMPLE ONLY — not applied by migrations.
+-- Replace every [EXAMPLE] value with Justin's real restaurant list, then run
+-- in the Supabase SQL editor AFTER
+-- supabase/migrations/20260920150000_training_schedule_and_restaurant_partners.sql
+--
+-- Do not insert invented restaurant names into production.
+
+-- 1. Partner (platform-wide: practice_id IS NULL)
+-- INSERT INTO public.restaurant_partners
+--   (name, description, city, address, maps_url, active, is_placeholder)
+-- VALUES
+--   (
+--     '[EXAMPLE] Partner restaurant — replace with Justin''s list',
+--     'Placeholder. Not a real venue. Leave inactive until the real list is ready.',
+--     '[EXAMPLE] Cape Town',
+--     '',
+--     NULL,
+--     false,          -- keep inactive
+--     true            -- mark as example
+--   );
+
+-- 2. Discount voucher tied to that partner (earn at 7-day streak)
+-- INSERT INTO public.rewards
+--   (name, description, voucher_code, active, partner_id, discount_percent, earn_on, min_streak)
+-- SELECT
+--   '[EXAMPLE] 15% off lunch',
+--   'Show this code at the till. Buddy never shares patient details with the restaurant.',
+--   'BUDDY-EXAMPLE',
+--   false,
+--   id,
+--   15,
+--   'milestone',
+--   7
+-- FROM public.restaurant_partners
+-- WHERE is_placeholder = true
+-- LIMIT 1;
+
+-- 3. Then: Admin → Settings → activate Rewards so clients can earn/redeem.

@@ -31,6 +31,15 @@ In-repo: `.github/workflows/scheduled-hooks.yml` runs that POST when GitHub Acti
 
 Practice **owners** see every client (and those clients’ alerts) on the practitioner dashboard. **Members** see only their assigned caseload. Apply `supabase/migrations/20260920120000_practice_owner_rls.sql` on the live database.
 
+## Training schedule × symptoms, and restaurant check-in rewards
+
+Apply `supabase/migrations/20260920150000_training_schedule_and_restaurant_partners.sql`.
+
+- **Training schedule:** practitioners log hard / recovery / rest sessions on the client page. Overlay vs check-in scores. Optional wearable-load series. Flag: Admin → Settings, or `TRAINING_SCHEDULE_CROSSCHECK` in `src/lib/feature-flags.ts`.
+- **Restaurant discounts:** extend the existing Rewards engine. Admin → Settings → Restaurant partners (Justin’s list is **not** seeded). Activate Rewards before clients see vouchers. Example SQL: `docs/examples/restaurant-partners.example.sql`.
+
+Full notes: `docs/CHECKIN_REWARDS_AND_TRAINING_SCHEDULE.md`.
+
 ## Deploy
 
 Production is **Lovable Cloud**, not a GitHub deploy workflow. After merge to `main`, publish from the Lovable UI (exact clicks in `docs/OPERATIONS.md`).

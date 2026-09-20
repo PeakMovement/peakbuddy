@@ -38,6 +38,7 @@ export interface PlatformSettings {
   new_practitioner_webhook_url: string;
   new_practitioner_webhook_enabled: boolean;
   programs_feature_enabled: boolean;
+  training_schedule_enabled?: boolean;
   created_at: string;
 }
 

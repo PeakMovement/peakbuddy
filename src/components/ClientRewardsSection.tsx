@@ -58,7 +58,8 @@ export function ClientRewardsSection({ clientId }: { clientId: string }) {
     <section style={{ marginTop: 28 }}>
       <div style={titleStyle}>Rewards</div>
       <p style={{ color: "var(--white-muted)", fontSize: 12, marginTop: 4 }}>
-        Confirm this client completed their advised check-ins to issue a reward voucher.
+        Confirm this client completed their advised check-ins to issue a restaurant discount or
+        voucher. Auto-issue still runs at streak milestones when rewards are on.
       </p>
       <button type="button" onClick={approve} disabled={busy} style={approveBtn}>
         <Gift size={16} />
