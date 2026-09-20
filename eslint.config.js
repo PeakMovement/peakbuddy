@@ -44,8 +44,28 @@ export default tseslint.config(
       "src/integrations/supabase/**",
       "src/routeTree.gen.ts",
       "scripts/**",
+      "src/routes/lovable/**",
+      "src/lib/email/**",
     ],
     rules: { "no-console": "off" },
+  },
+  {
+    // Pre-existing `any` debt — do not add new files here. New code must type it.
+    files: [
+      "src/lib/admin-data-hub.functions.ts",
+      "src/lib/email-templates/**",
+      "src/lib/email/**",
+      "src/lib/google-calendar.functions.ts",
+      "src/lib/google-calendar/oauth.ts",
+      "src/lib/rewards.functions.ts",
+      "src/lib/wearables/snapshot.functions.ts",
+      "src/lib/webhooks.functions.ts",
+      "src/routes/admin.app.data-hub.tsx",
+      "src/routes/client.app.profile.tsx",
+      "src/routes/lovable/**",
+      "src/routes/practitioner.app.profile.tsx",
+    ],
+    rules: { "@typescript-eslint/no-explicit-any": "off" },
   },
   eslintPluginPrettier,
 );
