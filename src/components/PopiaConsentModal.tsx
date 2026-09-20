@@ -1,45 +1,49 @@
 import type { CSSProperties } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { ShieldCheck } from "lucide-react";
 import { getPopiaStatus, acceptPopiaConsent } from "@/lib/popia-consent.functions";
 
+type Gate = "loading" | "error" | "needs_consent" | "ok";
+
 /**
  * First-run POPIA data-processing consent. Blocks the client app until accepted.
- * Non-dismissible (there is no close button) — consent is required to proceed.
- * Self-gating: renders nothing unless the client hasn't accepted yet.
+ * Non-dismissible — consent is required to proceed. Fail closed: a lookup error
+ * keeps the overlay up until consent status can be verified.
  */
 export function PopiaConsentModal() {
   const fetchStatus = useServerFn(getPopiaStatus);
   const accept = useServerFn(acceptPopiaConsent);
-  const [show, setShow] = useState(false);
+  const [gate, setGate] = useState<Gate>("loading");
   const [checked, setChecked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchStatus()
-      .then((r) => {
-        if (!cancelled && r && r.accepted === false) setShow(true);
-      })
-      .catch(() => {
-        /* fail open — don't block the app on a lookup error */
-      });
-    return () => {
-      cancelled = true;
-    };
+  const loadStatus = useCallback(async () => {
+    setGate("loading");
+    setError(null);
+    try {
+      const r = await fetchStatus();
+      setGate(r?.accepted === true ? "ok" : "needs_consent");
+    } catch {
+      setGate("error");
+      setError("We couldn't verify your privacy consent. Check your connection and try again.");
+    }
   }, [fetchStatus]);
 
-  if (!show) return null;
+  useEffect(() => {
+    void loadStatus();
+  }, [loadStatus]);
+
+  if (gate === "ok") return null;
 
   const onAccept = async () => {
-    if (!checked || saving) return;
+    if (!checked || saving || gate !== "needs_consent") return;
     setSaving(true);
     setError(null);
     try {
       await accept();
-      setShow(false);
+      setGate("ok");
     } catch {
       setError("Couldn't save your consent. Please check your connection and try again.");
       setSaving(false);
@@ -53,48 +57,82 @@ export function PopiaConsentModal() {
           <ShieldCheck size={22} color="var(--blue-accent)" aria-hidden />
           <span style={eyebrow}>Your privacy</span>
         </div>
-        <h2 style={title}>Before you start</h2>
-        <p style={body}>
-          Buddy records the symptoms and wellbeing check-ins you log, and shares them with your
-          practitioner so they can support your care. If you connect a wearable, its health data is
-          included too.
-        </p>
-        <p style={body}>
-          In line with South Africa's POPIA, we process your personal and health information only to
-          provide this service to you and your practitioner. We don't sell it, and you can ask your
-          practitioner to remove your data at any time. Full detail is in our{" "}
-          <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" style={link}>
-            Privacy Policy
-          </a>
-          .
-        </p>
-
-        <label style={checkRow}>
-          <input
-            type="checkbox"
-            checked={checked}
-            onChange={(e) => setChecked(e.target.checked)}
-            style={{ marginTop: 3, flex: "0 0 auto" }}
-          />
-          <span style={{ fontFamily: "var(--font-ui)", fontSize: 14, lineHeight: 1.5, color: "var(--white)" }}>
-            I consent to Buddy processing my personal and health information as described, and to
-            sharing it with my practitioner.
-          </span>
-        </label>
-
-        {error && (
-          <div style={{ color: "var(--red)", fontFamily: "var(--font-ui)", fontSize: 13, marginTop: 10 }}>
-            {error}
-          </div>
+        <h2 style={title}>
+          {gate === "error" ? "We need to check your consent" : "Before you start"}
+        </h2>
+        {gate === "loading" && <p style={body}>Checking your privacy consent…</p>}
+        {gate === "error" && (
+          <>
+            <p style={body}>{error}</p>
+            <button type="button" onClick={() => void loadStatus()} style={cta(false)}>
+              Try again
+            </button>
+          </>
         )}
+        {gate === "needs_consent" && (
+          <>
+            <p style={body}>
+              Buddy records the symptoms and wellbeing check-ins you log, and shares them with your
+              practitioner so they can support your care. If you connect a wearable, its health data
+              is included too.
+            </p>
+            <p style={body}>
+              In line with South Africa's POPIA, we process your personal and health information
+              only to provide this service to you and your practitioner. We don't sell it, and you
+              can ask your practitioner to remove your data at any time. Full detail is in our{" "}
+              <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" style={link}>
+                Privacy Policy
+              </a>
+              .
+            </p>
 
-        <button type="button" onClick={onAccept} disabled={!checked || saving} style={cta(!checked || saving)}>
-          {saving ? "Saving…" : "I agree — continue"}
-        </button>
-        <p style={fine}>
-          You need to agree to use Buddy. If you'd prefer not to, close the app and speak to your
-          practitioner.
-        </p>
+            <label style={checkRow}>
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => setChecked(e.target.checked)}
+                style={{ marginTop: 3, flex: "0 0 auto" }}
+              />
+              <span
+                style={{
+                  fontFamily: "var(--font-ui)",
+                  fontSize: 14,
+                  lineHeight: 1.5,
+                  color: "var(--white)",
+                }}
+              >
+                I consent to Buddy processing my personal and health information as described, and
+                to sharing it with my practitioner.
+              </span>
+            </label>
+
+            {error && (
+              <div
+                style={{
+                  color: "var(--red)",
+                  fontFamily: "var(--font-ui)",
+                  fontSize: 13,
+                  marginTop: 10,
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={onAccept}
+              disabled={!checked || saving}
+              style={cta(!checked || saving)}
+            >
+              {saving ? "Saving…" : "I agree — continue"}
+            </button>
+            <p style={fine}>
+              You need to agree to use Buddy. If you'd prefer not to, close the app and speak to
+              your practitioner.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
