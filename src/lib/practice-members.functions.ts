@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { findAuthUserIdByEmail } from "@/lib/find-auth-user";
 import { appBaseUrl } from "@/lib/app-url";
+import { resolvePracticeClientScope } from "@/lib/practice-scope";
+import type { Client } from "@/lib/types";
 
 const SITE_ORIGIN = appBaseUrl();
 
@@ -32,6 +34,54 @@ export async function resolvePractitionerPracticeId(
 async function isSuperAdmin(admin: Admin, userId: string): Promise<boolean> {
   const { data } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
   return (data as { role?: string } | null)?.role === "super_admin";
+}
+
+/**
+ * Clients the caller may list on practitioner dashboard / alerts.
+ * Practice owner: every client in the practice (plus any still keyed only to a member).
+ * Member / solo: assigned caseload only.
+ */
+export async function listAccessibleClients(admin: Admin, userId: string): Promise<Client[]> {
+  const ctx = await resolvePractitionerPracticeId(admin, userId);
+  const scope = resolvePracticeClientScope({
+    userId,
+    practiceId: ctx?.practiceId ?? null,
+    isOwner: ctx?.isOwner ?? false,
+  });
+
+  if (scope.mode === "practice") {
+    const { data: members } = await admin
+      .from("practice_members")
+      .select("user_id")
+      .eq("practice_id", scope.practiceId)
+      .eq("status", "active");
+    const memberIds = [
+      ...new Set([userId, ...(members ?? []).map((m) => m.user_id as string).filter(Boolean)]),
+    ];
+    const [{ data: byPractice }, { data: byMember }] = await Promise.all([
+      admin.from("clients").select("*").eq("practice_id", scope.practiceId),
+      memberIds.length
+        ? admin.from("clients").select("*").in("practitioner_id", memberIds)
+        : Promise.resolve({ data: [] as Client[] }),
+    ]);
+    const map = new Map<string, Client>();
+    for (const row of [...(byPractice ?? []), ...(byMember ?? [])]) {
+      const c = row as unknown as Client;
+      if (c.id) map.set(c.id, c);
+    }
+    return [...map.values()];
+  }
+
+  const { data } = await admin
+    .from("clients")
+    .select("*")
+    .eq("practitioner_id", scope.practitionerId);
+  return ((data ?? []) as unknown as Client[]).filter((c) => !!c.id);
+}
+
+export async function listAccessibleClientIds(admin: Admin, userId: string): Promise<string[]> {
+  const rows = await listAccessibleClients(admin, userId);
+  return rows.map((r) => r.id).filter(Boolean);
 }
 
 /** The caller's practice context + (for the owner) the member roster. */

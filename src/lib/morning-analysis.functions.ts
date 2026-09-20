@@ -27,24 +27,33 @@ export const getMorningAnalysis = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<MorningAnalysisPayload> => {
     const { supabase, userId } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { listAccessibleClientIds, resolvePractitionerPracticeId } =
+      await import("@/lib/practice-members.functions");
+    const [ids, ctx] = await Promise.all([
+      listAccessibleClientIds(supabaseAdmin, userId),
+      resolvePractitionerPracticeId(supabaseAdmin, userId),
+    ]);
 
-    const [{ data: prof }, { count: clientCount }, { data: practice }] = await Promise.all([
+    const [{ data: prof }, { data: practice }] = await Promise.all([
       supabase.from("profiles").select("morning_analysis_enabled").eq("id", userId).maybeSingle(),
-      supabase
-        .from("clients")
-        .select("*", { count: "exact", head: true })
-        .eq("practitioner_id", userId),
-      supabase
-        .from("practices")
-        .select("ai_features_enabled")
-        .eq("practitioner_id", userId)
-        .maybeSingle(),
+      ctx
+        ? supabaseAdmin
+            .from("practices")
+            .select("ai_features_enabled")
+            .eq("id", ctx.practiceId)
+            .maybeSingle()
+        : supabase
+            .from("practices")
+            .select("ai_features_enabled")
+            .eq("practitioner_id", userId)
+            .maybeSingle(),
     ]);
 
     const aiEnabled = practice?.ai_features_enabled === true;
     const userEnabled = prof?.morning_analysis_enabled ?? true;
     const enabled = aiEnabled && userEnabled;
-    const client_count = clientCount ?? 0;
+    const client_count = ids.length;
     const today = new Date();
     const startOfDay = new Date(
       today.getFullYear(),

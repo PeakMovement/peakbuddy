@@ -8,6 +8,7 @@ import {
 } from "@/lib/client-program.functions";
 import { countMyDrafts } from "@/lib/practitioner-drafts.functions";
 import { SetQuickCodePrompt } from "@/components/SetQuickCodePrompt";
+import { getUnreadPracticeAlertCount } from "@/lib/practitioner-roster.functions";
 
 export const Route = createFileRoute("/practitioner/app")({
   component: PractitionerAppLayout,
@@ -77,17 +78,13 @@ function PractitionerAppLayout() {
       if (cancelled) return;
       const enabled = flag?.enabled !== false;
       setProgramsEnabled(enabled);
-      const [{ count }, qc, ic] = await Promise.all([
-        supabase
-          .from("alerts")
-          .select("*", { count: "exact", head: true })
-          .eq("practitioner_id", userId)
-          .eq("is_read", false),
+      const [unreadRes, qc, ic] = await Promise.all([
+        getUnreadPracticeAlertCount().catch(() => ({ count: 0 })),
         enabled ? countPendingProgramSuggestions().catch(() => 0) : Promise.resolve(0),
         countMyDrafts().catch(() => 0),
       ]);
       if (cancelled) return;
-      setUnread(count ?? 0);
+      setUnread(unreadRes.count ?? 0);
       setQueueCount(typeof qc === "number" ? qc : 0);
       setInsightsCount(typeof ic === "number" ? ic : 0);
     };

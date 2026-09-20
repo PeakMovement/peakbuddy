@@ -16,6 +16,8 @@ import {
   countActiveWearableConnections,
   getPractitionerClientWearables,
 } from "@/lib/wearables.functions";
+import { getPractitionerRoster } from "@/lib/practitioner-roster.functions";
+import { useServerFn } from "@tanstack/react-start";
 
 export const Route = createFileRoute("/practitioner/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Buddy" }] }),
@@ -51,6 +53,7 @@ function isSameDay(a: string, b: Date) {
 
 function Dashboard() {
   const navigate = useNavigate();
+  const loadRoster = useServerFn(getPractitionerRoster);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [rows, setRows] = useState<ClientRow[]>([]);
   const [unread, setUnread] = useState(0);
@@ -66,46 +69,25 @@ function Dashboard() {
       if (!u.user) return;
       void registerPushToken();
 
-      const [
-        { data: prof },
-        { data: clients, error: cErr },
-        { count: unreadCount, error: aErr },
-        wc,
-        wmap,
-      ] = await Promise.all([
+      const [{ data: prof }, roster, wc, wmap] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
-        supabase
-          .from("clients")
-          .select("*")
-          .eq("practitioner_id", u.user.id)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("alerts")
-          .select("*", { count: "exact", head: true })
-          .eq("practitioner_id", u.user.id)
-          .eq("is_read", false),
+        loadRoster(),
         countActiveWearableConnections().catch(() => 0),
         getPractitionerClientWearables().catch(() => ({}) as Record<string, string[]>),
       ]);
-      if (cErr || aErr) throw cErr || aErr;
 
       setProfile(prof as Profile | null);
-      setUnread(unreadCount ?? 0);
+      setUnread(roster.unreadAlerts ?? 0);
       setWearableCount(typeof wc === "number" ? wc : 0);
 
-      const list = (clients as Client[]) ?? [];
+      const list = (roster.clients as Client[]) ?? [];
       if (list.length === 0) {
         setRows([]);
         setLoading(false);
         return;
       }
-      const ids = list.map((c) => c.id);
-      const { data: checkIns, error: ciErr } = await supabase
-        .from("check_ins")
-        .select("*")
-        .in("client_id", ids)
-        .order("created_at", { ascending: false });
-      if (ciErr) throw ciErr;
+
+      const checkIns = (roster.checkIns as CheckIn[]) ?? [];
 
       const today = new Date();
       const byClient = new Map<string, CheckIn[]>();
@@ -149,7 +131,7 @@ function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadRoster]);
 
   useEffect(() => {
     load();

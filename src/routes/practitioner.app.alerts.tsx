@@ -8,6 +8,10 @@ import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 import { log } from "@/lib/log";
 import { setAlertOutcome, getYvesAccuracy } from "@/lib/alert-outcome.functions";
 import { getGradingMode, type GradingMode } from "@/lib/grading.functions";
+import {
+  getPractitionerAlertFeed,
+  patchPractitionerAlert,
+} from "@/lib/practitioner-roster.functions";
 
 type Outcome = "confirmed" | "false_alarm" | "already_aware";
 const OUTCOME_LABEL: Record<Outcome, string> = {
@@ -72,6 +76,8 @@ function Alerts() {
   const setOutcomeFn = useServerFn(setAlertOutcome);
   const getAccuracyFn = useServerFn(getYvesAccuracy);
   const getModeFn = useServerFn(getGradingMode);
+  const loadFeed = useServerFn(getPractitionerAlertFeed);
+  const patchAlert = useServerFn(patchPractitionerAlert);
 
   const refreshAccuracy = async () => {
     try {
@@ -106,18 +112,10 @@ function Alerts() {
     try {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
-      const [{ data: a, error: aErr }, { data: c, error: cErr }] = await Promise.all([
-        supabase
-          .from("alerts")
-          .select("*")
-          .eq("practitioner_id", u.user.id)
-          .order("created_at", { ascending: false }),
-        supabase.from("clients").select("*").eq("practitioner_id", u.user.id),
-      ]);
-      if (aErr || cErr) throw aErr || cErr;
-      setAlerts((a as Alert[]) ?? []);
+      const feed = await loadFeed();
+      setAlerts((feed.alerts as Alert[]) ?? []);
       const map: Record<string, Client> = {};
-      ((c as Client[]) ?? []).forEach((cl) => (map[cl.id] = cl));
+      ((feed.clients as Client[]) ?? []).forEach((cl) => (map[cl.id] = cl));
       setClients(map);
     } catch (e) {
       log.error(e);
@@ -153,14 +151,14 @@ function Alerts() {
 
   const markResolved = async (id: string) => {
     setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, is_read: true } : a)));
-    await supabase.from("alerts").update({ is_read: true }).eq("id", id);
+    await patchAlert({ data: { alertId: id, is_read: true } });
   };
 
   const submitAssessment = async (id: string, assessment: "correct" | "over" | "under") => {
     setAlerts((prev) =>
       prev.map((a) => (a.id === id ? ({ ...a, practitioner_assessment: assessment } as Alert) : a)),
     );
-    await supabase.from("alerts").update({ practitioner_assessment: assessment }).eq("id", id);
+    await patchAlert({ data: { alertId: id, practitioner_assessment: assessment } });
   };
 
   const categoryLabel = (cat: string | null | undefined) => {

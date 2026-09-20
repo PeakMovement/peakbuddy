@@ -824,7 +824,6 @@ function EditClientSheet({
       .from("clients")
       .update(payload)
       .eq("id", client.id)
-      .eq("practitioner_id", u.user.id)
       .select()
       .maybeSingle();
     setSaving(false);
