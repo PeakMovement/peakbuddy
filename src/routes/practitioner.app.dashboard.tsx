@@ -12,7 +12,10 @@ import {
   type MorningAnalysisPayload,
 } from "@/lib/morning-analysis.functions";
 import { registerPushToken } from "@/lib/push";
-import { countActiveWearableConnections, getPractitionerClientWearables } from "@/lib/wearables.functions";
+import {
+  countActiveWearableConnections,
+  getPractitionerClientWearables,
+} from "@/lib/wearables.functions";
 
 export const Route = createFileRoute("/practitioner/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Buddy" }] }),
@@ -62,8 +65,6 @@ function Dashboard() {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
       void registerPushToken();
-
-
 
       const [
         { data: prof },
@@ -203,8 +204,6 @@ function Dashboard() {
 
       <MorningAnalysisCard />
 
-
-
       <div
         style={{
           marginTop: 24,
@@ -311,7 +310,15 @@ function Dashboard() {
                 >
                   {r.primary_complaint || "—"}
                 </div>
-                <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <div
+                  style={{
+                    marginTop: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    flexWrap: "wrap",
+                  }}
+                >
                   <span
                     style={{
                       width: 8,
@@ -407,7 +414,17 @@ function WearableBadge({ providers }: { providers: string[] }) {
   );
 }
 
-function Stat({ label, value, danger, icon }: { label: string; value: number; danger?: boolean; icon?: React.ReactNode }) {
+function Stat({
+  label,
+  value,
+  danger,
+  icon,
+}: {
+  label: string;
+  value: number;
+  danger?: boolean;
+  icon?: React.ReactNode;
+}) {
   return (
     <div
       style={{
@@ -500,7 +517,9 @@ function MorningAnalysisCard() {
         padding: 14,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+      <div
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}
+      >
         <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
           <Sparkles size={16} color="var(--blue-accent)" />
           <h2
@@ -516,7 +535,16 @@ function MorningAnalysisCard() {
             Morning Analysis
           </h2>
         </div>
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--white-muted)", cursor: (saving || loading) ? "wait" : "pointer" }}>
+        <label
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 12,
+            color: "var(--white-muted)",
+            cursor: saving || loading ? "wait" : "pointer",
+          }}
+        >
           <input
             type="checkbox"
             checked={data?.user_enabled ?? true}
@@ -537,7 +565,6 @@ function MorningAnalysisCard() {
         <p style={{ marginTop: 10, fontSize: 12, color: "var(--white-muted)" }}>
           Daily analysis is paused. Turn on to receive AI summaries each morning.
         </p>
-
       ) : data.client_count === 0 ? (
         <p style={{ marginTop: 10, fontSize: 12, color: "var(--white-muted)" }}>
           Add a client to start receiving morning analysis.
@@ -583,7 +610,14 @@ function MorningAnalysisCard() {
                   padding: 10,
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    alignItems: "center",
+                  }}
+                >
                   <strong style={{ fontSize: 13, color: "var(--white)" }}>{i.client_name}</strong>
                   {i.risk_score !== null && (
                     <span
@@ -606,7 +640,14 @@ function MorningAnalysisCard() {
                 <div style={{ marginTop: 4, fontSize: 12, color: "var(--white)", fontWeight: 600 }}>
                   {i.draft_title}
                 </div>
-                <p style={{ marginTop: 4, fontSize: 12, lineHeight: 1.4, color: "var(--white-muted)" }}>
+                <p
+                  style={{
+                    marginTop: 4,
+                    fontSize: 12,
+                    lineHeight: 1.4,
+                    color: "var(--white-muted)",
+                  }}
+                >
                   {i.draft_body}
                 </p>
                 {i.suggested_program && (
@@ -635,4 +676,3 @@ function MorningAnalysisCard() {
     </section>
   );
 }
-

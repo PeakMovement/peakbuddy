@@ -51,13 +51,11 @@ export function PushTestPanel() {
     <section style={card}>
       <h2 style={h2}>Test push notification</h2>
       <p style={muted}>
-        Sends through the OneSignal REST API using stored push_tokens. If
-        OneSignal credentials aren't configured the call returns simulated=true.
+        Sends through the OneSignal REST API using stored push_tokens. If OneSignal credentials
+        aren't configured the call returns simulated=true.
       </p>
 
-      <label style={label}>
-        Recipient — choose a user, or leave blank to send to yourself
-      </label>
+      <label style={label}>Recipient — choose a user, or leave blank to send to yourself</label>
       <select value={userId} onChange={(e) => setUserId(e.target.value)} style={input}>
         <option value="">— Send to myself —</option>
         {users.map((u) => (

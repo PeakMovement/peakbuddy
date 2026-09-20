@@ -37,7 +37,7 @@ The specific things that would change the picture or warrant contact — grounde
 ### Suggested next steps
 Exactly 3 prioritised, concrete actions for the practitioner (numbered), each tied to something specific in the data above.
 
-Close with one honest line on data confidence (how much history and how many gaps this read rests on).`
+Close with one honest line on data confidence (how much history and how many gaps this read rests on).`;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
@@ -48,7 +48,12 @@ function mean(xs: number[]): number | null {
   return Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 10) / 10;
 }
 
-function windowAvg<T extends Row>(rows: T[], field: string, days: number, dateField = "created_at") {
+function windowAvg<T extends Row>(
+  rows: T[],
+  field: string,
+  days: number,
+  dateField = "created_at",
+) {
   const cutoff = Date.now() - days * 86400_000;
   const xs: number[] = [];
   for (const r of rows) {

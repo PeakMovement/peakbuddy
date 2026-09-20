@@ -16,7 +16,6 @@ const OUTCOME_LABEL: Record<Outcome, string> = {
   already_aware: "Already aware",
 };
 
-
 export const Route = createFileRoute("/practitioner/app/alerts")({
   head: () => ({ meta: [{ title: "Alerts — Buddy" }] }),
   component: Alerts,
@@ -102,7 +101,6 @@ function Alerts() {
     }
   };
 
-
   const load = async () => {
     setError(null);
     try {
@@ -141,7 +139,6 @@ function Alerts() {
       }
     })();
   }, []);
-
 
   const filtered = useMemo(() => {
     const sorted = [...alerts].sort((a, b) => {
@@ -218,7 +215,6 @@ function Alerts() {
           return `Yves accuracy: ${pct}% confirmed`;
         })()}
       </div>
-
 
       <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
         {(["all", "unread", "red_flag"] as Filter[]).map((f) => (
@@ -511,7 +507,6 @@ function Alerts() {
                   )}
                 </div>
               </div>
-
             );
           })}
         </div>

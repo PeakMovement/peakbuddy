@@ -23,29 +23,23 @@ export type MorningAnalysisPayload = {
   generated_for: string; // ISO date (today)
 };
 
-
 export const getMorningAnalysis = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<MorningAnalysisPayload> => {
     const { supabase, userId } = context;
 
-    const [{ data: prof }, { count: clientCount }, { data: practice }] =
-      await Promise.all([
-        supabase
-          .from("profiles")
-          .select("morning_analysis_enabled")
-          .eq("id", userId)
-          .maybeSingle(),
-        supabase
-          .from("clients")
-          .select("*", { count: "exact", head: true })
-          .eq("practitioner_id", userId),
-        supabase
-          .from("practices")
-          .select("ai_features_enabled")
-          .eq("practitioner_id", userId)
-          .maybeSingle(),
-      ]);
+    const [{ data: prof }, { count: clientCount }, { data: practice }] = await Promise.all([
+      supabase.from("profiles").select("morning_analysis_enabled").eq("id", userId).maybeSingle(),
+      supabase
+        .from("clients")
+        .select("*", { count: "exact", head: true })
+        .eq("practitioner_id", userId),
+      supabase
+        .from("practices")
+        .select("ai_features_enabled")
+        .eq("practitioner_id", userId)
+        .maybeSingle(),
+    ]);
 
     const aiEnabled = practice?.ai_features_enabled === true;
     const userEnabled = prof?.morning_analysis_enabled ?? true;
@@ -59,9 +53,15 @@ export const getMorningAnalysis = createServerFn({ method: "GET" })
     ).toISOString();
 
     if (!enabled || client_count === 0) {
-      return { enabled, user_enabled: userEnabled, ai_enabled: aiEnabled, client_count, items: [], generated_for: startOfDay };
+      return {
+        enabled,
+        user_enabled: userEnabled,
+        ai_enabled: aiEnabled,
+        client_count,
+        items: [],
+        generated_for: startOfDay,
+      };
     }
-
 
     const { data, error } = await supabase
       .from("practitioner_drafts")
@@ -86,28 +86,31 @@ export const getMorningAnalysis = createServerFn({ method: "GET" })
       risk_scores: { risk_score: number } | null;
     };
 
-    const items: MorningAnalysisItem[] = ((data ?? []) as unknown as Row[]).map(
-      (r) => ({
-        id: r.id,
-        client_id: r.client_id,
-        client_name: r.clients?.full_name ?? "Unknown",
-        kind: r.kind,
-        draft_title: r.draft_title,
-        draft_body: r.draft_body,
-        risk_score: r.risk_scores?.risk_score ?? null,
-        suggested_program: r.suggested_action?.program_name ?? null,
-        created_at: r.created_at,
-      }),
-    );
+    const items: MorningAnalysisItem[] = ((data ?? []) as unknown as Row[]).map((r) => ({
+      id: r.id,
+      client_id: r.client_id,
+      client_name: r.clients?.full_name ?? "Unknown",
+      kind: r.kind,
+      draft_title: r.draft_title,
+      draft_body: r.draft_body,
+      risk_score: r.risk_scores?.risk_score ?? null,
+      suggested_program: r.suggested_action?.program_name ?? null,
+      created_at: r.created_at,
+    }));
 
-    return { enabled, user_enabled: userEnabled, ai_enabled: aiEnabled, client_count, items, generated_for: startOfDay };
+    return {
+      enabled,
+      user_enabled: userEnabled,
+      ai_enabled: aiEnabled,
+      client_count,
+      items,
+      generated_for: startOfDay,
+    };
   });
 
 export const setMorningAnalysisEnabled = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { enabled: boolean }) =>
-    z.object({ enabled: z.boolean() }).parse(d),
-  )
+  .inputValidator((d: { enabled: boolean }) => z.object({ enabled: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("profiles")

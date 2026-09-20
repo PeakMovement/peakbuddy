@@ -1,28 +1,28 @@
-import { createEmailWebhookHandler } from '@lovable.dev/email-js'
-import { createClient } from '@supabase/supabase-js'
-import { createFileRoute } from '@tanstack/react-router'
+import { createEmailWebhookHandler } from "@lovable.dev/email-js";
+import { createClient } from "@supabase/supabase-js";
+import { createFileRoute } from "@tanstack/react-router";
 
-type Reason = 'bounce' | 'complaint' | 'unsubscribe'
+type Reason = "bounce" | "complaint" | "unsubscribe";
 
-const STATUS_BY_REASON: Record<Reason, 'bounced' | 'complained' | 'suppressed'> = {
-  bounce: 'bounced',
-  complaint: 'complained',
-  unsubscribe: 'suppressed',
-}
+const STATUS_BY_REASON: Record<Reason, "bounced" | "complained" | "suppressed"> = {
+  bounce: "bounced",
+  complaint: "complained",
+  unsubscribe: "suppressed",
+};
 
 const MESSAGE_BY_REASON: Record<Reason, string> = {
-  bounce: 'Permanent bounce — email address is invalid or rejected',
-  complaint: 'Spam complaint — recipient marked email as spam',
-  unsubscribe: 'Recipient unsubscribed',
-}
+  bounce: "Permanent bounce — email address is invalid or rejected",
+  complaint: "Spam complaint — recipient marked email as spam",
+  unsubscribe: "Recipient unsubscribed",
+};
 
 function adminClient() {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  const supabaseServiceKey = process.env['SUPABASE_SERVICE_ROLE_KEY']
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseServiceKey = process.env["SUPABASE_SERVICE_ROLE_KEY"];
   if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase environment variables')
+    throw new Error("Missing Supabase environment variables");
   }
-  return createClient(supabaseUrl, supabaseServiceKey)
+  return createClient(supabaseUrl, supabaseServiceKey);
 }
 
 // Notification-only bookkeeping: Lovable already enforces suppression at send
@@ -33,36 +33,36 @@ async function record(
   messageId: string | null,
   eventId: string,
 ) {
-  const supabase = adminClient()
-  const email = recipient.toLowerCase()
+  const supabase = adminClient();
+  const email = recipient.toLowerCase();
 
   const { error: suppressError } = await supabase
-    .from('suppressed_emails')
-    .upsert({ email, reason, metadata: null }, { onConflict: 'email' })
+    .from("suppressed_emails")
+    .upsert({ email, reason, metadata: null }, { onConflict: "email" });
   if (suppressError) {
-    console.error('Failed to upsert suppressed email', {
+    console.error("Failed to upsert suppressed email", {
       code: suppressError.code,
       message: suppressError.message,
       event_id: eventId,
-    })
-    throw new Error('Failed to record suppression')
+    });
+    throw new Error("Failed to record suppression");
   }
 
-  const { error: logError } = await supabase.from('email_send_log').insert({
+  const { error: logError } = await supabase.from("email_send_log").insert({
     message_id: messageId,
-    template_name: 'system',
+    template_name: "system",
     recipient_email: email,
     status: STATUS_BY_REASON[reason],
     error_message: MESSAGE_BY_REASON[reason],
     metadata: null,
-  })
+  });
   if (logError) {
-    console.error('Failed to insert email_send_log', {
+    console.error("Failed to insert email_send_log", {
       code: logError.code,
       message: logError.message,
       event_id: eventId,
-    })
-    throw new Error('Failed to record send log')
+    });
+    throw new Error("Failed to record send log");
   }
 }
 
@@ -70,42 +70,42 @@ export const Route = createFileRoute("/lovable/email/events")({
   server: {
     handlers: {
       POST: ({ request }) => {
-        const apiKey = process.env['LOVABLE_API_KEY']
+        const apiKey = process.env["LOVABLE_API_KEY"];
         if (!apiKey) {
-          console.error('Missing required environment variables')
-          return Response.json({ error: 'Server configuration error' }, { status: 500 })
+          console.error("Missing required environment variables");
+          return Response.json({ error: "Server configuration error" }, { status: 500 });
         }
         const handler = createEmailWebhookHandler({
           apiKey,
           on: {
-            'email.bounced': async (event) => {
+            "email.bounced": async (event) => {
               await record(
-                'bounce',
+                "bounce",
                 event.data.recipient,
                 event.data.message_id ?? null,
                 event.event_id,
-              )
+              );
             },
-            'email.complaint': async (event) => {
+            "email.complaint": async (event) => {
               await record(
-                'complaint',
+                "complaint",
                 event.data.recipient,
                 event.data.message_id ?? null,
                 event.event_id,
-              )
+              );
             },
-            'email.unsubscribed': async (event) => {
+            "email.unsubscribed": async (event) => {
               await record(
-                'unsubscribe',
+                "unsubscribe",
                 event.data.recipient,
                 event.data.message_id ?? null,
                 event.event_id,
-              )
+              );
             },
           },
-        })
-        return handler(request)
+        });
+        return handler(request);
       },
     },
   },
-})
+});

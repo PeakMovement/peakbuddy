@@ -1,23 +1,41 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildLoadInsight, pickLoadMethod, loadForDay, fatigueIndex, resolveThresholds, DEFAULT_THRESHOLDS,
-  type WearableDay, type CheckInDay,
+  buildLoadInsight,
+  pickLoadMethod,
+  loadForDay,
+  fatigueIndex,
+  resolveThresholds,
+  DEFAULT_THRESHOLDS,
+  type WearableDay,
+  type CheckInDay,
 } from "./load-metrics";
 
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString();
-function series(n: number, loadFor: (i: number) => number | null, extra: (i: number) => Partial<WearableDay> = () => ({})): WearableDay[] {
-  return Array.from({ length: n }, (_, i) => ({ date: iso(i), training_load: loadFor(i), ...extra(i) }));
+function series(
+  n: number,
+  loadFor: (i: number) => number | null,
+  extra: (i: number) => Partial<WearableDay> = () => ({}),
+): WearableDay[] {
+  return Array.from({ length: n }, (_, i) => ({
+    date: iso(i),
+    training_load: loadFor(i),
+    ...extra(i),
+  }));
 }
 
 describe("load method + proxy", () => {
   it("prefers training_load, then HR-minutes, then calories", () => {
     expect(pickLoadMethod([{ date: iso(0), training_load: 100 }])).toBe("training_load");
-    expect(pickLoadMethod([{ date: iso(0), duration_minutes: 40, avg_heart_rate: 130 }])).toBe("hr_minutes");
+    expect(pickLoadMethod([{ date: iso(0), duration_minutes: 40, avg_heart_rate: 130 }])).toBe(
+      "hr_minutes",
+    );
     expect(pickLoadMethod([{ date: iso(0), active_calories: 400 }])).toBe("active_calories");
     expect(pickLoadMethod([{ date: iso(0), sleep_score: 80 }])).toBe(null);
   });
   it("HR-minutes proxy = duration*hr/10", () => {
-    expect(loadForDay({ date: iso(0), duration_minutes: 40, avg_heart_rate: 130 }, "hr_minutes")).toBe(520);
+    expect(
+      loadForDay({ date: iso(0), duration_minutes: 40, avg_heart_rate: 130 }, "hr_minutes"),
+    ).toBe(520);
   });
 });
 
@@ -28,7 +46,15 @@ describe("availability gating", () => {
     expect(r.reason).toContain("No wearable");
   });
   it("unavailable when wearable gives no load data", () => {
-    const r = buildLoadInsight(series(20, () => null, () => ({ sleep_score: 80 })), [], true);
+    const r = buildLoadInsight(
+      series(
+        20,
+        () => null,
+        () => ({ sleep_score: 80 }),
+      ),
+      [],
+      true,
+    );
     expect(r.available).toBe(false);
     expect(r.reason).toContain("does not provide");
   });
@@ -36,14 +62,22 @@ describe("availability gating", () => {
 
 describe("sparse-data safeguards", () => {
   it("gates ACWR + monotony under 14 days of data", () => {
-    const r = buildLoadInsight(series(10, (i) => 100 + (i % 3) * 30), [], true);
+    const r = buildLoadInsight(
+      series(10, (i) => 100 + (i % 3) * 30),
+      [],
+      true,
+    );
     expect(r.available).toBe(true);
     expect(r.maturity.dataDays).toBe(10);
     expect(r.metrics.acwr).toBe(null);
     expect(r.metrics.monotony).toBe(null);
   });
   it("does NOT fabricate monotony on constant load (stddev 0)", () => {
-    const r = buildLoadInsight(series(20, () => 100), [], true);
+    const r = buildLoadInsight(
+      series(20, () => 100),
+      [],
+      true,
+    );
     expect(r.metrics.monotony).toBe(null); // no fake 'high monotony'
     expect(r.drivers.all.find((d) => d.id === "monotony")).toBeUndefined();
   });
@@ -52,7 +86,11 @@ describe("sparse-data safeguards", () => {
 describe("ACWR danger detection", () => {
   it("flags an acute load spike as high risk (acwr >= 1.5)", () => {
     // last 7 days load 300, prior 21 days load 100 -> acute 300 / chronic 150 = 2.0
-    const r = buildLoadInsight(series(28, (i) => (i < 7 ? 300 : 100)), [], true);
+    const r = buildLoadInsight(
+      series(28, (i) => (i < 7 ? 300 : 100)),
+      [],
+      true,
+    );
     expect(r.metrics.acwr).toBeGreaterThanOrEqual(1.5);
     expect(r.drivers.primary?.id).toBe("acwr");
     expect(r.drivers.riskLevel).toBe("high");
@@ -62,7 +100,15 @@ describe("ACWR danger detection", () => {
 describe("HRV deviation + fatigue formula", () => {
   it("detects HRV dropping below personal baseline", () => {
     // recent hrv ~40, older baseline ~60 -> ~33% drop
-    const r = buildLoadInsight(series(28, () => 100, (i) => ({ hrv_avg: i < 7 ? 40 : 60 })), [], true);
+    const r = buildLoadInsight(
+      series(
+        28,
+        () => 100,
+        (i) => ({ hrv_avg: i < 7 ? 40 : 60 }),
+      ),
+      [],
+      true,
+    );
     expect(r.metrics.hrvDeviationPct).toBeGreaterThanOrEqual(30);
     expect(r.drivers.all.find((d) => d.id === "hrv")).toBeTruthy();
   });
@@ -92,13 +138,16 @@ describe("configurable thresholds", () => {
     expect(th.monotony.critical).toBe(DEFAULT_THRESHOLDS.monotony.critical);
   });
   it("a lowered ACWR critical flags a ratio that defaults would not", () => {
-    const sessions: WearableDay[] = Array.from({ length: 28 }, (_, i) => ({ date: new Date(Date.now() - i * 86400000).toISOString(), training_load: i < 7 ? 130 : 100 }));
+    const sessions: WearableDay[] = Array.from({ length: 28 }, (_, i) => ({
+      date: new Date(Date.now() - i * 86400000).toISOString(),
+      training_load: i < 7 ? 130 : 100,
+    }));
     const def = buildLoadInsight(sessions, [], true);
     const tuned = buildLoadInsight(sessions, [], true, { acwr: { critical: 1.1, elevated: 1.05 } });
     // default: acwr ~1.16 -> not critical; tuned critical 1.1 -> acwr driver present & higher severity
     const defAcwr = def.drivers.all.find((d) => d.id === "acwr");
     const tunedAcwr = tuned.drivers.all.find((d) => d.id === "acwr");
     expect(tunedAcwr).toBeTruthy();
-    expect((tunedAcwr?.severity ?? 0)).toBeGreaterThanOrEqual(defAcwr?.severity ?? 0);
+    expect(tunedAcwr?.severity ?? 0).toBeGreaterThanOrEqual(defAcwr?.severity ?? 0);
   });
 });

@@ -33,8 +33,8 @@ export function CalendarFeedCard() {
         <span style={title}>Rehab reminders in your calendar</span>
       </div>
       <p style={body}>
-        Add your rehab reminders to your phone's calendar. It stays in sync and reminds you natively,
-        no need to open Buddy.
+        Add your rehab reminders to your phone's calendar. It stays in sync and reminds you
+        natively, no need to open Buddy.
       </p>
       <a href={feed.webcal} style={primaryBtn}>
         <CalendarPlus size={16} /> Add to my calendar
@@ -44,8 +44,8 @@ export function CalendarFeedCard() {
         {copied ? "Copied" : "Copy link instead"}
       </button>
       <p style={hint}>
-        On iPhone the button subscribes in Apple Calendar. For Google Calendar, copy the link and add
-        it under Other calendars, From URL.
+        On iPhone the button subscribes in Apple Calendar. For Google Calendar, copy the link and
+        add it under Other calendars, From URL.
       </p>
     </div>
   );

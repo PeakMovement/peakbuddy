@@ -223,9 +223,16 @@ function Settings() {
 
         <div style={{ marginTop: 24 }}>
           <div style={sectionTitle}>WhatsApp alerts</div>
-          <p style={{ color: "var(--white-muted)", fontSize: 13, lineHeight: 1.5, margin: "6px 0 10px" }}>
-            Enter your WhatsApp number to receive client alerts via Buddy&apos;s notification service.
-            No setup needed \u2014 alerts are sent centrally from Buddy.
+          <p
+            style={{
+              color: "var(--white-muted)",
+              fontSize: 13,
+              lineHeight: 1.5,
+              margin: "6px 0 10px",
+            }}
+          >
+            Enter your WhatsApp number to receive client alerts via Buddy&apos;s notification
+            service. No setup needed \u2014 alerts are sent centrally from Buddy.
           </p>
           <label style={labelStyle}>WhatsApp number (with country code)</label>
           <input
@@ -267,9 +274,16 @@ function Settings() {
 
         <div style={{ marginTop: 24 }}>
           <div style={sectionTitle}>Weekly summary email</div>
-          <p style={{ color: "var(--white-muted)", fontSize: 13, lineHeight: 1.5, margin: "6px 0 12px" }}>
-            A once-a-week email recapping your clients&apos; check-ins, flagged entries, who&apos;s at
-            risk, and who&apos;s gone quiet. Off by default.
+          <p
+            style={{
+              color: "var(--white-muted)",
+              fontSize: 13,
+              lineHeight: 1.5,
+              margin: "6px 0 12px",
+            }}
+          >
+            A once-a-week email recapping your clients&apos; check-ins, flagged entries, who&apos;s
+            at risk, and who&apos;s gone quiet. Off by default.
           </p>
           <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
             <input
@@ -284,9 +298,17 @@ function Settings() {
 
         <div style={{ marginTop: 24 }}>
           <div style={sectionTitle}>Streak rewards</div>
-          <p style={{ color: "var(--white-muted)", fontSize: 13, lineHeight: 1.5, margin: "6px 0 12px" }}>
-            Automatically issue one of your rewards when a client reaches a check-in streak milestone
-            (3, 7, 14, 30). Uses your active rewards; each milestone is issued once per client.
+          <p
+            style={{
+              color: "var(--white-muted)",
+              fontSize: 13,
+              lineHeight: 1.5,
+              margin: "6px 0 12px",
+            }}
+          >
+            Automatically issue one of your rewards when a client reaches a check-in streak
+            milestone (3, 7, 14, 30). Uses your active rewards; each milestone is issued once per
+            client.
           </p>
           <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
             <input
@@ -295,7 +317,9 @@ function Settings() {
               onChange={(e) => setAutoRewardEnabled(e.target.checked)}
               style={{ width: 18, height: 18, accentColor: "var(--blue-accent)" }}
             />
-            <span style={{ color: "var(--white)", fontSize: 14 }}>Auto-issue rewards at streak milestones</span>
+            <span style={{ color: "var(--white)", fontSize: 14 }}>
+              Auto-issue rewards at streak milestones
+            </span>
           </label>
         </div>
 
@@ -331,8 +355,6 @@ function Settings() {
         <QuickCodeManager />
         <ChangePasswordCard />
       </div>
-
-
 
       <button
         type="button"

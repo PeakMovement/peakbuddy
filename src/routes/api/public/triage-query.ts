@@ -1,7 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { log } from "@/lib/log";
 import { hasAiConsent } from "@/lib/ai-consent";
-import { applyCombinationFloor, applyKeywordFloor, type RedFlagCategory, type UrgencyTier } from "@/lib/yves";
+import {
+  applyCombinationFloor,
+  applyKeywordFloor,
+  type RedFlagCategory,
+  type UrgencyTier,
+} from "@/lib/yves";
 import {
   extractAndFirstPass,
   formatExtractionForPrompt,
@@ -247,7 +252,12 @@ function buildSystemPrompt(firstPassCategory: string | null): string {
   const chosen = EXAMPLES[bucket];
   // Include the bucket's examples plus one general anchor so the model has a low-severity comparison.
   const general = bucket === "general" ? [] : EXAMPLES.general.slice(0, 1);
-  const examplesBlock = ["<EXAMPLES>", ...chosen.map((e) => `- ${e}`), ...general.map((e) => `- ${e}`), "</EXAMPLES>"].join("\n");
+  const examplesBlock = [
+    "<EXAMPLES>",
+    ...chosen.map((e) => `- ${e}`),
+    ...general.map((e) => `- ${e}`),
+    "</EXAMPLES>",
+  ].join("\n");
   return `${SYSTEM_PROMPT_BASE}\n\n${examplesBlock}`;
 }
 
@@ -292,7 +302,10 @@ interface ServerContext {
   daysSinceLastCheckIn: number | null;
   painChange7d: number | null;
   wearable: WearableDeltas;
-  timeOfDay: { local_hour: number; period: "early-morning" | "morning" | "afternoon" | "evening" | "night" };
+  timeOfDay: {
+    local_hour: number;
+    period: "early-morning" | "morning" | "afternoon" | "evening" | "night";
+  };
   calibration: CalibrationPrior | null;
 }
 
@@ -358,9 +371,7 @@ async function buildWearableDeltas(
     return {
       hrv_avg_7d: hrvR != null ? Math.round(hrvR * 10) / 10 : null,
       hrv_change_pct:
-        hrvR != null && hrvP != null && hrvP > 0
-          ? Math.round(((hrvR - hrvP) / hrvP) * 100)
-          : null,
+        hrvR != null && hrvP != null && hrvP > 0 ? Math.round(((hrvR - hrvP) / hrvP) * 100) : null,
       rhr_avg_7d: rhrR != null ? Math.round(rhrR * 10) / 10 : null,
       rhr_change_bpm: rhrR != null && rhrP != null ? Math.round((rhrR - rhrP) * 10) / 10 : null,
       sleep_debt_hrs_7d: sleepDebt != null ? Math.round(sleepDebt * 10) / 10 : null,
@@ -592,11 +603,17 @@ function formatContextBlock(ctx: ServerContext): string {
   if (w.latest_source) {
     lines.push(`Wearable (${w.latest_source}, latest ${w.latest_date}):`);
     if (w.hrv_avg_7d != null) {
-      const chg = w.hrv_change_pct != null ? ` (${w.hrv_change_pct > 0 ? "+" : ""}${w.hrv_change_pct}% vs prior 7d)` : "";
+      const chg =
+        w.hrv_change_pct != null
+          ? ` (${w.hrv_change_pct > 0 ? "+" : ""}${w.hrv_change_pct}% vs prior 7d)`
+          : "";
       lines.push(`  - HRV 7d avg: ${w.hrv_avg_7d}ms${chg}`);
     }
     if (w.rhr_avg_7d != null) {
-      const chg = w.rhr_change_bpm != null ? ` (${w.rhr_change_bpm > 0 ? "+" : ""}${w.rhr_change_bpm} bpm)` : "";
+      const chg =
+        w.rhr_change_bpm != null
+          ? ` (${w.rhr_change_bpm > 0 ? "+" : ""}${w.rhr_change_bpm} bpm)`
+          : "";
       lines.push(`  - Resting HR 7d avg: ${w.rhr_avg_7d}${chg}`);
     }
     if (w.sleep_debt_hrs_7d != null) {
@@ -614,7 +631,9 @@ function formatContextBlock(ctx: ServerContext): string {
       if (total >= 3) parts.push(`${cat}: ${v.confirmed}/${total} confirmed`);
     }
     if (parts.length > 0) {
-      lines.push(`Practice priors (last 90d, informational — do not use to downgrade a red flag): ${parts.join("; ")}`);
+      lines.push(
+        `Practice priors (last 90d, informational — do not use to downgrade a red flag): ${parts.join("; ")}`,
+      );
     }
   }
 
@@ -652,7 +671,10 @@ async function callReasoningModel(params: {
   category: string | null;
   timeoutMs: number;
   memoryRules: Array<{ scope: string; rule_type: string; title: string; rule_text: string }>;
-}): Promise<{ ok: true; data: TriageOutput; latencyMs: number } | { ok: false; error: string; latencyMs: number }> {
+}): Promise<
+  | { ok: true; data: TriageOutput; latencyMs: number }
+  | { ok: false; error: string; latencyMs: number }
+> {
   const started = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), params.timeoutMs);
@@ -701,14 +723,27 @@ You may agree or override. State your reasoning independently.
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      return { ok: false, error: `sonnet ${res.status}: ${errText.slice(0, 160)}`, latencyMs: Date.now() - started };
+      return {
+        ok: false,
+        error: `sonnet ${res.status}: ${errText.slice(0, 160)}`,
+        latencyMs: Date.now() - started,
+      };
     }
     const data = (await res.json()) as { content?: Array<{ type: string; input?: unknown }> };
     const toolUse = data.content?.find((item) => item.type === "tool_use");
-    if (!toolUse?.input) return { ok: false, error: "no tool_use in sonnet response", latencyMs: Date.now() - started };
+    if (!toolUse?.input)
+      return {
+        ok: false,
+        error: "no tool_use in sonnet response",
+        latencyMs: Date.now() - started,
+      };
     return { ok: true, data: toolUse.input as TriageOutput, latencyMs: Date.now() - started };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e), latencyMs: Date.now() - started };
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+      latencyMs: Date.now() - started,
+    };
   } finally {
     clearTimeout(timeout);
   }
@@ -790,7 +825,9 @@ async function fireServerRedFlagAlert(
           .select("full_name")
           .eq("id", args.clientId)
           .maybeSingle();
-        const firstName = ((cli?.full_name as string | null) || "Your client").trim().split(/\s+/)[0];
+        const firstName = ((cli?.full_name as string | null) || "Your client")
+          .trim()
+          .split(/\s+/)[0];
         const { sendPushCore } = await import("@/lib/push.functions");
         await sendPushCore(admin, {
           userId: args.practitionerId,
@@ -823,7 +860,7 @@ async function fireServerRedFlagAlert(
       const { fireAlertWebhookCore } = await import("@/lib/webhooks.functions");
       const wh = await fireAlertWebhookCore({
         practitionerId: args.practitionerId,
-        clientName: ((cliName?.full_name as string | null) || "Your client"),
+        clientName: (cliName?.full_name as string | null) || "Your client",
         clientId: args.clientId,
         alertMessage: `Red flag in symptom query: "${args.queryText.slice(0, 200)}"`,
         urgency: args.urgency,
@@ -860,7 +897,8 @@ export const Route = createFileRoute("/api/public/triage-query")({
           if (!apiKey) return json({ error: "Service not configured" }, 500);
 
           const authHeader = request.headers.get("authorization");
-          if (!authHeader?.startsWith("Bearer ")) return json({ error: "Authentication required" }, 401);
+          if (!authHeader?.startsWith("Bearer "))
+            return json({ error: "Authentication required" }, 401);
           const token = authHeader.slice("Bearer ".length);
 
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1003,9 +1041,8 @@ export const Route = createFileRoute("/api/public/triage-query")({
 
           // Load active Yves memory for triage surface (global + triage only),
           // via cached helper — high-volume path.
-          const { getActiveYvesMemoryForScopesCached } = await import(
-            "@/lib/yves-memory-cache.server"
-          );
+          const { getActiveYvesMemoryForScopesCached } =
+            await import("@/lib/yves-memory-cache.server");
           const triageMemoryRules = await getActiveYvesMemoryForScopesCached(
             supabaseAdmin as unknown as import("@supabase/supabase-js").SupabaseClient,
             ["global", "triage"],
@@ -1031,7 +1068,8 @@ export const Route = createFileRoute("/api/public/triage-query")({
               prompt_version: PROMPT_VERSION,
               query_text_len: query_text.length,
               extraction_model: extractionModel,
-              extraction_output: (extraction ?? null) as unknown as import("@/integrations/supabase/types").Json,
+              extraction_output: (extraction ??
+                null) as unknown as import("@/integrations/supabase/types").Json,
               first_pass_model: firstPass ? "claude-3-5-haiku-20241022" : null,
               first_pass_urgency: firstPass?.urgency ?? null,
               first_pass_severity: firstPass?.severity ?? null,
@@ -1088,7 +1126,8 @@ export const Route = createFileRoute("/api/public/triage-query")({
               prompt_version: PROMPT_VERSION,
               query_text_len: query_text.length,
               extraction_model: extractionModel,
-              extraction_output: (extraction ?? null) as unknown as import("@/integrations/supabase/types").Json,
+              extraction_output: (extraction ??
+                null) as unknown as import("@/integrations/supabase/types").Json,
               first_pass_model: firstPass ? "claude-3-5-haiku-20241022" : null,
               first_pass_urgency: firstPass?.urgency ?? null,
               first_pass_severity: firstPass?.severity ?? null,
@@ -1099,8 +1138,10 @@ export const Route = createFileRoute("/api/public/triage-query")({
               final_urgency: finalOutput.urgency,
               final_severity: finalOutput.severity,
               final_red_flag_category: finalOutput.red_flag_category ?? null,
-              floor_terms_hit: (finalOutput as unknown as { _floor_terms?: string[] })._floor_terms ?? [],
-              combination_floor_hit: (finalOutput as unknown as { _combo_terms?: string[] })._combo_terms ?? [],
+              floor_terms_hit:
+                (finalOutput as unknown as { _floor_terms?: string[] })._floor_terms ?? [],
+              combination_floor_hit:
+                (finalOutput as unknown as { _combo_terms?: string[] })._combo_terms ?? [],
               total_latency_ms: Date.now() - requestStart,
             });
           } catch (e) {
@@ -1156,7 +1197,9 @@ function applySafetyFloors(
     red_flags: [...(ai.red_flags ?? []), ...floor.matchedTerms, ...combo.matched],
     rationale:
       (ai.rationale ?? "") +
-      (cluster ? ` Safety floor escalated based on detected cluster.${cluster}` : " Safety floor escalated based on detected terms."),
+      (cluster
+        ? ` Safety floor escalated based on detected cluster.${cluster}`
+        : " Safety floor escalated based on detected terms."),
     _floor_terms: floor.matchedTerms,
     _combo_terms: combo.matched,
   };

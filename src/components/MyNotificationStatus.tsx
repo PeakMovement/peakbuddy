@@ -36,7 +36,10 @@ export function MyNotificationStatus() {
       >
         Notifications
       </div>
-      <Row label="Despia bridge" value={bridge === null ? "…" : bridge === "yes" ? "available" : "not in app (web preview)"} />
+      <Row
+        label="Despia bridge"
+        value={bridge === null ? "…" : bridge === "yes" ? "available" : "not in app (web preview)"}
+      />
       <Row label="Registered devices" value={tokens === null ? "…" : `${tokens.length}`} />
       {tokens && tokens.length > 0 && (
         <ul style={{ margin: "6px 0 0", padding: 0, listStyle: "none" }}>

@@ -26,7 +26,7 @@ const MAX_BYTES = 20 * 1024 * 1024; // 20 MB
 const ALLOWED_MIME = /^(application\/pdf|image\/(png|jpe?g|webp|heic|heif))$/i;
 
 function safeName(name: string): string {
-  return name.replace(/[^\w.\-]+/g, "_").slice(-80) || "report";
+  return name.replace(/[^\w.-]+/g, "_").slice(-80) || "report";
 }
 
 /** Access-check helper shared by every report fn (own client OR practice admin OR super_admin). */
@@ -59,8 +59,11 @@ export const createReportUpload = createServerFn({ method: "POST" })
 
     await ensureReportsBucket(admin);
     const path = `${data.clientId}/${crypto.randomUUID()}_${safeName(data.fileName)}`;
-    const { data: signed, error } = await admin.storage.from(REPORTS_BUCKET).createSignedUploadUrl(path);
-    if (error || !signed) return { ok: false as const, error: "Could not start the upload. Try again." };
+    const { data: signed, error } = await admin.storage
+      .from(REPORTS_BUCKET)
+      .createSignedUploadUrl(path);
+    if (error || !signed)
+      return { ok: false as const, error: "Could not start the upload. Try again." };
     return { ok: true as const, path: signed.path, token: signed.token };
   });
 
@@ -284,7 +287,9 @@ export const analyzeReports = createServerFn({ method: "POST" })
     const inlineParts: { inlineData: { mimeType: string; data: string } }[] = [];
     let totalBytes = 0;
     for (const r of repRows) {
-      const { data: blob } = await admin.storage.from(REPORTS_BUCKET).download(r.storage_path as string);
+      const { data: blob } = await admin.storage
+        .from(REPORTS_BUCKET)
+        .download(r.storage_path as string);
       if (!blob) continue;
       const buf = await blob.arrayBuffer();
       // Cap on ACTUAL downloaded bytes (declared size can't be trusted).
@@ -314,7 +319,9 @@ export const analyzeReports = createServerFn({ method: "POST" })
     const ci = (checks ?? []) as Record<string, unknown>[];
     const ws = (sess ?? []) as Record<string, unknown>[];
     const summary = {
-      client: { complaint: (cRow as { primary_complaint?: string } | null)?.primary_complaint ?? null },
+      client: {
+        complaint: (cRow as { primary_complaint?: string } | null)?.primary_complaint ?? null,
+      },
       focus: data.focus ?? "general",
       check_ins: {
         count: ci.length,
@@ -322,7 +329,10 @@ export const analyzeReports = createServerFn({ method: "POST" })
         sleep_avg: mean(ci.map((r) => num(r.sleep_quality))),
         stress_avg: mean(ci.map((r) => num(r.stress_level))),
         energy_avg: mean(ci.map((r) => num(r.energy_level))),
-        recent_notes: ci.slice(0, 6).map((r) => (r.notes ? String(r.notes).slice(0, 200) : null)).filter(Boolean),
+        recent_notes: ci
+          .slice(0, 6)
+          .map((r) => (r.notes ? String(r.notes).slice(0, 200) : null))
+          .filter(Boolean),
       },
       wearable: {
         days: ws.length,
@@ -335,7 +345,9 @@ export const analyzeReports = createServerFn({ method: "POST" })
     };
 
     const userParts: unknown[] = [
-      { text: `PATIENT SYMPTOM + WEARABLE SUMMARY (JSON):\n${JSON.stringify(summary)}\n\nThe ${inlineParts.length} attached file(s) are this patient's uploaded reports. Analyse them together with the data above.` },
+      {
+        text: `PATIENT SYMPTOM + WEARABLE SUMMARY (JSON):\n${JSON.stringify(summary)}\n\nThe ${inlineParts.length} attached file(s) are this patient's uploaded reports. Analyse them together with the data above.`,
+      },
       ...inlineParts,
     ];
 
@@ -394,8 +406,13 @@ export const analyzeReports = createServerFn({ method: "POST" })
     //    models since GEMINI_MODEL may be a gateway-only name that 404s here.
     if (!text && gk) {
       const configured = (process.env.GEMINI_MODEL || "").replace(/^google\//, "").trim();
-      const candidates = [configured, "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
-        .filter((m, i, a) => m && a.indexOf(m) === i);
+      const candidates = [
+        configured,
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-pro",
+      ].filter((m, i, a) => m && a.indexOf(m) === i);
       for (const m of candidates) {
         // Don't start another candidate we haven't time to finish — five
         // sequential retries is how a "slow" analysis was really being made.
@@ -413,13 +430,23 @@ export const analyzeReports = createServerFn({ method: "POST" })
                 systemInstruction: { parts: [{ text: analysisPrompt(data.depth ?? "full") }] },
                 contents: [{ role: "user", parts: userParts }],
               }),
-              signal: AbortSignal.timeout(Math.max(1_000, Math.min(CANDIDATE_TIMEOUT_MS, msLeft()))),
+              signal: AbortSignal.timeout(
+                Math.max(1_000, Math.min(CANDIDATE_TIMEOUT_MS, msLeft())),
+              ),
             },
           );
           if (res.ok) {
-            const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-            text = (j.candidates?.[0]?.content?.parts ?? []).map((pp) => pp.text ?? "").join("").trim();
-            if (text) { usedModel = `google/${m}`; break; }
+            const j = (await res.json()) as {
+              candidates?: { content?: { parts?: { text?: string }[] } }[];
+            };
+            text = (j.candidates?.[0]?.content?.parts ?? [])
+              .map((pp) => pp.text ?? "")
+              .join("")
+              .trim();
+            if (text) {
+              usedModel = `google/${m}`;
+              break;
+            }
             failures.push(`${m}: empty response`);
           } else {
             failures.push(`${m}: HTTP ${res.status}`);
@@ -461,19 +488,24 @@ export const analyzeReports = createServerFn({ method: "POST" })
 export const getLatestReportAnalysis = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ clientId: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }): Promise<{ ok: boolean; text: string | null; createdAt: string | null }> => {
-    const admin = await assertAccess(context.userId, data.clientId);
-    if (!admin) return { ok: false, text: null, createdAt: null };
-    const { data: row } = await admin
-      .from("session_report_analyses")
-      .select("analysis_text, created_at")
-      .eq("client_id", data.clientId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    return {
-      ok: true,
-      text: (row as { analysis_text?: string } | null)?.analysis_text ?? null,
-      createdAt: (row as { created_at?: string } | null)?.created_at ?? null,
-    };
-  });
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ ok: boolean; text: string | null; createdAt: string | null }> => {
+      const admin = await assertAccess(context.userId, data.clientId);
+      if (!admin) return { ok: false, text: null, createdAt: null };
+      const { data: row } = await admin
+        .from("session_report_analyses")
+        .select("analysis_text, created_at")
+        .eq("client_id", data.clientId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return {
+        ok: true,
+        text: (row as { analysis_text?: string } | null)?.analysis_text ?? null,
+        createdAt: (row as { created_at?: string } | null)?.created_at ?? null,
+      };
+    },
+  );

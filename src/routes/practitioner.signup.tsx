@@ -247,10 +247,12 @@ function PractitionerSignup() {
               </Field>
               <Field label="Account type">
                 <div style={{ display: "flex", gap: 8 }}>
-                  {([
-                    ["individual", "Just me", "You and your own clients"],
-                    ["group", "A practice", "Add up to 6 practitioners"],
-                  ] as const).map(([val, label, hint]) => {
+                  {(
+                    [
+                      ["individual", "Just me", "You and your own clients"],
+                      ["group", "A practice", "Add up to 6 practitioners"],
+                    ] as const
+                  ).map(([val, label, hint]) => {
                     const active = practiceType === val;
                     return (
                       <button
@@ -268,8 +270,19 @@ function PractitionerSignup() {
                           color: "var(--white)",
                         }}
                       >
-                        <div style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 14 }}>{label}</div>
-                        <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--white-muted)", marginTop: 2 }}>
+                        <div
+                          style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 14 }}
+                        >
+                          {label}
+                        </div>
+                        <div
+                          style={{
+                            fontFamily: "var(--font-ui)",
+                            fontSize: 12,
+                            color: "var(--white-muted)",
+                            marginTop: 2,
+                          }}
+                        >
                           {hint}
                         </div>
                       </button>

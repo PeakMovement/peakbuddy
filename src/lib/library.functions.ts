@@ -62,7 +62,10 @@ export const getLibraryIntroState = createServerFn({ method: "GET" })
       .select("library_intro_seen_at")
       .eq("auth_user_id", context.userId)
       .maybeSingle();
-    return { introSeen: !!(data as { library_intro_seen_at?: string | null } | null)?.library_intro_seen_at };
+    return {
+      introSeen: !!(data as { library_intro_seen_at?: string | null } | null)
+        ?.library_intro_seen_at,
+    };
   });
 
 /**

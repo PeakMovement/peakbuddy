@@ -104,8 +104,8 @@ const PractitionerAlertEmail = ({
       ) : null}
 
       <Text style={styles.muted}>
-        This is an automated alert from Buddy. It is not an emergency channel — if your client
-        is in immediate danger they should call emergency services.
+        This is an automated alert from Buddy. It is not an emergency channel — if your client is in
+        immediate danger they should call emergency services.
       </Text>
     </EmailShell>
   );
@@ -133,7 +133,8 @@ export const template = {
     timestamp: "Today at 08:14",
     viewUrl: "https://peakbuddy.lovable.app/practitioner/app/client-detail/123",
     checkinUrl: "https://peakbuddy.lovable.app/api/public/alerts/action?token=demo&action=checkin",
-    reviewedUrl: "https://peakbuddy.lovable.app/api/public/alerts/action?token=demo&action=reviewed",
+    reviewedUrl:
+      "https://peakbuddy.lovable.app/api/public/alerts/action?token=demo&action=reviewed",
     whatsappUrl: "https://wa.me/27831234567?text=Hi%20Bruce",
   },
 } satisfies TemplateEntry;

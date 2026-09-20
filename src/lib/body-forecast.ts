@@ -43,8 +43,10 @@ const nums = (xs: (number | null | undefined)[]) =>
   xs.filter((x): x is number => typeof x === "number" && !Number.isNaN(x));
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
 
-const sleepRead = (s: number) => (s >= 80 ? "well rested" : s >= 70 ? "decent sleep" : "short sleep");
-const readinessRead = (r: number) => (r >= 72 ? "recovered" : r >= 58 ? "moderate" : "under-recovered");
+const sleepRead = (s: number) =>
+  s >= 80 ? "well rested" : s >= 70 ? "decent sleep" : "short sleep";
+const readinessRead = (r: number) =>
+  r >= 72 ? "recovered" : r >= 58 ? "moderate" : "under-recovered";
 
 export function computeForecast(
   wearables: WearableDay[],
@@ -57,7 +59,8 @@ export function computeForecast(
     return {
       hasWearable: false,
       level: "unknown",
-      message: "Connect a wearable and Buddy will start reading how your body and your symptoms are trending together.",
+      message:
+        "Connect a wearable and Buddy will start reading how your body and your symptoms are trending together.",
       action: "",
       confidence: "",
       reasoning: "",
@@ -92,7 +95,9 @@ export function computeForecast(
 
   // Recent symptoms (last ~8 days) so the forecast relates body data to how they feel.
   const nowIdx = dayIndex(now);
-  const recentPain = nums(checkins.filter((c) => nowIdx - dayIndex(c.date) <= 8).map((c) => c.pain_level));
+  const recentPain = nums(
+    checkins.filter((c) => nowIdx - dayIndex(c.date) <= 8).map((c) => c.pain_level),
+  );
   const painAvg = avg(recentPain);
   const painHigh = !Number.isNaN(painAvg) && painAvg >= 6;
   const painSettled = !Number.isNaN(painAvg) && painAvg <= 3;
@@ -102,11 +107,13 @@ export function computeForecast(
 
   const hrvRecent = avg(nums(recent.map((d) => d.hrv_avg)));
   const hrvPrior = avg(nums(prior.map((d) => d.hrv_avg)));
-  const hrvFalling = !Number.isNaN(hrvRecent) && !Number.isNaN(hrvPrior) && hrvRecent < hrvPrior * 0.92;
+  const hrvFalling =
+    !Number.isNaN(hrvRecent) && !Number.isNaN(hrvPrior) && hrvRecent < hrvPrior * 0.92;
 
   const rhrRecent = avg(nums(recent.map((d) => d.resting_hr)));
   const rhrPrior = avg(nums(prior.map((d) => d.resting_hr)));
-  const rhrRising = !Number.isNaN(rhrRecent) && !Number.isNaN(rhrPrior) && rhrRecent > rhrPrior * 1.05;
+  const rhrRising =
+    !Number.isNaN(rhrRecent) && !Number.isNaN(rhrPrior) && rhrRecent > rhrPrior * 1.05;
 
   const readiness = latest.readiness_score ?? latest.sleep_score ?? null;
 
@@ -156,7 +163,8 @@ export function computeForecast(
     }
   } else if (level === "low") {
     const neg: string[] = [];
-    if (s != null && (Number.isNaN(sAvg) ? s < 70 : s <= sAvg - 8)) neg.push(`your sleep's run short (${Math.round(s)})`);
+    if (s != null && (Number.isNaN(sAvg) ? s < 70 : s <= sAvg - 8))
+      neg.push(`your sleep's run short (${Math.round(s)})`);
     if (hrvFalling) neg.push("your HRV's been sliding");
     if (rhrRising) neg.push("your resting heart rate's up");
     const lead = neg.length ? cap(joinNat(neg)) : "Your body's a bit run down right now";
@@ -181,7 +189,11 @@ export function computeForecast(
 
   const factors: Factor[] = [];
   if (latest.sleep_score != null)
-    factors.push({ label: "Sleep", value: String(Math.round(latest.sleep_score)), read: sleepRead(latest.sleep_score) });
+    factors.push({
+      label: "Sleep",
+      value: String(Math.round(latest.sleep_score)),
+      read: sleepRead(latest.sleep_score),
+    });
   if (latest.readiness_score != null)
     factors.push({
       label: "Readiness",
@@ -189,7 +201,11 @@ export function computeForecast(
       read: readinessRead(latest.readiness_score),
     });
   if (latest.hrv_avg != null)
-    factors.push({ label: "HRV", value: String(Math.round(latest.hrv_avg)), read: hrvFalling ? "trending down" : "stable" });
+    factors.push({
+      label: "HRV",
+      value: String(Math.round(latest.hrv_avg)),
+      read: hrvFalling ? "trending down" : "stable",
+    });
   if (latest.resting_hr != null)
     factors.push({
       label: "Resting HR",
@@ -203,7 +219,8 @@ export function computeForecast(
   const pairs: { sleep: number; pain: number }[] = [];
   for (const c of checkins) {
     const wd = byDate.get(c.date);
-    if (wd?.sleep_score != null && c.pain_level != null) pairs.push({ sleep: wd.sleep_score, pain: c.pain_level });
+    if (wd?.sleep_score != null && c.pain_level != null)
+      pairs.push({ sleep: wd.sleep_score, pain: c.pain_level });
   }
   if (pairs.length >= 5) {
     const lowPain = pairs.filter((p) => p.sleep < 70).map((p) => p.pain);
@@ -216,7 +233,11 @@ export function computeForecast(
   }
 
   const checkinCount = checkins.filter((c) => c.pain_level != null).length;
-  const confidence = personalNote ? "Your pattern" : checkinCount >= 5 ? "Personalizing" : "Early read";
+  const confidence = personalNote
+    ? "Your pattern"
+    : checkinCount >= 5
+      ? "Personalizing"
+      : "Early read";
 
   const reasoning = personalNote
     ? "Buddy weighed your recent sleep, recovery and heart-rate signals against your own check-in history."
@@ -228,7 +249,13 @@ export function computeForecast(
       : null;
 
   const sleepVsUsual: "above" | "below" | "about" | null =
-    s == null || Number.isNaN(sAvg) ? null : s >= sAvg + 8 ? "above" : s <= sAvg - 8 ? "below" : "about";
+    s == null || Number.isNaN(sAvg)
+      ? null
+      : s >= sAvg + 8
+        ? "above"
+        : s <= sAvg - 8
+          ? "below"
+          : "about";
 
   return {
     hasWearable: true,

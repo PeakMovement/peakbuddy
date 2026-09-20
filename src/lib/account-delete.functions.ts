@@ -18,7 +18,7 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
     const userId = context.userId;
     const email =
       typeof (context.claims as { email?: unknown }).email === "string"
-        ? ((context.claims as { email: string }).email).toLowerCase()
+        ? (context.claims as { email: string }).email.toLowerCase()
         : null;
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

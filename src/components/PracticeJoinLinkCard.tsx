@@ -74,14 +74,21 @@ export function PracticeJoinLinkCard() {
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Link2 size={16} color="var(--blue-accent)" />
-        <h2 style={{ fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: 14, color: "var(--white)" }}>
+        <h2
+          style={{
+            fontFamily: "var(--font-ui)",
+            fontWeight: 600,
+            fontSize: 14,
+            color: "var(--white)",
+          }}
+        >
           Client sign-up link
         </h2>
       </div>
 
       <p style={{ color: "var(--white-muted)", fontSize: 13, lineHeight: 1.5 }}>
-        Share this link with new clients. They create their own account and are added straight to your
-        practice — and if you have several practitioners, they pick who they're seeing.
+        Share this link with new clients. They create their own account and are added straight to
+        your practice — and if you have several practitioners, they pick who they're seeing.
       </p>
 
       {url && (

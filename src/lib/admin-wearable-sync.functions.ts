@@ -11,7 +11,10 @@ export const adminSyncClientWearables = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => z.object({ clientId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }): Promise<AdminSyncResult> => {
     const { data: profile } = await context.supabase
-      .from("profiles").select("role").eq("id", context.userId).maybeSingle();
+      .from("profiles")
+      .select("role")
+      .eq("id", context.userId)
+      .maybeSingle();
     if (!profile || profile.role !== "super_admin") throw new Error("Forbidden");
     return syncClientWearablesAsAdmin(data.clientId);
   });

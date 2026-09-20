@@ -96,8 +96,8 @@ export function InstallPrompt() {
               <strong>⋮ menu</strong> and choose <strong>Install app</strong>.
             </Step>
             <Step icon={<Plus size={18} />}>
-              Confirm with <strong>Install</strong> / <strong>Add</strong>. Buddy appears on your home
-              screen.
+              Confirm with <strong>Install</strong> / <strong>Add</strong>. Buddy appears on your
+              home screen.
             </Step>
             <Step icon={<Bell size={18} />}>
               Open <strong>Buddy</strong> and tap <strong>Allow</strong> when it asks to send
@@ -266,8 +266,8 @@ function IosGuide({
       title: "Step 1 — Tap Share",
       body: (
         <>
-          Tap the <strong>Share</strong> button in Safari&apos;s bottom bar (the square with an arrow
-          pointing up). Follow the arrow below.
+          Tap the <strong>Share</strong> button in Safari&apos;s bottom bar (the square with an
+          arrow pointing up). Follow the arrow below.
         </>
       ),
     },
@@ -314,7 +314,9 @@ function IosGuide({
           {c.icon}
         </span>
         <span style={stepText}>
-          <span style={{ display: "block", color: "var(--white)", fontWeight: 700, marginBottom: 2 }}>
+          <span
+            style={{ display: "block", color: "var(--white)", fontWeight: 700, marginBottom: 2 }}
+          >
             {c.title}
           </span>
           {c.body}
@@ -344,7 +346,11 @@ function IosGuide({
 function ShareArrow() {
   return (
     <>
-      <style>{"@keyframes buddyArrowBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(9px)}}"}</style>
+      <style>
+        {
+          "@keyframes buddyArrowBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(9px)}}"
+        }
+      </style>
       <div
         aria-hidden
         style={{

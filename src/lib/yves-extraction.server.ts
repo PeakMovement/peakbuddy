@@ -138,7 +138,10 @@ export async function extractAndFirstPass(params: {
   queryText: string;
   contextBlock: string;
   timeoutMs?: number;
-}): Promise<{ ok: true; data: ExtractionAndFirstPass; latencyMs: number } | { ok: false; error: string; latencyMs: number }> {
+}): Promise<
+  | { ok: true; data: ExtractionAndFirstPass; latencyMs: number }
+  | { ok: false; error: string; latencyMs: number }
+> {
   const started = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), params.timeoutMs ?? 12_000);
@@ -169,7 +172,11 @@ export async function extractAndFirstPass(params: {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      return { ok: false, error: `haiku ${res.status}: ${errText.slice(0, 160)}`, latencyMs: Date.now() - started };
+      return {
+        ok: false,
+        error: `haiku ${res.status}: ${errText.slice(0, 160)}`,
+        latencyMs: Date.now() - started,
+      };
     }
 
     const data = (await res.json()) as {
@@ -179,7 +186,11 @@ export async function extractAndFirstPass(params: {
     if (!toolUse?.input || typeof toolUse.input !== "object") {
       return { ok: false, error: "no tool_use in haiku response", latencyMs: Date.now() - started };
     }
-    return { ok: true, data: toolUse.input as ExtractionAndFirstPass, latencyMs: Date.now() - started };
+    return {
+      ok: true,
+      data: toolUse.input as ExtractionAndFirstPass,
+      latencyMs: Date.now() - started,
+    };
   } catch (e) {
     return {
       ok: false,
@@ -198,7 +209,8 @@ export function formatExtractionForPrompt(x: Extraction): string {
   if (x.character) lines.push(`Character: ${x.character}`);
   if (x.associated_symptoms.length) lines.push(`Associated: ${x.associated_symptoms.join(", ")}`);
   if (x.negations.length) lines.push(`Negated: ${x.negations.join(", ")}`);
-  if (x.attributions.length) lines.push(`Attributed to (not patient): ${x.attributions.join(", ")}`);
+  if (x.attributions.length)
+    lines.push(`Attributed to (not patient): ${x.attributions.join(", ")}`);
   lines.push(`Self-reported: ${x.self_reported}  |  Language: ${x.language}`);
   if (x.needs_clarification.length) lines.push(`Ambiguous: ${x.needs_clarification.join("; ")}`);
   return lines.join("\n");

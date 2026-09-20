@@ -1,12 +1,6 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import {
-  LayoutGrid,
-  Bell,
-  UserPlus,
-  User,
-  Sparkles,
-} from "lucide-react";
+import { LayoutGrid, Bell, UserPlus, User, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   countPendingProgramSuggestions,
@@ -15,12 +9,16 @@ import {
 import { countMyDrafts } from "@/lib/practitioner-drafts.functions";
 import { SetQuickCodePrompt } from "@/components/SetQuickCodePrompt";
 
-
 export const Route = createFileRoute("/practitioner/app")({
   component: PractitionerAppLayout,
 });
 
-type Tab = { to: string; label: string; Icon: typeof LayoutGrid; badge?: "alerts" | "queue" | "insights" };
+type Tab = {
+  to: string;
+  label: string;
+  Icon: typeof LayoutGrid;
+  badge?: "alerts" | "queue" | "insights";
+};
 const tabs: Tab[] = [
   { to: "/practitioner/app/dashboard", label: "Dashboard", Icon: LayoutGrid },
   { to: "/practitioner/app/alerts", label: "Alerts", Icon: Bell, badge: "alerts" },
@@ -119,7 +117,6 @@ function PractitionerAppLayout() {
         <Outlet />
       </main>
 
-
       <nav
         aria-label="Primary"
         className="app-nav app-nav--wide"
@@ -137,10 +134,13 @@ function PractitionerAppLayout() {
       >
         {visibleTabs.map(({ to, label, Icon, badge }) => {
           const badgeCount =
-            badge === "alerts" ? unread
-            : badge === "queue" ? queueCount
-            : badge === "insights" ? insightsCount
-            : 0;
+            badge === "alerts"
+              ? unread
+              : badge === "queue"
+                ? queueCount
+                : badge === "insights"
+                  ? insightsCount
+                  : 0;
           return (
             <Link
               key={to}

@@ -55,7 +55,8 @@ async function loadCentralTarget(practitionerId: string) {
   ]);
   return {
     url: (settings as { central_webhook_url?: string } | null)?.central_webhook_url?.trim() || "",
-    enabled: (settings as { central_webhook_enabled?: boolean } | null)?.central_webhook_enabled === true,
+    enabled:
+      (settings as { central_webhook_enabled?: boolean } | null)?.central_webhook_enabled === true,
     whatsapp: (prac as { whatsapp_number?: string } | null)?.whatsapp_number ?? null,
     name: (prof.data as { full_name?: string } | null)?.full_name ?? null,
     email: userRes?.data?.user?.email ?? null,
@@ -118,43 +119,43 @@ type AlertWebhookInput = z.infer<typeof alertSchema>;
  */
 export async function fireAlertWebhookCore(data: AlertWebhookInput) {
   const ts = new Date().toISOString();
-    const [settings, central] = await Promise.all([
-      loadWebhookSettings(data.practitionerId),
-      loadCentralTarget(data.practitionerId),
-    ]);
-    const results: WebhookResults = {};
+  const [settings, central] = await Promise.all([
+    loadWebhookSettings(data.practitionerId),
+    loadCentralTarget(data.practitionerId),
+  ]);
+  const results: WebhookResults = {};
 
-    // Central Buddy channel (one automation for everyone) — includes the target
-    // practitioner's email + WhatsApp number so it can route to the right person.
-    if (central.enabled && central.url) {
-      results.central = await deliver(central.url, {
-        event: "buddy_alert",
-        channel: "central",
-        practitioner_id: data.practitionerId,
-        practitioner_name: central.name,
-        practitioner_email: central.email,
-        practitioner_whatsapp: central.whatsapp,
-        client_id: data.clientId,
-        client_name: data.clientName,
-        message: data.alertMessage,
-        urgency: data.urgency,
-        red_flag_detected: data.redFlagDetected,
-        timestamp: ts,
-      });
-    }
-    // Optional legacy per-practice webhook (backward compatible).
-    if (settings?.webhook_url && settings?.webhook_enabled) {
-      results.practice = await deliver(settings.webhook_url, {
-        event: "buddy_alert",
-        practitioner_id: data.practitionerId,
-        client_id: data.clientId,
-        client_name: data.clientName,
-        message: data.alertMessage,
-        urgency: data.urgency,
-        red_flag_detected: data.redFlagDetected,
-        timestamp: ts,
-      });
-    }
+  // Central Buddy channel (one automation for everyone) — includes the target
+  // practitioner's email + WhatsApp number so it can route to the right person.
+  if (central.enabled && central.url) {
+    results.central = await deliver(central.url, {
+      event: "buddy_alert",
+      channel: "central",
+      practitioner_id: data.practitionerId,
+      practitioner_name: central.name,
+      practitioner_email: central.email,
+      practitioner_whatsapp: central.whatsapp,
+      client_id: data.clientId,
+      client_name: data.clientName,
+      message: data.alertMessage,
+      urgency: data.urgency,
+      red_flag_detected: data.redFlagDetected,
+      timestamp: ts,
+    });
+  }
+  // Optional legacy per-practice webhook (backward compatible).
+  if (settings?.webhook_url && settings?.webhook_enabled) {
+    results.practice = await deliver(settings.webhook_url, {
+      event: "buddy_alert",
+      practitioner_id: data.practitionerId,
+      client_id: data.clientId,
+      client_name: data.clientName,
+      message: data.alertMessage,
+      urgency: data.urgency,
+      red_flag_detected: data.redFlagDetected,
+      timestamp: ts,
+    });
+  }
   const fired = Boolean(results.central || results.practice);
   return { fired, reason: fired ? undefined : ("not_configured" as const), results };
 }
@@ -197,7 +198,11 @@ export const fireAlertWebhookServer = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => alertSchema.parse(input))
   .handler(async ({ data, context }) => {
     const who = await authorizeClientWebhook(context, data.clientId);
-    return fireAlertWebhookCore({ ...data, practitionerId: who.practitionerId, clientName: who.clientName });
+    return fireAlertWebhookCore({
+      ...data,
+      practitionerId: who.practitionerId,
+      clientName: who.clientName,
+    });
   });
 
 export const fireContactWebhookServer = createServerFn({ method: "POST" })

@@ -109,7 +109,6 @@ export function ClientWearablesCard({
         {rows[0].source === "garmin" && <GarminAttribution />}
       </div>
 
-
       {forecast && forecast.hasWearable && (
         <div style={readBox}>
           <div style={readTitle}>Recovery vs symptoms</div>

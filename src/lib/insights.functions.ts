@@ -42,10 +42,7 @@ export const getPracticeInsights = createServerFn({ method: "GET" })
     const since14d = new Date(now - 14 * DAY_MS).toISOString();
 
     const [{ data: clients }, { data: checkIns }, { data: alerts }] = await Promise.all([
-      supabase
-        .from("clients")
-        .select("id, full_name, created_at")
-        .eq("practitioner_id", userId),
+      supabase.from("clients").select("id, full_name, created_at").eq("practitioner_id", userId),
       supabase
         .from("check_ins")
         .select("client_id, pain_level, notes, created_at")

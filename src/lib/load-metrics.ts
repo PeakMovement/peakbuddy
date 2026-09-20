@@ -61,7 +61,12 @@ export interface LoadInsight {
     hrvDeviationPct: number | null;
     recentSleepScore: number | null;
   };
-  drivers: { primary: RiskDriver | null; secondary: RiskDriver | null; riskLevel: RiskLevel; all: RiskDriver[] };
+  drivers: {
+    primary: RiskDriver | null;
+    secondary: RiskDriver | null;
+    riskLevel: RiskLevel;
+    all: RiskDriver[];
+  };
   crossCheck: { days: CrossCheckDay[]; observation: string | null };
 }
 
@@ -95,7 +100,8 @@ export function resolveThresholds(o?: PartialThresholds | null): Thresholds {
   return out;
 }
 
-const mean = (xs: number[]): number | null => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+const mean = (xs: number[]): number | null =>
+  xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
 function stddev(xs: number[]): number | null {
   if (xs.length < 2) return null;
   const m = mean(xs)!;
@@ -107,7 +113,9 @@ const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
  *  like with like. training_load (Polar) > HR×minutes > active calories. */
 export function pickLoadMethod(days: WearableDay[]): LoadInsight["loadMethod"] {
   if (days.some((d) => typeof d.training_load === "number")) return "training_load";
-  if (days.some((d) => typeof d.duration_minutes === "number" && typeof d.avg_heart_rate === "number"))
+  if (
+    days.some((d) => typeof d.duration_minutes === "number" && typeof d.avg_heart_rate === "number")
+  )
     return "hr_minutes";
   if (days.some((d) => typeof d.active_calories === "number")) return "active_calories";
   return null;
@@ -135,8 +143,13 @@ function maturity(dataDays: number): MaturityLevel {
   return "mature";
 }
 
-function evalFactor(id: RiskDriver["id"], label: string, value: number | null,
-  th: { critical: number; elevated: number; moderate?: number }, inverted = false): RiskDriver | null {
+function evalFactor(
+  id: RiskDriver["id"],
+  label: string,
+  value: number | null,
+  th: { critical: number; elevated: number; moderate?: number },
+  inverted = false,
+): RiskDriver | null {
   if (value === null) return null;
   let severity = 0;
   if (inverted) {
@@ -150,7 +163,13 @@ function evalFactor(id: RiskDriver["id"], label: string, value: number | null,
   }
   if (severity === 0) return null;
   const band = severity >= 90 ? "critical" : severity >= 65 ? "elevated" : "moderate";
-  return { id, label, value: Math.round(value * 100) / 100, severity, reason: `${label} ${band} (${Math.round(value * 100) / 100})` };
+  return {
+    id,
+    label,
+    value: Math.round(value * 100) / 100,
+    severity,
+    reason: `${label} ${band} (${Math.round(value * 100) / 100})`,
+  };
 }
 
 export function fatigueIndex(strain: number | null, monotony: number | null): number | null {
@@ -160,12 +179,32 @@ export function fatigueIndex(strain: number | null, monotony: number | null): nu
   return Math.min(Math.round((s / 2000) * 50 + (m / 2.5) * 50), 100);
 }
 
-export function buildLoadInsight(sessions: WearableDay[], checkIns: CheckInDay[], hasWearableConnected: boolean, thresholds?: PartialThresholds | null): LoadInsight {
+export function buildLoadInsight(
+  sessions: WearableDay[],
+  checkIns: CheckInDay[],
+  hasWearableConnected: boolean,
+  thresholds?: PartialThresholds | null,
+): LoadInsight {
   const th = resolveThresholds(thresholds);
-  const empty = (reason: string, method: LoadInsight["loadMethod"] = null, dataDays = 0): LoadInsight => ({
-    available: false, reason, loadMethod: method,
+  const empty = (
+    reason: string,
+    method: LoadInsight["loadMethod"] = null,
+    dataDays = 0,
+  ): LoadInsight => ({
+    available: false,
+    reason,
+    loadMethod: method,
     maturity: { level: maturity(dataDays), dataDays },
-    metrics: { acwr: null, acuteLoad: null, chronicLoad: null, monotony: null, strain: null, fatigueIndex: null, hrvDeviationPct: null, recentSleepScore: null },
+    metrics: {
+      acwr: null,
+      acuteLoad: null,
+      chronicLoad: null,
+      monotony: null,
+      strain: null,
+      fatigueIndex: null,
+      hrvDeviationPct: null,
+      recentSleepScore: null,
+    },
     drivers: { primary: null, secondary: null, riskLevel: "low", all: [] },
     crossCheck: { days: [], observation: null },
   });
@@ -178,7 +217,12 @@ export function buildLoadInsight(sessions: WearableDay[], checkIns: CheckInDay[]
   const dataDays = new Set(recentSessions.map((s) => dayKey(s.date))).size;
 
   const method = pickLoadMethod(recentSessions);
-  if (!method) return empty("Connected wearable does not provide training-load data (no load, HR-minutes or active-calorie data).", null, dataDays);
+  if (!method)
+    return empty(
+      "Connected wearable does not provide training-load data (no load, HR-minutes or active-calorie data).",
+      null,
+      dataDays,
+    );
 
   // Load series, newest first, one value per day (null when that day lacks the field).
   const byDayNewestFirst = [...recentSessions].sort((a, b) => b.date.localeCompare(a.date));
@@ -198,14 +242,18 @@ export function buildLoadInsight(sessions: WearableDay[], checkIns: CheckInDay[]
 
   // Gate load drivers behind 14 days of history (Predictiv's lesson).
   const stableHistory = dataDays >= MIN_DAYS_FOR_LOAD_DRIVERS;
-  const acwr = stableHistory && acuteLoad !== null && chronicLoad && chronicLoad > 0
-    ? Math.round((acuteLoad / chronicLoad) * 100) / 100 : null;
+  const acwr =
+    stableHistory && acuteLoad !== null && chronicLoad && chronicLoad > 0
+      ? Math.round((acuteLoad / chronicLoad) * 100) / 100
+      : null;
 
   const weekLoads = nonNull(loadsDesc.slice(0, 7));
   const weekMean = mean(weekLoads);
   const weekSd = stddev(weekLoads);
-  const monotony = stableHistory && weekMean !== null && weekSd !== null && weekSd > 0
-    ? Math.round((weekMean / weekSd) * 100) / 100 : null;
+  const monotony =
+    stableHistory && weekMean !== null && weekSd !== null && weekSd > 0
+      ? Math.round((weekMean / weekSd) * 100) / 100
+      : null;
   const weekTotal = weekLoads.reduce((a, b) => a + b, 0);
   const strain = monotony !== null ? Math.round(weekTotal * monotony) : null;
   const fi = fatigueIndex(strain, monotony);
@@ -217,8 +265,10 @@ export function buildLoadInsight(sessions: WearableDay[], checkIns: CheckInDay[]
   });
   const hrvRecent = mean(nonNull(hrvByDayDesc.slice(0, 7)));
   const hrvBase = mean(nonNull(hrvByDayDesc.slice(7, 28)));
-  const hrvDeviationPct = hrvRecent !== null && hrvBase !== null && hrvBase > 0
-    ? Math.round(((hrvBase - hrvRecent) / hrvBase) * 100) : null;
+  const hrvDeviationPct =
+    hrvRecent !== null && hrvBase !== null && hrvBase > 0
+      ? Math.round(((hrvBase - hrvRecent) / hrvBase) * 100)
+      : null;
 
   const sleepDesc = dayKeysDesc.map((k) => {
     const s = byDayNewestFirst.find((x) => dayKey(x.date) === k);
@@ -234,7 +284,9 @@ export function buildLoadInsight(sessions: WearableDay[], checkIns: CheckInDay[]
     evalFactor("fatigue", "Fatigue index", fi, th.fatigue),
     evalFactor("hrv", "HRV drop vs baseline", hrvDeviationPct, th.hrv),
     evalFactor("sleep", "Sleep score", recentSleepScore, th.sleep, true),
-  ].filter((d): d is RiskDriver => d !== null).sort((a, b) => b.severity - a.severity);
+  ]
+    .filter((d): d is RiskDriver => d !== null)
+    .sort((a, b) => b.severity - a.severity);
   const topSeverity = all[0]?.severity ?? 0;
   const riskLevel: RiskLevel = topSeverity >= 90 ? "high" : topSeverity >= 65 ? "moderate" : "low";
 
@@ -248,8 +300,10 @@ export function buildLoadInsight(sessions: WearableDay[], checkIns: CheckInDay[]
   }
   const last14 = dayKeysDesc.slice(0, 14);
   const days: CrossCheckDay[] = last14.map((k) => ({
-    date: k, load: loadByDay.get(k) ?? null,
-    pain: painByDay.get(k)?.pain ?? null, flagged: painByDay.get(k)?.flagged ?? false,
+    date: k,
+    load: loadByDay.get(k) ?? null,
+    pain: painByDay.get(k)?.pain ?? null,
+    flagged: painByDay.get(k)?.flagged ?? false,
   }));
 
   // Simple lag observation: a load spike (>= chronic*1.5) followed within 2 days
@@ -262,7 +316,10 @@ export function buildLoadInsight(sessions: WearableDay[], checkIns: CheckInDay[]
         for (let j = Math.max(0, i - 2); j < i; j++) {
           const later = days[j]; // more recent
           const prPain = days[i].pain;
-          if (later.flagged || (later.pain !== null && prPain !== null && later.pain - prPain >= 2)) {
+          if (
+            later.flagged ||
+            (later.pain !== null && prPain !== null && later.pain - prPain >= 2)
+          ) {
             observation = `A load spike on ${d.date} was followed within 2 days by ${later.flagged ? "a flagged check-in" : "a rise in reported pain"} on ${later.date}.`;
             break;
           }
@@ -273,9 +330,20 @@ export function buildLoadInsight(sessions: WearableDay[], checkIns: CheckInDay[]
   }
 
   return {
-    available: true, reason: null, loadMethod: method,
+    available: true,
+    reason: null,
+    loadMethod: method,
     maturity: { level: maturity(dataDays), dataDays },
-    metrics: { acwr, acuteLoad: acuteLoad !== null ? Math.round(acuteLoad) : null, chronicLoad: chronicLoad !== null ? Math.round(chronicLoad) : null, monotony, strain, fatigueIndex: fi, hrvDeviationPct, recentSleepScore: recentSleepScore !== null ? Math.round(recentSleepScore) : null },
+    metrics: {
+      acwr,
+      acuteLoad: acuteLoad !== null ? Math.round(acuteLoad) : null,
+      chronicLoad: chronicLoad !== null ? Math.round(chronicLoad) : null,
+      monotony,
+      strain,
+      fatigueIndex: fi,
+      hrvDeviationPct,
+      recentSleepScore: recentSleepScore !== null ? Math.round(recentSleepScore) : null,
+    },
     drivers: { primary: all[0] ?? null, secondary: all[1] ?? null, riskLevel, all },
     crossCheck: { days, observation },
   };

@@ -47,7 +47,8 @@ function JoinPractice() {
           if (res.practitioners.length === 1) setPractitionerId(res.practitioners[0].id);
         }
       } catch {
-        if (alive) setLinkError("We couldn't open this sign-up link. Please check it and try again.");
+        if (alive)
+          setLinkError("We couldn't open this sign-up link. Please check it and try again.");
       } finally {
         if (alive) setLoading(false);
       }
@@ -118,16 +119,38 @@ function JoinPractice() {
         padding: "48px 24px",
       }}
     >
-      <div style={{ width: "100%", maxWidth: 380, display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 380,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
         <BuddyLogo />
 
         {loading ? (
-          <p style={{ marginTop: 32, color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
+          <p
+            style={{
+              marginTop: 32,
+              color: "var(--white-muted)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 14,
+            }}
+          >
             Opening your sign-up link…
           </p>
         ) : linkError ? (
           <div style={{ marginTop: 32, textAlign: "center" }}>
-            <p style={{ color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 14, lineHeight: 1.5 }}>
+            <p
+              style={{
+                color: "var(--white-muted)",
+                fontFamily: "var(--font-ui)",
+                fontSize: 14,
+                lineHeight: 1.5,
+              }}
+            >
               {linkError}
             </p>
           </div>
@@ -160,7 +183,13 @@ function JoinPractice() {
 
             <form
               onSubmit={onSubmit}
-              style={{ width: "100%", marginTop: 24, display: "flex", flexDirection: "column", gap: 14 }}
+              style={{
+                width: "100%",
+                marginTop: 24,
+                display: "flex",
+                flexDirection: "column",
+                gap: 14,
+              }}
             >
               <input
                 type="text"
@@ -234,7 +263,8 @@ function JoinPractice() {
                         borderRadius: 8,
                         textAlign: "left",
                         padding: "0 14px",
-                        background: practitionerId === p.id ? "var(--blue-accent)" : "var(--navy-card)",
+                        background:
+                          practitionerId === p.id ? "var(--blue-accent)" : "var(--navy-card)",
                         border: `1px solid ${practitionerId === p.id ? "var(--blue-accent)" : "var(--navy-border)"}`,
                         color: "var(--white)",
                         fontFamily: "var(--font-ui)",

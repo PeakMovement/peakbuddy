@@ -4,9 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export const updateClientPhone = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) =>
-    z.object({ phone: z.string().max(30).nullable() }).parse(data),
-  )
+  .inputValidator((data) => z.object({ phone: z.string().max(30).nullable() }).parse(data))
   .handler(async ({ context, data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin
@@ -21,9 +19,7 @@ export const updateClientPhone = createServerFn({ method: "POST" })
 // Updates the practitioner's phone number (stored on the auth user record).
 export const updatePractitionerPhone = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) =>
-    z.object({ phone: z.string().max(30).nullable() }).parse(data),
-  )
+  .inputValidator((data) => z.object({ phone: z.string().max(30).nullable() }).parse(data))
   .handler(async ({ context, data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.auth.admin.updateUserById(context.userId, {
@@ -49,10 +45,7 @@ export const updateMyEmail = createServerFn({ method: "POST" })
     if (authError) throw new Error(authError.message);
 
     // Best-effort mirror to clients.email if this user is a client.
-    await supabaseAdmin
-      .from("clients")
-      .update({ email })
-      .eq("auth_user_id", context.userId);
+    await supabaseAdmin.from("clients").update({ email }).eq("auth_user_id", context.userId);
 
     return { ok: true, email };
   });

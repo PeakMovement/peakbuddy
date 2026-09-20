@@ -1,11 +1,7 @@
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { KeyRound } from "lucide-react";
-import {
-  clearQuickCode,
-  getQuickCodeStatus,
-  setQuickCode,
-} from "@/lib/quick-login.functions";
+import { clearQuickCode, getQuickCodeStatus, setQuickCode } from "@/lib/quick-login.functions";
 import { QuickCodeKeypad } from "@/components/QuickCodeKeypad";
 import { withTimeout } from "@/lib/with-timeout";
 
@@ -222,9 +218,7 @@ export function QuickCodeManager() {
         </div>
       )}
 
-      {notice && !editing && (
-        <p style={{ color: "var(--white-muted)", fontSize: 12 }}>{notice}</p>
-      )}
+      {notice && !editing && <p style={{ color: "var(--white-muted)", fontSize: 12 }}>{notice}</p>}
     </section>
   );
 }

@@ -71,9 +71,7 @@ async function hashCode(
   const salt = Uint8Array.from(saltHex.match(/.{2}/g) ?? [], (h) => parseInt(h, 16));
   try {
     const subtle = (globalThis.crypto ?? crypto).subtle;
-    const key = await subtle.importKey("raw", enc.encode(code), "PBKDF2", false, [
-      "deriveBits",
-    ]);
+    const key = await subtle.importKey("raw", enc.encode(code), "PBKDF2", false, ["deriveBits"]);
     const bits = await subtle.deriveBits(
       { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
       key,
@@ -85,7 +83,13 @@ async function hashCode(
     // for the legacy cost — Cloudflare's WebCrypto refuses iteration counts
     // above 100k outright, so the old 150k hash can only be recomputed here.
     const nodeCrypto = await import("node:crypto");
-    const derived = nodeCrypto.pbkdf2Sync(code, Buffer.from(saltHex, "hex"), iterations, 32, "sha256");
+    const derived = nodeCrypto.pbkdf2Sync(
+      code,
+      Buffer.from(saltHex, "hex"),
+      iterations,
+      32,
+      "sha256",
+    );
     return derived.toString("hex");
   }
 }
@@ -199,7 +203,10 @@ export const setQuickCode = createServerFn({ method: "POST" })
         last_failed_at: null,
       });
       if (error) {
-        return { ok: false as const, error: error.message || "Could not save your code. Try again." };
+        return {
+          ok: false as const,
+          error: error.message || "Could not save your code. Try again.",
+        };
       }
       return { ok: true as const };
     } catch (e) {
@@ -273,13 +280,12 @@ export const signInWithQuickCode = createServerFn({ method: "POST" })
     }
 
     // Atomically consume an attempt (bounded lockout — brute-force safe).
-    const { data: claimRows } = await (admin.rpc as CallableFunction)(
-      "claim_quick_login_attempt",
-      { p_user_id: userId },
-    );
-    const claim = (Array.isArray(claimRows) ? claimRows[0] : claimRows) as
-      | { allowed?: boolean }
-      | null;
+    const { data: claimRows } = await (admin.rpc as CallableFunction)("claim_quick_login_attempt", {
+      p_user_id: userId,
+    });
+    const claim = (Array.isArray(claimRows) ? claimRows[0] : claimRows) as {
+      allowed?: boolean;
+    } | null;
     if (!claim || !claim.allowed) {
       // Locked or no code — keep the response generic (no enumeration) and
       // equalize timing.

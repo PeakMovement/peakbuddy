@@ -2,10 +2,21 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { DEFAULT_THRESHOLDS, resolveThresholds, type Thresholds, type PartialThresholds } from "@/lib/load-metrics";
+import {
+  DEFAULT_THRESHOLDS,
+  resolveThresholds,
+  type Thresholds,
+  type PartialThresholds,
+} from "@/lib/load-metrics";
 import { computeCalibration, type CalibrationReport } from "@/lib/calibration";
 
-const URGENCY_RANK: Record<string, number> = { routine: 0, monitor: 1, soon: 2, urgent: 3, emergency: 4 };
+const URGENCY_RANK: Record<string, number> = {
+  routine: 0,
+  monitor: 1,
+  soon: 2,
+  urgent: 3,
+  emergency: 4,
+};
 
 async function assertSuperAdmin(supabase: SupabaseClient<Database>, userId: string) {
   const { data } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
@@ -17,7 +28,11 @@ async function settingsRow(db: SupabaseClient): Promise<Record<string, unknown> 
 }
 async function writeSettings(db: SupabaseClient, patch: Record<string, unknown>) {
   const row = await settingsRow(db);
-  if (row?.id) await db.from("platform_settings").update(patch).eq("id", row.id as string);
+  if (row?.id)
+    await db
+      .from("platform_settings")
+      .update(patch)
+      .eq("id", row.id as string);
   else await db.from("platform_settings").insert(patch);
 }
 
@@ -37,7 +52,9 @@ export const getDetectionSettings = createServerFn({ method: "GET" })
     const db = supabaseAdmin as unknown as SupabaseClient;
     const row = await settingsRow(db);
     return {
-      thresholds: resolveThresholds((row?.detection_thresholds as PartialThresholds | null) ?? null),
+      thresholds: resolveThresholds(
+        (row?.detection_thresholds as PartialThresholds | null) ?? null,
+      ),
       autoCalibrate: (row?.auto_calibrate_enabled as boolean | undefined) ?? false,
       escalation: {
         enabled: (row?.escalation_enabled as boolean | undefined) ?? false,
@@ -63,7 +80,15 @@ export const updateDetectionThresholds = createServerFn({ method: "POST" })
 
 export const updateAlertingSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => i as { autoCalibrate?: boolean; escalationEnabled?: boolean; escalationAfterMinutes?: number; escalationMinUrgency?: string })
+  .inputValidator(
+    (i: unknown) =>
+      i as {
+        autoCalibrate?: boolean;
+        escalationEnabled?: boolean;
+        escalationAfterMinutes?: number;
+        escalationMinUrgency?: string;
+      },
+  )
   .handler(async ({ context, data }) => {
     await assertSuperAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -71,8 +96,13 @@ export const updateAlertingSettings = createServerFn({ method: "POST" })
     const patch: Record<string, unknown> = {};
     if (data.autoCalibrate !== undefined) patch.auto_calibrate_enabled = data.autoCalibrate;
     if (data.escalationEnabled !== undefined) patch.escalation_enabled = data.escalationEnabled;
-    if (data.escalationAfterMinutes !== undefined) patch.escalation_after_minutes = Math.max(15, Math.min(1440, data.escalationAfterMinutes));
-    if (data.escalationMinUrgency !== undefined && URGENCY_RANK[data.escalationMinUrgency] !== undefined) patch.escalation_min_urgency = data.escalationMinUrgency;
+    if (data.escalationAfterMinutes !== undefined)
+      patch.escalation_after_minutes = Math.max(15, Math.min(1440, data.escalationAfterMinutes));
+    if (
+      data.escalationMinUrgency !== undefined &&
+      URGENCY_RANK[data.escalationMinUrgency] !== undefined
+    )
+      patch.escalation_min_urgency = data.escalationMinUrgency;
     if (Object.keys(patch).length) await writeSettings(db, patch);
     return { ok: true as const };
   });
@@ -87,9 +117,22 @@ export const runThresholdCalibration = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as SupabaseClient;
     const since = new Date(Date.now() - 90 * 86_400_000).toISOString();
-    const { data: rows } = await db.from("alerts").select("red_flag_category, outcome").not("outcome", "is", null).gte("created_at", since).limit(2000);
-    const report = computeCalibration(((rows ?? []) as { red_flag_category: string | null; outcome: string | null }[]).map((r) => ({ category: r.red_flag_category, outcome: r.outcome })));
-    await writeSettings(db, { threshold_suggestions: report, threshold_calibrated_at: report.generatedAt });
+    const { data: rows } = await db
+      .from("alerts")
+      .select("red_flag_category, outcome")
+      .not("outcome", "is", null)
+      .gte("created_at", since)
+      .limit(2000);
+    const report = computeCalibration(
+      ((rows ?? []) as { red_flag_category: string | null; outcome: string | null }[]).map((r) => ({
+        category: r.red_flag_category,
+        outcome: r.outcome,
+      })),
+    );
+    await writeSettings(db, {
+      threshold_suggestions: report,
+      threshold_calibrated_at: report.generatedAt,
+    });
     return report;
   });
 
@@ -103,14 +146,29 @@ export const runEscalationSweep = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as SupabaseClient;
     const row = await settingsRow(db);
-    if (!row || (row.escalation_enabled as boolean) !== true) return { ok: true, skipped: "disabled", escalated: 0 };
+    if (!row || (row.escalation_enabled as boolean) !== true)
+      return { ok: true, skipped: "disabled", escalated: 0 };
     const afterMinutes = (row.escalation_after_minutes as number | undefined) ?? 120;
-    const minRank = URGENCY_RANK[(row.escalation_min_urgency as string | undefined) ?? "urgent"] ?? 3;
+    const minRank =
+      URGENCY_RANK[(row.escalation_min_urgency as string | undefined) ?? "urgent"] ?? 3;
     const cutoff = new Date(Date.now() - afterMinutes * 60_000).toISOString();
-    const { data: alerts } = await db.from("alerts").select("id, practitioner_id, client_id, urgency, message")
-      .eq("escalation_fired", false).is("reviewed_at", null).is("outcome", null).lte("created_at", cutoff).limit(100);
-    const list = ((alerts ?? []) as { id: string; practitioner_id: string; client_id: string; urgency: string; message: string | null }[])
-      .filter((a) => (URGENCY_RANK[a.urgency] ?? 0) >= minRank);
+    const { data: alerts } = await db
+      .from("alerts")
+      .select("id, practitioner_id, client_id, urgency, message")
+      .eq("escalation_fired", false)
+      .is("reviewed_at", null)
+      .is("outcome", null)
+      .lte("created_at", cutoff)
+      .limit(100);
+    const list = (
+      (alerts ?? []) as {
+        id: string;
+        practitioner_id: string;
+        client_id: string;
+        urgency: string;
+        message: string | null;
+      }[]
+    ).filter((a) => (URGENCY_RANK[a.urgency] ?? 0) >= minRank);
     if (list.length === 0) return { ok: true, escalated: 0 };
     const { sendPushCore } = await import("@/lib/push.functions");
     let escalated = 0;
@@ -119,12 +177,16 @@ export const runEscalationSweep = createServerFn({ method: "POST" })
         await sendPushCore(supabaseAdmin, {
           userId: a.practitioner_id,
           title: "⏱ Unacknowledged alert",
-          body: a.message ? `Still open: ${a.message}` : "A client alert is still unacknowledged — please review.",
+          body: a.message
+            ? `Still open: ${a.message}`
+            : "A client alert is still unacknowledged — please review.",
           data: { type: "escalation", alertId: a.id, clientId: a.client_id },
         });
         await db.from("alerts").update({ escalation_fired: true }).eq("id", a.id);
         escalated++;
-      } catch { /* best-effort */ }
+      } catch {
+        /* best-effort */
+      }
     }
     return { ok: true, escalated };
   });

@@ -151,7 +151,9 @@ export const suggestProgram = createServerFn({ method: "POST" })
     // Only queue a new suggestion if the client doesn't already have one in flight.
     const { data: clientRow } = await supabaseAdmin
       .from("clients")
-      .select("auth_user_id, practitioner_id, program_status, suggested_program_id, yves_ai_consent")
+      .select(
+        "auth_user_id, practitioner_id, program_status, suggested_program_id, yves_ai_consent",
+      )
       .eq("id", data.clientId)
       .maybeSingle();
     const cur = clientRow as {

@@ -15,7 +15,13 @@ import {
   type ReportListItem,
 } from "@/lib/session-reports.functions";
 
-const FOCUSES = ["General overview", "Pain & symptoms", "Sleep & recovery", "Training load", "Risk factors"];
+const FOCUSES = [
+  "General overview",
+  "Pain & symptoms",
+  "Sleep & recovery",
+  "Training load",
+  "Risk factors",
+];
 
 /** Practitioner-facing "Generate Yves insight" panel (own clients, 3/day). */
 const ANALYSIS_DEPTH_KEY = "buddy.report_analysis_depth";
@@ -76,7 +82,9 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
   useEffect(() => {
     void refreshReports();
     fetchLatestAnalysis({ data: { clientId } })
-      .then((r) => { if (r.ok && r.text) setAnalysis(r.text); })
+      .then((r) => {
+        if (r.ok && r.text) setAnalysis(r.text);
+      })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
@@ -88,17 +96,37 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
     try {
       for (const f of Array.from(files)) {
         const up = await startUpload({
-          data: { clientId, fileName: f.name, mimeType: f.type || "application/octet-stream", sizeBytes: f.size },
+          data: {
+            clientId,
+            fileName: f.name,
+            mimeType: f.type || "application/octet-stream",
+            sizeBytes: f.size,
+          },
         });
-        if (!up.ok) { setReportErr(up.error); continue; }
+        if (!up.ok) {
+          setReportErr(up.error);
+          continue;
+        }
         const { error: upErr } = await supabase.storage
           .from(REPORTS_BUCKET)
           .uploadToSignedUrl(up.path, up.token, f);
-        if (upErr) { setReportErr("Upload failed. Please try again."); continue; }
+        if (upErr) {
+          setReportErr("Upload failed. Please try again.");
+          continue;
+        }
         const saved = await saveReport({
-          data: { clientId, storagePath: up.path, fileName: f.name, mimeType: f.type || "application/octet-stream", sizeBytes: f.size },
+          data: {
+            clientId,
+            storagePath: up.path,
+            fileName: f.name,
+            mimeType: f.type || "application/octet-stream",
+            sizeBytes: f.size,
+          },
         });
-        if (!saved.ok) { setReportErr(saved.error || "Couldn't save the report."); continue; }
+        if (!saved.ok) {
+          setReportErr(saved.error || "Couldn't save the report.");
+          continue;
+        }
       }
       await refreshReports();
     } catch {
@@ -141,13 +169,17 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
 
   const run = async () => {
     if (busy) return;
-    setBusy(true); setErr(null);
+    setBusy(true);
+    setErr(null);
     try {
       const r = await gen({ data: { clientId, focus } });
-      setText(r.text); setAt(r.generatedAt);
+      setText(r.text);
+      setAt(r.generatedAt);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not generate insight.");
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -157,19 +189,36 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
         <div style={title}>Yves insight</div>
       </div>
       <p style={sub}>An AI read of this client's recent data. Up to 3 per day.</p>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
-        <select value={focus} onChange={(e) => setFocus(e.target.value)} disabled={busy} style={sel}>
-          {FOCUSES.map((f) => <option key={f} value={f}>{f}</option>)}
+      <div
+        style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}
+      >
+        <select
+          value={focus}
+          onChange={(e) => setFocus(e.target.value)}
+          disabled={busy}
+          style={sel}
+        >
+          {FOCUSES.map((f) => (
+            <option key={f} value={f}>
+              {f}
+            </option>
+          ))}
         </select>
         <button type="button" onClick={run} disabled={busy} style={btn}>
           {busy ? "Generating…" : "Generate"}
         </button>
       </div>
-      {err && <div style={{ color: "var(--red, #f87171)", fontSize: 13, marginTop: 10 }}>{err}</div>}
+      {err && (
+        <div style={{ color: "var(--red, #f87171)", fontSize: 13, marginTop: 10 }}>{err}</div>
+      )}
       {text && (
         <div style={out}>
           {renderMarkdown(text)}
-          {at && <div style={{ color: "var(--white-muted)", fontSize: 11, marginTop: 10 }}>Generated {new Date(at).toLocaleString()}</div>}
+          {at && (
+            <div style={{ color: "var(--white-muted)", fontSize: 11, marginTop: 10 }}>
+              Generated {new Date(at).toLocaleString()}
+            </div>
+          )}
         </div>
       )}
 
@@ -189,33 +238,60 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
           accept=".pdf,image/*"
           multiple
           style={{ display: "none" }}
-          onChange={(e) => { addReports(e.target.files); e.target.value = ""; }}
+          onChange={(e) => {
+            addReports(e.target.files);
+            e.target.value = "";
+          }}
         />
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
-          <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} style={ghostBtn}>
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            style={ghostBtn}
+          >
             <Upload size={14} style={{ marginRight: 6, verticalAlign: -2 }} />
             {uploading ? "Uploading…" : "Upload report"}
           </button>
-          <span style={{ color: "var(--white-muted)", fontSize: 11 }}>PDF or images, up to 20 MB each.</span>
+          <span style={{ color: "var(--white-muted)", fontSize: 11 }}>
+            PDF or images, up to 20 MB each.
+          </span>
         </div>
         {reportErr && (
-          <div style={{ color: "var(--red, #f87171)", fontSize: 12, marginTop: 8 }}>{reportErr}</div>
+          <div style={{ color: "var(--red, #f87171)", fontSize: 12, marginTop: 8 }}>
+            {reportErr}
+          </div>
         )}
         {reports.length > 0 && (
           <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
             {reports.map((r) => (
               <div key={r.id} style={reportRow}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ color: "var(--white)", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div
+                    style={{
+                      color: "var(--white)",
+                      fontSize: 13,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     {r.fileName}
                   </div>
                   <div style={{ color: "var(--white-muted)", fontSize: 11 }}>
-                    {(r.sizeBytes / 1024).toFixed(0)} KB · added {new Date(r.createdAt).toLocaleString()}
+                    {(r.sizeBytes / 1024).toFixed(0)} KB · added{" "}
+                    {new Date(r.createdAt).toLocaleString()}
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   {r.downloadUrl && (
-                    <a href={r.downloadUrl} target="_blank" rel="noopener noreferrer" style={downloadLink} title="Download">
+                    <a
+                      href={r.downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={downloadLink}
+                      title="Download"
+                    >
                       <Download size={15} />
                     </a>
                   )}
@@ -250,10 +326,10 @@ export function YvesInsightCard({ clientId }: { clientId: string }) {
           aria-label="Analysis depth"
           style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}
         >
-          {([
+          {[
             { key: "brief" as const, label: "Brief", hint: "Short read, flags first" },
             { key: "full" as const, label: "Full detail", hint: "The complete analysis" },
-          ]).map((opt) => {
+          ].map((opt) => {
             const on = depth === opt.key;
             return (
               <button
@@ -327,26 +403,125 @@ function renderMarkdown(md: string) {
   lines.forEach((raw, i) => {
     const line = raw.replace(/\*\*(.+?)\*\*/g, "$1"); // strip bold markers
     if (/^#{1,6}\s/.test(line)) {
-      out.push(<div key={i} style={{ fontWeight: 700, color: "var(--white)", fontSize: 14, marginTop: 12, marginBottom: 4 }}>{line.replace(/^#{1,6}\s/, "")}</div>);
+      out.push(
+        <div
+          key={i}
+          style={{
+            fontWeight: 700,
+            color: "var(--white)",
+            fontSize: 14,
+            marginTop: 12,
+            marginBottom: 4,
+          }}
+        >
+          {line.replace(/^#{1,6}\s/, "")}
+        </div>,
+      );
     } else if (/^\s*[-*]\s/.test(line)) {
-      out.push(<div key={i} style={{ color: "var(--white)", fontSize: 13, margin: "2px 0 2px 12px" }}>• {line.replace(/^\s*[-*]\s/, "")}</div>);
+      out.push(
+        <div key={i} style={{ color: "var(--white)", fontSize: 13, margin: "2px 0 2px 12px" }}>
+          • {line.replace(/^\s*[-*]\s/, "")}
+        </div>,
+      );
     } else if (line.trim() === "") {
       out.push(<div key={i} style={{ height: 6 }} />);
     } else {
-      out.push(<div key={i} style={{ color: "var(--white)", fontSize: 13, lineHeight: 1.5 }}>{line}</div>);
+      out.push(
+        <div key={i} style={{ color: "var(--white)", fontSize: 13, lineHeight: 1.5 }}>
+          {line}
+        </div>,
+      );
     }
   });
   return out;
 }
 
-const card: CSSProperties = { marginTop: 20, background: "var(--navy-card)", border: "1px solid var(--navy-border)", borderRadius: 12, padding: 16 };
-const title: CSSProperties = { fontFamily: "var(--font-ui)", fontWeight: 700, color: "var(--white)", fontSize: 14, textTransform: "uppercase", letterSpacing: "0.08em" };
+const card: CSSProperties = {
+  marginTop: 20,
+  background: "var(--navy-card)",
+  border: "1px solid var(--navy-border)",
+  borderRadius: 12,
+  padding: 16,
+};
+const title: CSSProperties = {
+  fontFamily: "var(--font-ui)",
+  fontWeight: 700,
+  color: "var(--white)",
+  fontSize: 14,
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+};
 const sub: CSSProperties = { color: "var(--white-muted)", fontSize: 12, margin: "2px 0 0" };
-const sel: CSSProperties = { background: "var(--navy)", border: "1px solid var(--navy-border)", borderRadius: 8, padding: "9px 11px", color: "var(--white)", fontSize: 14 };
-const btn: CSSProperties = { background: "var(--blue-accent, #4a8df0)", color: "#04111f", border: "none", borderRadius: 8, padding: "9px 16px", fontWeight: 700, fontSize: 14, cursor: "pointer" };
-const out: CSSProperties = { marginTop: 12, background: "var(--navy)", border: "1px solid var(--navy-border)", borderRadius: 10, padding: 14 };
-const subCard: CSSProperties = { marginTop: 14, background: "var(--navy)", border: "1px solid var(--navy-border)", borderRadius: 10, padding: 12 };
-const subTitle: CSSProperties = { fontFamily: "var(--font-ui)", fontWeight: 700, color: "var(--white)", fontSize: 13, textTransform: "uppercase", letterSpacing: "0.06em" };
-const ghostBtn: CSSProperties = { display: "inline-flex", alignItems: "center", background: "transparent", color: "var(--white)", border: "1px solid var(--navy-border)", borderRadius: 8, padding: "8px 14px", fontWeight: 600, fontSize: 13, cursor: "pointer" };
-const reportRow: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, background: "var(--navy-card)", border: "1px solid var(--navy-border)", borderRadius: 8, padding: "8px 10px" };
-const downloadLink: CSSProperties = { color: "var(--blue-accent, #4a8df0)", display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 32, minHeight: 32, borderRadius: 8, border: "1px solid var(--navy-border)", flexShrink: 0 };
+const sel: CSSProperties = {
+  background: "var(--navy)",
+  border: "1px solid var(--navy-border)",
+  borderRadius: 8,
+  padding: "9px 11px",
+  color: "var(--white)",
+  fontSize: 14,
+};
+const btn: CSSProperties = {
+  background: "var(--blue-accent, #4a8df0)",
+  color: "#04111f",
+  border: "none",
+  borderRadius: 8,
+  padding: "9px 16px",
+  fontWeight: 700,
+  fontSize: 14,
+  cursor: "pointer",
+};
+const out: CSSProperties = {
+  marginTop: 12,
+  background: "var(--navy)",
+  border: "1px solid var(--navy-border)",
+  borderRadius: 10,
+  padding: 14,
+};
+const subCard: CSSProperties = {
+  marginTop: 14,
+  background: "var(--navy)",
+  border: "1px solid var(--navy-border)",
+  borderRadius: 10,
+  padding: 12,
+};
+const subTitle: CSSProperties = {
+  fontFamily: "var(--font-ui)",
+  fontWeight: 700,
+  color: "var(--white)",
+  fontSize: 13,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+};
+const ghostBtn: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  background: "transparent",
+  color: "var(--white)",
+  border: "1px solid var(--navy-border)",
+  borderRadius: 8,
+  padding: "8px 14px",
+  fontWeight: 600,
+  fontSize: 13,
+  cursor: "pointer",
+};
+const reportRow: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+  background: "var(--navy-card)",
+  border: "1px solid var(--navy-border)",
+  borderRadius: 8,
+  padding: "8px 10px",
+};
+const downloadLink: CSSProperties = {
+  color: "var(--blue-accent, #4a8df0)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minWidth: 32,
+  minHeight: 32,
+  borderRadius: 8,
+  border: "1px solid var(--navy-border)",
+  flexShrink: 0,
+};

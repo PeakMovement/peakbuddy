@@ -38,7 +38,9 @@ function AdminSettings() {
         setEnabled(s.new_practitioner_webhook_enabled ?? false);
         setProgramsEnabled(s.programs_feature_enabled ?? true);
         setCentralUrl((s as { central_webhook_url?: string }).central_webhook_url ?? "");
-        setCentralEnabled((s as { central_webhook_enabled?: boolean }).central_webhook_enabled ?? false);
+        setCentralEnabled(
+          (s as { central_webhook_enabled?: boolean }).central_webhook_enabled ?? false,
+        );
       }
 
       setLoading(false);
@@ -144,11 +146,14 @@ function AdminSettings() {
           />
         </label>
 
-        <div style={{ ...sectionTitle, marginTop: 24 }}>Central alert channel (WhatsApp / email)</div>
+        <div style={{ ...sectionTitle, marginTop: 24 }}>
+          Central alert channel (WhatsApp / email)
+        </div>
         <p style={{ color: "var(--white-muted)", fontSize: 12, marginTop: -8 }}>
-          One Buddy-owned automation endpoint for ALL practitioners. Every client alert &amp; contact
-          request POSTs here with the target practitioner&apos;s name, email and WhatsApp number, so a
-          single Make/Zapier/Twilio flow routes it. Practitioners never set up their own webhook.
+          One Buddy-owned automation endpoint for ALL practitioners. Every client alert &amp;
+          contact request POSTs here with the target practitioner&apos;s name, email and WhatsApp
+          number, so a single Make/Zapier/Twilio flow routes it. Practitioners never set up their
+          own webhook.
         </p>
         <div>
           <label style={labelStyle}>Central webhook URL</label>
@@ -248,9 +253,6 @@ function AdminSettings() {
         <QuickCodeManager />
         <ChangePasswordCard />
       </div>
-
-
-
 
       <button
         type="button"

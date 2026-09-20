@@ -1,12 +1,7 @@
 // Frequency-aware check-in streak logic for client gamification.
 // Pure + dependency-free so it is unit-testable.
 
-export type CheckInFrequency =
-  | "daily"
-  | "every_2_days"
-  | "every_3_days"
-  | "weekly"
-  | "as_needed";
+export type CheckInFrequency = "daily" | "every_2_days" | "every_3_days" | "weekly" | "as_needed";
 
 const INTERVAL_DAYS: Record<Exclude<CheckInFrequency, "as_needed">, number> = {
   daily: 1,

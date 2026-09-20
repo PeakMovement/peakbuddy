@@ -98,7 +98,6 @@ describe("analyzeRealTime", () => {
   });
 });
 
-
 describe("numeric pain parser", () => {
   it("parses 'out of 10' phrasing the old literal terms missed", () => {
     const r = applyKeywordFloor("my pain is 7 out of 10 today", "routine", 0);

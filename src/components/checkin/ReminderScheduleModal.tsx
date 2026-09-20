@@ -30,7 +30,9 @@ const DAYS = [
 function localTz(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  } catch { return "UTC"; }
+  } catch {
+    return "UTC";
+  }
 }
 
 export function ReminderScheduleModal({
@@ -58,7 +60,9 @@ export function ReminderScheduleModal({
           setTime(String(r.reminder.time_of_day).slice(0, 5));
           setDays(r.reminder.days_of_week ?? [0, 1, 2, 3, 4, 5, 6]);
         }
-      } catch (e) { log.warn("load reminder", e); }
+      } catch (e) {
+        log.warn("load reminder", e);
+      }
     })();
   }, [open]);
 
@@ -68,7 +72,7 @@ export function ReminderScheduleModal({
     setFrequency(f);
     if (f === "morning") setTime("08:00");
     if (f === "evening") setTime("19:00");
-    if (f === "daily" && (time === "" )) setTime("08:00");
+    if (f === "daily" && time === "") setTime("08:00");
   };
 
   const toggleDay = (i: number) => {
@@ -84,10 +88,18 @@ export function ReminderScheduleModal({
     setPermMessage(null);
     try {
       // Native (Despia) push permission + token.
-      try { await registerPushToken(); } catch (e) { log.warn("push perm", e); }
+      try {
+        await registerPushToken();
+      } catch (e) {
+        log.warn("push perm", e);
+      }
       // Web / installed-PWA push — otherwise browser users set a reminder but
       // never get a notification. Safe here: this runs from the Save gesture.
-      try { await registerWebPushToken(); } catch (e) { log.warn("web push perm", e); }
+      try {
+        await registerWebPushToken();
+      } catch (e) {
+        log.warn("web push perm", e);
+      }
 
       const daysFinal = frequency === "custom" ? days : [0, 1, 2, 3, 4, 5, 6];
       const payload: Reminder = {
@@ -114,7 +126,9 @@ export function ReminderScheduleModal({
       await disableMyReminder();
       onSaved(null);
       onClose();
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -122,19 +136,27 @@ export function ReminderScheduleModal({
       role="dialog"
       aria-modal="true"
       style={{
-        position: "fixed", inset: 0, background: "rgba(6,10,24,0.72)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        zIndex: 200, padding: 16,
+        position: "fixed",
+        inset: 0,
+        background: "rgba(6,10,24,0.72)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 200,
+        padding: 16,
       }}
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: "100%", maxWidth: 440,
+          width: "100%",
+          maxWidth: 440,
           background: "var(--void-navy, #0d1530)",
           border: "1px solid rgba(122,168,255,0.18)",
-          borderRadius: 16, padding: 20, color: "var(--white)",
+          borderRadius: 16,
+          padding: 20,
+          color: "var(--white)",
           fontFamily: "var(--font-data)",
         }}
       >
@@ -156,7 +178,9 @@ export function ReminderScheduleModal({
 
         <div style={{ marginTop: 16 }}>
           <label style={label}>Frequency</label>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6, marginTop: 8 }}>
+          <div
+            style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6, marginTop: 8 }}
+          >
             {(["daily", "morning", "evening", "custom"] as Frequency[]).map((f) => (
               <button key={f} onClick={() => handleFrequency(f)} style={chip(frequency === f)}>
                 {f[0].toUpperCase() + f.slice(1)}
@@ -172,11 +196,15 @@ export function ReminderScheduleModal({
             value={time}
             onChange={(e) => setTime(e.target.value)}
             style={{
-              marginTop: 8, width: "100%", padding: "10px 12px",
+              marginTop: 8,
+              width: "100%",
+              padding: "10px 12px",
               background: "rgba(122,168,255,0.08)",
               border: "1px solid rgba(122,168,255,0.24)",
-              borderRadius: 10, color: "var(--white)",
-              fontFamily: "var(--font-data)", fontSize: 15,
+              borderRadius: 10,
+              color: "var(--white)",
+              fontFamily: "var(--font-data)",
+              fontSize: 15,
             }}
           />
         </div>
@@ -214,27 +242,43 @@ export function ReminderScheduleModal({
 }
 
 const label: React.CSSProperties = {
-  fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
+  fontSize: 11,
+  letterSpacing: 1,
+  textTransform: "uppercase",
   color: "var(--white-muted)",
 };
 const btnIcon: React.CSSProperties = {
-  background: "transparent", border: "none", color: "var(--white-muted)", cursor: "pointer",
+  background: "transparent",
+  border: "none",
+  color: "var(--white-muted)",
+  cursor: "pointer",
 };
 const chip = (active: boolean): React.CSSProperties => ({
   padding: "8px 10px",
   background: active ? "var(--cold-blue, #7aa8ff)" : "rgba(122,168,255,0.08)",
   color: active ? "#001033" : "var(--white)",
   border: `1px solid ${active ? "var(--cold-blue, #7aa8ff)" : "rgba(122,168,255,0.24)"}`,
-  borderRadius: 8, fontSize: 12, cursor: "pointer",
+  borderRadius: 8,
+  fontSize: 12,
+  cursor: "pointer",
   fontFamily: "var(--font-data)",
 });
 const btnGhost: React.CSSProperties = {
-  padding: "10px 14px", background: "transparent",
-  border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10,
-  color: "var(--white-muted)", cursor: "pointer", fontFamily: "var(--font-data)",
+  padding: "10px 14px",
+  background: "transparent",
+  border: "1px solid rgba(255,255,255,0.15)",
+  borderRadius: 10,
+  color: "var(--white-muted)",
+  cursor: "pointer",
+  fontFamily: "var(--font-data)",
 };
 const btnPrimary: React.CSSProperties = {
-  padding: "10px 18px", background: "var(--cold-blue, #7aa8ff)",
-  border: "none", borderRadius: 10, color: "#001033",
-  cursor: "pointer", fontWeight: 600, fontFamily: "var(--font-data)",
+  padding: "10px 18px",
+  background: "var(--cold-blue, #7aa8ff)",
+  border: "none",
+  borderRadius: 10,
+  color: "#001033",
+  cursor: "pointer",
+  fontWeight: 600,
+  fontFamily: "var(--font-data)",
 };
