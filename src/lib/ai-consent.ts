@@ -1,12 +1,11 @@
 /**
- * Pre-rollout AI consent switch.
+ * AI / POPIA consent gate for Yves and other model-backed features.
  *
- * While `AI_CONSENT_REQUIRED` is false, Yves features are available to every
- * client regardless of their stored `yves_ai_consent` value. All existing
- * consent records, the client profile toggle and the admin display are
- * untouched — flipping this to `true` re-enforces every gate immediately.
+ * When `AI_CONSENT_REQUIRED` is true, Yves, Body Forecast, program suggestions,
+ * nightly risk analysis, and session-report analysis only run for clients whose
+ * stored `yves_ai_consent` is exactly true.
  */
-export const AI_CONSENT_REQUIRED = false;
+export const AI_CONSENT_REQUIRED = true;
 
 export function hasAiConsent(
   client: { yves_ai_consent?: boolean | null } | null | undefined,
