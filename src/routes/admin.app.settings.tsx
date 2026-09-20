@@ -4,6 +4,7 @@ import { LogOut } from "lucide-react";
 import { QuickCodeManager } from "@/components/QuickCodeManager";
 import { ChangePasswordCard } from "@/components/ChangePasswordCard";
 
+import { RestaurantPartnersManager } from "@/components/RestaurantPartnersManager";
 import { RewardsManager } from "@/components/RewardsManager";
 import { PushTestPanel } from "@/components/PushTestPanel";
 import { DetectionSettingsPanel } from "@/components/DetectionSettingsPanel";
@@ -23,6 +24,7 @@ function AdminSettings() {
   const [url, setUrl] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [programsEnabled, setProgramsEnabled] = useState(true);
+  const [trainingScheduleEnabled, setTrainingScheduleEnabled] = useState(true);
   const [centralUrl, setCentralUrl] = useState("");
   const [centralEnabled, setCentralEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +39,9 @@ function AdminSettings() {
         setUrl(s.new_practitioner_webhook_url ?? "");
         setEnabled(s.new_practitioner_webhook_enabled ?? false);
         setProgramsEnabled(s.programs_feature_enabled ?? true);
+        setTrainingScheduleEnabled(
+          (s as { training_schedule_enabled?: boolean }).training_schedule_enabled !== false,
+        );
         setCentralUrl((s as { central_webhook_url?: string }).central_webhook_url ?? "");
         setCentralEnabled(
           (s as { central_webhook_enabled?: boolean }).central_webhook_enabled ?? false,
@@ -58,6 +63,7 @@ function AdminSettings() {
       central_webhook_url: centralUrl.trim(),
       central_webhook_enabled: centralEnabled,
       programs_feature_enabled: programsEnabled,
+      training_schedule_enabled: trainingScheduleEnabled,
     };
 
     let err: { message: string } | null = null;
@@ -218,6 +224,35 @@ function AdminSettings() {
           />
         </label>
 
+        <div style={{ ...sectionTitle, marginTop: 24 }}>Training schedule × symptoms</div>
+        <p style={{ color: "var(--white-muted)", fontSize: 12, marginTop: -8 }}>
+          When off, the practitioner overlay (and client read-only view) of check-in scores vs
+          logged training sessions is hidden. Session rows are kept.
+        </p>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "var(--navy-card)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 8,
+            padding: "12px 14px",
+            minHeight: 48,
+            cursor: "pointer",
+          }}
+        >
+          <span style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
+            Show symptom × training schedule overlay
+          </span>
+          <input
+            type="checkbox"
+            checked={trainingScheduleEnabled}
+            onChange={(e) => setTrainingScheduleEnabled(e.target.checked)}
+            style={{ width: 22, height: 22, accentColor: "var(--blue-accent)" }}
+          />
+        </label>
+
         {error && <div style={{ color: "var(--red)", fontSize: 13 }}>{error}</div>}
         {success && <div style={{ color: "var(--green)", fontSize: 13 }}>{success}</div>}
 
@@ -242,6 +277,8 @@ function AdminSettings() {
           {saving ? "Saving…" : "Save"}
         </button>
       </form>
+
+      <RestaurantPartnersManager scope="admin" />
 
       <RewardsManager />
 

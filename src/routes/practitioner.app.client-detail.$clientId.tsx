@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ClientSchedulePanel } from "@/components/ClientSchedulePanel";
 import { ClientRewardsSection } from "@/components/ClientRewardsSection";
 import { RequestCheckInButton } from "@/components/RequestCheckInButton";
 import { ClientWearablesCard } from "@/components/ClientWearablesCard";
@@ -245,6 +246,7 @@ function ClientDetail() {
         checkins={items as never}
       />
       <ClientPatternsCard clientId={client.id} patterns={patternRows as never} />
+      <ClientSchedulePanel clientId={client.id} mode="practitioner" />
       <YvesInsightCard clientId={client.id} />
       <RequestCheckInButton clientId={client.id} />
       <ClientRewardsSection clientId={client.id} />

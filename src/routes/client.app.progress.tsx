@@ -14,6 +14,7 @@ import { supabase } from "@/lib/supabase";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyWearableSnapshot, type WearableSnapshot } from "@/lib/wearables/snapshot.functions";
 import { WearableTiles } from "@/components/wearables/WearableTiles";
+import { ClientSchedulePanel } from "@/components/ClientSchedulePanel";
 import { getClientId } from "@/lib/client-session";
 import type { CheckIn, Client } from "@/lib/types";
 
@@ -201,6 +202,8 @@ function ProgressScreen() {
       >
         Your Progress
       </h1>
+
+      <ClientSchedulePanel mode="client" />
 
       {items.length < 3 ? (
         <p style={{ marginTop: 24, color: "var(--white-muted)" }}>

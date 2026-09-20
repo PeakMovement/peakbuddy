@@ -169,9 +169,9 @@ export function RewardsManager() {
     <section style={{ marginTop: 32 }}>
       <div style={titleStyle}>Rewards</div>
       <p style={{ color: "var(--white-muted)", fontSize: 12, marginTop: 4 }}>
-        Discount vouchers clients can earn. When a practitioner approves a reward, a random active
-        reward is given. Rewards are hidden from practitioners and clients until you activate them
-        below.
+        Discount vouchers clients can earn. Activate below to show rewards to practitioners and
+        clients. Restaurant partners (Justin&apos;s list) are managed in the section above — generic
+        vouchers stay here.
       </p>
 
       <div style={{ ...cardStyle, marginTop: 12 }}>

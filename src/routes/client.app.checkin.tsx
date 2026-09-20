@@ -14,7 +14,7 @@ import {
 import type { CheckIn, Client } from "@/lib/types";
 import { log } from "@/lib/log";
 import { suggestProgram } from "@/lib/programs.functions";
-import { autoIssueMilestoneReward } from "@/lib/rewards.functions";
+import { autoIssueMilestoneReward, type IssuedReward } from "@/lib/rewards.functions";
 import { computeStreak, type CheckInFrequency } from "@/lib/streak";
 import { StreakCard } from "@/components/StreakCard";
 import { WearablePromptCard } from "@/components/wearables/WearablePromptCard";
@@ -54,6 +54,7 @@ function CheckInScreen() {
   const [savedOffline, setSavedOffline] = useState(false);
   const [historyStamps, setHistoryStamps] = useState<string[]>([]);
   const [gamificationOn, setGamificationOn] = useState(true);
+  const [earnedReward, setEarnedReward] = useState<IssuedReward | null>(null);
 
   // Repeat same-day check-in flow
   const [showRepeatModal, setShowRepeatModal] = useState(false);
@@ -355,9 +356,13 @@ function CheckInScreen() {
         clientId: client.id,
       },
     }).catch((e) => log.error("[Check-in] suggestProgram failed:", e));
-    // #4 Auto-issue a reward if this check-in crossed a streak milestone.
+    // Auto-issue a streak / check-in-count restaurant voucher if gates pass.
     // Best-effort + fully server-gated; never blocks the check-in.
-    autoIssueMilestoneReward().catch((e) => log.error("[Check-in] autoReward failed:", e));
+    autoIssueMilestoneReward()
+      .then((r) => {
+        if (r && "issued" in r && r.issued && r.reward) setEarnedReward(r.reward);
+      })
+      .catch((e) => log.error("[Check-in] autoReward failed:", e));
   };
 
   if (loading) {
@@ -414,6 +419,61 @@ function CheckInScreen() {
             }}
           >
             <StreakCard streak={streak} />
+          </div>
+        )}
+        {earnedReward?.reward && (
+          <div
+            style={{
+              marginTop: 20,
+              width: "100%",
+              maxWidth: 360,
+              background: "rgba(74,141,240,0.12)",
+              border: "1px solid rgba(74,141,240,0.35)",
+              borderRadius: 14,
+              padding: 16,
+              textAlign: "left",
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "var(--font-ui)",
+                fontSize: 11,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "var(--blue-accent)",
+                marginBottom: 6,
+              }}
+            >
+              Reward unlocked
+            </div>
+            <div style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontWeight: 600 }}>
+              {earnedReward.reward.name}
+            </div>
+            {(earnedReward.reward.partner_name || earnedReward.reward.discount_percent) && (
+              <div style={{ color: "var(--white-muted)", fontSize: 13, marginTop: 4 }}>
+                {earnedReward.reward.discount_percent
+                  ? `${earnedReward.reward.discount_percent}% off`
+                  : "Discount"}
+                {earnedReward.reward.partner_name ? ` at ${earnedReward.reward.partner_name}` : ""}
+              </div>
+            )}
+            <div
+              style={{
+                marginTop: 10,
+                fontFamily: "var(--font-data)",
+                fontSize: 18,
+                fontWeight: 700,
+                letterSpacing: "0.12em",
+                color: "var(--blue-accent)",
+                textAlign: "center",
+              }}
+            >
+              {earnedReward.reward.voucher_code}
+            </div>
+            <p style={{ color: "var(--white-muted)", fontSize: 12, marginTop: 8 }}>
+              Show this at the till, then mark it used in your profile. Buddy never shares your
+              health details with the restaurant.
+            </p>
           </div>
         )}
         {savedOffline && (

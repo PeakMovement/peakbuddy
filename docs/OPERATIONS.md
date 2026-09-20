@@ -55,6 +55,12 @@ Same auth. Wire these in Cloudflare/Lovable cron or extra Actions jobs if needed
 | `/api/public/hooks/onboarding-library-nudge`   | daily               |
 | `/api/public/hooks/wearables-sync`             | daily               |
 
+## Apply training schedule + restaurant partners
+
+File: `supabase/migrations/20260920150000_training_schedule_and_restaurant_partners.sql`
+
+Same Lovable Cloud → Supabase pending migrations (or `supabase db push`). Enables `training_sessions`, `restaurant_partners`, and extra columns on `rewards`. How to load Justin’s restaurant list: `docs/CHECKIN_REWARDS_AND_TRAINING_SCHEDULE.md`.
+
 ## Apply the group-practice RLS migration
 
 File: `supabase/migrations/20260920120000_practice_owner_rls.sql`
