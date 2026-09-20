@@ -1,12 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { log } from "@/lib/log";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { appBaseUrl } from "@/lib/app-url";
 
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-
-const APP_BASE_URL = process.env.BUDDY_APP_BASE_URL || "https://peakbuddy.lovable.app";
+const APP_BASE_URL = appBaseUrl();
 
 const inputSchema = z.object({
   clientId: z.string().uuid(),
@@ -19,12 +17,7 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const serviceKey = process.env.SEED_SERVICE_ROLE_KEY;
-    if (!serviceKey) return { ok: false as const, error: "Server missing SEED_SERVICE_ROLE_KEY" };
-
-    const admin = createClient(SUPABASE_URL, serviceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
 
     // Load client
     const { data: client, error: clErr } = await admin
@@ -38,10 +31,7 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
     }
 
     // Authz: only the client themselves, their practitioner, or a super admin.
-    if (
-      client.auth_user_id !== context.userId &&
-      client.practitioner_id !== context.userId
-    ) {
+    if (client.auth_user_id !== context.userId && client.practitioner_id !== context.userId) {
       const { data: prof } = await admin
         .from("profiles")
         .select("role")
@@ -72,7 +62,9 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
         .eq("id", client.id)
         .maybeSingle();
       _pid = (_cp as { practice_id?: string | null } | null)?.practice_id ?? null;
-    } catch { _pid = null; }
+    } catch {
+      _pid = null;
+    }
     if (_pid) {
       const { data: _prac } = await admin
         .from("practices")
@@ -123,8 +115,7 @@ export const notifyAssignedPractitioner = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-type EmailAdminClient =
-  (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
+type EmailAdminClient = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 
 /**
  * Service-role core for the practitioner-alert email. Loads the alert, gates on
@@ -138,7 +129,10 @@ export async function sendAlertEmailCore(
   alertId: string,
 ): Promise<
   | { ok: true; skipped?: "already_sent" }
-  | { ok: false; reason: "not_found" | "client_not_found" | "no_practitioner_email" | "send_failed" }
+  | {
+      ok: false;
+      reason: "not_found" | "client_not_found" | "no_practitioner_email" | "send_failed";
+    }
 > {
   const { mintAlertActionToken } = await import("@/lib/alert-actions.server");
 
@@ -170,7 +164,11 @@ export async function sendAlertEmailCore(
   if (!client) return { ok: false as const, reason: "client_not_found" as const };
 
   const [{ data: prof }, { data: userRes }] = await Promise.all([
-    supabaseAdmin.from("profiles").select("full_name").eq("id", alert.practitioner_id).maybeSingle(),
+    supabaseAdmin
+      .from("profiles")
+      .select("full_name")
+      .eq("id", alert.practitioner_id)
+      .maybeSingle(),
     supabaseAdmin.auth.admin.getUserById(alert.practitioner_id),
   ]);
 
@@ -186,14 +184,17 @@ export async function sendAlertEmailCore(
       .eq("id", client.id)
       .maybeSingle();
     practiceId = (_cp as { practice_id?: string | null } | null)?.practice_id ?? null;
-  } catch { practiceId = null; }
+  } catch {
+    practiceId = null;
+  }
   if (practiceId) {
     const { data: prac } = await supabaseAdmin
       .from("practices")
       .select("contact_email")
       .eq("id", practiceId)
       .maybeSingle();
-    practiceContactEmail = (prac as { contact_email?: string | null } | null)?.contact_email ?? null;
+    practiceContactEmail =
+      (prac as { contact_email?: string | null } | null)?.contact_email ?? null;
   }
   const recipientEmail = practiceContactEmail || userRes?.user?.email;
   if (!recipientEmail) {
@@ -202,8 +203,16 @@ export async function sendAlertEmailCore(
   const practitionerName = (prof as { full_name?: string } | null)?.full_name || "Practitioner";
 
   const [checkinToken, reviewedToken] = await Promise.all([
-    mintAlertActionToken({ alertId: alert.id, practitionerId: alert.practitioner_id, action: "checkin" }),
-    mintAlertActionToken({ alertId: alert.id, practitionerId: alert.practitioner_id, action: "reviewed" }),
+    mintAlertActionToken({
+      alertId: alert.id,
+      practitionerId: alert.practitioner_id,
+      action: "checkin",
+    }),
+    mintAlertActionToken({
+      alertId: alert.id,
+      practitionerId: alert.practitioner_id,
+      action: "reviewed",
+    }),
   ]);
 
   const firstName = (client.full_name || "Your client").trim().split(/\s+/)[0];
@@ -262,9 +271,7 @@ export async function sendAlertEmailCore(
  */
 export const notifyAlertEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ alertId: z.string().uuid() }).parse(input),
-  )
+  .inputValidator((input: unknown) => z.object({ alertId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -294,4 +301,3 @@ export const notifyAlertEmail = createServerFn({ method: "POST" })
 
     return sendAlertEmailCore(supabaseAdmin, data.alertId);
   });
-
