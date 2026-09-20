@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { authorizeCronRequest } from "@/lib/cron-auth";
 
 /**
  * Cron endpoint — run once daily.
@@ -11,15 +12,8 @@ export const Route = createFileRoute("/api/public/hooks/onboarding-library-nudge
   server: {
     handlers: {
       POST: async ({ request }) => {
-        // Auth: require CRON_SECRET; fail closed if unset (never accept the
-        // public anon key, which ships in the client bundle).
-        const cronSecret = process.env.CRON_SECRET;
-        if (!cronSecret) return new Response("Unauthorized", { status: 401 });
-        const provided =
-          request.headers.get("x-cron-secret") ??
-          request.headers.get("X-Cron-Secret") ??
-          (request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null);
-        if (provided !== cronSecret) return new Response("Unauthorized", { status: 401 });
+        const denied = authorizeCronRequest(request);
+        if (denied) return denied;
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { sendPushCore } = await import("@/lib/push.functions");
