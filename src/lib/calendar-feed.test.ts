@@ -2,13 +2,19 @@ import { describe, it, expect } from "vitest";
 import { buildRehabIcs } from "./calendar-feed";
 
 describe("buildRehabIcs", () => {
-  const base = "https://buddytracker.netlify.app";
+  const base = "https://buddy.peakmovement.co.za";
 
   it("emits a valid recurring event with alarm from a weekly schedule", () => {
     const ics = buildRehabIcs({
       clientId: "c1",
       appBase: base,
-      reminder: { enabled: true, frequency: "custom", time_of_day: "18:00", days_of_week: [1, 3, 5], timezone: "Africa/Johannesburg" },
+      reminder: {
+        enabled: true,
+        frequency: "custom",
+        time_of_day: "18:00",
+        days_of_week: [1, 3, 5],
+        timezone: "Africa/Johannesburg",
+      },
     });
     expect(ics).toContain("BEGIN:VCALENDAR");
     expect(ics).toContain("BEGIN:VEVENT");
@@ -23,7 +29,13 @@ describe("buildRehabIcs", () => {
     const ics = buildRehabIcs({
       clientId: "c1",
       appBase: base,
-      reminder: { enabled: true, frequency: "daily", time_of_day: "08:00", days_of_week: [0, 1, 2, 3, 4, 5, 6], timezone: "UTC" },
+      reminder: {
+        enabled: true,
+        frequency: "daily",
+        time_of_day: "08:00",
+        days_of_week: [0, 1, 2, 3, 4, 5, 6],
+        timezone: "UTC",
+      },
     });
     expect(ics).toContain("RRULE:FREQ=DAILY");
   });

@@ -10,6 +10,7 @@ import {
   googleRedirectUri,
   insertGoogleCalendarEvent,
 } from "./google-calendar/oauth";
+import { appBaseUrl } from "@/lib/app-url";
 
 export type GoogleCalendarStatus = {
   connected: boolean;
@@ -107,7 +108,7 @@ export const addCheckinReminderToGoogleCalendar = createServerFn({ method: "POST
     const time = (rem?.time_of_day as string | undefined) ?? "08:00";
     const timeZone = (rem?.timezone as string | undefined) || "UTC";
     const daysOfWeek = (rem?.days_of_week as number[] | undefined) ?? [0, 1, 2, 3, 4, 5, 6];
-    const appBase = process.env.BUDDY_APP_BASE_URL ?? "https://peakbuddy.lovable.app";
+    const appBase = appBaseUrl();
 
     const body = buildGoogleEventBody({
       summary: "Buddy check-in",
@@ -133,6 +134,10 @@ export const addCheckinReminderToGoogleCalendar = createServerFn({ method: "POST
         .eq("user_id", context.userId);
       return { ok: true as const, eventLink: created.htmlLink ?? null };
     } catch (e) {
-      return { ok: false as const, reason: "insert_failed" as const, error: e instanceof Error ? e.message : "unknown" };
+      return {
+        ok: false as const,
+        reason: "insert_failed" as const,
+        error: e instanceof Error ? e.message : "unknown",
+      };
     }
   });

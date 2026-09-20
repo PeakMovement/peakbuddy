@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildRehabIcs, type ReminderSchedule } from "@/lib/calendar-feed";
+import { appBaseUrl } from "@/lib/app-url";
 
 // Public per-client iCal feed. Authenticated by the unguessable token in the path
 // (calendar apps subscribe without a session). Serves text/calendar.
@@ -29,7 +30,7 @@ export const Route = createFileRoute("/api/public/calendar/$token")({
           .eq("client_id", client.id)
           .maybeSingle();
 
-        const base = process.env.BUDDY_APP_BASE_URL ?? url.origin;
+        const base = process.env.BUDDY_APP_BASE_URL ?? appBaseUrl();
         const ics = buildRehabIcs({
           clientId: client.id as string,
           appBase: base,

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { appBaseUrl } from "@/lib/app-url";
 
 /**
  * Public one-click action route embedded in practitioner alert emails.
@@ -15,9 +16,8 @@ export const Route = createFileRoute("/api/public/alerts/action")({
         const token = url.searchParams.get("token");
         if (!token) return renderPage("Missing token", "This link is invalid.");
 
-        const { verifyAlertActionToken, consumeAlertActionToken } = await import(
-          "@/lib/alert-actions.server"
-        );
+        const { verifyAlertActionToken, consumeAlertActionToken } =
+          await import("@/lib/alert-actions.server");
         const verified = await verifyAlertActionToken(token);
         if (!verified.ok) {
           const msg =
@@ -159,7 +159,7 @@ function renderPage(title: string, body: string) {
       <p class="rule">by Peak Movement</p>
       <h1>${escapeHtml(title)}</h1>
       <p>${escapeHtml(body)}</p>
-      <a href="https://peakbuddy.lovable.app/practitioner/app">Open Buddy</a>
+      <a href="${appBaseUrl()}/practitioner/app">Open Buddy</a>
     </div>
   </body>
 </html>`;

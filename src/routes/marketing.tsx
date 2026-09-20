@@ -1,27 +1,31 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { publicSiteOrigin } from "@/lib/app-url";
 
 export const Route = createFileRoute("/marketing")({
-  head: () => ({
-    meta: [
-      { title: "Buddy Symptom Tracker — Daily health, clinically connected" },
-      {
-        name: "description",
-        content:
-          "Buddy is a clinical symptom tracking app from Peak Movement. Log pain, sleep, stress, energy and mood — share trends with your practitioner, with AI-powered early warnings.",
-      },
-      {
-        property: "og:title",
-        content: "Buddy Symptom Tracker — Daily health, clinically connected",
-      },
-      {
-        property: "og:description",
-        content: "Track symptoms, share with your practitioner, catch issues early with AI.",
-      },
-      { property: "og:url", content: "https://buddytracker.netlify.app/marketing" },
-      { property: "og:type", content: "website" },
-    ],
-    links: [{ rel: "canonical", href: "https://buddytracker.netlify.app/marketing" }],
-  }),
+  head: () => {
+    const site = publicSiteOrigin();
+    return {
+      meta: [
+        { title: "Buddy Symptom Tracker — Daily health, clinically connected" },
+        {
+          name: "description",
+          content:
+            "Buddy is a clinical symptom tracking app from Peak Movement. Log pain, sleep, stress, energy and mood — share trends with your practitioner, with AI-powered early warnings.",
+        },
+        {
+          property: "og:title",
+          content: "Buddy Symptom Tracker — Daily health, clinically connected",
+        },
+        {
+          property: "og:description",
+          content: "Track symptoms, share with your practitioner, catch issues early with AI.",
+        },
+        { property: "og:url", content: `${site}/marketing` },
+        { property: "og:type", content: "website" },
+      ],
+      links: [{ rel: "canonical", href: `${site}/marketing` }],
+    };
+  },
   component: MarketingPage,
 });
 

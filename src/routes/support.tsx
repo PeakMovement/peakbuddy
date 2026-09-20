@@ -2,22 +2,26 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
 import { log } from "@/lib/log";
+import { publicSiteOrigin } from "@/lib/app-url";
 
 export const Route = createFileRoute("/support")({
-  head: () => ({
-    meta: [
-      { title: "Support — Buddy Symptom Tracker" },
-      {
-        name: "description",
-        content:
-          "Get help with Buddy Symptom Tracker. Submit bug reports, feature requests, technical issues, or general inquiries.",
-      },
-      { property: "og:title", content: "Support — Buddy Symptom Tracker" },
-      { property: "og:description", content: "Submit a support request to the Buddy team." },
-      { property: "og:url", content: "https://buddytracker.netlify.app/support" },
-    ],
-    links: [{ rel: "canonical", href: "https://buddytracker.netlify.app/support" }],
-  }),
+  head: () => {
+    const site = publicSiteOrigin();
+    return {
+      meta: [
+        { title: "Support — Buddy Symptom Tracker" },
+        {
+          name: "description",
+          content:
+            "Get help with Buddy Symptom Tracker. Submit bug reports, feature requests, technical issues, or general inquiries.",
+        },
+        { property: "og:title", content: "Support — Buddy Symptom Tracker" },
+        { property: "og:description", content: "Submit a support request to the Buddy team." },
+        { property: "og:url", content: `${site}/support` },
+      ],
+      links: [{ rel: "canonical", href: `${site}/support` }],
+    };
+  },
   component: SupportPage,
 });
 

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { appBaseUrl, passwordResetRedirectUrl } from "@/lib/app-url";
 
 const inputSchema = z.object({
   practitionerId: z.string().uuid(),
@@ -144,7 +145,7 @@ export const createClientAccount = createServerFn({ method: "POST" })
         const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
           type: "recovery",
           email: data.email,
-          options: { redirectTo: "https://peakbuddy.lovable.app/reset-password" },
+          options: { redirectTo: passwordResetRedirectUrl() },
         });
         if (!linkErr) {
           setPasswordUrl = linkData?.properties?.action_link ?? null;
@@ -161,7 +162,7 @@ export const createClientAccount = createServerFn({ method: "POST" })
           clientName: data.fullName,
           practitionerName: practitioner?.full_name ?? null,
           email: data.email,
-          loginUrl: "https://peakbuddy.lovable.app/client/login",
+          loginUrl: `${appBaseUrl()}/client/login`,
           setPasswordUrl,
         },
       });
