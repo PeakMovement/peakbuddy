@@ -170,7 +170,7 @@ practitioners see their clients' rows, super_admin sees all. Token tables should
 
 ## 4. Secrets / environment variables
 
-Add to Cloudflare Workers env (and `.env` for local). No `.env.example` exists today — create one.
+Add to Cloudflare Workers env (and `.env` for local). Copy `.env.example` for dummy keys.
 
 ```bash
 # Oura
@@ -214,7 +214,7 @@ src/
     oura/callback.ts        # GET OAuth callback -> exchange code, store token
     oura/webhook.ts         # GET verify + POST events (HMAC verify)
     garmin/callback.ts      # GET PKCE callback -> exchange, fetch userId, trigger backfill
-    garmin/webhook.ts       # POST push (always 200); resolve user; upsert sessions
+    garmin/webhook.ts       # POST: HMAC required; 401 if unsigned; 200 after valid signature
     polar/callback.ts       # GET callback -> exchange (Basic auth) -> register user
   routes/api/public/hooks/
     wearables-sync.ts       # POST, CRON_SECRET-guarded: refresh tokens + pull Oura/Polar daily
