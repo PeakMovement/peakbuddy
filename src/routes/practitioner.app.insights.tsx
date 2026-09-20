@@ -1,12 +1,36 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Sparkles, Send, X, AlertTriangle, Users, TrendingUp, TrendingDown,
-  PhoneCall, Activity, Flame, EyeOff, Eye, ChevronDown, ChevronUp,
+  Sparkles,
+  Send,
+  X,
+  AlertTriangle,
+  Users,
+  TrendingUp,
+  TrendingDown,
+  PhoneCall,
+  Activity,
+  Flame,
+  EyeOff,
+  Eye,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Line, LineChart,
-  Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
 import {
   listMyDrafts,
@@ -15,9 +39,12 @@ import {
 } from "@/lib/practitioner-drafts.functions";
 import { getPracticeInsights, type InsightsPayload } from "@/lib/insights.functions";
 import {
-  loadHidden, saveHidden, INSIGHTS_CARD_LABELS, type InsightsCardId,
+  loadHidden,
+  saveHidden,
+  INSIGHTS_CARD_LABELS,
+  type InsightsCardId,
 } from "@/lib/insights-visibility";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { log } from "@/lib/log";
 
 const DEMO_PRACTITIONER_EMAIL = "practitioner@demo.com";
@@ -155,10 +182,16 @@ function Insights() {
         <button
           onClick={() => setShowHiddenPanel((s) => !s)}
           style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
-            background: "transparent", border: "1px solid var(--navy-border)",
-            color: "var(--white-muted)", borderRadius: 8, padding: "8px 12px",
-            fontSize: 12, cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            background: "transparent",
+            border: "1px solid var(--navy-border)",
+            color: "var(--white-muted)",
+            borderRadius: 8,
+            padding: "8px 12px",
+            fontSize: 12,
+            cursor: "pointer",
           }}
         >
           {showHiddenPanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -176,14 +209,29 @@ function Insights() {
                   key={id}
                   onClick={() => toggleHidden(id)}
                   style={{
-                    display: "inline-flex", alignItems: "center", justifyContent: "space-between",
-                    gap: 8, background: "var(--navy-card)", border: "1px solid var(--navy-border)",
-                    color: "var(--white)", borderRadius: 8, padding: "8px 12px",
-                    fontSize: 13, cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    background: "var(--navy-card)",
+                    border: "1px solid var(--navy-border)",
+                    color: "var(--white)",
+                    borderRadius: 8,
+                    padding: "8px 12px",
+                    fontSize: 13,
+                    cursor: "pointer",
                   }}
                 >
                   <span>{INSIGHTS_CARD_LABELS[id]}</span>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--blue-accent)", fontSize: 11 }}>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      color: "var(--blue-accent)",
+                      fontSize: 11,
+                    }}
+                  >
                     <Eye size={12} /> Show
                   </span>
                 </button>
@@ -201,9 +249,12 @@ function Insights() {
         <div
           role="alert"
           style={{
-            marginTop: 14, padding: 12,
+            marginTop: 14,
+            padding: 12,
             background: "color-mix(in oklab, var(--red) 18%, transparent)",
-            border: "1px solid var(--red)", borderRadius: 10, fontSize: 13,
+            border: "1px solid var(--red)",
+            borderRadius: 10,
+            fontSize: 13,
           }}
         >
           {error}
@@ -222,19 +273,33 @@ function Insights() {
             <div
               key={d.id}
               style={{
-                background: "var(--navy-card)", border: "1px solid var(--navy-border)",
-                borderRadius: 12, padding: 14,
+                background: "var(--navy-card)",
+                border: "1px solid var(--navy-border)",
+                borderRadius: 12,
+                padding: 14,
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
                 <strong style={{ fontSize: 15 }}>{d.client_name}</strong>
                 {d.risk_score !== null && (
                   <span
                     style={{
-                      display: "inline-flex", alignItems: "center", gap: 4,
-                      fontSize: 11, padding: "2px 8px", borderRadius: 999,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      fontSize: 11,
+                      padding: "2px 8px",
+                      borderRadius: 999,
                       background: d.risk_score >= 60 ? "var(--red)" : "var(--navy)",
-                      color: "var(--white)", fontFamily: "var(--font-data)",
+                      color: "var(--white)",
+                      fontFamily: "var(--font-data)",
                     }}
                   >
                     <AlertTriangle size={12} /> Risk {d.risk_score}
@@ -243,14 +308,32 @@ function Insights() {
               </div>
               <div
                 style={{
-                  marginTop: 10, padding: 12, background: "var(--navy)",
-                  borderRadius: 10, border: "1px solid var(--navy-border)",
+                  marginTop: 10,
+                  padding: 12,
+                  background: "var(--navy)",
+                  borderRadius: 10,
+                  border: "1px solid var(--navy-border)",
                 }}
               >
-                <div style={{ fontWeight: 600, fontSize: 14, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    fontSize: 14,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
                   <Sparkles size={14} /> {d.draft_title}
                 </div>
-                <p style={{ marginTop: 6, fontSize: 13, lineHeight: 1.45, color: "var(--white-muted)" }}>
+                <p
+                  style={{
+                    marginTop: 6,
+                    fontSize: 13,
+                    lineHeight: 1.45,
+                    color: "var(--white-muted)",
+                  }}
+                >
                   {d.draft_body}
                 </p>
                 {d.suggested_action?.program_name && (
@@ -264,11 +347,21 @@ function Insights() {
                   onClick={() => act(d.id, "dismissed")}
                   disabled={busy === d.id}
                   style={{
-                    flex: 1, minHeight: 44, borderRadius: 8,
-                    background: "transparent", border: "1px solid var(--navy-border)",
-                    color: "var(--white)", fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: 14,
-                    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    cursor: "pointer", opacity: busy === d.id ? 0.5 : 1,
+                    flex: 1,
+                    minHeight: 44,
+                    borderRadius: 8,
+                    background: "transparent",
+                    border: "1px solid var(--navy-border)",
+                    color: "var(--white)",
+                    fontFamily: "var(--font-ui)",
+                    fontWeight: 600,
+                    fontSize: 14,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    cursor: "pointer",
+                    opacity: busy === d.id ? 0.5 : 1,
                   }}
                 >
                   <X size={16} /> Dismiss
@@ -277,11 +370,21 @@ function Insights() {
                   onClick={() => act(d.id, "sent")}
                   disabled={busy === d.id}
                   style={{
-                    flex: 2, minHeight: 44, borderRadius: 8,
-                    background: "var(--blue-accent)", border: "none", color: "var(--white)",
-                    fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: 14,
-                    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    cursor: "pointer", opacity: busy === d.id ? 0.5 : 1,
+                    flex: 2,
+                    minHeight: 44,
+                    borderRadius: 8,
+                    background: "var(--blue-accent)",
+                    border: "none",
+                    color: "var(--white)",
+                    fontFamily: "var(--font-ui)",
+                    fontWeight: 600,
+                    fontSize: 14,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    cursor: "pointer",
+                    opacity: busy === d.id ? 0.5 : 1,
                   }}
                 >
                   <Send size={16} /> Mark actioned
@@ -295,15 +398,28 @@ function Insights() {
   );
 }
 
-function ToggleChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+function ToggleChip({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
   return (
     <button
       onClick={onClick}
       style={{
-        padding: "6px 14px", borderRadius: 999,
+        padding: "6px 14px",
+        borderRadius: 999,
         background: active ? "var(--blue-accent)" : "transparent",
-        color: "var(--white)", border: "none", cursor: "pointer",
-        fontSize: 12, fontFamily: "var(--font-ui)", fontWeight: 600,
+        color: "var(--white)",
+        border: "none",
+        cursor: "pointer",
+        fontSize: 12,
+        fontFamily: "var(--font-ui)",
+        fontWeight: 600,
       }}
     >
       {label}
@@ -340,8 +456,13 @@ function HideButton({ onClick }: { onClick: () => void }) {
       aria-label="Hide from insights"
       title="Hide from insights"
       style={{
-        background: "transparent", border: "none", color: "var(--white-muted)",
-        cursor: "pointer", padding: 4, display: "inline-flex", alignItems: "center",
+        background: "transparent",
+        border: "none",
+        color: "var(--white-muted)",
+        cursor: "pointer",
+        padding: 4,
+        display: "inline-flex",
+        alignItems: "center",
       }}
     >
       <EyeOff size={14} />
@@ -350,53 +471,92 @@ function HideButton({ onClick }: { onClick: () => void }) {
 }
 
 function Kpi({
-  Icon, label, value, sub, tone, id, hidden, onToggleHidden,
+  Icon,
+  label,
+  value,
+  sub,
+  tone,
+  id,
+  hidden,
+  onToggleHidden,
 }: {
-  Icon: typeof Users; label: string; value: string; sub?: string;
+  Icon: typeof Users;
+  label: string;
+  value: string;
+  sub?: string;
   tone: "blue" | "cyan" | "green" | "violet" | "amber" | "red";
-  id: InsightsCardId; hidden: Set<InsightsCardId>; onToggleHidden: (id: InsightsCardId) => void;
+  id: InsightsCardId;
+  hidden: Set<InsightsCardId>;
+  onToggleHidden: (id: InsightsCardId) => void;
 }) {
   if (hidden.has(id)) return null;
   const color = COLORS[tone];
   return (
     <div
       style={{
-        background: "var(--navy-card)", border: "1px solid var(--navy-border)",
-        borderRadius: 12, padding: 12, position: "relative",
+        background: "var(--navy-card)",
+        border: "1px solid var(--navy-border)",
+        borderRadius: 12,
+        padding: 12,
+        position: "relative",
       }}
     >
       <div style={{ position: "absolute", top: 8, right: 8 }}>
         <HideButton onClick={() => onToggleHidden(id)} />
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--white-muted)", fontSize: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          color: "var(--white-muted)",
+          fontSize: 12,
+        }}
+      >
         <Icon size={14} color={color} /> {label}
       </div>
       <div style={{ marginTop: 6, fontFamily: "var(--font-data)", fontSize: 24, fontWeight: 700 }}>
         {value}
       </div>
-      {sub && (
-        <div style={{ marginTop: 2, fontSize: 11, color: "var(--white-muted)" }}>{sub}</div>
-      )}
+      {sub && <div style={{ marginTop: 2, fontSize: 11, color: "var(--white-muted)" }}>{sub}</div>}
     </div>
   );
 }
 
 function Card({
-  id, title, Icon, hidden, onToggleHidden, children,
+  id,
+  title,
+  Icon,
+  hidden,
+  onToggleHidden,
+  children,
 }: {
-  id: InsightsCardId; title: string; Icon: typeof Users;
-  hidden: Set<InsightsCardId>; onToggleHidden: (id: InsightsCardId) => void;
+  id: InsightsCardId;
+  title: string;
+  Icon: typeof Users;
+  hidden: Set<InsightsCardId>;
+  onToggleHidden: (id: InsightsCardId) => void;
   children: React.ReactNode;
 }) {
   if (hidden.has(id)) return null;
   return (
     <div
       style={{
-        background: "var(--navy-card)", border: "1px solid var(--navy-border)",
-        borderRadius: 12, padding: 14,
+        background: "var(--navy-card)",
+        border: "1px solid var(--navy-border)",
+        borderRadius: 12,
+        padding: 14,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          marginBottom: 8,
+        }}
+      >
         <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
           <Icon size={14} color="var(--blue-accent)" />
           <strong style={{ fontSize: 13 }}>{title}</strong>
@@ -412,9 +572,19 @@ function Legend({ items }: { items: { label: string; value: number; color: strin
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
       {items.map((i) => (
-        <div key={i.label} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--white-muted)" }}>
+        <div
+          key={i.label}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 11,
+            color: "var(--white-muted)",
+          }}
+        >
           <span style={{ width: 8, height: 8, borderRadius: 2, background: i.color }} />
-          {i.label} <span style={{ fontFamily: "var(--font-data)", color: "var(--white)" }}>{i.value}</span>
+          {i.label}{" "}
+          <span style={{ fontFamily: "var(--font-data)", color: "var(--white)" }}>{i.value}</span>
         </div>
       ))}
     </div>
@@ -426,10 +596,15 @@ function Legend({ items }: { items: { label: string; value: number; color: strin
 // ----------------------------------------------------------------------
 
 function LiveOverview({
-  data, loading, hidden, onToggleHidden,
+  data,
+  loading,
+  hidden,
+  onToggleHidden,
 }: {
-  data: InsightsPayload | null; loading: boolean;
-  hidden: Set<InsightsCardId>; onToggleHidden: (id: InsightsCardId) => void;
+  data: InsightsPayload | null;
+  loading: boolean;
+  hidden: Set<InsightsCardId>;
+  onToggleHidden: (id: InsightsCardId) => void;
 }) {
   if (loading) {
     return <p style={{ marginTop: 20, color: "var(--white-muted)" }}>Loading insights…</p>;
@@ -441,9 +616,13 @@ function LiveOverview({
   const progressColored = data.progressBuckets.map((b) => ({
     ...b,
     color:
-      b.name === "Improving" ? COLORS.green :
-      b.name === "Stable" ? COLORS.blue :
-      b.name === "Worsening" ? COLORS.red : COLORS.slate,
+      b.name === "Improving"
+        ? COLORS.green
+        : b.name === "Stable"
+          ? COLORS.blue
+          : b.name === "Worsening"
+            ? COLORS.red
+            : COLORS.slate,
   }));
   const contactColored = data.contactStatus.map((c, i) => ({
     ...c,
@@ -483,13 +662,21 @@ function LiveOverview({
 // ----------------------------------------------------------------------
 
 const demoCheckInTrend = [
-  { day: "Mon", checkins: 18 }, { day: "Tue", checkins: 22 }, { day: "Wed", checkins: 19 },
-  { day: "Thu", checkins: 26 }, { day: "Fri", checkins: 24 }, { day: "Sat", checkins: 12 },
+  { day: "Mon", checkins: 18 },
+  { day: "Tue", checkins: 22 },
+  { day: "Wed", checkins: 19 },
+  { day: "Thu", checkins: 26 },
+  { day: "Fri", checkins: 24 },
+  { day: "Sat", checkins: 12 },
   { day: "Sun", checkins: 9 },
 ];
 const demoPainTrend = [
-  { week: "W1", pain: 6.4 }, { week: "W2", pain: 6.1 }, { week: "W3", pain: 5.8 },
-  { week: "W4", pain: 5.3 }, { week: "W5", pain: 5.0 }, { week: "W6", pain: 4.6 },
+  { week: "W1", pain: 6.4 },
+  { week: "W2", pain: 6.1 },
+  { week: "W3", pain: 5.8 },
+  { week: "W4", pain: 5.3 },
+  { week: "W5", pain: 5.0 },
+  { week: "W6", pain: 4.6 },
 ];
 const demoProgress = [
   { name: "Improving" as const, value: 14, color: COLORS.green },
@@ -503,18 +690,27 @@ const demoContact = [
   { label: "Overdue (>14d)", value: 4, color: COLORS.red },
 ];
 const demoSymptoms = [
-  { name: "Lower back", count: 17 }, { name: "Knee", count: 12 }, { name: "Shoulder", count: 9 },
-  { name: "Neck", count: 7 }, { name: "Sleep", count: 6 }, { name: "Headache", count: 4 },
+  { name: "Lower back", count: 17 },
+  { name: "Knee", count: 12 },
+  { name: "Shoulder", count: 9 },
+  { name: "Neck", count: 7 },
+  { name: "Sleep", count: 6 },
+  { name: "Headache", count: 4 },
 ];
 const demoMovers = [
-  { name: "J. Carter", delta: -2.4 }, { name: "M. Singh", delta: -1.8 },
-  { name: "A. Rivera", delta: -1.3 }, { name: "K. Owens", delta: 1.6 }, { name: "R. Patel", delta: 2.2 },
+  { name: "J. Carter", delta: -2.4 },
+  { name: "M. Singh", delta: -1.8 },
+  { name: "A. Rivera", delta: -1.3 },
+  { name: "K. Owens", delta: 1.6 },
+  { name: "R. Patel", delta: 2.2 },
 ];
 
 function DemoOverview({
-  hidden, onToggleHidden,
+  hidden,
+  onToggleHidden,
 }: {
-  hidden: Set<InsightsCardId>; onToggleHidden: (id: InsightsCardId) => void;
+  hidden: Set<InsightsCardId>;
+  onToggleHidden: (id: InsightsCardId) => void;
 }) {
   return (
     <Overview
@@ -523,8 +719,10 @@ function DemoOverview({
       hidden={hidden}
       onToggleHidden={onToggleHidden}
       kpis={{
-        active: "31", checkins: "130",
-        pain: "5.0", painSub: "↓ 1.4 vs 6w ago",
+        active: "31",
+        checkins: "130",
+        pain: "5.0",
+        painSub: "↓ 1.4 vs 6w ago",
         contacted: "11",
       }}
       checkInTrend={demoCheckInTrend}
@@ -565,10 +763,15 @@ function Overview(p: OverviewProps) {
         {p.badge && (
           <span
             style={{
-              fontSize: 10, padding: "2px 8px", borderRadius: 999,
+              fontSize: 10,
+              padding: "2px 8px",
+              borderRadius: 999,
               background: "color-mix(in oklab, var(--amber) 22%, transparent)",
-              border: "1px solid var(--amber)", color: "var(--amber)",
-              fontFamily: "var(--font-data)", fontWeight: 700, letterSpacing: 0.4,
+              border: "1px solid var(--amber)",
+              color: "var(--amber)",
+              fontFamily: "var(--font-data)",
+              fontWeight: 700,
+              letterSpacing: 0.4,
             }}
           >
             {p.badge}
@@ -576,20 +779,66 @@ function Overview(p: OverviewProps) {
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
-        <Kpi id="kpi-active" hidden={p.hidden} onToggleHidden={p.onToggleHidden}
-          Icon={Users} label="Active clients" value={p.kpis.active} tone="blue" />
-        <Kpi id="kpi-checkins" hidden={p.hidden} onToggleHidden={p.onToggleHidden}
-          Icon={Activity} label="Check-ins (7d)" value={p.kpis.checkins} tone="cyan" />
-        <Kpi id="kpi-pain" hidden={p.hidden} onToggleHidden={p.onToggleHidden}
-          Icon={TrendingDown} label="Avg pain" value={p.kpis.pain} sub={p.kpis.painSub} tone="green" />
-        <Kpi id="kpi-contacted" hidden={p.hidden} onToggleHidden={p.onToggleHidden}
-          Icon={PhoneCall} label="Contacted (7d)" value={p.kpis.contacted} tone="violet" />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+          gap: 10,
+        }}
+      >
+        <Kpi
+          id="kpi-active"
+          hidden={p.hidden}
+          onToggleHidden={p.onToggleHidden}
+          Icon={Users}
+          label="Active clients"
+          value={p.kpis.active}
+          tone="blue"
+        />
+        <Kpi
+          id="kpi-checkins"
+          hidden={p.hidden}
+          onToggleHidden={p.onToggleHidden}
+          Icon={Activity}
+          label="Check-ins (7d)"
+          value={p.kpis.checkins}
+          tone="cyan"
+        />
+        <Kpi
+          id="kpi-pain"
+          hidden={p.hidden}
+          onToggleHidden={p.onToggleHidden}
+          Icon={TrendingDown}
+          label="Avg pain"
+          value={p.kpis.pain}
+          sub={p.kpis.painSub}
+          tone="green"
+        />
+        <Kpi
+          id="kpi-contacted"
+          hidden={p.hidden}
+          onToggleHidden={p.onToggleHidden}
+          Icon={PhoneCall}
+          label="Contacted (7d)"
+          value={p.kpis.contacted}
+          tone="violet"
+        />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
-        <Card id="card-checkins" title="Recent check-ins" Icon={Activity}
-          hidden={p.hidden} onToggleHidden={p.onToggleHidden}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 12,
+        }}
+      >
+        <Card
+          id="card-checkins"
+          title="Recent check-ins"
+          Icon={Activity}
+          hidden={p.hidden}
+          onToggleHidden={p.onToggleHidden}
+        >
           <ResponsiveContainer width="100%" height={170}>
             <AreaChart data={p.checkInTrend} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
               <defs>
@@ -602,50 +851,107 @@ function Overview(p: OverviewProps) {
               <XAxis dataKey="day" stroke="var(--white-muted)" fontSize={11} />
               <YAxis stroke="var(--white-muted)" fontSize={11} />
               <Tooltip contentStyle={tooltipStyle} />
-              <Area type="monotone" dataKey="checkins" stroke={COLORS.cyan} fill="url(#cg)" strokeWidth={2} />
+              <Area
+                type="monotone"
+                dataKey="checkins"
+                stroke={COLORS.cyan}
+                fill="url(#cg)"
+                strokeWidth={2}
+              />
             </AreaChart>
           </ResponsiveContainer>
         </Card>
 
-        <Card id="card-pain" title="Average pain (6 weeks)" Icon={TrendingDown}
-          hidden={p.hidden} onToggleHidden={p.onToggleHidden}>
+        <Card
+          id="card-pain"
+          title="Average pain (6 weeks)"
+          Icon={TrendingDown}
+          hidden={p.hidden}
+          onToggleHidden={p.onToggleHidden}
+        >
           <ResponsiveContainer width="100%" height={170}>
             <LineChart data={p.painTrend} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
               <CartesianGrid stroke="var(--navy-border)" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="week" stroke="var(--white-muted)" fontSize={11} />
               <YAxis domain={[0, 10]} stroke="var(--white-muted)" fontSize={11} />
               <Tooltip contentStyle={tooltipStyle} />
-              <Line type="monotone" dataKey="pain" stroke={COLORS.green} strokeWidth={2} dot={{ r: 3 }} connectNulls />
+              <Line
+                type="monotone"
+                dataKey="pain"
+                stroke={COLORS.green}
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                connectNulls
+              />
             </LineChart>
           </ResponsiveContainer>
         </Card>
 
-        <Card id="card-progress" title="Client progress" Icon={TrendingUp}
-          hidden={p.hidden} onToggleHidden={p.onToggleHidden}>
+        <Card
+          id="card-progress"
+          title="Client progress"
+          Icon={TrendingUp}
+          hidden={p.hidden}
+          onToggleHidden={p.onToggleHidden}
+        >
           <ResponsiveContainer width="100%" height={170}>
             <PieChart>
-              <Pie data={p.progressBuckets} dataKey="value" nameKey="name" innerRadius={42} outerRadius={68} paddingAngle={2}>
-                {p.progressBuckets.map((b) => <Cell key={b.name} fill={b.color} />)}
+              <Pie
+                data={p.progressBuckets}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={42}
+                outerRadius={68}
+                paddingAngle={2}
+              >
+                {p.progressBuckets.map((b) => (
+                  <Cell key={b.name} fill={b.color} />
+                ))}
               </Pie>
               <Tooltip contentStyle={tooltipStyle} />
             </PieChart>
           </ResponsiveContainer>
-          <Legend items={p.progressBuckets.map(b => ({ label: b.name, value: b.value, color: b.color }))} />
+          <Legend
+            items={p.progressBuckets.map((b) => ({
+              label: b.name,
+              value: b.value,
+              color: b.color,
+            }))}
+          />
         </Card>
 
-        <Card id="card-outreach" title="Outreach status" Icon={PhoneCall}
-          hidden={p.hidden} onToggleHidden={p.onToggleHidden}>
+        <Card
+          id="card-outreach"
+          title="Outreach status"
+          Icon={PhoneCall}
+          hidden={p.hidden}
+          onToggleHidden={p.onToggleHidden}
+        >
           <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 4 }}>
             {p.contactStatus.map((c) => {
               const total = p.contactStatus.reduce((a, b) => a + b.value, 0) || 1;
               const pct = Math.round((c.value / total) * 100);
               return (
                 <div key={c.label}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: 12,
+                      marginBottom: 4,
+                    }}
+                  >
                     <span style={{ color: "var(--white-muted)" }}>{c.label}</span>
                     <span style={{ fontFamily: "var(--font-data)" }}>{c.value}</span>
                   </div>
-                  <div style={{ height: 6, background: "var(--navy)", borderRadius: 999, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      height: 6,
+                      background: "var(--navy)",
+                      borderRadius: 999,
+                      overflow: "hidden",
+                    }}
+                  >
                     <div style={{ width: `${pct}%`, height: "100%", background: c.color }} />
                   </div>
                 </div>
@@ -654,18 +960,37 @@ function Overview(p: OverviewProps) {
           </div>
         </Card>
 
-        <Card id="card-symptoms" title="Most prevalent symptoms" Icon={Flame}
-          hidden={p.hidden} onToggleHidden={p.onToggleHidden}>
+        <Card
+          id="card-symptoms"
+          title="Most prevalent symptoms"
+          Icon={Flame}
+          hidden={p.hidden}
+          onToggleHidden={p.onToggleHidden}
+        >
           {p.symptoms.length === 0 ? (
             <p style={{ fontSize: 12, color: "var(--white-muted)", padding: "20px 0" }}>
               No symptom keywords detected in recent check-in notes.
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={190}>
-              <BarChart data={p.symptoms} layout="vertical" margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
-                <CartesianGrid stroke="var(--navy-border)" strokeDasharray="3 3" horizontal={false} />
+              <BarChart
+                data={p.symptoms}
+                layout="vertical"
+                margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid
+                  stroke="var(--navy-border)"
+                  strokeDasharray="3 3"
+                  horizontal={false}
+                />
                 <XAxis type="number" stroke="var(--white-muted)" fontSize={11} />
-                <YAxis dataKey="name" type="category" stroke="var(--white-muted)" fontSize={11} width={80} />
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  stroke="var(--white-muted)"
+                  fontSize={11}
+                  width={80}
+                />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Bar dataKey="count" fill={COLORS.violet} radius={[0, 4, 4, 0]} />
               </BarChart>
@@ -673,8 +998,13 @@ function Overview(p: OverviewProps) {
           )}
         </Card>
 
-        <Card id="card-movers" title="Biggest movers (pain Δ vs baseline)" Icon={TrendingUp}
-          hidden={p.hidden} onToggleHidden={p.onToggleHidden}>
+        <Card
+          id="card-movers"
+          title="Biggest movers (pain Δ vs baseline)"
+          Icon={TrendingUp}
+          hidden={p.hidden}
+          onToggleHidden={p.onToggleHidden}
+        >
           {p.topMovers.length === 0 ? (
             <p style={{ fontSize: 12, color: "var(--white-muted)", padding: "20px 0" }}>
               Not enough check-ins yet to compute movers.
@@ -684,21 +1014,35 @@ function Overview(p: OverviewProps) {
               {p.topMovers.map((m) => {
                 const improving = m.delta < 0;
                 return (
-                  <div key={m.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <div
+                    key={m.name}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                    }}
+                  >
                     <span style={{ fontSize: 13 }}>{m.name}</span>
                     <span
                       style={{
-                        fontFamily: "var(--font-data)", fontSize: 12, fontWeight: 700,
-                        padding: "2px 8px", borderRadius: 999,
+                        fontFamily: "var(--font-data)",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        padding: "2px 8px",
+                        borderRadius: 999,
                         background: improving
                           ? "color-mix(in oklab, var(--green) 20%, transparent)"
                           : "color-mix(in oklab, var(--red) 20%, transparent)",
                         color: improving ? "var(--green)" : "var(--red)",
-                        display: "inline-flex", alignItems: "center", gap: 4,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
                       }}
                     >
                       {improving ? <TrendingDown size={12} /> : <TrendingUp size={12} />}
-                      {m.delta > 0 ? "+" : ""}{m.delta.toFixed(1)}
+                      {m.delta > 0 ? "+" : ""}
+                      {m.delta.toFixed(1)}
                     </span>
                   </div>
                 );

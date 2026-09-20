@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { ClipboardList, Activity, MessageCircle, User, Dumbbell } from "lucide-react";
 import { getClientId } from "@/lib/client-session";
+import { supabase } from "@/lib/supabase";
 import { useOnline } from "@/hooks/use-online";
 import { getClientBootstrap, type ClientProgramState } from "@/lib/client-program.functions";
 import { ProgramIntroModal } from "@/components/ProgramIntroModal";
@@ -11,7 +12,6 @@ import { SyncStatusBanner } from "@/components/SyncStatusBanner";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { SetQuickCodePrompt } from "@/components/SetQuickCodePrompt";
 import { PopiaConsentModal } from "@/components/PopiaConsentModal";
-
 
 export const Route = createFileRoute("/client/app")({
   component: ClientAppLayout,
@@ -59,18 +59,22 @@ function ClientAppLayout() {
   const [clientName, setClientName] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!getClientId()) {
-      navigate({ to: "/client/login" });
-      return;
-    }
     let cancelled = false;
-    bootstrap()
-      .then((res) => {
-        if (cancelled) return;
-        setProgramState(res);
-        if (shouldShowIntro(res)) setIntroOpen(true);
-      })
-      .catch(() => {});
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (!data.session || !getClientId()) {
+        navigate({ to: "/client/login" });
+        return;
+      }
+      bootstrap()
+        .then((res) => {
+          if (cancelled) return;
+          setProgramState(res);
+          if (shouldShowIntro(res)) setIntroOpen(true);
+        })
+        .catch(() => {});
+    })();
     return () => {
       cancelled = true;
     };
@@ -173,7 +177,6 @@ function ClientAppLayout() {
       <main style={{ flex: 1, paddingBottom: 96, overflowX: "hidden" }}>
         <Outlet />
       </main>
-
 
       <nav
         aria-label="Primary"

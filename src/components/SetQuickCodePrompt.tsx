@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { getQuickCodeStatus, setQuickCode, unlockQuickCode } from "@/lib/quick-login.functions";
 import { QuickCodeKeypad } from "@/components/QuickCodeKeypad";
 import { withTimeout } from "@/lib/with-timeout";

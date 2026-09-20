@@ -1,11 +1,11 @@
 // App-level inactivity auto sign-out.
 //
-// Sessions in src/integrations/supabase/client.ts persist indefinitely; this
+// Sessions persist via `@/lib/supabase`; this module signs the user out on their
 // module signs the user out on their next visit if they haven't touched the
 // app for `maxIdleMs`. Real user interactions and tab focus reset the timer;
 // background refreshes, push arrivals, and service worker pings do NOT.
 
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { log } from "@/lib/log";
 
 const STORAGE_KEY = "buddy_last_active_at";
