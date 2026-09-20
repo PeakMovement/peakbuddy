@@ -243,8 +243,7 @@ export function WearablesPanel({
     return map;
   }, [sessions]);
 
-  // Connect goes through the AI-consent gate only while consent is required
-  // (pre-rollout it is off, so connecting goes straight to OAuth).
+  // Connecting a wearable that can feed AI features requires recorded AI consent.
   const onConnect = (provider: WearableProvider) => {
     if (!AI_CONSENT_REQUIRED) {
       void startOAuth(provider);
@@ -281,12 +280,13 @@ export function WearablesPanel({
       setConsentFor(null);
       await startOAuth(provider);
     } catch (e) {
-      setConsentErr(e instanceof Error ? e.message : "Couldn't save your consent. Please try again.");
+      setConsentErr(
+        e instanceof Error ? e.message : "Couldn't save your consent. Please try again.",
+      );
     } finally {
       setConsentSaving(false);
     }
   };
-
 
   const onDisconnect = async (provider: WearableProvider) => {
     setBusy(provider);
@@ -386,11 +386,7 @@ export function WearablesPanel({
               </div>
             )}
             <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
-              <button
-                style={ghostBtn}
-                disabled={consentSaving}
-                onClick={() => setConsentFor(null)}
-              >
+              <button style={ghostBtn} disabled={consentSaving} onClick={() => setConsentFor(null)}>
                 Cancel
               </button>
               <button style={primaryBtn} disabled={consentSaving} onClick={onAgreeConsent}>

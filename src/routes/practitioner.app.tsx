@@ -1,12 +1,6 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import {
-  LayoutGrid,
-  Bell,
-  UserPlus,
-  User,
-  Sparkles,
-} from "lucide-react";
+import { LayoutGrid, Bell, UserPlus, User, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   countPendingProgramSuggestions,
@@ -14,13 +8,18 @@ import {
 } from "@/lib/client-program.functions";
 import { countMyDrafts } from "@/lib/practitioner-drafts.functions";
 import { SetQuickCodePrompt } from "@/components/SetQuickCodePrompt";
-
+import { getUnreadPracticeAlertCount } from "@/lib/practitioner-roster.functions";
 
 export const Route = createFileRoute("/practitioner/app")({
   component: PractitionerAppLayout,
 });
 
-type Tab = { to: string; label: string; Icon: typeof LayoutGrid; badge?: "alerts" | "queue" | "insights" };
+type Tab = {
+  to: string;
+  label: string;
+  Icon: typeof LayoutGrid;
+  badge?: "alerts" | "queue" | "insights";
+};
 const tabs: Tab[] = [
   { to: "/practitioner/app/dashboard", label: "Dashboard", Icon: LayoutGrid },
   { to: "/practitioner/app/alerts", label: "Alerts", Icon: Bell, badge: "alerts" },
@@ -79,17 +78,13 @@ function PractitionerAppLayout() {
       if (cancelled) return;
       const enabled = flag?.enabled !== false;
       setProgramsEnabled(enabled);
-      const [{ count }, qc, ic] = await Promise.all([
-        supabase
-          .from("alerts")
-          .select("*", { count: "exact", head: true })
-          .eq("practitioner_id", userId)
-          .eq("is_read", false),
+      const [unreadRes, qc, ic] = await Promise.all([
+        getUnreadPracticeAlertCount().catch(() => ({ count: 0 })),
         enabled ? countPendingProgramSuggestions().catch(() => 0) : Promise.resolve(0),
         countMyDrafts().catch(() => 0),
       ]);
       if (cancelled) return;
-      setUnread(count ?? 0);
+      setUnread(unreadRes.count ?? 0);
       setQueueCount(typeof qc === "number" ? qc : 0);
       setInsightsCount(typeof ic === "number" ? ic : 0);
     };
@@ -119,7 +114,6 @@ function PractitionerAppLayout() {
         <Outlet />
       </main>
 
-
       <nav
         aria-label="Primary"
         className="app-nav app-nav--wide"
@@ -137,10 +131,13 @@ function PractitionerAppLayout() {
       >
         {visibleTabs.map(({ to, label, Icon, badge }) => {
           const badgeCount =
-            badge === "alerts" ? unread
-            : badge === "queue" ? queueCount
-            : badge === "insights" ? insightsCount
-            : 0;
+            badge === "alerts"
+              ? unread
+              : badge === "queue"
+                ? queueCount
+                : badge === "insights"
+                  ? insightsCount
+                  : 0;
           return (
             <Link
               key={to}

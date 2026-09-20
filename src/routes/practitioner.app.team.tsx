@@ -113,123 +113,151 @@ function TeamPage() {
       {status === "ready" && info && info.inPractice && info.practiceType !== "group" && (
         <div style={card}>
           <p style={{ ...muted, margin: 0 }}>
-            This is an <strong style={{ color: "var(--white)" }}>individual</strong> account — just you and your
-            own clients. To run a shared practice with several practitioners, create a practice account.
+            This is an <strong style={{ color: "var(--white)" }}>individual</strong> account — just
+            you and your own clients. To run a shared practice with several practitioners, create a
+            practice account.
           </p>
         </div>
       )}
 
-      {status === "ready" && info && info.inPractice && info.practiceType === "group" && !info.isOwner && (
-        <div style={card}>
-          <p style={{ ...muted, margin: 0 }}>
-            You're a practitioner in this practice. Only the practice admin can add or remove members. You see
-            and manage your own clients; the admin can see everyone's.
-          </p>
-        </div>
-      )}
-
-      {status === "ready" && info && info.inPractice && info.practiceType === "group" && info.isOwner && (
-        <>
+      {status === "ready" &&
+        info &&
+        info.inPractice &&
+        info.practiceType === "group" &&
+        !info.isOwner && (
           <div style={card}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={sub}>Practitioners</span>
-              <span style={{ ...sub, color: "var(--white-muted)" }}>
-                {info.memberCount} / {info.maxMembers}
-              </span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-              {info.members.map((m) => (
-                <div key={m.userId} style={memberRow}>
-                  <div>
-                    <div style={{ color: "var(--white)", fontWeight: 600, fontSize: 14 }}>
-                      {m.name}
-                      {m.role === "owner" && <span style={badge}>Admin</span>}
-                    </div>
-                    <div style={{ color: "var(--white-muted)", fontSize: 12 }}>{m.email}</div>
-                  </div>
-                  {m.role !== "owner" && (
-                    <button
-                      type="button"
-                      onClick={() => removeMember(m.userId, m.name)}
-                      disabled={busy}
-                      aria-label={`Remove ${m.name}`}
-                      style={iconBtn}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
+            <p style={{ ...muted, margin: 0 }}>
+              You're a practitioner in this practice. Only the practice admin can add or remove
+              members. You see and manage your own clients; the admin can see everyone's.
+            </p>
           </div>
+        )}
 
-          {info.memberCount < info.maxMembers ? (
+      {status === "ready" &&
+        info &&
+        info.inPractice &&
+        info.practiceType === "group" &&
+        info.isOwner && (
+          <>
             <div style={card}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <UserPlus size={17} color="var(--blue-accent)" aria-hidden />
-                <span style={sub}>Add a practitioner</span>
+              <div
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}
+              >
+                <span style={sub}>Practitioners</span>
+                <span style={{ ...sub, color: "var(--white-muted)" }}>
+                  {info.memberCount} / {info.maxMembers}
+                </span>
               </div>
-              <input
-                placeholder="Full name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                style={input}
-              />
-              <input
-                placeholder="Email"
-                type="email"
-                autoCapitalize="none"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{ ...input, marginTop: 8 }}
-              />
-              <button type="button" onClick={addMember} disabled={busy || !email.trim() || !name.trim()} style={cta}>
-                {busy ? "Sending…" : "Send invite"}
-              </button>
-              <p style={fine}>
-                They'll get an email to set their password and can sign in as a practitioner in your practice.
-              </p>
-            </div>
-          ) : (
-            <div style={card}>
-              <p style={{ ...muted, margin: 0 }}>
-                Your practice is full ({info.maxMembers} practitioners). Remove someone to add another.
-              </p>
-            </div>
-          )}
-        </>
-      )}
-
-      {status === "ready" && info && info.inPractice && info.isOwner && info.practiceType === "group" && allClients.length > 0 && (
-        <div style={card}>
-          <span style={sub}>All clients ({allClients.length})</span>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-            {allClients.map((c) => {
-              const who = info.members.find((m) => m.userId === c.practitioner_id)?.name ?? "Unassigned";
-              return (
-                <Link
-                  key={c.id}
-                  to="/practitioner/app/client-detail/$clientId"
-                  params={{ clientId: c.id }}
-                  style={{ ...memberRow, textDecoration: "none" }}
-                >
-                  <div>
-                    <div style={{ color: "var(--white)", fontWeight: 600, fontSize: 14 }}>{c.full_name}</div>
-                    <div style={{ color: "var(--white-muted)", fontSize: 12 }}>
-                      {c.primary_complaint || "—"}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+                {info.members.map((m) => (
+                  <div key={m.userId} style={memberRow}>
+                    <div>
+                      <div style={{ color: "var(--white)", fontWeight: 600, fontSize: 14 }}>
+                        {m.name}
+                        {m.role === "owner" && <span style={badge}>Admin</span>}
+                      </div>
+                      <div style={{ color: "var(--white-muted)", fontSize: 12 }}>{m.email}</div>
                     </div>
+                    {m.role !== "owner" && (
+                      <button
+                        type="button"
+                        onClick={() => removeMember(m.userId, m.name)}
+                        disabled={busy}
+                        aria-label={`Remove ${m.name}`}
+                        style={iconBtn}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
-                  <span style={{ ...badge, color: "var(--white-muted)" }}>{who}</span>
-                </Link>
-              );
-            })}
+                ))}
+              </div>
+            </div>
+
+            {info.memberCount < info.maxMembers ? (
+              <div style={card}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <UserPlus size={17} color="var(--blue-accent)" aria-hidden />
+                  <span style={sub}>Add a practitioner</span>
+                </div>
+                <input
+                  placeholder="Full name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  style={input}
+                />
+                <input
+                  placeholder="Email"
+                  type="email"
+                  autoCapitalize="none"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  style={{ ...input, marginTop: 8 }}
+                />
+                <button
+                  type="button"
+                  onClick={addMember}
+                  disabled={busy || !email.trim() || !name.trim()}
+                  style={cta}
+                >
+                  {busy ? "Sending…" : "Send invite"}
+                </button>
+                <p style={fine}>
+                  They'll get an email to set their password and can sign in as a practitioner in
+                  your practice.
+                </p>
+              </div>
+            ) : (
+              <div style={card}>
+                <p style={{ ...muted, margin: 0 }}>
+                  Your practice is full ({info.maxMembers} practitioners). Remove someone to add
+                  another.
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+      {status === "ready" &&
+        info &&
+        info.inPractice &&
+        info.isOwner &&
+        info.practiceType === "group" &&
+        allClients.length > 0 && (
+          <div style={card}>
+            <span style={sub}>All clients ({allClients.length})</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+              {allClients.map((c) => {
+                const who =
+                  info.members.find((m) => m.userId === c.practitioner_id)?.name ?? "Unassigned";
+                return (
+                  <Link
+                    key={c.id}
+                    to="/practitioner/app/client-detail/$clientId"
+                    params={{ clientId: c.id }}
+                    style={{ ...memberRow, textDecoration: "none" }}
+                  >
+                    <div>
+                      <div style={{ color: "var(--white)", fontWeight: 600, fontSize: 14 }}>
+                        {c.full_name}
+                      </div>
+                      <div style={{ color: "var(--white-muted)", fontSize: 12 }}>
+                        {c.primary_complaint || "—"}
+                      </div>
+                    </div>
+                    <span style={{ ...badge, color: "var(--white-muted)" }}>{who}</span>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {msg && (
         <div style={{ ...card, borderColor: msg.kind === "ok" ? "var(--green)" : "var(--red)" }}>
-          <span style={{ color: msg.kind === "ok" ? "var(--green)" : "var(--red)", fontSize: 13.5 }}>
+          <span
+            style={{ color: msg.kind === "ok" ? "var(--green)" : "var(--red)", fontSize: 13.5 }}
+          >
             {msg.text}
           </span>
         </div>
@@ -238,14 +266,93 @@ function TeamPage() {
   );
 }
 
-const wrap: CSSProperties = { padding: "16px 14px 96px", display: "flex", flexDirection: "column", gap: 12 };
-const h1: CSSProperties = { fontFamily: "var(--font-hero)", fontSize: 24, fontWeight: 700, color: "var(--white)", margin: 0 };
-const muted: CSSProperties = { fontFamily: "var(--font-ui)", fontSize: 14, lineHeight: 1.5, color: "var(--white-muted)" };
-const sub: CSSProperties = { fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--white-muted)" };
-const card: CSSProperties = { background: "var(--navy-card)", border: "1px solid var(--navy-border)", borderRadius: 14, padding: 16 };
-const memberRow: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.06)" };
-const badge: CSSProperties = { marginLeft: 8, fontFamily: "var(--font-ui)", fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--blue-accent)", border: "1px solid var(--navy-border)", borderRadius: 999, padding: "2px 7px" };
-const iconBtn: CSSProperties = { background: "transparent", border: "none", color: "var(--red)", cursor: "pointer", padding: 6 };
-const input: CSSProperties = { width: "100%", padding: "11px 12px", borderRadius: 10, background: "var(--navy)", border: "1px solid var(--navy-border)", color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 15 };
-const cta: CSSProperties = { width: "100%", marginTop: 12, background: "var(--blue-accent)", color: "var(--navy)", border: "none", borderRadius: 10, padding: "12px 16px", fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 700, cursor: "pointer" };
-const fine: CSSProperties = { fontFamily: "var(--font-ui)", fontSize: 12, lineHeight: 1.5, color: "var(--white-muted)", marginTop: 10 };
+const wrap: CSSProperties = {
+  padding: "16px 14px 96px",
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+};
+const h1: CSSProperties = {
+  fontFamily: "var(--font-hero)",
+  fontSize: 24,
+  fontWeight: 700,
+  color: "var(--white)",
+  margin: 0,
+};
+const muted: CSSProperties = {
+  fontFamily: "var(--font-ui)",
+  fontSize: 14,
+  lineHeight: 1.5,
+  color: "var(--white-muted)",
+};
+const sub: CSSProperties = {
+  fontFamily: "var(--font-ui)",
+  fontSize: 12,
+  fontWeight: 700,
+  letterSpacing: "0.1em",
+  textTransform: "uppercase",
+  color: "var(--white-muted)",
+};
+const card: CSSProperties = {
+  background: "var(--navy-card)",
+  border: "1px solid var(--navy-border)",
+  borderRadius: 14,
+  padding: 16,
+};
+const memberRow: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 8,
+  paddingTop: 8,
+  borderTop: "1px solid rgba(255,255,255,0.06)",
+};
+const badge: CSSProperties = {
+  marginLeft: 8,
+  fontFamily: "var(--font-ui)",
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  color: "var(--blue-accent)",
+  border: "1px solid var(--navy-border)",
+  borderRadius: 999,
+  padding: "2px 7px",
+};
+const iconBtn: CSSProperties = {
+  background: "transparent",
+  border: "none",
+  color: "var(--red)",
+  cursor: "pointer",
+  padding: 6,
+};
+const input: CSSProperties = {
+  width: "100%",
+  padding: "11px 12px",
+  borderRadius: 10,
+  background: "var(--navy)",
+  border: "1px solid var(--navy-border)",
+  color: "var(--white)",
+  fontFamily: "var(--font-ui)",
+  fontSize: 15,
+};
+const cta: CSSProperties = {
+  width: "100%",
+  marginTop: 12,
+  background: "var(--blue-accent)",
+  color: "var(--navy)",
+  border: "none",
+  borderRadius: 10,
+  padding: "12px 16px",
+  fontFamily: "var(--font-ui)",
+  fontSize: 15,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+const fine: CSSProperties = {
+  fontFamily: "var(--font-ui)",
+  fontSize: 12,
+  lineHeight: 1.5,
+  color: "var(--white-muted)",
+  marginTop: 10,
+};

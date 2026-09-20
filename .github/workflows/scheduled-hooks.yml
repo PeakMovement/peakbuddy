@@ -1,0 +1,33 @@
+# Scheduled Buddy hooks (Lovable has no Wrangler cron)
+
+# Runs only if repo secrets BUDDY_APP_BASE_URL and CRON_SECRET are set.
+# 00:00 UTC ≈ 02:00 SAST.
+
+name: Scheduled hooks
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wearables-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST wearables-sync
+        env:
+          BUDDY_APP_BASE_URL: ${{ secrets.BUDDY_APP_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BUDDY_APP_BASE_URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
+            echo "Skipping: set GitHub secrets BUDDY_APP_BASE_URL and CRON_SECRET."
+            exit 0
+          fi
+          base="${BUDDY_APP_BASE_URL%/}"
+          curl -fsS -X POST "$base/api/public/hooks/wearables-sync" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json"

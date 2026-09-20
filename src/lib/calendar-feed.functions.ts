@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { appBaseUrl } from "@/lib/app-url";
 
 function makeToken(): string {
   const b = new Uint8Array(24);
@@ -30,7 +31,7 @@ export const getCalendarFeedUrl = createServerFn({ method: "GET" })
       await db.from("clients").update({ calendar_feed_token: tok }).eq("id", client.id);
     }
 
-    const base = process.env.BUDDY_APP_BASE_URL ?? "https://buddytracker.netlify.app";
+    const base = appBaseUrl();
     const url = `${base}/api/public/calendar/${tok}.ics`;
     const webcal = url.replace(/^https?:\/\//, "webcal://");
     return { url, webcal };

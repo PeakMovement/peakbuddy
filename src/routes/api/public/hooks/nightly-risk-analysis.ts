@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { log } from "@/lib/log";
 import { hasAiConsent } from "@/lib/ai-consent";
+import { authorizeCronRequest } from "@/lib/cron-auth";
 
 const BATCH_SIZE = 50;
 const DRAFT_THRESHOLD = 60;
@@ -27,11 +28,16 @@ type CheckInRow = {
 };
 
 type BaselineRow = {
-  pain_mean: number | null; pain_std: number | null;
-  sleep_mean: number | null; sleep_std: number | null;
-  stress_mean: number | null; stress_std: number | null;
-  energy_mean: number | null; energy_std: number | null;
-  mood_mean: number | null; mood_std: number | null;
+  pain_mean: number | null;
+  pain_std: number | null;
+  sleep_mean: number | null;
+  sleep_std: number | null;
+  stress_mean: number | null;
+  stress_std: number | null;
+  energy_mean: number | null;
+  energy_std: number | null;
+  mood_mean: number | null;
+  mood_std: number | null;
 };
 
 type ProgramRow = {
@@ -42,7 +48,13 @@ type ProgramRow = {
 };
 
 const MOOD_MAP: Record<string, number> = {
-  great: 5, good: 4, okay: 3, ok: 3, low: 2, bad: 1, terrible: 0,
+  great: 5,
+  good: 4,
+  okay: 3,
+  ok: 3,
+  low: 2,
+  bad: 1,
+  terrible: 0,
 };
 function moodToNumber(m: string | null): number | null {
   if (!m) return null;
@@ -62,15 +74,25 @@ function meanStd(vals: number[]) {
 function metricSeries(rows: CheckInRow[], m: Metric): number[] {
   return rows
     .map((r) =>
-      m === "pain" ? r.pain_level
-      : m === "sleep" ? r.sleep_quality
-      : m === "stress" ? r.stress_level
-      : m === "energy" ? r.energy_level
-      : moodToNumber(r.mood),
+      m === "pain"
+        ? r.pain_level
+        : m === "sleep"
+          ? r.sleep_quality
+          : m === "stress"
+            ? r.stress_level
+            : m === "energy"
+              ? r.energy_level
+              : moodToNumber(r.mood),
     )
     .filter((v): v is number => typeof v === "number");
 }
-const WEIGHTS: Record<Metric, number> = { pain: 0.35, sleep: 0.2, stress: 0.2, energy: 0.15, mood: 0.1 };
+const WEIGHTS: Record<Metric, number> = {
+  pain: 0.35,
+  sleep: 0.2,
+  stress: 0.2,
+  energy: 0.15,
+  mood: 0.1,
+};
 const WORSE_DIR: Record<Metric, 1 | -1> = { pain: 1, sleep: -1, stress: 1, energy: -1, mood: -1 };
 const Z_CAP = 2;
 
@@ -101,24 +123,42 @@ function computeWearableBump(rows: WearableRow[]): { bump: number; factors: stri
   const factors: string[] = [];
   let bump = 0;
   const rSleep = avgOf(pickNums(recent, "sleep_score"));
-  if (rSleep !== null && rSleep < 65) { bump += 6; factors.push("low sleep quality"); }
+  if (rSleep !== null && rSleep < 65) {
+    bump += 6;
+    factors.push("low sleep quality");
+  }
   const rReady = avgOf(pickNums(recent, "readiness_score"));
-  if (rReady !== null && rReady < 65) { bump += 5; factors.push("low readiness"); }
+  if (rReady !== null && rReady < 65) {
+    bump += 5;
+    factors.push("low readiness");
+  }
   const rHrv = avgOf(pickNums(recent, "hrv_avg"));
   const bHrv = avgOf(pickNums(base, "hrv_avg"));
-  if (rHrv !== null && bHrv !== null && bHrv > 0 && rHrv < bHrv * 0.9) { bump += 6; factors.push("HRV below baseline"); }
+  if (rHrv !== null && bHrv !== null && bHrv > 0 && rHrv < bHrv * 0.9) {
+    bump += 6;
+    factors.push("HRV below baseline");
+  }
   const rRhr = avgOf(pickNums(recent, "resting_hr"));
   const bRhr = avgOf(pickNums(base, "resting_hr"));
-  if (rRhr !== null && bRhr !== null && bRhr > 0 && rRhr > bRhr * 1.05) { bump += 5; factors.push("resting HR above baseline"); }
+  if (rRhr !== null && bRhr !== null && bRhr > 0 && rRhr > bRhr * 1.05) {
+    bump += 5;
+    factors.push("resting HR above baseline");
+  }
   return { bump: Math.min(WEARABLE_BUMP_CAP, bump), factors };
 }
 
 function computeRisk(recent: CheckInRow[], baseline: BaselineRow) {
-  const breakdown: { metric: Metric; recent_mean: number | null; baseline_mean: number | null; z: number; direction: "worse" | "better" | "flat" }[] = [];
+  const breakdown: {
+    metric: Metric;
+    recent_mean: number | null;
+    baseline_mean: number | null;
+    z: number;
+    direction: "worse" | "better" | "flat";
+  }[] = [];
   let total = 0;
-  for (const metric of ["pain","sleep","stress","energy","mood"] as Metric[]) {
+  for (const metric of ["pain", "sleep", "stress", "energy", "mood"] as Metric[]) {
     const series = metricSeries(recent, metric);
-    const recentMean = series.length ? series.reduce((a,b) => a+b, 0) / series.length : null;
+    const recentMean = series.length ? series.reduce((a, b) => a + b, 0) / series.length : null;
     const baseMean = baseline[`${metric}_mean` as const];
     const baseStd = baseline[`${metric}_std` as const];
     let z = 0;
@@ -129,7 +169,9 @@ function computeRisk(recent: CheckInRow[], baseline: BaselineRow) {
     const clamped = Math.max(0, Math.min(Z_CAP, worseZ)) / Z_CAP;
     total += clamped * WEIGHTS[metric];
     breakdown.push({
-      metric, recent_mean: recentMean, baseline_mean: baseMean,
+      metric,
+      recent_mean: recentMean,
+      baseline_mean: baseMean,
       z: Number(worseZ.toFixed(2)),
       direction: worseZ > 0.5 ? "worse" : worseZ < -0.5 ? "better" : "flat",
     });
@@ -138,12 +180,15 @@ function computeRisk(recent: CheckInRow[], baseline: BaselineRow) {
   const worsening = breakdown.filter((b) => b.direction === "worse");
   const improving = breakdown.filter((b) => b.direction === "better");
   const trend =
-    risk_score >= 50 || worsening.length >= 2 ? "worsening"
-    : improving.length >= 2 && worsening.length === 0 ? "improving"
-    : "stable";
-  const summary = worsening.length === 0
-    ? "All metrics within baseline."
-    : `${worsening.map((b) => `${b.metric} worse than baseline`).join("; ")}.`;
+    risk_score >= 50 || worsening.length >= 2
+      ? "worsening"
+      : improving.length >= 2 && worsening.length === 0
+        ? "improving"
+        : "stable";
+  const summary =
+    worsening.length === 0
+      ? "All metrics within baseline."
+      : `${worsening.map((b) => `${b.metric} worse than baseline`).join("; ")}.`;
   return { risk_score, trend, breakdown, summary };
 }
 
@@ -156,7 +201,9 @@ async function aiDraft(args: {
   const key = process.env.LOVABLE_API_KEY;
   if (!key || !hasAiConsent(args.client)) return null;
   const programsList = args.programs.map((p) => ({
-    id: p.id, name: p.name, tags: p.symptom_tags,
+    id: p.id,
+    name: p.name,
+    tags: p.symptom_tags,
   }));
   const prompt = `You are an assistant for a clinical practitioner.
 Patient: ${args.client.full_name}
@@ -183,12 +230,20 @@ Respond ONLY with strict JSON:
     if (!res.ok) return null;
     const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     const content = json.choices?.[0]?.message?.content ?? "";
-    const parsed = JSON.parse(content) as { title?: string; body?: string; program_id?: string | null; reason?: string | null };
+    const parsed = JSON.parse(content) as {
+      title?: string;
+      body?: string;
+      program_id?: string | null;
+      reason?: string | null;
+    };
     if (!parsed.title || !parsed.body) return null;
     return {
       title: parsed.title.slice(0, 60),
       body: parsed.body.slice(0, 300),
-      program_id: parsed.program_id && args.programs.some((p) => p.id === parsed.program_id) ? parsed.program_id : undefined,
+      program_id:
+        parsed.program_id && args.programs.some((p) => p.id === parsed.program_id)
+          ? parsed.program_id
+          : undefined,
       reason: parsed.reason ?? undefined,
     };
   } catch (e) {
@@ -197,14 +252,17 @@ Respond ONLY with strict JSON:
   }
 }
 
-function templateDraft(client: ClientRow, computed: ReturnType<typeof computeRisk>): { title: string; body: string } {
+function templateDraft(
+  client: ClientRow,
+  computed: ReturnType<typeof computeRisk>,
+): { title: string; body: string } {
   return {
     title: `Risk score ${computed.risk_score} — ${client.full_name}`,
     body: `${client.full_name}'s risk score moved to ${computed.risk_score}/100 (${computed.trend}). ${computed.summary} Consider checking in.`,
   };
 }
 
-type AdminClient = typeof import("@/integrations/supabase/client.server")["supabaseAdmin"];
+type AdminClient = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 
 async function processClient(
   supabaseAdmin: AdminClient,
@@ -228,14 +286,24 @@ async function processClient(
   const energy = meanStd(metricSeries(baseCheckIns, "energy"));
   const mood = meanStd(metricSeries(baseCheckIns, "mood"));
   const baseline: BaselineRow = {
-    pain_mean: pain.mean, pain_std: pain.std,
-    sleep_mean: sleep.mean, sleep_std: sleep.std,
-    stress_mean: stress.mean, stress_std: stress.std,
-    energy_mean: energy.mean, energy_std: energy.std,
-    mood_mean: mood.mean, mood_std: mood.std,
+    pain_mean: pain.mean,
+    pain_std: pain.std,
+    sleep_mean: sleep.mean,
+    sleep_std: sleep.std,
+    stress_mean: stress.mean,
+    stress_std: stress.std,
+    energy_mean: energy.mean,
+    energy_std: energy.std,
+    mood_mean: mood.mean,
+    mood_std: mood.std,
   };
   await supabaseAdmin.from("client_baselines").upsert(
-    { client_id: client.id, computed_at: new Date().toISOString(), sample_size: baseCheckIns.length, ...baseline },
+    {
+      client_id: client.id,
+      computed_at: new Date().toISOString(),
+      sample_size: baseCheckIns.length,
+      ...baseline,
+    },
     { onConflict: "client_id" },
   );
 
@@ -278,7 +346,10 @@ async function processClient(
         client_id: client.id,
         score_date: forDate,
         risk_score: adjustedScore,
-        delta_vs_baseline: { breakdown: computed.breakdown, wearable: { bump: wb.bump, factors: wb.factors } },
+        delta_vs_baseline: {
+          breakdown: computed.breakdown,
+          wearable: { bump: wb.bump, factors: wb.factors },
+        },
         trend: computed.trend,
         summary: adjustedSummary,
       },
@@ -354,26 +425,8 @@ export const Route = createFileRoute("/api/public/hooks/nightly-risk-analysis")(
   server: {
     handlers: {
       POST: async ({ request }) => {
-        // Auth: prefer a dedicated secret (CRON_SECRET) when configured. The
-        // publishable key is shipped in the client bundle and is NOT secret, so
-        // it is only a fallback until CRON_SECRET is set in the environment and
-        // the pg_cron caller sends it via the x-cron-secret header. This keeps
-        // the existing schedule working with no downtime during the cutover.
-        const cronSecret = process.env.CRON_SECRET;
-        if (cronSecret) {
-          const provided =
-            request.headers.get("x-cron-secret") ??
-            request.headers.get("X-Cron-Secret") ??
-            (request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null);
-          if (provided !== cronSecret) {
-            return new Response("Unauthorized", { status: 401 });
-          }
-        } else {
-          // No CRON_SECRET configured -> fail closed. Never accept the public
-          // publishable/anon key (it ships in the client bundle, so it is not a
-          // secret). Matches checkin-reminders / onboarding-library-nudge.
-          return new Response("Unauthorized", { status: 401 });
-        }
+        const denied = authorizeCronRequest(request);
+        if (denied) return denied;
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -383,7 +436,10 @@ export const Route = createFileRoute("/api/public/hooks/nightly-risk-analysis")(
           .select("passive_monitoring_enabled")
           .limit(1)
           .maybeSingle();
-        if ((settings as { passive_monitoring_enabled?: boolean } | null)?.passive_monitoring_enabled === false) {
+        if (
+          (settings as { passive_monitoring_enabled?: boolean } | null)
+            ?.passive_monitoring_enabled === false
+        ) {
           return Response.json({ ok: true, skipped: "feature_disabled" });
         }
 
@@ -401,7 +457,9 @@ export const Route = createFileRoute("/api/public/hooks/nightly-risk-analysis")(
         for (;;) {
           const { data: clients, error } = await supabaseAdmin
             .from("clients")
-            .select("id, full_name, practitioner_id, primary_complaint, passive_monitoring_enabled, yves_ai_consent")
+            .select(
+              "id, full_name, practitioner_id, primary_complaint, passive_monitoring_enabled, yves_ai_consent",
+            )
             .eq("passive_monitoring_enabled", true)
             .order("id", { ascending: true })
             .range(from, from + BATCH_SIZE - 1);
@@ -421,10 +479,12 @@ export const Route = createFileRoute("/api/public/hooks/nightly-risk-analysis")(
             .select("practitioner_id, ai_features_enabled")
             .in("practitioner_id", practitionerIds);
           const aiEnabledByPractitioner = new Map<string, boolean>(
-            ((practiceRows ?? []) as Array<{
-              practitioner_id: string;
-              ai_features_enabled: boolean;
-            }>).map((p) => [p.practitioner_id, p.ai_features_enabled === true]),
+            (
+              (practiceRows ?? []) as Array<{
+                practitioner_id: string;
+                ai_features_enabled: boolean;
+              }>
+            ).map((p) => [p.practitioner_id, p.ai_features_enabled === true]),
           );
           for (const c of rows) {
             if (!aiEnabledByPractitioner.get(c.practitioner_id)) {

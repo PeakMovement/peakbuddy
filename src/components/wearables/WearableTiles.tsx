@@ -52,10 +52,24 @@ export function WearableTiles({ snapshot }: { snapshot: WearableSnapshot | null 
         <div style={connectCard}>
           <Watch size={18} color="var(--blue-accent)" aria-hidden />
           <div>
-            <div style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 600 }}>
+            <div
+              style={{
+                color: "var(--white)",
+                fontFamily: "var(--font-ui)",
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
               Connect a wearable
             </div>
-            <div style={{ color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 12.5, marginTop: 2 }}>
+            <div
+              style={{
+                color: "var(--white-muted)",
+                fontFamily: "var(--font-ui)",
+                fontSize: 12.5,
+                marginTop: 2,
+              }}
+            >
               Link your Oura, Garmin or Polar in Profile to see your body metrics here.
             </div>
           </div>

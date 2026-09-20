@@ -69,9 +69,7 @@ export function RewardsManager() {
   }, []);
 
   const toggleDay = (d: number) => {
-    setSchedDays((cur) =>
-      cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d].sort(),
-    );
+    setSchedDays((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d].sort()));
   };
 
   const saveSchedule = async () => {
@@ -90,7 +88,6 @@ export function RewardsManager() {
       setSchedSaving(false);
     }
   };
-
 
   const toggleActive = async () => {
     setSchedSaving(true);
@@ -178,7 +175,14 @@ export function RewardsManager() {
       </p>
 
       <div style={{ ...cardStyle, marginTop: 12 }}>
-        <div style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 600 }}>
+        <div
+          style={{
+            color: "var(--white)",
+            fontFamily: "var(--font-ui)",
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
           Reward availability
         </div>
         <div
@@ -243,14 +247,11 @@ export function RewardsManager() {
             );
           })}
         </div>
-        {schedMsg && (
-          <div style={{ color: "var(--white-muted)", fontSize: 12 }}>{schedMsg}</div>
-        )}
+        {schedMsg && <div style={{ color: "var(--white-muted)", fontSize: 12 }}>{schedMsg}</div>}
         <button type="button" onClick={saveSchedule} disabled={schedSaving} style={primaryBtn}>
           {schedSaving ? "Saving…" : "Save days"}
         </button>
       </div>
-
 
       <div style={cardStyle}>
         <input
@@ -325,13 +326,22 @@ export function RewardsManager() {
                   )}
                 </div>
                 <div
-                  style={{ color: "var(--white-muted)", fontFamily: "var(--font-data)", fontSize: 12 }}
+                  style={{
+                    color: "var(--white-muted)",
+                    fontFamily: "var(--font-data)",
+                    fontSize: 12,
+                  }}
                 >
                   {r.voucher_code}
                 </div>
               </div>
               <div style={{ display: "flex", gap: 6 }}>
-                <button type="button" onClick={() => edit(r)} style={iconBtn} aria-label="Edit reward">
+                <button
+                  type="button"
+                  onClick={() => edit(r)}
+                  style={iconBtn}
+                  aria-label="Edit reward"
+                >
                   <Pencil size={16} />
                 </button>
                 <button
@@ -356,7 +366,13 @@ export function RewardsManager() {
                 <div style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14 }}>
                   {row.name}
                 </div>
-                <div style={{ color: "var(--white-muted)", fontFamily: "var(--font-data)", fontSize: 12 }}>
+                <div
+                  style={{
+                    color: "var(--white-muted)",
+                    fontFamily: "var(--font-data)",
+                    fontSize: 12,
+                  }}
+                >
                   {row.redeemed}/{row.issued} used
                 </div>
               </div>

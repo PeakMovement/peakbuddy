@@ -2,10 +2,10 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { passwordResetRedirectUrl } from "@/lib/app-url";
 import { BuddyLogo } from "@/components/CrosshairLogo";
 import { QuickCodeSignIn } from "@/components/QuickCodeSignIn";
 import { markQuickCodeSession } from "@/lib/quick-login";
-
 
 export const Route = createFileRoute("/admin/login")({
   head: () => ({ meta: [{ title: "Admin Login — Buddy" }] }),
@@ -44,7 +44,6 @@ function AdminLogin() {
     return () => clearTimeout(t);
   }, [resetCooldown]);
 
-
   // Verify the signed-in account is a super admin, then land on the dashboard.
   const routeAdmin = async (): Promise<string | null> => {
     const { data: authData } = await supabase.auth.getUser();
@@ -79,7 +78,7 @@ function AdminLogin() {
       // preview/non-production host is NOT in Supabase's redirect allow-list, so
       // the recovery link would bounce to the site root and never reach this
       // page — leaving the password unchanged.
-      redirectTo: "https://peakbuddy.lovable.app/reset-password",
+      redirectTo: passwordResetRedirectUrl(),
     });
     setResetBusy(false);
     if (resetErr) {
@@ -117,7 +116,6 @@ function AdminLogin() {
     setLoading(false);
     if (problem) setError(problem);
   };
-
 
   return (
     <main
@@ -164,130 +162,136 @@ function AdminLogin() {
             }}
           />
         ) : (
-        <form
-          onSubmit={onSubmit}
-
-          style={{
-            width: "100%",
-            marginTop: 32,
-            display: "flex",
-            flexDirection: "column",
-            gap: 14,
-          }}
-        >
-          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={fieldLabel}>Email</span>
-            <input
-              type="email"
-              name="email"
-              inputMode="email"
-              autoComplete="email"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={inputStyle}
-            />
-          </label>
-
-          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={fieldLabel}>Password</span>
-            <div style={{ position: "relative" }}>
+          <form
+            onSubmit={onSubmit}
+            style={{
+              width: "100%",
+              marginTop: 32,
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+            }}
+          >
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={fieldLabel}>Email</span>
               <input
-                type={show ? "text" : "password"}
-                name="password"
-                autoComplete="current-password"
+                type="email"
+                name="email"
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{ ...inputStyle, paddingRight: 48 }}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={inputStyle}
               />
-              <button
-                type="button"
-                aria-label={show ? "Hide password" : "Show password"}
-                onClick={() => setShow((s) => !s)}
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={fieldLabel}>Password</span>
+              <div style={{ position: "relative" }}>
+                <input
+                  type={show ? "text" : "password"}
+                  name="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{ ...inputStyle, paddingRight: 48 }}
+                />
+                <button
+                  type="button"
+                  aria-label={show ? "Hide password" : "Show password"}
+                  onClick={() => setShow((s) => !s)}
+                  style={{
+                    position: "absolute",
+                    right: 2,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--white-muted)",
+                    minWidth: 44,
+                    minHeight: 44,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  {show ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </label>
+
+            {error && (
+              <p role="alert" style={{ color: "var(--red)", fontSize: 13, textAlign: "center" }}>
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                marginTop: 8,
+                width: "100%",
+                minHeight: 48,
+                borderRadius: 8,
+                background: "var(--blue-accent)",
+                color: "var(--white)",
+                border: "none",
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                fontSize: 16,
+                opacity: loading ? 0.6 : 1,
+              }}
+            >
+              {loading ? "Signing in…" : "Log in"}
+            </button>
+
+            <button
+              type="button"
+              onClick={onResetPassword}
+              disabled={resetBusy || resetCooldown > 0}
+              style={{
+                marginTop: 12,
+                alignSelf: "center",
+                background: "transparent",
+                border: "none",
+                color: "var(--blue-accent)",
+                fontFamily: "var(--font-ui)",
+                fontSize: 13,
+                textDecoration: "underline",
+                cursor: resetBusy || resetCooldown > 0 ? "default" : "pointer",
+                opacity: resetBusy || resetCooldown > 0 ? 0.6 : 1,
+              }}
+            >
+              {resetBusy
+                ? "Sending…"
+                : resetCooldown > 0
+                  ? `Sent (${resetCooldown}s)`
+                  : "Forgot your password?"}
+            </button>
+            {resetNotice && (
+              <p
                 style={{
-                  position: "absolute",
-                  right: 2,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--white-muted)",
-                  minWidth: 44,
-                  minHeight: 44,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
+                  color: "var(--white)",
+                  fontSize: 13,
+                  textAlign: "center",
+                  lineHeight: 1.5,
+                  marginTop: 4,
                 }}
               >
-                {show ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </label>
-
-          {error && (
-            <p role="alert" style={{ color: "var(--red)", fontSize: 13, textAlign: "center" }}>
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              marginTop: 8,
-              width: "100%",
-              minHeight: 48,
-              borderRadius: 8,
-              background: "var(--blue-accent)",
-              color: "var(--white)",
-              border: "none",
-              fontFamily: "var(--font-ui)",
-              fontWeight: 600,
-              fontSize: 16,
-              opacity: loading ? 0.6 : 1,
-            }}
-          >
-            {loading ? "Signing in…" : "Log in"}
-          </button>
-
-          <button
-            type="button"
-            onClick={onResetPassword}
-            disabled={resetBusy || resetCooldown > 0}
-            style={{
-              marginTop: 12,
-              alignSelf: "center",
-              background: "transparent",
-              border: "none",
-              color: "var(--blue-accent)",
-              fontFamily: "var(--font-ui)",
-              fontSize: 13,
-              textDecoration: "underline",
-              cursor: resetBusy || resetCooldown > 0 ? "default" : "pointer",
-              opacity: resetBusy || resetCooldown > 0 ? 0.6 : 1,
-            }}
-          >
-            {resetBusy
-              ? "Sending…"
-              : resetCooldown > 0
-                ? `Sent (${resetCooldown}s)`
-                : "Forgot your password?"}
-          </button>
-          {resetNotice && (
-            <p style={{ color: "var(--white)", fontSize: 13, textAlign: "center", lineHeight: 1.5, marginTop: 4 }}>
-              {resetNotice}
-            </p>
-          )}
-        </form>
+                {resetNotice}
+              </p>
+            )}
+          </form>
         )}
 
         {/* Quick 4-digit sign-in is intentionally not offered for admin accounts. */}
-
 
         <Link
           to="/"

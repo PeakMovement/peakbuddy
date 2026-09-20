@@ -589,7 +589,15 @@ function AIFeaturesRow({
     setSaving(false);
   };
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        gap: 8,
+        flexWrap: "wrap",
+      }}
+    >
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
           style={{
@@ -611,9 +619,9 @@ function AIFeaturesRow({
             lineHeight: 1.4,
           }}
         >
-          Master switch. When on, unlocks Yves (Anthropic, 3 questions/day per client),
-          program suggestions (Google), morning analysis and insights. When off, all AI
-          processing is blocked for this practitioner and their clients.
+          Master switch. When on, unlocks Yves (Anthropic, 3 questions/day per client), program
+          suggestions (Google), morning analysis and insights. When off, all AI processing is
+          blocked for this practitioner and their clients.
         </div>
       </div>
       <button

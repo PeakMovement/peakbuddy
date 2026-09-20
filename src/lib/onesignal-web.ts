@@ -92,10 +92,7 @@ export function initOneSignalWeb(): void {
 
 /** Await the initialised SDK (resolves once init completes). */
 function whenReady(timeoutMs = 8000): Promise<OneSignalApi | null> {
-  return Promise.race([
-    ready,
-    new Promise<null>((res) => setTimeout(() => res(null), timeoutMs)),
-  ]);
+  return Promise.race([ready, new Promise<null>((res) => setTimeout(() => res(null), timeoutMs))]);
 }
 
 /** True if this context can use web push (not native, browser supports it). */
@@ -187,7 +184,9 @@ export async function getDiagnostics(): Promise<PushDiagnostics> {
       } else {
         // No registration yet — actively try, and surface the REAL error.
         try {
-          const r = await navigator.serviceWorker.register("/OneSignalSDKWorker.js", { scope: "/" });
+          const r = await navigator.serviceWorker.register("/OneSignalSDKWorker.js", {
+            scope: "/",
+          });
           serviceWorker = r.active ? "active" : r.installing ? "installing" : "registered";
         } catch (e) {
           serviceWorker = "none";

@@ -62,9 +62,7 @@ export async function isProgramsSuggestEnabledForPractitioner(
     .select("ai_features_enabled, programs_suggest_enabled")
     .eq("practitioner_id", practitionerId)
     .maybeSingle();
-  const row = data as
-    | { ai_features_enabled?: boolean; programs_suggest_enabled?: boolean }
-    | null;
+  const row = data as { ai_features_enabled?: boolean; programs_suggest_enabled?: boolean } | null;
   if (!row) return false;
   // Master AI switch is authoritative; legacy programs_suggest_enabled kept as
   // a secondary gate so an admin can still narrowly disable program suggestions.
@@ -215,7 +213,6 @@ export const getMyProgram = createServerFn({ method: "POST" })
     return buildState(client, program, false);
   });
 
-
 const RespondSchema = z.object({
   decision: z.enum(["accepted", "declined", "remind_later"]),
 });
@@ -236,7 +233,6 @@ export const respondToSuggestedProgram = createServerFn({ method: "POST" })
       return { ok: false as const, error: "Suggested Programs is currently unavailable." };
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
 
     if (data.decision === "remind_later") {
       const snoozeUntil = new Date(Date.now() + SNOOZE_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -294,7 +290,6 @@ export const getClientProgramForPractitioner = createServerFn({ method: "POST" }
     };
   });
 
-
 // Practitioner: list of clients waiting for a program-suggestion decision.
 export type PendingSuggestion = {
   client_id: string;
@@ -313,7 +308,6 @@ export const listPendingProgramSuggestions = createServerFn({ method: "GET" })
       return [] as PendingSuggestion[];
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
 
     const { data, error } = await supabaseAdmin
       .from("clients")
@@ -352,7 +346,6 @@ export const countPendingProgramSuggestions = createServerFn({ method: "GET" })
     if (!(await isProgramsSuggestEnabledForPractitioner(context.userId))) return 0;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-
     const { count } = await supabaseAdmin
       .from("clients")
       .select("id", { count: "exact", head: true })
@@ -386,7 +379,6 @@ export const approveProgramSuggestion = createServerFn({ method: "POST" })
     }
     await assertOwnsClient(context.userId, data.clientId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
 
     const { error } = await supabaseAdmin
       .from("clients")

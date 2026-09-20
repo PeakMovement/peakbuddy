@@ -1,6 +1,8 @@
 // Google Calendar OAuth helpers (per-user).
 // Uses the standard Google OAuth 2.0 web flow with offline access + refresh tokens.
 
+import { appBaseUrl } from "@/lib/app-url";
+
 export const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 export const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 export const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
@@ -23,11 +25,8 @@ export function googleCreds() {
 }
 
 export function googleRedirectUri() {
-  const base = process.env.BUDDY_APP_BASE_URL ?? "https://peakbuddy.lovable.app";
-  return (
-    process.env.GOOGLE_CALENDAR_REDIRECT_URI ??
-    `${base}/api/public/google-calendar/callback`
-  );
+  const base = appBaseUrl();
+  return process.env.GOOGLE_CALENDAR_REDIRECT_URI ?? `${base}/api/public/google-calendar/callback`;
 }
 
 export function generateState(): string {
@@ -128,8 +127,7 @@ export async function fetchGoogleUserEmail(accessToken: string): Promise<string 
 
 // ---- Calendar API (event writing) ----------------------------------------
 
-const CALENDAR_EVENTS_URL =
-  "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+const CALENDAR_EVENTS_URL = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 
 /**
  * Return a valid access token for the user, refreshing via the stored refresh

@@ -125,7 +125,6 @@ function ClientDetailAdmin() {
           : ""}
       </div>
 
-
       <h2
         style={{
           marginTop: 24,

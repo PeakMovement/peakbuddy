@@ -80,8 +80,8 @@ function SocialPage() {
             Social Media Kit
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-base" style={{ color: "#6b7280" }}>
-            Three Instagram-ready posts you can download and share. Each one highlights a
-            different side of Buddy — quick tracking, AI insights, and clinical connection.
+            Three Instagram-ready posts you can download and share. Each one highlights a different
+            side of Buddy — quick tracking, AI insights, and clinical connection.
           </p>
         </div>
 
@@ -143,7 +143,10 @@ function SocialPage() {
       </section>
 
       <footer className="border-t" style={{ borderColor: "#e8e4dd" }}>
-        <div className="mx-auto max-w-6xl px-6 py-10 text-center text-sm" style={{ color: "#9ca3af" }}>
+        <div
+          className="mx-auto max-w-6xl px-6 py-10 text-center text-sm"
+          style={{ color: "#9ca3af" }}
+        >
           © {new Date().getFullYear()} Peak Movement Medical &amp; High Performance Center.
         </div>
       </footer>

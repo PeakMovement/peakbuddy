@@ -29,9 +29,7 @@ export const getGradingMode = createServerFn({ method: "GET" })
 export const setGradingMode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { mode: GradingMode }) =>
-    z
-      .object({ mode: z.enum(["super_admin_only", "practitioner", "sampled"]) })
-      .parse(d),
+    z.object({ mode: z.enum(["super_admin_only", "practitioner", "sampled"]) }).parse(d),
   )
   .handler(async ({ context, data }) => {
     await assertSuperAdmin(context.supabase, context.userId);
@@ -74,7 +72,10 @@ export const getAdminGradingQueue = createServerFn({ method: "GET" })
     const [{ data: clients }, { data: profs }, { data: practices }] = await Promise.all([
       supabaseAdmin.from("clients").select("id, full_name").in("id", clientIds),
       supabaseAdmin.from("profiles").select("id, full_name").in("id", practIds),
-      supabaseAdmin.from("practices").select("practitioner_id, practice_name").in("practitioner_id", practIds),
+      supabaseAdmin
+        .from("practices")
+        .select("practitioner_id, practice_name")
+        .in("practitioner_id", practIds),
     ]);
 
     const cMap = new Map((clients ?? []).map((c) => [c.id, c]));
@@ -116,21 +117,25 @@ export type InsightGradingRow = {
 
 export const listYvesMemoryVersionsForFilter = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<Array<{ version: number; note: string | null; created_at: string }>> => {
-    await assertSuperAdmin(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
-      .from("yves_memory_versions")
-      .select("version_number, note, created_at")
-      .order("version_number", { ascending: false })
-      .limit(50);
-    if (error) throw new Error(error.message);
-    return (data ?? []).map((r) => ({
-      version: r.version_number as number,
-      note: (r.note as string | null) ?? null,
-      created_at: r.created_at as string,
-    }));
-  });
+  .handler(
+    async ({
+      context,
+    }): Promise<Array<{ version: number; note: string | null; created_at: string }>> => {
+      await assertSuperAdmin(context.supabase, context.userId);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data, error } = await supabaseAdmin
+        .from("yves_memory_versions")
+        .select("version_number, note, created_at")
+        .order("version_number", { ascending: false })
+        .limit(50);
+      if (error) throw new Error(error.message);
+      return (data ?? []).map((r) => ({
+        version: r.version_number as number,
+        note: (r.note as string | null) ?? null,
+        created_at: r.created_at as string,
+      }));
+    },
+  );
 
 export const getInsightGradingQueue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -153,8 +158,12 @@ export const getInsightGradingQueue = createServerFn({ method: "POST" })
     if (list.length === 0) return [];
     const clientIds = Array.from(new Set(list.map((r) => r.client_id as string)));
     const { data: clients } = await supabaseAdmin
-      .from("clients").select("id, full_name").in("id", clientIds);
-    const cMap = new Map((clients ?? []).map((c) => [c.id as string, c.full_name as string | null]));
+      .from("clients")
+      .select("id, full_name")
+      .in("id", clientIds);
+    const cMap = new Map(
+      (clients ?? []).map((c) => [c.id as string, c.full_name as string | null]),
+    );
     return list.map((r) => {
       const full = (r.response as string | null) ?? "";
       const name = (cMap.get(r.client_id as string) || "Unknown").trim().split(/\s+/)[0];
@@ -175,11 +184,13 @@ export const getInsightGradingQueue = createServerFn({ method: "POST" })
 export const setInsightGrade = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { insightId: string; grade: "good" | "poor"; note?: string }) =>
-    z.object({
-      insightId: z.string().uuid(),
-      grade: z.enum(["good", "poor"]),
-      note: z.string().max(400).optional(),
-    }).parse(d),
+    z
+      .object({
+        insightId: z.string().uuid(),
+        grade: z.enum(["good", "poor"]),
+        note: z.string().max(400).optional(),
+      })
+      .parse(d),
   )
   .handler(async ({ context, data }): Promise<{ ok: true }> => {
     await assertSuperAdmin(context.supabase, context.userId);
@@ -197,4 +208,3 @@ export const setInsightGrade = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
-

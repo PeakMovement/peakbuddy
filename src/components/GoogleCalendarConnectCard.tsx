@@ -20,7 +20,9 @@ export function GoogleCalendarConnectCard() {
   const addReminder = useServerFn(addCheckinReminderToGoogleCalendar);
 
   useEffect(() => {
-    load().then(setStatus).catch((e: Error) => setError(e.message));
+    load()
+      .then(setStatus)
+      .catch((e: Error) => setError(e.message));
   }, [load]);
 
   const onConnect = async () => {

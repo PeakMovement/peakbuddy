@@ -7,7 +7,6 @@ import { PasswordInput } from "@/components/PasswordInput";
 import { clearQuickCode } from "@/lib/quick-login.functions";
 import { markQuickCodeSession } from "@/lib/quick-login";
 
-
 export const Route = createFileRoute("/reset-password")({
   head: () => ({
     meta: [
@@ -113,9 +112,7 @@ function ResetPassword() {
       const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
         if (cancelled) return;
         if (
-          (event === "PASSWORD_RECOVERY" ||
-            event === "INITIAL_SESSION" ||
-            event === "SIGNED_IN") &&
+          (event === "PASSWORD_RECOVERY" || event === "INITIAL_SESSION" || event === "SIGNED_IN") &&
           session?.user
         ) {
           acceptSession();
@@ -127,8 +124,7 @@ function ResetPassword() {
       // Check the resulting session even when the token is no longer visible.
       for (let attempt = 0; attempt < 50; attempt++) {
         if (cancelled) break;
-        const { data: sessionData, error: sessionError } =
-          await supabase.auth.getSession();
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         if (hasRecoveryToken && sessionData.session?.user) {
           acceptSession();
           break;
@@ -148,11 +144,7 @@ function ResetPassword() {
 
     const clearRecoveryUrl = () => {
       if (window.history.replaceState) {
-        window.history.replaceState(
-          null,
-          "",
-          window.location.pathname + window.location.search,
-        );
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
       }
     };
 

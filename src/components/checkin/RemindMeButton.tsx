@@ -29,7 +29,9 @@ export function RemindMeButton() {
       try {
         const r = await getMyReminder();
         setReminder((r.reminder as Reminder) ?? null);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     })();
   }, []);
 
@@ -41,7 +43,9 @@ export function RemindMeButton() {
         onClick={() => setOpen(true)}
         aria-label="Set check-in reminder"
         style={{
-          display: "flex", alignItems: "center", gap: 8,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
           padding: "8px 12px",
           background: "rgba(122,168,255,0.08)",
           border: "1px solid rgba(122,168,255,0.24)",

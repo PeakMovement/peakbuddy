@@ -60,7 +60,6 @@ function CheckInScreen() {
   const [conditionContext, setConditionContext] = useState<"same" | "different" | null>(null);
   const [conditionNote, setConditionNote] = useState("");
 
-
   const todayLabel = useMemo(
     () =>
       new Date().toLocaleDateString(undefined, {
@@ -150,7 +149,6 @@ function CheckInScreen() {
       condition_note: conditionNote.trim() || null,
     };
 
-
     const saveOffline = () => {
       queueCheckIn(queuePayload);
       setTodayCheckIn({
@@ -191,7 +189,6 @@ function CheckInScreen() {
       p_condition_context: conditionContext,
       p_condition_note: conditionNote.trim() || null,
     });
-
 
     if (insErr || !newId) {
       const msg = insErr?.message?.toLowerCase() ?? "";
@@ -473,11 +470,16 @@ function CheckInScreen() {
     );
   }
 
-
-
   return (
     <div style={{ padding: "24px 20px 32px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 12,
+        }}
+      >
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1
             style={{
@@ -511,8 +513,7 @@ function CheckInScreen() {
           lineHeight: 1.5,
         }}
       >
-        Pain level is the most important field. Sleep, stress, energy and mood
-        are optional.
+        Pain level is the most important field. Sleep, stress, energy and mood are optional.
       </p>
 
       {conditionContext && (
@@ -535,7 +536,6 @@ function CheckInScreen() {
           . This will be shown to your practitioner.
         </div>
       )}
-
 
       {gamificationOn && (
         <div style={{ marginTop: 16 }}>

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { log } from "@/lib/log";
 import { detectWeekdayPatterns, type CheckInInput } from "@/lib/client-patterns";
+import { authorizeCronRequest } from "@/lib/cron-auth";
 
 // #5 Predictive nudges — Phase 2 detection job.
 // Nightly, consent-gated: for each client with passive_monitoring_enabled,
@@ -14,7 +15,7 @@ const LOOKBACK_DAYS = 90;
 
 type ClientRow = { id: string; practitioner_id: string };
 
-type AdminClient = typeof import("@/integrations/supabase/client.server")["supabaseAdmin"];
+type AdminClient = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 
 async function detectForClient(supabaseAdmin: AdminClient, clientId: string): Promise<number> {
   const sinceIso = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -30,10 +31,7 @@ async function detectForClient(supabaseAdmin: AdminClient, clientId: string): Pr
   const patterns = detectWeekdayPatterns(checkins);
 
   // Deactivate stale patterns first (best-effort), then upsert current ones.
-  await supabaseAdmin
-    .from("client_patterns")
-    .update({ active: false })
-    .eq("client_id", clientId);
+  await supabaseAdmin.from("client_patterns").update({ active: false }).eq("client_id", clientId);
 
   if (patterns.length === 0) return 0;
 
@@ -64,19 +62,8 @@ export const Route = createFileRoute("/api/public/hooks/nightly-pattern-detectio
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const cronSecret = process.env.CRON_SECRET;
-        if (cronSecret) {
-          const provided =
-            request.headers.get("x-cron-secret") ??
-            request.headers.get("X-Cron-Secret") ??
-            (request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null);
-          if (provided !== cronSecret) return new Response("Unauthorized", { status: 401 });
-        } else {
-          // No CRON_SECRET configured -> fail closed. Never accept the public
-          // publishable/anon key (it ships in the client bundle, so it is not a
-          // secret). Matches checkin-reminders / onboarding-library-nudge.
-          return new Response("Unauthorized", { status: 401 });
-        }
+        const denied = authorizeCronRequest(request);
+        if (denied) return denied;
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -86,7 +73,10 @@ export const Route = createFileRoute("/api/public/hooks/nightly-pattern-detectio
           .select("passive_monitoring_enabled")
           .limit(1)
           .maybeSingle();
-        if ((settings as { passive_monitoring_enabled?: boolean } | null)?.passive_monitoring_enabled === false) {
+        if (
+          (settings as { passive_monitoring_enabled?: boolean } | null)
+            ?.passive_monitoring_enabled === false
+        ) {
           return Response.json({ ok: true, skipped: "feature_disabled" });
         }
 

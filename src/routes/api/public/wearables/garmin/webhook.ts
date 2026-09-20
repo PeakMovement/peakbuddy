@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { log } from "@/lib/log";
 import {
+  garminWebhookSignatureFrom,
   mapGarminActivity,
   mapGarminDaily,
   mapGarminHrv,
   mapGarminSleep,
   mapGarminUserMetrics,
+  verifyGarminWebhookSignature,
   type GarminDailyRow,
 } from "@/lib/wearables/garmin";
 
@@ -16,10 +18,17 @@ function ok200() {
   return new Response("OK", { status: 200, headers: { "Content-Type": "text/plain" } });
 }
 
+function unauthorized(msg: string) {
+  return new Response(JSON.stringify({ error: msg }), {
+    status: 401,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 /**
- * 3-tier client resolution: provider_user_id → access_token → single-active-user,
- * self-healing provider_user_id so future pushes resolve on tier 1.
- * (Self-heal is disabled for deregistration / permission-change payloads.)
+ * Resolve the client from Garmin userId, then from the push access token.
+ * Never guess from "the only unbound Garmin user" — that mis-binds PHI.
+ * Self-heal provider_user_id only after a token match.
  */
 async function resolveClientId(
   admin: AdminClient,
@@ -54,31 +63,6 @@ async function resolveClientId(
       return data.client_id as string;
     }
   }
-  // Fallback: single active garmin user (prefer one without provider_user_id).
-  const { data: rows } = await admin
-    .from("wearable_tokens")
-    .select("client_id, provider_user_id")
-    .eq("provider", "garmin")
-    .eq("status", "active")
-    .order("updated_at", { ascending: false });
-  if (rows && rows.length > 0) {
-    // Only attribute when it is unambiguous: exactly one active Garmin client,
-    // or exactly one not-yet-bound token (the just-connected client being
-    // linked). With multiple active Garmin clients and no direct token/user
-    // match, NEVER guess — mis-binding one person's device to another is worse
-    // than skipping this push.
-    const unbound = rows.filter((r) => !r.provider_user_id);
-    const pick = rows.length === 1 ? rows[0] : unbound.length === 1 ? unbound[0] : null;
-    if (!pick) return null;
-    if (allowSelfHeal && garminUserId) {
-      await admin
-        .from("wearable_tokens")
-        .update({ provider_user_id: garminUserId })
-        .eq("client_id", pick.client_id)
-        .eq("provider", "garmin");
-    }
-    return pick.client_id as string;
-  }
   return null;
 }
 
@@ -94,14 +78,22 @@ async function upsertRows(admin: AdminClient, clientId: string, rows: GarminDail
 export const Route = createFileRoute("/api/public/wearables/garmin/webhook")({
   server: {
     handlers: {
-      // Garmin validates the endpoint with a GET.
+      // Garmin validates the endpoint with a GET (no signature).
       GET: async () => ok200(),
       POST: async ({ request }) => {
+        const secret = process.env.GARMIN_CONSUMER_SECRET;
+        if (!secret) return unauthorized("Webhook not configured");
+
+        const rawBody = await request.text();
+        const signature = garminWebhookSignatureFrom(request.headers);
+        if (!signature) return unauthorized("Signature required");
+        const signed = await verifyGarminWebhookSignature({ secret, rawBody, signature });
+        if (!signed) return unauthorized("Invalid signature");
+
         try {
-          const payload = (await request.json()) as Record<string, Item[] | undefined>;
+          const payload = JSON.parse(rawBody) as Record<string, Item[] | undefined>;
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-          // Resolve + map simple per-item summaries (dailies / sleeps / hrv).
           const simple: Array<{
             items?: Item[];
             map: (i: Item) => { date: string; row: GarminDailyRow } | null;
@@ -125,8 +117,6 @@ export const Route = createFileRoute("/api/public/wearables/garmin/webhook")({
             }
           }
 
-          // Activities: accumulate distance per (client, date). Also opportunistically
-          // capture the Garmin device name (for brand attribution UI).
           const acts = [...(payload.activities ?? []), ...(payload.activityDetails ?? [])];
           const byClientDate = new Map<string, number>();
           const dateMeta = new Map<string, { clientId: string; date: string }>();
@@ -151,9 +141,6 @@ export const Route = createFileRoute("/api/public/wearables/garmin/webhook")({
           for (const [key, km] of byClientDate) {
             const meta = dateMeta.get(key)!;
             if (km > 0) {
-              // The activity sum is workout-only; the daily summary carries the
-              // all-day distance. Keep whichever is larger so a logged workout
-              // doesn't undercount the day.
               const { data: existing } = await supabaseAdmin
                 .from("wearable_sessions")
                 .select("total_distance_km")
@@ -177,7 +164,6 @@ export const Route = createFileRoute("/api/public/wearables/garmin/webhook")({
               .eq("provider", "garmin");
           }
 
-          // Deregistration: remove the token (no self-heal).
           for (const item of payload.deregistrations ?? []) {
             const clientId = await resolveClientId(
               supabaseAdmin,
@@ -193,11 +179,10 @@ export const Route = createFileRoute("/api/public/wearables/garmin/webhook")({
                 .eq("provider", "garmin");
             }
           }
-          // userPermissionsChange: acknowledged, no mutation.
 
           return ok200();
         } catch (e) {
-          // Must always return 200 (a non-200 can deregister us).
+          // Signed request, processing failed — 200 so Garmin does not deregister.
           log.warn("Garmin webhook error", e);
           return ok200();
         }

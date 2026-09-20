@@ -8,6 +8,10 @@ import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 import { log } from "@/lib/log";
 import { setAlertOutcome, getYvesAccuracy } from "@/lib/alert-outcome.functions";
 import { getGradingMode, type GradingMode } from "@/lib/grading.functions";
+import {
+  getPractitionerAlertFeed,
+  patchPractitionerAlert,
+} from "@/lib/practitioner-roster.functions";
 
 type Outcome = "confirmed" | "false_alarm" | "already_aware";
 const OUTCOME_LABEL: Record<Outcome, string> = {
@@ -15,7 +19,6 @@ const OUTCOME_LABEL: Record<Outcome, string> = {
   false_alarm: "False alarm",
   already_aware: "Already aware",
 };
-
 
 export const Route = createFileRoute("/practitioner/app/alerts")({
   head: () => ({ meta: [{ title: "Alerts — Buddy" }] }),
@@ -73,6 +76,8 @@ function Alerts() {
   const setOutcomeFn = useServerFn(setAlertOutcome);
   const getAccuracyFn = useServerFn(getYvesAccuracy);
   const getModeFn = useServerFn(getGradingMode);
+  const loadFeed = useServerFn(getPractitionerAlertFeed);
+  const patchAlert = useServerFn(patchPractitionerAlert);
 
   const refreshAccuracy = async () => {
     try {
@@ -102,24 +107,15 @@ function Alerts() {
     }
   };
 
-
   const load = async () => {
     setError(null);
     try {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
-      const [{ data: a, error: aErr }, { data: c, error: cErr }] = await Promise.all([
-        supabase
-          .from("alerts")
-          .select("*")
-          .eq("practitioner_id", u.user.id)
-          .order("created_at", { ascending: false }),
-        supabase.from("clients").select("*").eq("practitioner_id", u.user.id),
-      ]);
-      if (aErr || cErr) throw aErr || cErr;
-      setAlerts((a as Alert[]) ?? []);
+      const feed = await loadFeed();
+      setAlerts((feed.alerts as Alert[]) ?? []);
       const map: Record<string, Client> = {};
-      ((c as Client[]) ?? []).forEach((cl) => (map[cl.id] = cl));
+      ((feed.clients as Client[]) ?? []).forEach((cl) => (map[cl.id] = cl));
       setClients(map);
     } catch (e) {
       log.error(e);
@@ -142,7 +138,6 @@ function Alerts() {
     })();
   }, []);
 
-
   const filtered = useMemo(() => {
     const sorted = [...alerts].sort((a, b) => {
       if (a.is_read !== b.is_read) return a.is_read ? 1 : -1;
@@ -156,14 +151,14 @@ function Alerts() {
 
   const markResolved = async (id: string) => {
     setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, is_read: true } : a)));
-    await supabase.from("alerts").update({ is_read: true }).eq("id", id);
+    await patchAlert({ data: { alertId: id, is_read: true } });
   };
 
   const submitAssessment = async (id: string, assessment: "correct" | "over" | "under") => {
     setAlerts((prev) =>
       prev.map((a) => (a.id === id ? ({ ...a, practitioner_assessment: assessment } as Alert) : a)),
     );
-    await supabase.from("alerts").update({ practitioner_assessment: assessment }).eq("id", id);
+    await patchAlert({ data: { alertId: id, practitioner_assessment: assessment } });
   };
 
   const categoryLabel = (cat: string | null | undefined) => {
@@ -218,7 +213,6 @@ function Alerts() {
           return `Yves accuracy: ${pct}% confirmed`;
         })()}
       </div>
-
 
       <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
         {(["all", "unread", "red_flag"] as Filter[]).map((f) => (
@@ -511,7 +505,6 @@ function Alerts() {
                   )}
                 </div>
               </div>
-
             );
           })}
         </div>

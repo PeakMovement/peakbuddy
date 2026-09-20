@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { log } from "@/lib/log";
+import { authorizeCronRequest } from "@/lib/cron-auth";
+import { appBaseUrl } from "@/lib/app-url";
 
 // #7 Weekly practitioner digest.
 // Opt-in (practices.weekly_digest_enabled). For each opted-in practitioner,
@@ -11,7 +13,7 @@ import { log } from "@/lib/log";
 const BATCH_SIZE = 50;
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 const FROM_ADDRESS = process.env.BUDDY_EMAIL_FROM || "Buddy <noreply@buddy-health.co.za>";
-const APP_BASE_URL = process.env.BUDDY_APP_BASE_URL || "https://peakbuddy.lovable.app";
+const APP_BASE_URL = appBaseUrl();
 
 type ClientRow = { id: string; full_name: string; practitioner_id: string };
 type CheckInRow = { client_id: string; created_at: string; flagged: boolean | null };
@@ -45,13 +47,20 @@ function renderDigest(d: DigestData) {
   const listBlock = (title: string, items: string[]) =>
     items.length
       ? `<p style="margin:18px 0 6px;color:#4a8df0;font-size:12px;letter-spacing:.08em;text-transform:uppercase">${title}</p>` +
-        items.map((i) => `<p style="margin:0 0 4px;color:#f0ece4;font-size:14px;line-height:1.5">${i}</p>`).join("")
+        items
+          .map(
+            (i) =>
+              `<p style="margin:0 0 4px;color:#f0ece4;font-size:14px;line-height:1.5">${i}</p>`,
+          )
+          .join("")
       : "";
 
   const atRiskItems = d.atRisk.map(
     (c) => `${escapeHtml(c.name)} <span style="color:#b8c5db">· risk ${c.score}/100</span>`,
   );
-  const quietItems = d.quiet.map((c) => `${escapeHtml(c.name)} <span style="color:#b8c5db">· no check-in this week</span>`);
+  const quietItems = d.quiet.map(
+    (c) => `${escapeHtml(c.name)} <span style="color:#b8c5db">· no check-in this week</span>`,
+  );
 
   const html = `<!doctype html>
 <html><body style="font-family:'Segoe UI',Arial,sans-serif;background:#1a2952;margin:0;padding:24px 0;color:#f0ece4">
@@ -84,7 +93,9 @@ function renderDigest(d: DigestData) {
     `Active clients: ${d.activeClients} / ${d.totalClients}`,
     `Flagged check-ins: ${d.flaggedCount}`,
     `Unread alerts: ${d.unreadAlerts}`,
-    d.atRisk.length ? `\nClients to watch:\n${d.atRisk.map((c) => `- ${c.name} (risk ${c.score}/100)`).join("\n")}` : "",
+    d.atRisk.length
+      ? `\nClients to watch:\n${d.atRisk.map((c) => `- ${c.name} (risk ${c.score}/100)`).join("\n")}`
+      : "",
     d.quiet.length ? `\nGone quiet:\n${d.quiet.map((c) => `- ${c.name}`).join("\n")}` : "",
     `\nOpen your dashboard: ${d.dashboardLink}`,
     `\nAutomated weekly summary — not a clinical alert. Turn off in practice settings.`,
@@ -95,15 +106,19 @@ function renderDigest(d: DigestData) {
   return { subject, html, text };
 }
 
-type AdminClient = typeof import("@/integrations/supabase/client.server")["supabaseAdmin"];
+type AdminClient = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 
 async function releaseDigestClaim(admin: unknown, practitionerId: string): Promise<void> {
   try {
-    await (admin as {
-      from: (t: string) => {
-        update: (v: Record<string, unknown>) => { eq: (c: string, v: unknown) => Promise<unknown> };
-      };
-    })
+    await (
+      admin as {
+        from: (t: string) => {
+          update: (v: Record<string, unknown>) => {
+            eq: (c: string, v: unknown) => Promise<unknown>;
+          };
+        };
+      }
+    )
       .from("practices")
       .update({ last_digest_sent_on: null })
       .eq("practitioner_id", practitionerId);
@@ -210,24 +225,16 @@ export const Route = createFileRoute("/api/public/hooks/weekly-practitioner-dige
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const cronSecret = process.env.CRON_SECRET;
-        if (cronSecret) {
-          const provided =
-            request.headers.get("x-cron-secret") ??
-            request.headers.get("X-Cron-Secret") ??
-            (request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null);
-          if (provided !== cronSecret) return new Response("Unauthorized", { status: 401 });
-        } else {
-          // No CRON_SECRET configured -> fail closed. Never accept the public
-          // publishable/anon key (it ships in the client bundle, so it is not a
-          // secret). Matches checkin-reminders / onboarding-library-nudge.
-          return new Response("Unauthorized", { status: 401 });
-        }
+        const denied = authorizeCronRequest(request);
+        if (denied) return denied;
 
         const lovableKey = process.env.LOVABLE_API_KEY;
         const resendKey = process.env.RESEND_API_KEY;
         if (!lovableKey || !resendKey) {
-          return Response.json({ ok: false, error: "Email service not configured" }, { status: 200 });
+          return Response.json(
+            { ok: false, error: "Email service not configured" },
+            { status: 200 },
+          );
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -236,15 +243,26 @@ export const Route = createFileRoute("/api/public/hooks/weekly-practitioner-dige
         const stats = { sent: 0, skipped: 0, errors: 0 };
         let from = 0;
         for (;;) {
-          const { data: practices, error } = await (supabaseAdmin.from("practices") as unknown as {
-            select: (s: string) => {
-              eq: (c: string, v: unknown) => {
-                order: (c: string, o: { ascending: boolean }) => {
-                  range: (f: number, t: number) => Promise<{ data: { practitioner_id: string }[] | null; error: unknown }>;
+          const { data: practices, error } = await (
+            supabaseAdmin.from("practices") as unknown as {
+              select: (s: string) => {
+                eq: (
+                  c: string,
+                  v: unknown,
+                ) => {
+                  order: (
+                    c: string,
+                    o: { ascending: boolean },
+                  ) => {
+                    range: (
+                      f: number,
+                      t: number,
+                    ) => Promise<{ data: { practitioner_id: string }[] | null; error: unknown }>;
+                  };
                 };
               };
-            };
-          })
+            }
+          )
             .select("practitioner_id, weekly_digest_enabled")
             .eq("weekly_digest_enabled", true)
             .order("practitioner_id", { ascending: true })
@@ -260,17 +278,22 @@ export const Route = createFileRoute("/api/public/hooks/weekly-practitioner-dige
             try {
               // Atomically claim this practitioner's digest for today so a retry
               // or double-schedule can't re-email them.
-              const { data: claimed } = await (supabaseAdmin.from("practices") as unknown as {
-                update: (v: Record<string, unknown>) => {
-                  eq: (c: string, v: unknown) => {
-                    or: (f: string) => {
-                      select: (s: string) => {
-                        maybeSingle: () => Promise<{ data: { practitioner_id: string } | null }>;
+              const { data: claimed } = await (
+                supabaseAdmin.from("practices") as unknown as {
+                  update: (v: Record<string, unknown>) => {
+                    eq: (
+                      c: string,
+                      v: unknown,
+                    ) => {
+                      or: (f: string) => {
+                        select: (s: string) => {
+                          maybeSingle: () => Promise<{ data: { practitioner_id: string } | null }>;
+                        };
                       };
                     };
                   };
-                };
-              })
+                }
+              )
                 .update({ last_digest_sent_on: todayKey })
                 .eq("practitioner_id", p.practitioner_id)
                 .or(`last_digest_sent_on.is.null,last_digest_sent_on.neq.${todayKey}`)
@@ -280,7 +303,13 @@ export const Route = createFileRoute("/api/public/hooks/weekly-practitioner-dige
                 stats.skipped += 1;
                 continue;
               }
-              const r = await buildAndSend(supabaseAdmin, p.practitioner_id, sinceIso, lovableKey, resendKey);
+              const r = await buildAndSend(
+                supabaseAdmin,
+                p.practitioner_id,
+                sinceIso,
+                lovableKey,
+                resendKey,
+              );
               stats[r === "sent" ? "sent" : r === "skipped" ? "skipped" : "errors"] += 1;
               if (r !== "sent" && r !== "skipped") {
                 // Send failed (not a real skip) — release the claim so the next

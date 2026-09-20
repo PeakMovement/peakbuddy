@@ -142,7 +142,8 @@ export async function refreshGarminToken(args: {
     const body = await res.text();
     // Only a real invalid_grant means the connection is dead; a 5xx/network
     // blip is transient and must NOT flip the connection to "expired".
-    const code = res.status === 400 && /invalid_grant/i.test(body) ? "invalid_grant" : "refresh_failed";
+    const code =
+      res.status === 400 && /invalid_grant/i.test(body) ? "invalid_grant" : "refresh_failed";
     throw new GarminError(code, `Garmin refresh failed (${res.status}): ${body}`);
   }
   const data = (await res.json()) as Partial<GarminTokenResponse>;
@@ -228,8 +229,7 @@ const nonNeg = (v: unknown): number | null => {
 // WearablesPanel — divide by 3600 for hours, matching Oura's raw-seconds
 // storage). Do NOT convert to minutes here, or 7d sleep debt inflates ~60x
 // and feeds a bogus "severely sleep-deprived" signal into Yves triage.
-const secs = (sec: unknown): number | null =>
-  typeof sec === "number" ? Math.round(sec) : null;
+const secs = (sec: unknown): number | null => (typeof sec === "number" ? Math.round(sec) : null);
 
 export function mapGarminDaily(
   item: Record<string, unknown>,
@@ -315,4 +315,64 @@ export function mapGarminActivity(
   const date = new Date(start * 1000).toISOString().split("T")[0];
   const meters = (item.distanceInMeters as number | undefined) ?? 0;
   return { date, distanceKm: meters / 1000 };
+}
+
+function toHex(buf: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function toB64(buf: ArrayBuffer): string {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+
+function normalizeSig(s: string): string {
+  return s
+    .trim()
+    .replace(/^sha256=/i, "")
+    .replace(/\s+/g, "");
+}
+
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+/**
+ * Verify a Garmin Health API push. HMAC-SHA256 of the raw body with the
+ * consumer secret, compared to the signature header as hex or base64.
+ */
+export async function verifyGarminWebhookSignature(args: {
+  secret: string;
+  rawBody: string;
+  signature: string;
+}): Promise<boolean> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(args.secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(args.rawBody));
+  const given = normalizeSig(args.signature);
+  const hex = toHex(sig);
+  const b64 = toB64(sig);
+  return (
+    safeEqual(given.toLowerCase(), hex.toLowerCase()) ||
+    safeEqual(given, b64) ||
+    safeEqual(given.replace(/-/g, "+").replace(/_/g, "/"), b64)
+  );
+}
+
+/** Garmin push signature header (Health API). */
+export function garminWebhookSignatureFrom(headers: Headers): string | null {
+  return (
+    headers.get("x-garmin-signature") ??
+    headers.get("garmin-webhook-signature") ??
+    headers.get("x-webhook-signature")
+  );
 }

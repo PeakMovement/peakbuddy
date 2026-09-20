@@ -170,7 +170,7 @@ practitioners see their clients' rows, super_admin sees all. Token tables should
 
 ## 4. Secrets / environment variables
 
-Add to Cloudflare Workers env (and `.env` for local). No `.env.example` exists today — create one.
+Add to Cloudflare Workers env (and `.env` for local). Copy `.env.example` for dummy keys.
 
 ```bash
 # Oura
@@ -214,10 +214,10 @@ src/
     oura/callback.ts        # GET OAuth callback -> exchange code, store token
     oura/webhook.ts         # GET verify + POST events (HMAC verify)
     garmin/callback.ts      # GET PKCE callback -> exchange, fetch userId, trigger backfill
-    garmin/webhook.ts       # POST push (always 200); resolve user; upsert sessions
+    garmin/webhook.ts       # POST: HMAC required; 401 if unsigned; 200 after valid signature
     polar/callback.ts       # GET callback -> exchange (Basic auth) -> register user
   routes/api/public/hooks/
-    wearables-sync.ts       # POST, CRON_SECRET-guarded: refresh tokens + pull Oura/Polar daily
+    wearables-sync.ts       # POST, CRON_SECRET-guarded: pull Oura/Polar daily (see docs/OPERATIONS.md)
 ```
 
 ### Patterns to reuse from the existing codebase
@@ -357,8 +357,9 @@ PeakBuddy uses TanStack Router file-based routes + Radix UI + Recharts. Natural 
    Proves the whole pipeline on the easy provider.
 3. **Phase 2 — Polar:** add OAuth + user-registration + pull sync. Handle consent/403 UX.
 4. **Phase 3 — Garmin:** PKCE + webhook + backfill + 3-tier user resolution. Most effort; do last.
-5. **Phase 4 — Scheduled sync + intelligence:** `CRON_SECRET` hook for daily Oura/Polar refresh;
-   feed wearable signals into baselines, risk scoring, nudges (§8).
+5. **Phase 4 — Scheduled sync + intelligence:** `CRON_SECRET` hook for daily Oura/Polar refresh
+   (`POST /api/public/hooks/wearables-sync`). See `docs/OPERATIONS.md` for curl + GitHub Actions.
+   Garmin stays push-only. Feed wearable signals into baselines, risk scoring, nudges (§8).
 6. **Phase 5 — Hardening:** token-expired UX, retries/backoff, rate-limit handling, logging tables,
    per-provider sync health.
 

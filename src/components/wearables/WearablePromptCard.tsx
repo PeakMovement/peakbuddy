@@ -4,10 +4,7 @@ import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Watch, X, ChevronRight } from "lucide-react";
-import {
-  getWearableConnections,
-  type ConnectionStatus,
-} from "@/lib/wearables/connect.functions";
+import { getWearableConnections, type ConnectionStatus } from "@/lib/wearables/connect.functions";
 
 const DISMISS_KEY = "wearable-prompt-dismissed-v1";
 

@@ -33,7 +33,9 @@ export function RequestCheckInButton({ clientId }: { clientId: string }) {
         <BellRing size={16} />
         {busy ? "Sending…" : "Request check-in"}
       </button>
-      {note && <div style={{ color: "var(--white-muted)", fontSize: 12, marginTop: 6 }}>{note}</div>}
+      {note && (
+        <div style={{ color: "var(--white-muted)", fontSize: 12, marginTop: 6 }}>{note}</div>
+      )}
     </div>
   );
 }

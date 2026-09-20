@@ -52,10 +52,7 @@ export const setPatientFeedback = createServerFn({ method: "POST" })
     if (data.understood !== undefined) patch.patient_understood = data.understood;
     if (data.helpful !== undefined) patch.patient_helpful = data.helpful;
 
-    const { error } = await supabaseAdmin
-      .from("symptom_queries")
-      .update(patch)
-      .eq("id", row.id);
+    const { error } = await supabaseAdmin.from("symptom_queries").update(patch).eq("id", row.id);
     if (error) throw error;
     return { ok: true as const };
   });

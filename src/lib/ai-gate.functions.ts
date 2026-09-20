@@ -37,8 +37,11 @@ export async function isPracticeAiEnabledFor(
 export const getClientAiEnabled = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { clientId: string }) => input)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { callerMayAccessClient } = await import("@/lib/practice-members.functions");
+    const allowed = await callerMayAccessClient(supabaseAdmin, context.userId, data.clientId);
+    if (!allowed) return { enabled: false };
     const { data: client } = await supabaseAdmin
       .from("clients")
       .select("practitioner_id")
@@ -49,11 +52,29 @@ export const getClientAiEnabled = createServerFn({ method: "POST" })
     return { enabled };
   });
 
-/** Server function: returns whether AI features are enabled for the calling practitioner's practice. */
+/** Server function: AI features for the calling practitioner's own practice. */
 export const getPractitionerAiEnabled = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { practitionerId: string }) => input)
-  .handler(async ({ data }) => {
-    const enabled = await isPracticeAiEnabledFor(null, data.practitionerId);
+  .inputValidator((input: unknown) => {
+    if (!input || typeof input !== "object") return {};
+    const practitionerId = (input as { practitionerId?: unknown }).practitionerId;
+    return typeof practitionerId === "string" ? { practitionerId } : {};
+  })
+  .handler(async ({ data, context }) => {
+    // Ignore a spoofed practitionerId unless it is the caller.
+    if (data?.practitionerId && data.practitionerId !== context.userId) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: prof } = await supabaseAdmin
+        .from("profiles")
+        .select("role")
+        .eq("id", context.userId)
+        .maybeSingle();
+      if ((prof as { role?: string } | null)?.role !== "super_admin") {
+        return { enabled: false };
+      }
+      const enabled = await isPracticeAiEnabledFor(null, data.practitionerId);
+      return { enabled };
+    }
+    const enabled = await isPracticeAiEnabledFor(null, context.userId);
     return { enabled };
   });

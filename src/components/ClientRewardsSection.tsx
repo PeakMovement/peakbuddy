@@ -75,7 +75,11 @@ export function ClientRewardsSection({ clientId }: { clientId: string }) {
                 {r.reward?.name ?? "Voucher"}
               </span>
               <span
-                style={{ color: "var(--white-muted)", fontFamily: "var(--font-data)", fontSize: 12 }}
+                style={{
+                  color: "var(--white-muted)",
+                  fontFamily: "var(--font-data)",
+                  fontSize: 12,
+                }}
               >
                 {new Date(r.earned_at).toLocaleDateString()}
               </span>

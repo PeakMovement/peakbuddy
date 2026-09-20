@@ -22,8 +22,9 @@ export const registerPractitioner = createServerFn({ method: "POST" })
     // Authz: bind registration to the real auth user. Reject if the userId does
     // not exist or its email does not match the submitted email — prevents
     // creating a practitioner profile/practice for an arbitrary user id.
-    const { data: authUser, error: authLookupErr } =
-      await supabaseAdmin.auth.admin.getUserById(data.userId);
+    const { data: authUser, error: authLookupErr } = await supabaseAdmin.auth.admin.getUserById(
+      data.userId,
+    );
     if (authLookupErr || !authUser?.user) {
       return { ok: false as const, error: "Invalid account." };
     }
@@ -110,7 +111,12 @@ export const registerPractitioner = createServerFn({ method: "POST" })
         .maybeSingle();
       if (ownPractice?.id) {
         await supabaseAdmin.from("practice_members").upsert(
-          { practice_id: ownPractice.id as string, user_id: data.userId, role: "owner", status: "active" },
+          {
+            practice_id: ownPractice.id as string,
+            user_id: data.userId,
+            role: "owner",
+            status: "active",
+          },
           { onConflict: "practice_id,user_id" },
         );
       }

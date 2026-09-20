@@ -21,7 +21,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Tries the direct Google Gemini key (your billing) when GEMINI_API_KEY is set.
 // A 429 (quota) or 5xx retries once, then falls through to the Lovable AI gateway
 // so the user still gets their insight. Prompt + data are identical either way.
-async function callGeminiDirect(gk: string, system: string, user: string): Promise<{ text: string; model: string } | null> {
+async function callGeminiDirect(
+  gk: string,
+  system: string,
+  user: string,
+): Promise<{ text: string; model: string } | null> {
   const model = process.env.GEMINI_MODEL || "gemini-2.5-pro";
   for (let attempt = 0; attempt < 2; attempt++) {
     let res: Response;
@@ -51,14 +55,20 @@ async function callGeminiDirect(gk: string, system: string, user: string): Promi
     const j = (await res.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] } }[];
     };
-    const text = (j.candidates?.[0]?.content?.parts ?? []).map((x) => x.text ?? "").join("").trim();
+    const text = (j.candidates?.[0]?.content?.parts ?? [])
+      .map((x) => x.text ?? "")
+      .join("")
+      .trim();
     if (!text) return null;
     return { text, model: `google/${model}` };
   }
   return null;
 }
 
-export async function callInsightModel(system: string, user: string): Promise<{ text: string; model: string }> {
+export async function callInsightModel(
+  system: string,
+  user: string,
+): Promise<{ text: string; model: string }> {
   const gk = process.env.GEMINI_API_KEY;
   if (gk) {
     const direct = await callGeminiDirect(gk, system, user);
@@ -78,7 +88,8 @@ export async function callInsightModel(system: string, user: string): Promise<{ 
     }),
   });
   if (res.status === 429) throw new Error("Yves is busy right now — please try again in a minute.");
-  if (res.status === 402) throw new Error("AI credits exhausted. Add credits in workspace billing.");
+  if (res.status === 402)
+    throw new Error("AI credits exhausted. Add credits in workspace billing.");
   if (!res.ok) {
     const b = await res.text();
     throw new Error(`Yves request failed (${res.status}): ${b.slice(0, 200)}`);
@@ -89,128 +100,174 @@ export async function callInsightModel(system: string, user: string): Promise<{ 
   return { text, model: MODEL };
 }
 
-
 export const generateClientInsight = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => Input.parse(input))
-  .handler(async ({ data, context }): Promise<{ text: string; model: string; generatedAt: string; memoryVersion: number }> => {
-    const { data: prof } = await context.supabase
-      .from("profiles").select("role").eq("id", context.userId).maybeSingle();
-    const role = prof?.role;
-    const isSuperAdmin = role === "super_admin";
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ text: string; model: string; generatedAt: string; memoryVersion: number }> => {
+      const { data: prof } = await context.supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", context.userId)
+        .maybeSingle();
+      const role = prof?.role;
+      const isSuperAdmin = role === "super_admin";
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const db = supabaseAdmin as unknown as SupabaseClient;
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const db = supabaseAdmin as unknown as SupabaseClient;
 
-    // Authorize: super-admin (any client) or the practitioner who owns this client.
-    const { data: cAuth } = await db
-      .from("clients")
-      .select("practitioner_id, yves_ai_consent")
-      .eq("id", data.clientId)
-      .maybeSingle();
-    if (!cAuth) throw new Error("Client not found");
-    // Access: super-admin, the client's own practitioner, or the practice admin
-    // (owner) of the client's practice.
-    const { canAccessClient } = await import("@/lib/practice-members.functions");
-    const access = await canAccessClient(supabaseAdmin, context.userId, data.clientId);
-    if (!isSuperAdmin && !access.allowed) {
-      throw new Error("Forbidden");
-    }
-    // POPIA / AI-consent gate — disabled pre-rollout via AI_CONSENT_REQUIRED.
-    if (!hasAiConsent(cAuth as { yves_ai_consent?: boolean })) {
-      throw new Error(
-        "This client hasn't consented to AI processing, so Yves Insight is unavailable for them until they enable AI consent in their Buddy profile.",
-      );
-    }
-    // Daily cap for non-super-admins (practitioners): 3 Yves insights per day.
-    if (!isSuperAdmin) {
-      const dayStart = new Date();
-      dayStart.setUTCHours(0, 0, 0, 0);
-      const { count } = await db
-        .from("client_insight_logs")
-        .select("id", { count: "exact", head: true })
-        .eq("generated_by", context.userId)
-        .gte("created_at", dayStart.toISOString());
-      if ((count ?? 0) >= 3) {
-        throw new Error("You've reached today's limit of 3 Yves insights. Please try again tomorrow.");
+      // Authorize: super-admin (any client) or the practitioner who owns this client.
+      const { data: cAuth } = await db
+        .from("clients")
+        .select("practitioner_id, yves_ai_consent")
+        .eq("id", data.clientId)
+        .maybeSingle();
+      if (!cAuth) throw new Error("Client not found");
+      // Access: super-admin, the client's own practitioner, or the practice admin
+      // (owner) of the client's practice.
+      const { canAccessClient } = await import("@/lib/practice-members.functions");
+      const access = await canAccessClient(supabaseAdmin, context.userId, data.clientId);
+      if (!isSuperAdmin && !access.allowed) {
+        throw new Error("Forbidden");
       }
-    }
+      // POPIA / AI-consent gate — requires stored yves_ai_consent === true.
+      if (!hasAiConsent(cAuth as { yves_ai_consent?: boolean })) {
+        throw new Error(
+          "This client hasn't consented to AI processing, so Yves Insight is unavailable for them until they enable AI consent in their Buddy profile.",
+        );
+      }
+      // Daily cap for non-super-admins (practitioners): 3 Yves insights per day.
+      if (!isSuperAdmin) {
+        const dayStart = new Date();
+        dayStart.setUTCHours(0, 0, 0, 0);
+        const { count } = await db
+          .from("client_insight_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("generated_by", context.userId)
+          .gte("created_at", dayStart.toISOString());
+        if ((count ?? 0) >= 3) {
+          throw new Error(
+            "You've reached today's limit of 3 Yves insights. Please try again tomorrow.",
+          );
+        }
+      }
 
-    // Fetch everything we need, in parallel.
-    const [
-      clientRes, wearablesRes, sessionsRes, checkInsRes,
-      symptomsRes, alertsRes, baselineRes, patternsRes,
-    ] = await Promise.all([
-      db.from("clients").select("*").eq("id", data.clientId).maybeSingle(),
-      db.from("wearable_tokens").select("provider, status, garmin_device_model").eq("client_id", data.clientId),
-      db.from("wearable_sessions").select("*").eq("client_id", data.clientId).order("date", { ascending: false }).limit(90),
-      db.from("check_ins").select("*").eq("client_id", data.clientId).order("created_at", { ascending: false }).limit(90),
-      db.from("symptom_queries").select("*").eq("client_id", data.clientId).order("created_at", { ascending: false }).limit(30),
-      db.from("alerts").select("*").eq("client_id", data.clientId).order("created_at", { ascending: false }).limit(30),
-      db.from("client_baselines").select("*").eq("client_id", data.clientId).maybeSingle(),
-      db.from("client_patterns").select("*").eq("client_id", data.clientId).order("last_detected_at", { ascending: false }).limit(20),
-    ]);
+      // Fetch everything we need, in parallel.
+      const [
+        clientRes,
+        wearablesRes,
+        sessionsRes,
+        checkInsRes,
+        symptomsRes,
+        alertsRes,
+        baselineRes,
+        patternsRes,
+      ] = await Promise.all([
+        db.from("clients").select("*").eq("id", data.clientId).maybeSingle(),
+        db
+          .from("wearable_tokens")
+          .select("provider, status, garmin_device_model")
+          .eq("client_id", data.clientId),
+        db
+          .from("wearable_sessions")
+          .select("*")
+          .eq("client_id", data.clientId)
+          .order("date", { ascending: false })
+          .limit(90),
+        db
+          .from("check_ins")
+          .select("*")
+          .eq("client_id", data.clientId)
+          .order("created_at", { ascending: false })
+          .limit(90),
+        db
+          .from("symptom_queries")
+          .select("*")
+          .eq("client_id", data.clientId)
+          .order("created_at", { ascending: false })
+          .limit(30),
+        db
+          .from("alerts")
+          .select("*")
+          .eq("client_id", data.clientId)
+          .order("created_at", { ascending: false })
+          .limit(30),
+        db.from("client_baselines").select("*").eq("client_id", data.clientId).maybeSingle(),
+        db
+          .from("client_patterns")
+          .select("*")
+          .eq("client_id", data.clientId)
+          .order("last_detected_at", { ascending: false })
+          .limit(20),
+      ]);
 
-    if (!clientRes.data) throw new Error("Client not found");
+      if (!clientRes.data) throw new Error("Client not found");
 
-    const payload = buildInsightPayload({
-      client: clientRes.data as Record<string, unknown> as never,
-      wearables: (wearablesRes.data ?? []) as never,
-      wearableSessions: (sessionsRes.data ?? []) as never,
-      checkIns: (checkInsRes.data ?? []) as never,
-      symptomQueries: (symptomsRes.data ?? []) as never,
-      alerts: (alertsRes.data ?? []) as never,
-      riskScores: [],
-      baseline: (baselineRes.data ?? null) as never,
-      patterns: (patternsRes.data ?? []) as never,
-    });
-
-    // Map focus label → memory scope
-    const FOCUS_SCOPE: Record<string, YvesScope> = {
-      "Pain & symptoms": "pain_symptoms",
-      "Sleep & recovery": "sleep",
-      "Training load": "wearable",
-      "Risk factors": "risk",
-    };
-    const extraScope = data.focus ? FOCUS_SCOPE[data.focus] : undefined;
-    const scopesToLoad = Array.from(new Set(["global", "insight", ...(extraScope ? [extraScope] : [])]));
-
-    // Load active Yves memory rules + latest global memory version via cache.
-    const { getActiveYvesMemoryForScopesCached, getLatestYvesMemoryVersionCached } = await import(
-      "@/lib/yves-memory-cache.server"
-    );
-    const [memoryRules, memoryVersion] = await Promise.all([
-      getActiveYvesMemoryForScopesCached(db, scopesToLoad),
-      getLatestYvesMemoryVersionCached(db),
-    ]);
-
-    const systemPrompt = buildYvesSystemPrompt({
-      base: INSIGHT_SYSTEM_PROMPT,
-      scope: "insight",
-      memoryRules,
-      extraScopes: extraScope ? [extraScope] : [],
-    });
-
-    const userMsg = [
-      data.focus ? `Practitioner focus: ${data.focus}.` : "General overview.",
-      "Analyse this client and produce insight per the required structure.",
-      "CLIENT_DATA_JSON:",
-      JSON.stringify(payload),
-    ].join("\n\n");
-
-    const { text, model: usedModel } = await callInsightModel(systemPrompt, userMsg);
-
-    // Best-effort log; never fail the request if logging fails.
-    try {
-      await db.from("client_insight_logs").insert({
-        client_id: data.clientId,
-        generated_by: context.userId,
-        focus: data.focus ?? null,
-        model: usedModel,
-        response: text,
-        memory_version: memoryVersion,
+      const payload = buildInsightPayload({
+        client: clientRes.data as Record<string, unknown> as never,
+        wearables: (wearablesRes.data ?? []) as never,
+        wearableSessions: (sessionsRes.data ?? []) as never,
+        checkIns: (checkInsRes.data ?? []) as never,
+        symptomQueries: (symptomsRes.data ?? []) as never,
+        alerts: (alertsRes.data ?? []) as never,
+        riskScores: [],
+        baseline: (baselineRes.data ?? null) as never,
+        patterns: (patternsRes.data ?? []) as never,
       });
-    } catch { /* ignore */ }
 
-    return { text, model: usedModel, generatedAt: new Date().toISOString(), memoryVersion };
-  });
+      // Map focus label → memory scope
+      const FOCUS_SCOPE: Record<string, YvesScope> = {
+        "Pain & symptoms": "pain_symptoms",
+        "Sleep & recovery": "sleep",
+        "Training load": "wearable",
+        "Risk factors": "risk",
+      };
+      const extraScope = data.focus ? FOCUS_SCOPE[data.focus] : undefined;
+      const scopesToLoad = Array.from(
+        new Set(["global", "insight", ...(extraScope ? [extraScope] : [])]),
+      );
+
+      // Load active Yves memory rules + latest global memory version via cache.
+      const { getActiveYvesMemoryForScopesCached, getLatestYvesMemoryVersionCached } =
+        await import("@/lib/yves-memory-cache.server");
+      const [memoryRules, memoryVersion] = await Promise.all([
+        getActiveYvesMemoryForScopesCached(db, scopesToLoad),
+        getLatestYvesMemoryVersionCached(db),
+      ]);
+
+      const systemPrompt = buildYvesSystemPrompt({
+        base: INSIGHT_SYSTEM_PROMPT,
+        scope: "insight",
+        memoryRules,
+        extraScopes: extraScope ? [extraScope] : [],
+      });
+
+      const userMsg = [
+        data.focus ? `Practitioner focus: ${data.focus}.` : "General overview.",
+        "Analyse this client and produce insight per the required structure.",
+        "CLIENT_DATA_JSON:",
+        JSON.stringify(payload),
+      ].join("\n\n");
+
+      const { text, model: usedModel } = await callInsightModel(systemPrompt, userMsg);
+
+      // Best-effort log; never fail the request if logging fails.
+      try {
+        await db.from("client_insight_logs").insert({
+          client_id: data.clientId,
+          generated_by: context.userId,
+          focus: data.focus ?? null,
+          model: usedModel,
+          response: text,
+          memory_version: memoryVersion,
+        });
+      } catch {
+        /* ignore */
+      }
+
+      return { text, model: usedModel, generatedAt: new Date().toISOString(), memoryVersion };
+    },
+  );

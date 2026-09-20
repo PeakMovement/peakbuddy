@@ -31,10 +31,9 @@ const RewardSchema = z.object({
     .optional()
     .nullable()
     .transform((v) => (v && v.trim() ? v.trim() : null))
-    .refine(
-      (v) => v === null || /^https?:\/\/\S+$/i.test(v),
-      { message: "Enter a full URL starting with http:// or https://, or leave blank." },
-    ),
+    .refine((v) => v === null || /^https?:\/\/\S+$/i.test(v), {
+      message: "Enter a full URL starting with http:// or https://, or leave blank.",
+    }),
   active: z.boolean().default(true),
 });
 
@@ -81,11 +80,7 @@ export const upsertReward = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
       return row as Reward;
     }
-    const { data: row, error } = await db
-      .from("rewards")
-      .insert(payload)
-      .select("*")
-      .single();
+    const { data: row, error } = await db.from("rewards").insert(payload).select("*").single();
     if (error) throw new Error(error.message);
     return row as Reward;
   });
@@ -120,7 +115,7 @@ const ISSUED_SELECT =
   "id, status, earned_at, reward:rewards(name, voucher_code, description, maps_url)";
 
 function normalizeReward(row: any): IssuedReward {
-  const r = Array.isArray(row.reward) ? row.reward[0] ?? null : row.reward ?? null;
+  const r = Array.isArray(row.reward) ? (row.reward[0] ?? null) : (row.reward ?? null);
   return {
     id: row.id,
     status: row.status,
@@ -139,9 +134,7 @@ function normalizeReward(row: any): IssuedReward {
 // Practitioner (or super admin) approves: issue a random ACTIVE reward to the client.
 export const approveClientReward = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ clientId: z.string().uuid() }).parse(input),
-  )
+  .inputValidator((input: unknown) => z.object({ clientId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as SupabaseClient;
@@ -173,13 +166,20 @@ export const approveClientReward = createServerFn({ method: "POST" })
     if (settings && (settings as any).rewards_enabled === false) {
       throw new Error("Rewards are currently disabled by the administrator.");
     }
-    const allowedDays: number[] = ((settings as any)?.rewards_allowed_days ?? [0, 1, 2, 3, 4, 5, 6]) as number[];
+    const allowedDays: number[] = ((settings as any)?.rewards_allowed_days ?? [
+      0, 1, 2, 3, 4, 5, 6,
+    ]) as number[];
     const today = sastWeekday();
     if (!allowedDays.includes(today)) {
       const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      const list = allowedDays.length === 0
-        ? "no days"
-        : allowedDays.slice().sort().map((d) => names[d]).join(", ");
+      const list =
+        allowedDays.length === 0
+          ? "no days"
+          : allowedDays
+              .slice()
+              .sort()
+              .map((d) => names[d])
+              .join(", ");
       throw new Error(`Rewards can only be approved on: ${list}.`);
     }
 
@@ -238,9 +238,7 @@ export const approveClientReward = createServerFn({ method: "POST" })
 // Issued rewards for a client (practitioner / super admin view).
 export const listClientRewards = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ clientId: z.string().uuid() }).parse(input),
-  )
+  .inputValidator((input: unknown) => z.object({ clientId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as SupabaseClient;
@@ -340,7 +338,10 @@ export const updateRewardsSchedule = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as SupabaseClient;
     const days = Array.from(new Set(data.allowedDays)).sort();
-    const { data: existing } = await db.from("platform_settings").select("id").limit(1)
+    const { data: existing } = await db
+      .from("platform_settings")
+      .select("id")
+      .limit(1)
       .maybeSingle();
     const payload = { rewards_enabled: data.enabled, rewards_allowed_days: days };
     if (existing?.id) {
@@ -398,14 +399,21 @@ export const getRewardsRedemptionSummary = createServerFn({ method: "GET" })
     const db = supabaseAdmin as unknown as SupabaseClient;
     const { data: rows } = await db.from("client_rewards").select("status, reward:rewards(name)");
     const map = new Map<string, { issued: number; redeemed: number }>();
-    for (const r of (rows ?? []) as unknown as { status: string; reward: { name: string } | null }[]) {
+    for (const r of (rows ?? []) as unknown as {
+      status: string;
+      reward: { name: string } | null;
+    }[]) {
       const name = r.reward?.name ?? "Unknown";
       const e = map.get(name) ?? { issued: 0, redeemed: 0 };
       e.issued += 1;
       if (r.status === "redeemed") e.redeemed += 1;
       map.set(name, e);
     }
-    return Array.from(map.entries()).map(([name, v]) => ({ name, issued: v.issued, redeemed: v.redeemed }));
+    return Array.from(map.entries()).map(([name, v]) => ({
+      name,
+      issued: v.issued,
+      redeemed: v.redeemed,
+    }));
   });
 
 /**
@@ -437,8 +445,8 @@ export const autoIssueMilestoneReward = createServerFn({ method: "POST" })
       .maybeSingle();
     if (settings && (settings as { rewards_enabled?: boolean }).rewards_enabled === false)
       return { issued: false as const, reason: "disabled" as const };
-    const allowedDays = ((settings as { rewards_allowed_days?: number[] } | null)?.rewards_allowed_days ??
-      [0, 1, 2, 3, 4, 5, 6]) as number[];
+    const allowedDays = ((settings as { rewards_allowed_days?: number[] } | null)
+      ?.rewards_allowed_days ?? [0, 1, 2, 3, 4, 5, 6]) as number[];
     if (!allowedDays.includes(sastWeekday()))
       return { issued: false as const, reason: "day_not_allowed" as const };
 
@@ -462,7 +470,8 @@ export const autoIssueMilestoneReward = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false })
       .limit(400);
     const stamps = ((rows ?? []) as { created_at: string }[]).map((r) => r.created_at);
-    const freq = ((client as { check_in_frequency?: string }).check_in_frequency ?? "daily") as Freq;
+    const freq = ((client as { check_in_frequency?: string }).check_in_frequency ??
+      "daily") as Freq;
     const streak = computeStreak(stamps, freq);
 
     const reached = STREAK_MILESTONES.filter((m) => streak.current >= m);
@@ -473,7 +482,9 @@ export const autoIssueMilestoneReward = createServerFn({ method: "POST" })
       .select("milestone")
       .eq("client_id", client.id)
       .not("milestone", "is", null);
-    const done = new Set(((existing ?? []) as { milestone: number | null }[]).map((r) => r.milestone));
+    const done = new Set(
+      ((existing ?? []) as { milestone: number | null }[]).map((r) => r.milestone),
+    );
     const target = reached.find((m) => !done.has(m));
     if (target === undefined) return { issued: false as const, reason: "already_issued" as const };
 

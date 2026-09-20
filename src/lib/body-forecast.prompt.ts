@@ -85,7 +85,9 @@ export function buildForecastUserPayload(s: ForecastSignals): string {
       : "What they are managing: (not specified)",
     `Overall read of today: ${dayRead}.`,
     `Symptoms: ${pain}.`,
-    trends.length ? `Body signals: ${trends.join("; ")}.` : "Body signals: nothing notable in the trends.",
+    trends.length
+      ? `Body signals: ${trends.join("; ")}.`
+      : "Body signals: nothing notable in the trends.",
     s.personalNote ? `Personal pattern we have learned about them: ${s.personalNote}` : "",
     `Confidence level of this read: ${s.confidence || "early read"}.`,
     "",

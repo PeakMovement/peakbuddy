@@ -2,11 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { log } from "@/lib/log";
+import { appBaseUrl } from "@/lib/app-url";
 
 const PLATFORMS = ["ios", "android", "web", "despia"] as const;
 type Platform = (typeof PLATFORMS)[number];
 
-type AdminClient = typeof import("@/integrations/supabase/client.server")["supabaseAdmin"];
+type AdminClient = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 
 type JsonValue = string | number | boolean | null | { [k: string]: JsonValue } | JsonValue[];
 
@@ -82,7 +83,7 @@ export async function sendPushCore(
   const apiKey = process.env.ONESIGNAL_REST_API_KEY;
 
   if (!appId || !apiKey) {
-    console.log(`[sendPush:SIM] ${args.userId} :: ${args.title} — ${args.body}`);
+    log.info("sendPush simulated (OneSignal not configured)", { userId: args.userId });
     await supabaseAdmin.from("push_send_log").insert({
       ...logRow,
       status: "simulated",
@@ -371,9 +372,7 @@ export const notifyAlertPush = createServerFn({ method: "POST" })
 
 export const sendCheckInNudge = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { clientId: string }) =>
-    z.object({ clientId: z.string().uuid() }).parse(d),
-  )
+  .inputValidator((d: { clientId: string }) => z.object({ clientId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: client } = await supabaseAdmin
@@ -408,15 +407,20 @@ export const sendCheckInNudge = createServerFn({ method: "POST" })
       try {
         const [{ sendTransactionalEmailServer }, { data: prac }] = await Promise.all([
           import("@/lib/email/send-server"),
-          supabaseAdmin.from("profiles").select("full_name").eq("id", client.practitioner_id).maybeSingle(),
+          supabaseAdmin
+            .from("profiles")
+            .select("full_name")
+            .eq("id", client.practitioner_id)
+            .maybeSingle(),
         ]);
-        const appBase = process.env.BUDDY_APP_BASE_URL || "https://peakbuddy.lovable.app";
+        const appBase = appBaseUrl();
         await sendTransactionalEmailServer({
           templateName: "practitioner-checkin",
           recipientEmail: (client as { email: string }).email,
           idempotencyKey: `checkin-nudge-${client.id}-${new Date().toISOString().slice(0, 10)}`,
           templateData: {
-            clientName: ((client as { full_name?: string }).full_name || "").trim().split(/\s+/)[0] || null,
+            clientName:
+              ((client as { full_name?: string }).full_name || "").trim().split(/\s+/)[0] || null,
             practitionerName: (prac as { full_name?: string } | null)?.full_name ?? null,
             loginUrl: `${appBase}/client/login`,
           },
@@ -448,7 +452,11 @@ export const listPushUsers = createServerFn({ method: "GET" })
     ]);
 
     const out: { id: string; label: string }[] = [];
-    for (const p of (profs ?? []) as { id: string; full_name: string | null; role: string | null }[]) {
+    for (const p of (profs ?? []) as {
+      id: string;
+      full_name: string | null;
+      role: string | null;
+    }[]) {
       out.push({ id: p.id, label: `${p.full_name || "Unnamed"} · ${p.role || "user"}` });
     }
     for (const c of (clients ?? []) as {

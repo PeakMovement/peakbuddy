@@ -110,8 +110,6 @@ function PractitionersList() {
         <InvitePractitionerCard onInvited={load} />
       </div>
 
-
-
       {loading ? (
         <div style={{ marginTop: 16 }}>
           <SkeletonList count={3} height={84} />
@@ -155,9 +153,7 @@ function InvitePractitionerCard({ onInvited }: { onInvited: () => void }) {
   const [profession, setProfession] = useState(PROFESSIONS[0]);
   const [practiceName, setPracticeName] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [msg, setMsg] = useState<{ tone: "success" | "info" | "error"; text: string } | null>(
-    null,
-  );
+  const [msg, setMsg] = useState<{ tone: "success" | "info" | "error"; text: string } | null>(null);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,9 +246,7 @@ function InvitePractitionerCard({ onInvited }: { onInvited: () => void }) {
           Invite a practitioner
         </div>
       </div>
-      <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
-      >
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div>
           <label style={labelStyle}>Full name</label>
           <input

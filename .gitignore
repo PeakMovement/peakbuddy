@@ -16,6 +16,11 @@ dist-ssr
 .nitro
 *.local
 
+# Secrets — never commit real keys. Use .env.example as the template.
+.env
+.env.*
+!.env.example
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

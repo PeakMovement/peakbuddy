@@ -229,7 +229,9 @@ function ClientDetail() {
 
       <TransferClientButton
         clientId={client.id}
-        currentPractitionerId={(client as { practitioner_id?: string | null }).practitioner_id ?? null}
+        currentPractitionerId={
+          (client as { practitioner_id?: string | null }).practitioner_id ?? null
+        }
         onTransferred={() => navigate({ to: "/practitioner/app/dashboard" })}
       />
 
@@ -237,7 +239,11 @@ function ClientDetail() {
         <ProgramStatusRow info={programInfo} />
       )}
 
-      <ClientWearablesCard clientId={client.id} sessions={wearSessions as never} checkins={items as never} />
+      <ClientWearablesCard
+        clientId={client.id}
+        sessions={wearSessions as never}
+        checkins={items as never}
+      />
       <ClientPatternsCard clientId={client.id} patterns={patternRows as never} />
       <YvesInsightCard clientId={client.id} />
       <RequestCheckInButton clientId={client.id} />
@@ -559,9 +565,7 @@ function ClientDetail() {
                           cc === "different" ? "rgba(249,168,37,0.15)" : "rgba(96,165,250,0.15)",
                         color: cc === "different" ? "var(--amber, #f9a825)" : "var(--blue-cold)",
                         border: `1px solid ${
-                          cc === "different"
-                            ? "rgba(249,168,37,0.35)"
-                            : "rgba(96,165,250,0.35)"
+                          cc === "different" ? "rgba(249,168,37,0.35)" : "rgba(96,165,250,0.35)"
                         }`,
                       }}
                     >
@@ -575,7 +579,6 @@ function ClientDetail() {
                     {ci.notes}
                   </div>
                 )}
-
               </div>
             ))}
           </div>
@@ -708,7 +711,6 @@ function ClientDetail() {
         </div>
       </section>
 
-
       <button
         type="button"
         onClick={() => setEditOpen(true)}
@@ -822,7 +824,6 @@ function EditClientSheet({
       .from("clients")
       .update(payload)
       .eq("id", client.id)
-      .eq("practitioner_id", u.user.id)
       .select()
       .maybeSingle();
     setSaving(false);

@@ -53,7 +53,9 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
         ]);
         if (wr.error || cr.error) throw wr.error ?? cr.error;
         if (cancelled) return;
-        setPractitionerId(((clientRow.data as { practitioner_id?: string } | null)?.practitioner_id) ?? null);
+        setPractitionerId(
+          (clientRow.data as { practitioner_id?: string } | null)?.practitioner_id ?? null,
+        );
         const todayKey = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local tz
         setTodayDone(
           ((cr.data ?? []) as { created_at: string }[]).some(
@@ -69,7 +71,9 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
           resting_hr: (r.resting_hr as number | null) ?? null,
           hrv_avg: (r.hrv_avg as number | null) ?? null,
         }));
-        const checkins = ((cr.data ?? []) as { created_at: string; pain_level: number | null }[]).map((r) => ({
+        const checkins = (
+          (cr.data ?? []) as { created_at: string; pain_level: number | null }[]
+        ).map((r) => ({
           date: String(r.created_at).slice(0, 10),
           pain_level: r.pain_level ?? null,
         }));
@@ -196,7 +200,9 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
   return (
     <div style={{ marginTop: 8 }}>
       <div style={card}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <div
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Sparkles size={17} color="var(--blue-accent)" aria-hidden />
             <span style={eyebrow}>Your Body Forecast</span>
@@ -242,14 +248,28 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
               ))}
             </div>
             {confirmState === "error" && (
-              <div style={{ color: "var(--red)", fontFamily: "var(--font-ui)", fontSize: 12, marginTop: 6 }}>
+              <div
+                style={{
+                  color: "var(--red)",
+                  fontFamily: "var(--font-ui)",
+                  fontSize: 12,
+                  marginTop: 6,
+                }}
+              >
                 Couldn't save — try again.
               </div>
             )}
           </div>
         )}
         {confirmState === "saved" && (
-          <div style={{ ...confirmBox, color: "var(--green)", fontFamily: "var(--font-ui)", fontSize: 13 }}>
+          <div
+            style={{
+              ...confirmBox,
+              color: "var(--green)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 13,
+            }}
+          >
             Thanks — logged. Your forecast learns from every check-in.
           </div>
         )}
@@ -257,11 +277,19 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
         {/* Reveal */}
         {result.factors.length > 0 && (
           <>
-            <button type="button" onClick={() => setOpen((v) => !v)} style={revealBtn} aria-expanded={open}>
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              style={revealBtn}
+              aria-expanded={open}
+            >
               How was this decided?
               <ChevronDown
                 size={15}
-                style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s ease" }}
+                style={{
+                  transform: open ? "rotate(180deg)" : "none",
+                  transition: "transform .2s ease",
+                }}
                 aria-hidden
               />
             </button>
@@ -271,11 +299,25 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
                   {result.factors.map((f) => (
                     <div key={f.label} style={factorRow}>
-                      <span style={{ color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 13 }}>
+                      <span
+                        style={{
+                          color: "var(--white-muted)",
+                          fontFamily: "var(--font-ui)",
+                          fontSize: 13,
+                        }}
+                      >
                         {f.label}
                       </span>
-                      <span style={{ fontFamily: "var(--font-ui)", fontSize: 13, color: "var(--white)" }}>
-                        <span style={{ fontFamily: "var(--font-data)", fontWeight: 700 }}>{f.value}</span>{" "}
+                      <span
+                        style={{
+                          fontFamily: "var(--font-ui)",
+                          fontSize: 13,
+                          color: "var(--white)",
+                        }}
+                      >
+                        <span style={{ fontFamily: "var(--font-data)", fontWeight: 700 }}>
+                          {f.value}
+                        </span>{" "}
                         <span style={{ color: "var(--white-muted)" }}>· {f.read}</span>
                       </span>
                     </div>
@@ -293,7 +335,8 @@ export function BodyForecastBeta({ client }: { client: BetaClient }) {
         {result.prompt && <p style={promptStyle}>{result.prompt}</p>}
 
         <p style={disclaimer}>
-          A gentle guide from your own data, not medical advice. Talk to your practitioner about anything concerning.
+          A gentle guide from your own data, not medical advice. Talk to your practitioner about
+          anything concerning.
         </p>
       </div>
     </div>
@@ -325,7 +368,13 @@ const betaTag: CSSProperties = {
   borderRadius: 999,
   padding: "3px 8px",
 };
-const statusDot: CSSProperties = { width: 10, height: 10, borderRadius: "50%", marginTop: 8, flex: "0 0 auto" };
+const statusDot: CSSProperties = {
+  width: 10,
+  height: 10,
+  borderRadius: "50%",
+  marginTop: 8,
+  flex: "0 0 auto",
+};
 const message: CSSProperties = {
   fontFamily: "var(--font-hero)",
   fontSize: 23,

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { appBaseUrl } from "@/lib/app-url";
 
 const inputSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(255),
@@ -9,7 +10,7 @@ const inputSchema = z.object({
   practiceName: z.string().trim().max(120).optional().default(""),
 });
 
-const SITE_ORIGIN = "https://peakbuddy.lovable.app";
+const SITE_ORIGIN = appBaseUrl();
 
 export const adminInvitePractitioner = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -31,11 +32,13 @@ export const adminInvitePractitioner = createServerFn({ method: "POST" })
     let userId: string | null = existing?.id ?? null;
 
     if (!existing) {
-      const { data: invited, error: inviteErr } =
-        await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
+      const { data: invited, error: inviteErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+        data.email,
+        {
           data: { full_name: data.fullName, role: "practitioner" },
           redirectTo: `${SITE_ORIGIN}/practitioner/login`,
-        });
+        },
+      );
       if (inviteErr || !invited?.user) {
         return { ok: false as const, error: inviteErr?.message ?? "Failed to send invite." };
       }

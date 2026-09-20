@@ -65,15 +65,19 @@ export function buildRehabIcs(opts: {
     return fold([...head, ...tail]);
   }
 
-  const days = [...new Set(reminder.days_of_week)].filter((d) => d >= 0 && d <= 6).sort((a, b) => a - b);
+  const days = [...new Set(reminder.days_of_week)]
+    .filter((d) => d >= 0 && d <= 6)
+    .sort((a, b) => a - b);
   const allDays = days.length === 7;
-  const rrule = allDays ? "RRULE:FREQ=DAILY" : `RRULE:FREQ=WEEKLY;BYDAY=${days.map((d) => DOW[d]).join(",")}`;
+  const rrule = allDays
+    ? "RRULE:FREQ=DAILY"
+    : `RRULE:FREQ=WEEKLY;BYDAY=${days.map((d) => DOW[d]).join(",")}`;
   const tz = reminder.timezone || "UTC";
   const dt = `${startDate(days)}T${hhmmss(reminder.time_of_day)}`;
 
   const vevent = [
     "BEGIN:VEVENT",
-    `UID:buddy-rehab-${clientId}@buddytracker.netlify.app`,
+    `UID:buddy-rehab-${clientId}@buddy.peakmovement.co.za`,
     `DTSTAMP:${dtstamp(now)}`,
     `DTSTART;TZID=${tz}:${dt}`,
     "DURATION:PT15M",

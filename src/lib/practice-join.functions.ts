@@ -2,8 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { resolvePractitionerPracticeId } from "@/lib/practice-members.functions";
+import { appBaseUrl } from "@/lib/app-url";
 
-const SITE_ORIGIN = process.env.BUDDY_APP_BASE_URL || "https://peakbuddy.lovable.app";
+const SITE_ORIGIN = appBaseUrl();
 
 type Admin = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 
@@ -68,9 +69,12 @@ async function practiceByToken(admin: Admin, token: string) {
     .select("id, practice_name, join_enabled, join_token")
     .eq("join_token", token)
     .maybeSingle();
-  return data as
-    | { id: string; practice_name: string | null; join_enabled: boolean; join_token: string }
-    | null;
+  return data as {
+    id: string;
+    practice_name: string | null;
+    join_enabled: boolean;
+    join_token: string;
+  } | null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -241,7 +245,6 @@ export const getPracticeJoinLink = createServerFn({ method: "GET" })
       url: token ? `${SITE_ORIGIN}/join/${token}` : null,
     };
   });
-
 
 /** Rotate the token, invalidating the old link (admin only). */
 export const regeneratePracticeJoinToken = createServerFn({ method: "POST" })

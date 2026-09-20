@@ -17,11 +17,7 @@ async function assertClientAccess(
     .maybeSingle();
   if (!c) throw new Error("Forbidden");
   if (c.auth_user_id === userId || c.practitioner_id === userId) return;
-  const { data: prof } = await admin
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .maybeSingle();
+  const { data: prof } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
   if (prof?.role !== "super_admin") throw new Error("Forbidden");
 }
 
@@ -46,7 +42,13 @@ type CheckInRow = {
 };
 
 const MOOD_MAP: Record<string, number> = {
-  great: 5, good: 4, okay: 3, ok: 3, low: 2, bad: 1, terrible: 0,
+  great: 5,
+  good: 4,
+  okay: 3,
+  ok: 3,
+  low: 2,
+  bad: 1,
+  terrible: 0,
 };
 
 function moodToNumber(m: string | null): number | null {
@@ -105,12 +107,14 @@ export type ComputedRisk = {
 
 export const computeBaseline = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { clientId: string }) =>
-    z.object({ clientId: z.string().uuid() }).parse(d),
-  )
+  .inputValidator((d: { clientId: string }) => z.object({ clientId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await assertClientAccess(supabaseAdmin as unknown as SupabaseClient, context.userId, data.clientId);
+    await assertClientAccess(
+      supabaseAdmin as unknown as SupabaseClient,
+      context.userId,
+      data.clientId,
+    );
     const since = new Date(Date.now() - BASELINE_DAYS * 86_400_000).toISOString();
     const { data: rows } = await supabaseAdmin
       .from("check_ins")
@@ -126,21 +130,24 @@ export const computeBaseline = createServerFn({ method: "POST" })
     const energy = meanStd(metricSeries(checkIns, "energy"));
     const mood = meanStd(metricSeries(checkIns, "mood"));
 
-    await supabaseAdmin
-      .from("client_baselines")
-      .upsert(
-        {
-          client_id: data.clientId,
-          computed_at: new Date().toISOString(),
-          pain_mean: pain.mean, pain_std: pain.std,
-          sleep_mean: sleep.mean, sleep_std: sleep.std,
-          stress_mean: stress.mean, stress_std: stress.std,
-          energy_mean: energy.mean, energy_std: energy.std,
-          mood_mean: mood.mean, mood_std: mood.std,
-          sample_size: checkIns.length,
-        },
-        { onConflict: "client_id" },
-      );
+    await supabaseAdmin.from("client_baselines").upsert(
+      {
+        client_id: data.clientId,
+        computed_at: new Date().toISOString(),
+        pain_mean: pain.mean,
+        pain_std: pain.std,
+        sleep_mean: sleep.mean,
+        sleep_std: sleep.std,
+        stress_mean: stress.mean,
+        stress_std: stress.std,
+        energy_mean: energy.mean,
+        energy_std: energy.std,
+        mood_mean: mood.mean,
+        mood_std: mood.std,
+        sample_size: checkIns.length,
+      },
+      { onConflict: "client_id" },
+    );
 
     return { ok: true as const, sample_size: checkIns.length };
   });
@@ -148,11 +155,16 @@ export const computeBaseline = createServerFn({ method: "POST" })
 function computeRiskFromData(
   recent: CheckInRow[],
   baseline: {
-    pain_mean: number | null; pain_std: number | null;
-    sleep_mean: number | null; sleep_std: number | null;
-    stress_mean: number | null; stress_std: number | null;
-    energy_mean: number | null; energy_std: number | null;
-    mood_mean: number | null; mood_std: number | null;
+    pain_mean: number | null;
+    pain_std: number | null;
+    sleep_mean: number | null;
+    sleep_std: number | null;
+    stress_mean: number | null;
+    stress_std: number | null;
+    energy_mean: number | null;
+    energy_std: number | null;
+    mood_mean: number | null;
+    mood_std: number | null;
   },
 ): ComputedRisk {
   const breakdown: RiskBreakdown[] = [];
@@ -208,7 +220,11 @@ export const computeRiskScore = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await assertClientAccess(supabaseAdmin as unknown as SupabaseClient, context.userId, data.clientId);
+    await assertClientAccess(
+      supabaseAdmin as unknown as SupabaseClient,
+      context.userId,
+      data.clientId,
+    );
     const forDate = data.forDate ?? new Date().toISOString().slice(0, 10);
 
     const { data: baselineRow } = await supabaseAdmin
@@ -219,7 +235,9 @@ export const computeRiskScore = createServerFn({ method: "POST" })
     if (!baselineRow) return { ok: false as const, reason: "no_baseline" };
 
     const endIso = `${forDate}T23:59:59.999Z`;
-    const startIso = new Date(Date.parse(`${forDate}T00:00:00Z`) - RECENT_DAYS * 86_400_000).toISOString();
+    const startIso = new Date(
+      Date.parse(`${forDate}T00:00:00Z`) - RECENT_DAYS * 86_400_000,
+    ).toISOString();
     const { data: rows } = await supabaseAdmin
       .from("check_ins")
       .select("created_at, pain_level, sleep_quality, stress_level, energy_level, mood")
@@ -251,7 +269,13 @@ export const computeRiskScore = createServerFn({ method: "POST" })
   });
 
 /** Pure helpers exposed for tests / cron worker. */
-export const _internal = { computeRiskFromData, meanStd, metricSeries, DRAFT_THRESHOLD, DELTA_TRIGGER };
+export const _internal = {
+  computeRiskFromData,
+  meanStd,
+  metricSeries,
+  DRAFT_THRESHOLD,
+  DELTA_TRIGGER,
+};
 
 export type ListRiskTrendItem = {
   score_date: string;
@@ -262,11 +286,17 @@ export type ListRiskTrendItem = {
 export const listClientRiskTrend = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { clientId: string; days?: number }) =>
-    z.object({ clientId: z.string().uuid(), days: z.number().int().min(1).max(90).optional() }).parse(d),
+    z
+      .object({ clientId: z.string().uuid(), days: z.number().int().min(1).max(90).optional() })
+      .parse(d),
   )
   .handler(async ({ data, context }): Promise<ListRiskTrendItem[]> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await assertClientAccess(supabaseAdmin as unknown as SupabaseClient, context.userId, data.clientId);
+    await assertClientAccess(
+      supabaseAdmin as unknown as SupabaseClient,
+      context.userId,
+      data.clientId,
+    );
     const days = data.days ?? 14;
     const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
     const { data: rows } = await supabaseAdmin

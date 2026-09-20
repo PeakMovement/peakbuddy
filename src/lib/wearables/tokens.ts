@@ -2,6 +2,7 @@
 // Service-role only: callers pass the admin client (RLS-bypassing).
 import type { Database } from "@/integrations/supabase/types";
 import { log } from "@/lib/log";
+import { appBaseUrl } from "@/lib/app-url";
 import { OuraError, refreshOuraToken } from "./oura";
 import { GarminError, refreshGarminToken } from "./garmin";
 
@@ -21,7 +22,7 @@ export function ouraCreds() {
 
 /** Default redirect URI; OURA_REDIRECT_URI overrides (must match the Oura app config). */
 export function ouraRedirectUri() {
-  const base = process.env.BUDDY_APP_BASE_URL ?? "https://peakbuddy.lovable.app";
+  const base = appBaseUrl();
   return process.env.OURA_REDIRECT_URI ?? `${base}/api/public/wearables/oura/callback`;
 }
 
@@ -36,7 +37,7 @@ export function polarCreds() {
 
 /** Default redirect URI; POLAR_REDIRECT_URI overrides (must match the Polar app config). */
 export function polarRedirectUri() {
-  const base = process.env.BUDDY_APP_BASE_URL ?? "https://peakbuddy.lovable.app";
+  const base = appBaseUrl();
   return process.env.POLAR_REDIRECT_URI ?? `${base}/api/public/wearables/polar/callback`;
 }
 
@@ -51,7 +52,7 @@ export function garminCreds() {
 
 /** Default redirect URI; GARMIN_REDIRECT_URI overrides (must match the Garmin app config). */
 export function garminRedirectUri() {
-  const base = process.env.BUDDY_APP_BASE_URL ?? "https://peakbuddy.lovable.app";
+  const base = appBaseUrl();
   return process.env.GARMIN_REDIRECT_URI ?? `${base}/api/public/wearables/garmin/callback`;
 }
 
@@ -156,7 +157,6 @@ export async function getValidOuraAccessToken(
     throw e;
   }
 }
-
 
 /**
  * Return a valid Garmin access token for a client, refreshing if it expires

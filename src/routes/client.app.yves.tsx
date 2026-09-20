@@ -154,8 +154,8 @@ function YvesScreen() {
               .then((r) => r)
           : Promise.resolve({ data: null as { full_name: string } | null }),
         getClientYvesAccess({ data: { clientId: id } }).catch(() => ({
-          practiceYvesEnabled: true,
-          clientYvesEnabled: true,
+          practiceYvesEnabled: false,
+          clientYvesEnabled: false,
           practitionerId: null as string | null,
         })),
       ]);
@@ -163,9 +163,7 @@ function YvesScreen() {
       setPractitionerName((profRes.data as { full_name: string } | null)?.full_name ?? null);
       setPracticeYvesEnabled(accessRes.practiceYvesEnabled);
       // First entry into Yves: always show the consent form until the client
-      // has recorded an explicit "yes". This is deliberately based on the
-      // stored flag (not hasAiConsent), so the pop-up still appears while the
-      // pre-rollout consent requirement is switched off.
+      // has recorded an explicit "yes".
       if (
         cl &&
         cl.practitioner_id &&
@@ -175,7 +173,6 @@ function YvesScreen() {
       ) {
         setShowConsentModal(true);
       }
-
     })();
   }, []);
 
@@ -784,7 +781,6 @@ function YvesScreen() {
 
         {/* Previous queries */}
         <PreviousQueries history={history} expanded={expanded} setExpanded={setExpanded} />
-
 
         <button
           type="button"
@@ -1520,9 +1516,10 @@ function ConsentModal({
             <strong style={{ color: "var(--white)" }}>Who it is sent to:</strong> Your information
             is processed by Anthropic, the company that provides the AI model behind Yves. Anthropic
             processes this data on our behalf and does not use it to train its models. To suggest a
-            suitable exercise program from your check-ins, the same information may also be processed
-            by Google through our platform provider, Lovable. Both act as our data processors and use
-            your data only to provide these features, not to train their own models.
+            suitable exercise program from your check-ins, the same information may also be
+            processed by Google through our platform provider, Lovable. Both act as our data
+            processors and use your data only to provide these features, not to train their own
+            models.
           </p>
           <p style={{ margin: 0 }}>
             <strong style={{ color: "var(--white)" }}>Why:</strong> This lets Yves give you a

@@ -39,7 +39,9 @@ describe("computeForecast", () => {
 
   it("reads a low day when HRV falls and resting HR rises", () => {
     const days = [
-      ...Array.from({ length: 3 }, (_, i) => w(i, { sleep_score: 58, readiness_score: 52, resting_hr: 66, hrv_avg: 40 })),
+      ...Array.from({ length: 3 }, (_, i) =>
+        w(i, { sleep_score: 58, readiness_score: 52, resting_hr: 66, hrv_avg: 40 }),
+      ),
       ...Array.from({ length: 11 }, (_, i) => w(i + 3, { resting_hr: 55, hrv_avg: 62 })),
     ];
     const r = computeForecast(days, [], NOW);
@@ -49,7 +51,10 @@ describe("computeForecast", () => {
 
   it("weaves elevated recent pain into the message", () => {
     const days = [w(0, { sleep_score: 95 }), ...Array.from({ length: 12 }, (_, i) => w(i + 1, {}))];
-    const checkins: CheckinDay[] = Array.from({ length: 5 }, (_, i) => ({ date: d(i), pain_level: 7 }));
+    const checkins: CheckinDay[] = Array.from({ length: 5 }, (_, i) => ({
+      date: d(i),
+      pain_level: 7,
+    }));
     const r = computeForecast(days, checkins, NOW);
     expect(r.level).toBe("strong");
     expect(r.message).toMatch(/pain/i); // recovery good but symptoms acknowledged
@@ -57,7 +62,10 @@ describe("computeForecast", () => {
 
   it("detects a personal sleep->pain pattern with enough paired days", () => {
     const days = Array.from({ length: 12 }, (_, i) => w(i, { sleep_score: i % 2 === 0 ? 60 : 85 }));
-    const checkins: CheckinDay[] = days.map((day) => ({ date: day.date, pain_level: (day.sleep_score ?? 0) < 70 ? 7 : 3 }));
+    const checkins: CheckinDay[] = days.map((day) => ({
+      date: day.date,
+      pain_level: (day.sleep_score ?? 0) < 70 ? 7 : 3,
+    }));
     const r = computeForecast(days, checkins, NOW);
     expect(r.personalNote).toBeTruthy();
     expect(r.confidence).toBe("Your pattern");

@@ -1,7 +1,16 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, Trash2, Mail, Phone, ClipboardCheck, Settings as SettingsIcon, ChevronRight, Users } from "lucide-react";
+import {
+  LogOut,
+  Trash2,
+  Mail,
+  Phone,
+  ClipboardCheck,
+  Settings as SettingsIcon,
+  ChevronRight,
+  Users,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { deleteMyAccount } from "@/lib/account-delete.functions";
 import { NotificationSubscribeButton } from "@/components/NotificationSubscribeButton";
@@ -36,7 +45,9 @@ function PractitionerProfile() {
           const c = await countPendingProgramSuggestions().catch(() => 0);
           setQueueCount(typeof c === "number" ? c : 0);
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     })();
   }, []);
 
@@ -199,8 +210,6 @@ function PractitionerProfile() {
 
       <NotificationSubscribeButton />
 
-
-
       <button
         type="button"
         onClick={signOut}
@@ -242,7 +251,13 @@ function PractitionerProfile() {
 }
 
 function MoreSection({ queueCount, showQueue }: { queueCount: number; showQueue: boolean }) {
-  const items: { to: string; label: string; desc: string; Icon: typeof SettingsIcon; badge?: number }[] = [];
+  const items: {
+    to: string;
+    label: string;
+    desc: string;
+    Icon: typeof SettingsIcon;
+    badge?: number;
+  }[] = [];
   if (showQueue) {
     items.push({
       to: "/practitioner/app/program-queue",
@@ -307,7 +322,9 @@ function MoreSection({ queueCount, showQueue }: { queueCount: number; showQueue:
               <div style={{ fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600 }}>
                 {it.label}
               </div>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--white-muted)" }}>
+              <div
+                style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--white-muted)" }}
+              >
                 {it.desc}
               </div>
             </div>
@@ -338,8 +355,6 @@ function MoreSection({ queueCount, showQueue }: { queueCount: number; showQueue:
     </div>
   );
 }
-
-
 
 function ProfileField({ label, value }: { label: string; value?: string | null }) {
   return (

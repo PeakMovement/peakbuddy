@@ -10,7 +10,7 @@ describe("buildRhythms", () => {
     const sessions: WearableDay[] = Array.from({ length: 21 }, (_, a) => {
       const date = iso(a);
       const dow = new Date(date).getUTCDay();
-      return { date, sleep_score: (dow === 0 || dow === 6) ? 65 : 80, hrv_avg: a < 7 ? 40 : 60 };
+      return { date, sleep_score: dow === 0 || dow === 6 ? 65 : 80, hrv_avg: a < 7 ? 40 : 60 };
     });
     const r = buildRhythms(sessions);
     expect(r.sleepWeekday).toBeGreaterThan(r.sleepWeekend as number);

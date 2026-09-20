@@ -20,24 +20,30 @@ export const setAlertOutcome = createServerFn({ method: "POST" })
       outcome_at: data.outcome ? new Date().toISOString() : null,
       outcome_by: data.outcome ? context.userId : null,
     };
-    // Practitioners can grade their own alerts (enforced via practitioner_id).
-    // Super admins may grade any alert (used by the central grading queue).
-    const { data: prof } = await context.supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: alert } = await supabaseAdmin
+      .from("alerts")
+      .select("id, client_id, practitioner_id")
+      .eq("id", data.alertId)
+      .maybeSingle();
+
+    const { data: prof } = await supabaseAdmin
       .from("profiles")
       .select("role")
       .eq("id", context.userId)
       .maybeSingle();
     if (prof?.role === "super_admin") {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { error } = await supabaseAdmin.from("alerts").update(patch).eq("id", data.alertId);
       if (error) throw error;
       return { ok: true };
     }
-    const { error } = await context.supabase
-      .from("alerts")
-      .update(patch)
-      .eq("id", data.alertId)
-      .eq("practitioner_id", context.userId);
+
+    const clientId = (alert as { client_id?: string } | null)?.client_id;
+    if (!clientId) throw new Error("Alert not found");
+    const { canAccessClient } = await import("@/lib/practice-members.functions");
+    const access = await canAccessClient(supabaseAdmin, context.userId, clientId);
+    if (!access.allowed) throw new Error("Not authorized");
+    const { error } = await supabaseAdmin.from("alerts").update(patch).eq("id", data.alertId);
     if (error) throw error;
     return { ok: true };
   });
@@ -48,10 +54,14 @@ export const getYvesAccuracy = createServerFn({ method: "GET" })
     async ({
       context,
     }): Promise<{ confirmed: number; false_alarm: number; already_aware: number }> => {
-      const { data, error } = await context.supabase
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { listAccessibleClientIds } = await import("@/lib/practice-members.functions");
+      const ids = await listAccessibleClientIds(supabaseAdmin, context.userId);
+      if (ids.length === 0) return { confirmed: 0, false_alarm: 0, already_aware: 0 };
+      const { data, error } = await supabaseAdmin
         .from("alerts")
         .select("outcome")
-        .eq("practitioner_id", context.userId)
+        .in("client_id", ids)
         .not("outcome", "is", null);
       if (error) throw error;
       const counts = { confirmed: 0, false_alarm: 0, already_aware: 0 };

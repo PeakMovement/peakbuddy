@@ -36,7 +36,9 @@ export function NotificationSubscribeButton() {
     if (!native) {
       // Web / installed-PWA path via the OneSignal Web SDK.
       if (!webPushSupported()) {
-        setNote("Your browser doesn\u2019t support notifications. On iPhone, add Buddy to your Home Screen first.");
+        setNote(
+          "Your browser doesn\u2019t support notifications. On iPhone, add Buddy to your Home Screen first.",
+        );
         return;
       }
       setBusy(true);
@@ -49,7 +51,9 @@ export function NotificationSubscribeButton() {
         if (ok) {
           setNote("You\u2019re subscribed to notifications \u2705");
         } else if (typeof Notification !== "undefined" && Notification.permission === "denied") {
-          setNote("Notifications are blocked. Enable them in iPhone Settings \u2192 Notifications \u2192 Buddy.");
+          setNote(
+            "Notifications are blocked. Enable them in iPhone Settings \u2192 Notifications \u2192 Buddy.",
+          );
         } else {
           setNote(
             "Still connecting to the notification service. If this persists, fully close and reopen Buddy, then try again.",
@@ -126,7 +130,12 @@ const card: CSSProperties = {
   borderRadius: 12,
 };
 const titleRow: CSSProperties = { display: "flex", alignItems: "center", gap: 8, marginBottom: 12 };
-const title: CSSProperties = { fontFamily: "var(--font-ui)", color: "var(--white)", fontWeight: 700, fontSize: 15 };
+const title: CSSProperties = {
+  fontFamily: "var(--font-ui)",
+  color: "var(--white)",
+  fontWeight: 700,
+  fontSize: 15,
+};
 const primaryBtn: CSSProperties = {
   display: "flex",
   alignItems: "center",

@@ -372,26 +372,116 @@ export const COMBINATION_FLOOR: Array<{
   category: RedFlagCategory;
 }> = [
   // Meningitis triad
-  { id: "meningitis_triad", terms: ["fever", "neck stiffness"], minUrgency: "urgent", minSeverity: 9, category: "infection" },
-  { id: "meningitis_stiff", terms: ["fever", "stiff neck"], minUrgency: "urgent", minSeverity: 9, category: "infection" },
-  { id: "meningitis_af", terms: ["koors", "stywe nek"], minUrgency: "urgent", minSeverity: 9, category: "infection" },
+  {
+    id: "meningitis_triad",
+    terms: ["fever", "neck stiffness"],
+    minUrgency: "urgent",
+    minSeverity: 9,
+    category: "infection",
+  },
+  {
+    id: "meningitis_stiff",
+    terms: ["fever", "stiff neck"],
+    minUrgency: "urgent",
+    minSeverity: 9,
+    category: "infection",
+  },
+  {
+    id: "meningitis_af",
+    terms: ["koors", "stywe nek"],
+    minUrgency: "urgent",
+    minSeverity: 9,
+    category: "infection",
+  },
   // Classic cardiac cluster
-  { id: "cardiac_cluster_arm", terms: ["chest", "left arm"], minUrgency: "urgent", minSeverity: 9, category: "cardiac" },
-  { id: "cardiac_cluster_jaw", terms: ["chest", "jaw pain"], minUrgency: "urgent", minSeverity: 8, category: "cardiac" },
-  { id: "cardiac_cluster_sweat", terms: ["chest", "cold sweats"], minUrgency: "urgent", minSeverity: 8, category: "cardiac" },
-  { id: "cardiac_cluster_breath", terms: ["chest tightness", "shortness of breath"], minUrgency: "urgent", minSeverity: 8, category: "cardiac" },
+  {
+    id: "cardiac_cluster_arm",
+    terms: ["chest", "left arm"],
+    minUrgency: "urgent",
+    minSeverity: 9,
+    category: "cardiac",
+  },
+  {
+    id: "cardiac_cluster_jaw",
+    terms: ["chest", "jaw pain"],
+    minUrgency: "urgent",
+    minSeverity: 8,
+    category: "cardiac",
+  },
+  {
+    id: "cardiac_cluster_sweat",
+    terms: ["chest", "cold sweats"],
+    minUrgency: "urgent",
+    minSeverity: 8,
+    category: "cardiac",
+  },
+  {
+    id: "cardiac_cluster_breath",
+    terms: ["chest tightness", "shortness of breath"],
+    minUrgency: "urgent",
+    minSeverity: 8,
+    category: "cardiac",
+  },
   // Cauda equina cluster
-  { id: "cauda_cluster", terms: ["numbness", "bladder"], minUrgency: "emergency", minSeverity: 10, category: "cauda_equina" },
-  { id: "cauda_cluster_bowel", terms: ["numbness", "bowel"], minUrgency: "emergency", minSeverity: 10, category: "cauda_equina" },
-  { id: "cauda_bilateral", terms: ["both legs", "weakness"], minUrgency: "urgent", minSeverity: 9, category: "cauda_equina" },
+  {
+    id: "cauda_cluster",
+    terms: ["numbness", "bladder"],
+    minUrgency: "emergency",
+    minSeverity: 10,
+    category: "cauda_equina",
+  },
+  {
+    id: "cauda_cluster_bowel",
+    terms: ["numbness", "bowel"],
+    minUrgency: "emergency",
+    minSeverity: 10,
+    category: "cauda_equina",
+  },
+  {
+    id: "cauda_bilateral",
+    terms: ["both legs", "weakness"],
+    minUrgency: "urgent",
+    minSeverity: 9,
+    category: "cauda_equina",
+  },
   // Systemic / oncological cluster
-  { id: "systemic_weight_sweat", terms: ["weight loss", "night sweats"], minUrgency: "urgent", minSeverity: 7, category: "systemic" },
-  { id: "systemic_weight_fatigue", terms: ["weight loss", "fatigue"], minUrgency: "soon", minSeverity: 6, category: "systemic" },
+  {
+    id: "systemic_weight_sweat",
+    terms: ["weight loss", "night sweats"],
+    minUrgency: "urgent",
+    minSeverity: 7,
+    category: "systemic",
+  },
+  {
+    id: "systemic_weight_fatigue",
+    terms: ["weight loss", "fatigue"],
+    minUrgency: "soon",
+    minSeverity: 6,
+    category: "systemic",
+  },
   // Stroke FAST cluster
-  { id: "stroke_fast", terms: ["face", "arm weakness"], minUrgency: "urgent", minSeverity: 9, category: "neuro" },
-  { id: "stroke_speech_weak", terms: ["slurred speech", "weakness"], minUrgency: "urgent", minSeverity: 9, category: "neuro" },
+  {
+    id: "stroke_fast",
+    terms: ["face", "arm weakness"],
+    minUrgency: "urgent",
+    minSeverity: 9,
+    category: "neuro",
+  },
+  {
+    id: "stroke_speech_weak",
+    terms: ["slurred speech", "weakness"],
+    minUrgency: "urgent",
+    minSeverity: 9,
+    category: "neuro",
+  },
   // Respiratory infection alarm
-  { id: "resp_infection", terms: ["fever", "cough", "shortness of breath"], minUrgency: "urgent", minSeverity: 8, category: "respiratory" },
+  {
+    id: "resp_infection",
+    terms: ["fever", "cough", "shortness of breath"],
+    minUrgency: "urgent",
+    minSeverity: 8,
+    category: "respiratory",
+  },
 ];
 
 export function applyCombinationFloor(
@@ -576,11 +666,36 @@ function modifierBoost(lower: string): number {
 }
 
 const ATTRIBUTION_TOKENS = new Set([
-  "friend", "friends", "mother", "mom", "mum", "father", "dad",
-  "husband", "wife", "partner", "spouse", "sister", "brother", "sibling",
-  "colleague", "coworker", "neighbor", "neighbour", "son", "daughter",
-  "child", "kid", "uncle", "aunt", "cousin", "grandparent", "grandma",
-  "grandpa", "someone", "somebody",
+  "friend",
+  "friends",
+  "mother",
+  "mom",
+  "mum",
+  "father",
+  "dad",
+  "husband",
+  "wife",
+  "partner",
+  "spouse",
+  "sister",
+  "brother",
+  "sibling",
+  "colleague",
+  "coworker",
+  "neighbor",
+  "neighbour",
+  "son",
+  "daughter",
+  "child",
+  "kid",
+  "uncle",
+  "aunt",
+  "cousin",
+  "grandparent",
+  "grandma",
+  "grandpa",
+  "someone",
+  "somebody",
 ]);
 
 const SELF_PRONOUNS = new Set(["i", "me", "my", "ive", "im", "mine", "i've", "i'm"]);
@@ -650,9 +765,7 @@ export function applyKeywordFloor(
   // Drop shorter terms that are substrings of a longer matched term (e.g. drop
   // "fever" when "high fever" also matched) so clustering/scoring isn't inflated
   // by overlapping phrasings of the same underlying concept.
-  const hits = raw.filter(
-    (a) => !raw.some((b) => b.term !== a.term && b.term.includes(a.term)),
-  );
+  const hits = raw.filter((a) => !raw.some((b) => b.term !== a.term && b.term.includes(a.term)));
 
   let urgency = currentUrgency;
   let termSeverity = currentSeverity;

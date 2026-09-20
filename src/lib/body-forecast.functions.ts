@@ -33,9 +33,14 @@ type ForecastEnhanceResult =
 
 const AI_TIMEOUT_MS = 9000;
 
-function parseModelJson(text: string): { message: string; action: string; prompt: string | null } | null {
+function parseModelJson(
+  text: string,
+): { message: string; action: string; prompt: string | null } | null {
   // Strip accidental code fences, then find the first {...} block.
-  const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+  const cleaned = text
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start < 0 || end <= start) return null;
@@ -43,8 +48,7 @@ function parseModelJson(text: string): { message: string; action: string; prompt
     const obj = JSON.parse(cleaned.slice(start, end + 1)) as Record<string, unknown>;
     const message = typeof obj.message === "string" ? obj.message.trim() : "";
     const action = typeof obj.action === "string" ? obj.action.trim() : "";
-    const prompt =
-      typeof obj.prompt === "string" && obj.prompt.trim() ? obj.prompt.trim() : null;
+    const prompt = typeof obj.prompt === "string" && obj.prompt.trim() ? obj.prompt.trim() : null;
     if (message.length < 8 || message.length > 600) return null;
     return { message, action: action.slice(0, 200), prompt: prompt ? prompt.slice(0, 200) : null };
   } catch {
@@ -77,7 +81,7 @@ export const enhanceBodyForecast = createServerFn({ method: "POST" })
 
       if (!client) return { ai: false };
 
-      // POPIA / AI-consent gate — disabled pre-rollout via AI_CONSENT_REQUIRED.
+      // POPIA / AI-consent gate — requires stored yves_ai_consent === true.
       if (!hasAiConsent(client as { yves_ai_consent?: boolean })) {
         return { ai: false };
       }

@@ -38,10 +38,13 @@ const HIGHER_IS_WORSE: Record<PatternMetric, boolean> = {
 
 function valueFor(c: CheckInInput, m: PatternMetric): number | null {
   const v =
-    m === "pain" ? c.pain_level
-    : m === "energy" ? c.energy_level
-    : m === "stress" ? c.stress_level
-    : c.sleep_quality;
+    m === "pain"
+      ? c.pain_level
+      : m === "energy"
+        ? c.energy_level
+        : m === "stress"
+          ? c.stress_level
+          : c.sleep_quality;
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
@@ -132,7 +135,15 @@ export function detectWeekdayPatterns(
   return out.sort((a, b) => b.confidence - a.confidence);
 }
 
-const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const WEEKDAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
 const METRIC_NOUN: Record<PatternMetric, string> = {
   pain: "pain",
   energy: "energy",

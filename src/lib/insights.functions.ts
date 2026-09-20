@@ -35,27 +35,34 @@ const SYMPTOM_BUCKETS: { name: string; needles: string[] }[] = [
 export const getPracticeInsights = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<InsightsPayload> => {
-    const { supabase, userId } = context;
+    const { userId } = context;
     const now = Date.now();
     const since6w = new Date(now - 42 * DAY_MS).toISOString();
     const since7d = new Date(now - 7 * DAY_MS).toISOString();
     const since14d = new Date(now - 14 * DAY_MS).toISOString();
 
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { listAccessibleClientIds } = await import("@/lib/practice-members.functions");
+    const clientIds = await listAccessibleClientIds(supabaseAdmin, userId);
+    const empty = { data: [] as never[] };
     const [{ data: clients }, { data: checkIns }, { data: alerts }] = await Promise.all([
-      supabase
-        .from("clients")
-        .select("id, full_name, created_at")
-        .eq("practitioner_id", userId),
-      supabase
-        .from("check_ins")
-        .select("client_id, pain_level, notes, created_at")
-        .eq("practitioner_id", userId)
-        .gte("created_at", since6w),
-      supabase
-        .from("alerts")
-        .select("id, outcome, outcome_at, created_at")
-        .eq("practitioner_id", userId)
-        .gte("created_at", since14d),
+      clientIds.length
+        ? supabaseAdmin.from("clients").select("id, full_name, created_at").in("id", clientIds)
+        : Promise.resolve({ data: [] }),
+      clientIds.length
+        ? supabaseAdmin
+            .from("check_ins")
+            .select("client_id, pain_level, notes, created_at")
+            .in("client_id", clientIds)
+            .gte("created_at", since6w)
+        : Promise.resolve(empty),
+      clientIds.length
+        ? supabaseAdmin
+            .from("alerts")
+            .select("id, outcome, outcome_at, created_at")
+            .in("client_id", clientIds)
+            .gte("created_at", since14d)
+        : Promise.resolve(empty),
     ]);
 
     const clientList = clients ?? [];

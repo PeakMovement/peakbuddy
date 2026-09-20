@@ -4,7 +4,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { QuickCodeManager } from "@/components/QuickCodeManager";
 import { ChangePasswordCard } from "@/components/ChangePasswordCard";
 
-import { LogOut, ExternalLink, Trash2, ChevronDown, Phone, Check, Mail, Sparkles } from "lucide-react";
+import {
+  LogOut,
+  ExternalLink,
+  Trash2,
+  ChevronDown,
+  Phone,
+  Check,
+  Mail,
+  Sparkles,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId, clearClientId } from "@/lib/client-session";
 import type { CheckIn, Client } from "@/lib/types";
@@ -368,7 +377,11 @@ function ClientProfile() {
                 opacity: consentSaving ? 0.7 : 1,
               }}
             >
-              {consentSaving ? "Saving…" : client.yves_ai_consent ? "Withdraw consent" : "Enable consent"}
+              {consentSaving
+                ? "Saving…"
+                : client.yves_ai_consent
+                  ? "Withdraw consent"
+                  : "Enable consent"}
             </button>
           </div>
           <p
@@ -379,8 +392,8 @@ function ClientProfile() {
               color: "var(--white-muted)",
             }}
           >
-            Allow Buddy&apos;s AI assistant, Yves, to analyse your symptoms, check-ins and
-            wearable data.{" "}
+            Allow Buddy&apos;s AI assistant, Yves, to analyse your symptoms, check-ins and wearable
+            data.{" "}
             <a
               href="/privacy-policy#ai"
               style={{ color: "var(--blue-accent)", textDecoration: "underline" }}
@@ -444,7 +457,14 @@ function ClientProfile() {
           <div style={{ marginTop: 10 }}>
             <Suspense
               fallback={
-                <div style={{ color: "var(--white-muted)", fontFamily: "var(--font-ui)", fontSize: 13, padding: 8 }}>
+                <div
+                  style={{
+                    color: "var(--white-muted)",
+                    fontFamily: "var(--font-ui)",
+                    fontSize: 13,
+                    padding: 8,
+                  }}
+                >
                   Loading…
                 </div>
               }
@@ -643,8 +663,6 @@ function ClientProfile() {
         <QuickCodeManager />
         <ChangePasswordCard />
       </div>
-
-
 
       <button
         type="button"
@@ -906,7 +924,6 @@ function MyProgramCard({
     </div>
   );
 }
-
 
 function DeleteAccountSection({
   confirm,
@@ -1227,9 +1244,7 @@ export function EditableTextField({
           Cancel
         </button>
       </div>
-      {error && (
-        <p style={{ marginTop: 8, color: "var(--red)", fontSize: 13 }}>{error}</p>
-      )}
+      {error && <p style={{ marginTop: 8, color: "var(--red)", fontSize: 13 }}>{error}</p>}
     </div>
   );
 }
@@ -1252,4 +1267,3 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
     </h2>
   );
 }
-

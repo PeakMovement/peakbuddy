@@ -85,7 +85,13 @@ export function TransferClientButton({
           ))}
         </div>
       )}
-      {msg && <div style={{ ...note, color: msg.startsWith("Transferred") ? "var(--green)" : "var(--red)" }}>{msg}</div>}
+      {msg && (
+        <div
+          style={{ ...note, color: msg.startsWith("Transferred") ? "var(--green)" : "var(--red)" }}
+        >
+          {msg}
+        </div>
+      )}
     </div>
   );
 }

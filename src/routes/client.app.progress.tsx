@@ -143,11 +143,15 @@ function ProgressScreen() {
     // vs "everything else = weekly", which overstated compliance for
     // every_2_days / every_3_days clients).
     const intervalDays =
-      client.check_in_frequency === "every_2_days" ? 2
-      : client.check_in_frequency === "every_3_days" ? 3
-      : client.check_in_frequency === "weekly" ? 7
-      : client.check_in_frequency === "as_needed" ? 0
-      : 1; // daily
+      client.check_in_frequency === "every_2_days"
+        ? 2
+        : client.check_in_frequency === "every_3_days"
+          ? 3
+          : client.check_in_frequency === "weekly"
+            ? 7
+            : client.check_in_frequency === "as_needed"
+              ? 0
+              : 1; // daily
     if (intervalDays === 0) return 100; // no fixed schedule to comply with
     const start = new Date(client.created_at).getTime();
     const elapsed = Math.max(1, Math.ceil((Date.now() - start) / (1000 * 60 * 60 * 24)));

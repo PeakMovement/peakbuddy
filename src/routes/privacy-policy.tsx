@@ -1,25 +1,29 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { publicSiteOrigin } from "@/lib/app-url";
 
 export const Route = createFileRoute("/privacy-policy")({
-  head: () => ({
-    meta: [
-      { title: "Privacy Policy — Buddy Symptom Tracker" },
-      {
-        name: "description",
-        content:
-          "Buddy Symptom Tracker Privacy Policy. Learn how we collect, use, store, and protect your personal and health information in compliance with POPIA.",
-      },
-      { property: "og:title", content: "Privacy Policy — Buddy Symptom Tracker" },
-      {
-        property: "og:description",
-        content:
-          "How Buddy protects your personal and health information under South African privacy law.",
-      },
-      { property: "og:url", content: "https://buddytracker.netlify.app/privacy-policy" },
-      { property: "og:type", content: "article" },
-    ],
-    links: [{ rel: "canonical", href: "https://buddytracker.netlify.app/privacy-policy" }],
-  }),
+  head: () => {
+    const site = publicSiteOrigin();
+    return {
+      meta: [
+        { title: "Privacy Policy — Buddy Symptom Tracker" },
+        {
+          name: "description",
+          content:
+            "Buddy Symptom Tracker Privacy Policy. Learn how we collect, use, store, and protect your personal and health information in compliance with POPIA.",
+        },
+        { property: "og:title", content: "Privacy Policy — Buddy Symptom Tracker" },
+        {
+          property: "og:description",
+          content:
+            "How Buddy protects your personal and health information under South African privacy law.",
+        },
+        { property: "og:url", content: `${site}/privacy-policy` },
+        { property: "og:type", content: "article" },
+      ],
+      links: [{ rel: "canonical", href: `${site}/privacy-policy` }],
+    };
+  },
   component: PrivacyPolicyPage,
 });
 
@@ -213,13 +217,12 @@ function PrivacyPolicyPage() {
               power Yves. Anthropic acts as a data processor on our behalf and does not use your
               data to train its models. Anthropic is contractually bound to protect your information
               to a standard equivalent to this policy. In addition, to suggest a suitable exercise
-              program from your check-ins, the same symptom and check-in information may be processed
-              by Google through our platform provider, Lovable. Google and Lovable act as our data
-              processors and use your data only to provide this feature, not to train their own
-              models. We also share alert and check in data with
-              your own practitioner so they can review flagged concerns. Where your practitioner has
-              configured one, alert data may also be sent to that practitioner's chosen webhook
-              endpoint.
+              program from your check-ins, the same symptom and check-in information may be
+              processed by Google through our platform provider, Lovable. Google and Lovable act as
+              our data processors and use your data only to provide this feature, not to train their
+              own models. We also share alert and check in data with your own practitioner so they
+              can review flagged concerns. Where your practitioner has configured one, alert data
+              may also be sent to that practitioner's chosen webhook endpoint.
             </li>
             <li>
               <strong style={{ color: "var(--white)" }}>Consent:</strong> You must explicitly agree
@@ -252,8 +255,8 @@ function PrivacyPolicyPage() {
           <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
             If you choose to connect a Garmin device to Buddy, this section explains exactly what
             Garmin data we receive, how it is collected, how it is used, who processes it, and how
-            long we keep it. Garmin is a registered trademark of Garmin Ltd. Buddy is not
-            affiliated with or endorsed by Garmin.
+            long we keep it. Garmin is a registered trademark of Garmin Ltd. Buddy is not affiliated
+            with or endorsed by Garmin.
           </p>
           <ul
             className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed"
@@ -261,60 +264,61 @@ function PrivacyPolicyPage() {
           >
             <li>
               <strong style={{ color: "var(--white)" }}>What we collect from Garmin:</strong> via
-              the Garmin Health API we receive daily wellness summaries, sleep summaries, heart
-              rate variability (HRV), stress details, epoch summaries, user metrics, and activity
+              the Garmin Health API we receive daily wellness summaries, sleep summaries, heart rate
+              variability (HRV), stress details, epoch summaries, user metrics, and activity
               summaries (including distance). We do not receive raw GPS tracks, contacts, messages,
               or payment information.
             </li>
             <li>
               <strong style={{ color: "var(--white)" }}>How it is collected:</strong> you authorise
-              the connection via Garmin Connect using OAuth 2.0 with PKCE. After you consent,
-              Garmin pushes new data to Buddy's secure webhook endpoint as it becomes available.
-              Buddy does not scrape or pull data from your Garmin account outside of this
-              authorised push flow.
+              the connection via Garmin Connect using OAuth 2.0 with PKCE. After you consent, Garmin
+              pushes new data to Buddy's secure webhook endpoint as it becomes available. Buddy does
+              not scrape or pull data from your Garmin account outside of this authorised push flow.
             </li>
             <li>
               <strong style={{ color: "var(--white)" }}>How we use it:</strong> Garmin data is
               displayed to you in the app, shared with the healthcare practitioner linked to your
               account for clinical review, and — only if you have separately consented to AI
-              features — used as contextual signal (e.g. HRV, resting heart rate, and sleep
-              deltas) for the Yves triage assistant.
+              features — used as contextual signal (e.g. HRV, resting heart rate, and sleep deltas)
+              for the Yves triage assistant.
             </li>
             <li>
-              <strong style={{ color: "var(--white)" }}>Who processes Garmin data on our behalf:</strong>{" "}
+              <strong style={{ color: "var(--white)" }}>
+                Who processes Garmin data on our behalf:
+              </strong>{" "}
               cloud infrastructure (Supabase / Cloudflare) for hosting and encrypted storage;
-              Anthropic (Claude models) as an AI processor for Yves, only when you have consented
-              to AI features; and Google (via the Lovable AI Gateway) for exercise-program
-              suggestions, only when you have consented to AI features. All processors are bound
-              by data processing agreements, use your data solely to provide the requested
-              feature, and do not use your Garmin data to train AI models.
+              Anthropic (Claude models) as an AI processor for Yves, only when you have consented to
+              AI features; and Google (via the Lovable AI Gateway) for exercise-program suggestions,
+              only when you have consented to AI features. All processors are bound by data
+              processing agreements, use your data solely to provide the requested feature, and do
+              not use your Garmin data to train AI models.
             </li>
             <li>
-              <strong style={{ color: "var(--white)" }}>Selling and advertising:</strong> we do
-              not sell, rent, trade, or use your Garmin data for advertising, marketing profiling,
-              or any purpose other than the ones listed above.
+              <strong style={{ color: "var(--white)" }}>Selling and advertising:</strong> we do not
+              sell, rent, trade, or use your Garmin data for advertising, marketing profiling, or
+              any purpose other than the ones listed above.
             </li>
             <li>
-              <strong style={{ color: "var(--white)" }}>Storage and security:</strong> Garmin
-              access and refresh tokens and all synced Garmin data are encrypted at rest and
-              transmitted over TLS 1.2 or higher. Access is restricted by role-based policies so
-              only you, your linked practitioner, and authorised Buddy support staff can view
-              your data.
+              <strong style={{ color: "var(--white)" }}>Storage and security:</strong> Garmin access
+              and refresh tokens and synced Garmin data are stored in our encrypted-at-rest database
+              and transmitted over TLS 1.2 or higher. Tokens are not readable through client APIs
+              (service-role access only). Synced metrics are restricted by role-based policies so
+              only you, your linked practitioner, and authorised Buddy support staff can view them.
             </li>
             <li>
-              <strong style={{ color: "var(--white)" }}>Retention:</strong> Garmin data is
-              retained while your Garmin connection is active and for the duration of your
-              therapeutic relationship with your practitioner, plus any statutory healthcare
-              retention period applicable in South Africa. When you disconnect Garmin, we delete
-              your Garmin OAuth tokens immediately and stop receiving new data.
+              <strong style={{ color: "var(--white)" }}>Retention:</strong> Garmin data is retained
+              while your Garmin connection is active and for the duration of your therapeutic
+              relationship with your practitioner, plus any statutory healthcare retention period
+              applicable in South Africa. When you disconnect Garmin, we delete your Garmin OAuth
+              tokens immediately and stop receiving new data.
             </li>
             <li>
               <strong style={{ color: "var(--white)" }}>Your control:</strong> you can disconnect
               Garmin at any time from Profile → Wearables inside Buddy, or from Garmin Connect →
               Settings → Connected Apps. Buddy automatically honours Garmin's deregistration and
-              user-permissions-change webhooks: if you revoke access on Garmin's side, we remove
-              the corresponding token on our side. You may also request deletion of any Garmin
-              data we hold by emailing{" "}
+              user-permissions-change webhooks: if you revoke access on Garmin's side, we remove the
+              corresponding token on our side. You may also request deletion of any Garmin data we
+              hold by emailing{" "}
               <a
                 href="mailto:hello@peakmovement.co.za"
                 className="underline underline-offset-2"
@@ -328,7 +332,6 @@ function PrivacyPolicyPage() {
         </section>
 
         <section className="mt-8">
-
           <h2
             className="text-xl font-semibold"
             style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
@@ -385,7 +388,10 @@ function PrivacyPolicyPage() {
             </li>
             <li>
               <strong style={{ color: "var(--white)" }}>Encryption at rest:</strong> Health records
-              and personally identifiable information stored in our databases are encrypted at rest.
+              and personally identifiable information are stored in our database provider's
+              encrypted-at-rest infrastructure (Supabase / Postgres). Wearable and calendar OAuth
+              tokens are stored as database fields protected by role-based access; we do not apply a
+              second application-level encryption layer to those tokens.
             </li>
             <li>
               <strong style={{ color: "var(--white)" }}>Access controls:</strong> Role-based access
@@ -393,8 +399,9 @@ function PrivacyPolicyPage() {
               your data. Practitioners authenticate via secure login credentials.
             </li>
             <li>
-              <strong style={{ color: "var(--white)" }}>Audit logging:</strong> We maintain logs of
-              access to sensitive data to detect and investigate unauthorised access attempts.
+              <strong style={{ color: "var(--white)" }}>Operational logging:</strong> We log
+              technical errors and security-relevant failures (without storing free-text health
+              notes) to detect and investigate incidents.
             </li>
             <li>
               <strong style={{ color: "var(--white)" }}>Regular security reviews:</strong> We
@@ -447,7 +454,8 @@ function PrivacyPolicyPage() {
               <strong style={{ color: "var(--white)" }}>Right to deletion:</strong> You may request
               deletion of your personal information, subject to legal retention requirements and
               your practitioner’s professional obligations. You can also permanently delete your
-              account and all associated data yourself at any time from the Profile screen in the app.
+              account and all associated data yourself at any time from the Profile screen in the
+              app.
             </li>
             <li>
               <strong style={{ color: "var(--white)" }}>Right to object:</strong> You may object to
@@ -537,11 +545,11 @@ function PrivacyPolicyPage() {
             <p className="mt-1">
               <strong style={{ color: "var(--white)" }}>Website:</strong>{" "}
               <a
-                href="https://buddytracker.netlify.app"
+                href="https://buddy.peakmovement.co.za"
                 className="underline underline-offset-2"
                 style={{ color: "var(--blue-accent)" }}
               >
-                buddytracker.netlify.app
+                buddy.peakmovement.co.za
               </a>
             </p>
           </div>

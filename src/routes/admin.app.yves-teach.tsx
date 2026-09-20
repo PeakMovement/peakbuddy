@@ -74,7 +74,11 @@ function TeachYves() {
 
   useEffect(() => {
     (async () => {
-      try { setClients(await listFn()); } catch { /* ignore */ }
+      try {
+        setClients(await listFn());
+      } catch {
+        /* ignore */
+      }
     })();
   }, [listFn]);
 
@@ -88,12 +92,16 @@ function TeachYves() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.mode, search.clientId, search.focus]);
 
-
   useEffect(() => {
     (async () => {
       setPanelBusy(true);
-      try { setPanel(await memFn()); } catch { /* ignore */ }
-      finally { setPanelBusy(false); }
+      try {
+        setPanel(await memFn());
+      } catch {
+        /* ignore */
+      } finally {
+        setPanelBusy(false);
+      }
     })();
   }, [memFn]);
 
@@ -134,14 +142,19 @@ function TeachYves() {
       ]);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to reach Yves");
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function like(t: Turn) {
     if (!t.feedbackId || t.liked) return;
     setTurns((prev) => prev.map((x) => (x.id === t.id ? { ...x, liked: true } : x)));
-    try { await likeFn({ data: { feedbackId: t.feedbackId } }); }
-    catch { setTurns((prev) => prev.map((x) => (x.id === t.id ? { ...x, liked: false } : x))); }
+    try {
+      await likeFn({ data: { feedbackId: t.feedbackId } });
+    } catch {
+      setTurns((prev) => prev.map((x) => (x.id === t.id ? { ...x, liked: false } : x)));
+    }
   }
 
   // Correction dialog state
@@ -149,7 +162,10 @@ function TeachYves() {
   const [correctFor, setCorrectFor] = useState<Turn | null>(null);
   const [correctionText, setCorrectionText] = useState("");
   const [correctBusy, setCorrectBusy] = useState(false);
-  const [correctMsg, setCorrectMsg] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
+  const [correctMsg, setCorrectMsg] = useState<{
+    tone: "ok" | "warn" | "err";
+    text: string;
+  } | null>(null);
 
   function correct(t: Turn) {
     if (!t.feedbackId) return;
@@ -167,13 +183,24 @@ function TeachYves() {
         data: { feedbackId: correctFor.feedbackId, correction: correctionText.trim(), focus },
       });
       if (r.ok) {
-        setCorrectMsg({ tone: "ok", text: `Staged as candidate rule${r.conflictIds?.length ? ` (${r.conflictIds.length} conflict${r.conflictIds.length === 1 ? "" : "s"} flagged)` : ""}.` });
-        try { setPanel(await memFn()); setTab("staging"); } catch { /* ignore */ }
+        setCorrectMsg({
+          tone: "ok",
+          text: `Staged as candidate rule${r.conflictIds?.length ? ` (${r.conflictIds.length} conflict${r.conflictIds.length === 1 ? "" : "s"} flagged)` : ""}.`,
+        });
+        try {
+          setPanel(await memFn());
+          setTab("staging");
+        } catch {
+          /* ignore */
+        }
       } else {
         setCorrectMsg({ tone: "warn", text: r.reason ?? "Blocked." });
       }
     } catch (e) {
-      setCorrectMsg({ tone: "err", text: e instanceof Error ? e.message : "Failed to propose rule." });
+      setCorrectMsg({
+        tone: "err",
+        text: e instanceof Error ? e.message : "Failed to propose rule.",
+      });
     } finally {
       setCorrectBusy(false);
     }
@@ -185,33 +212,67 @@ function TeachYves() {
   const rejectFn = useServerFn(rejectYvesRule);
   const rollbackFn = useServerFn(rollbackYvesMemory);
   const [rowBusyId, setRowBusyId] = useState<string | null>(null);
-  const [panelMsg, setPanelMsg] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
+  const [panelMsg, setPanelMsg] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(
+    null,
+  );
   const [editRow, setEditRow] = useState<StagingRow | null>(null);
-  const [editDraft, setEditDraft] = useState<{ title: string; rule_text: string; rationale: string; scope: string; rule_type: string }>({
-    title: "", rule_text: "", rationale: "", scope: "", rule_type: "reasoning",
+  const [editDraft, setEditDraft] = useState<{
+    title: string;
+    rule_text: string;
+    rationale: string;
+    scope: string;
+    rule_type: string;
+  }>({
+    title: "",
+    rule_text: "",
+    rationale: "",
+    scope: "",
+    rule_type: "reasoning",
   });
   const [editSupersedesId, setEditSupersedesId] = useState<string>("");
   const [reviewNote, setReviewNote] = useState<string>("");
 
   async function refreshPanel() {
     setPanelBusy(true);
-    try { setPanel(await memFn()); }
-    catch { /* ignore */ }
-    finally { setPanelBusy(false); }
+    try {
+      setPanel(await memFn());
+    } catch {
+      /* ignore */
+    } finally {
+      setPanelBusy(false);
+    }
   }
 
-  async function approveRow(r: StagingRow, edits?: { title?: string; rule_text?: string; rationale?: string; scope?: string; rule_type?: string }, supersedesId?: string | null, note?: string) {
+  async function approveRow(
+    r: StagingRow,
+    edits?: {
+      title?: string;
+      rule_text?: string;
+      rationale?: string;
+      scope?: string;
+      rule_type?: string;
+    },
+    supersedesId?: string | null,
+    note?: string,
+  ) {
     setRowBusyId(r.id);
     setPanelMsg(null);
     try {
-      const res = await publishFn({ data: { stagingId: r.id, edits, supersedesId: supersedesId ?? null, reviewNote: note } });
-      setPanelMsg({ tone: "ok", text: `Published (v${res.version})${res.supersededId ? ` — superseded ${res.supersededId.slice(0, 8)}…` : ""}` });
+      const res = await publishFn({
+        data: { stagingId: r.id, edits, supersedesId: supersedesId ?? null, reviewNote: note },
+      });
+      setPanelMsg({
+        tone: "ok",
+        text: `Published (v${res.version})${res.supersededId ? ` — superseded ${res.supersededId.slice(0, 8)}…` : ""}`,
+      });
       await refreshPanel();
       setTab("published");
       setEditRow(null);
     } catch (e) {
       setPanelMsg({ tone: "err", text: e instanceof Error ? e.message : "Publish failed." });
-    } finally { setRowBusyId(null); }
+    } finally {
+      setRowBusyId(null);
+    }
   }
 
   async function rejectRow(r: StagingRow) {
@@ -224,7 +285,9 @@ function TeachYves() {
       await refreshPanel();
     } catch (e) {
       setPanelMsg({ tone: "err", text: e instanceof Error ? e.message : "Reject failed." });
-    } finally { setRowBusyId(null); }
+    } finally {
+      setRowBusyId(null);
+    }
   }
 
   function openEdit(r: StagingRow) {
@@ -242,17 +305,27 @@ function TeachYves() {
   }
 
   async function rollback(versionNumber: number) {
-    if (!window.confirm(`Roll back live memory to version ${versionNumber}? This deactivates current active rules and restores the snapshot.`)) return;
+    if (
+      !window.confirm(
+        `Roll back live memory to version ${versionNumber}? This deactivates current active rules and restores the snapshot.`,
+      )
+    )
+      return;
     setRowBusyId(`v-${versionNumber}`);
     setPanelMsg(null);
     try {
       const res = await rollbackFn({ data: { versionNumber } });
-      setPanelMsg({ tone: "ok", text: `Rolled back — restored ${res.restoredCount} rule(s), new version v${res.newVersion}.` });
+      setPanelMsg({
+        tone: "ok",
+        text: `Rolled back — restored ${res.restoredCount} rule(s), new version v${res.newVersion}.`,
+      });
       await refreshPanel();
       setTab("published");
     } catch (e) {
       setPanelMsg({ tone: "err", text: e instanceof Error ? e.message : "Rollback failed." });
-    } finally { setRowBusyId(null); }
+    } finally {
+      setRowBusyId(null);
+    }
   }
 
   function resetSession() {
@@ -268,39 +341,89 @@ function TeachYves() {
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Teach Yves</h1>
           <div style={{ color: C.muted, fontSize: 13 }}>
-            Test questions against real clients or scenarios. Positive answers train future memory candidates.
+            Test questions against real clients or scenarios. Positive answers train future memory
+            candidates.
           </div>
         </div>
-        <button onClick={resetSession}
-          style={{ marginLeft: "auto", background: "transparent", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>
+        <button
+          onClick={resetSession}
+          style={{
+            marginLeft: "auto",
+            background: "transparent",
+            color: C.muted,
+            border: `1px solid ${C.border}`,
+            borderRadius: 8,
+            padding: "6px 12px",
+            cursor: "pointer",
+          }}
+        >
           New session
         </button>
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 380px)", gap: 16 }}>
+      <div
+        style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 380px)", gap: 16 }}
+      >
         {/* LEFT: conversation */}
-        <section style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", minHeight: 560 }}>
+        <section
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: 16,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 560,
+          }}
+        >
           {/* Controls */}
-          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr", gap: 10, alignItems: "center" }}>
-            <div style={{ display: "flex", gap: 6, background: "rgba(0,0,0,0.2)", padding: 4, borderRadius: 8 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "auto 1fr 1fr",
+              gap: 10,
+              alignItems: "center",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                gap: 6,
+                background: "rgba(0,0,0,0.2)",
+                padding: 4,
+                borderRadius: 8,
+              }}
+            >
               {(["client", "scenario"] as Mode[]).map((m) => (
-                <button key={m} onClick={() => setMode(m)}
+                <button
+                  key={m}
+                  onClick={() => setMode(m)}
                   style={{
-                    padding: "6px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+                    padding: "6px 10px",
+                    borderRadius: 6,
+                    border: "none",
+                    cursor: "pointer",
                     background: mode === m ? C.blue : "transparent",
-                    color: mode === m ? C.white : C.muted, fontWeight: 600, fontSize: 12,
-                  }}>
+                    color: mode === m ? C.white : C.muted,
+                    fontWeight: 600,
+                    fontSize: 12,
+                  }}
+                >
                   {m === "client" ? "Test against a client" : "Scenario"}
                 </button>
               ))}
             </div>
             {mode === "client" ? (
-              <select value={clientId} onChange={(e) => setClientId(e.target.value)}
-                style={inputStyle}>
+              <select
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                style={inputStyle}
+              >
                 <option value="">Select a client…</option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.full_name}{c.practitioner_name ? ` — ${c.practitioner_name}` : ""}
+                    {c.full_name}
+                    {c.practitioner_name ? ` — ${c.practitioner_name}` : ""}
                   </option>
                 ))}
               </select>
@@ -308,7 +431,11 @@ function TeachYves() {
               <div style={{ color: C.muted, fontSize: 12 }}>Scenario mode — no live data.</div>
             )}
             <select value={focus} onChange={(e) => setFocus(e.target.value)} style={inputStyle}>
-              {YVES_TEACH_FOCUSES.map((f) => (<option key={f} value={f}>{f}</option>))}
+              {YVES_TEACH_FOCUSES.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -323,36 +450,68 @@ function TeachYves() {
           )}
 
           {/* Thread */}
-          <div style={{ marginTop: 14, flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, paddingRight: 4 }}>
+          <div
+            style={{
+              marginTop: 14,
+              flex: 1,
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              paddingRight: 4,
+            }}
+          >
             {turns.length === 0 && (
               <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: 24 }}>
-                Ask a clinical question. Yves will answer using {mode === "client" ? "the selected client's real live data" : "your scenario"} and its core memory.
+                Ask a clinical question. Yves will answer using{" "}
+                {mode === "client" ? "the selected client's real live data" : "your scenario"} and
+                its core memory.
               </div>
             )}
             {turns.map((t) => (
-              <div key={t.id}
+              <div
+                key={t.id}
                 style={{
                   alignSelf: t.role === "admin" ? "flex-end" : "flex-start",
                   maxWidth: "88%",
                   background: t.role === "admin" ? C.blue : "rgba(0,0,0,0.25)",
                   color: C.white,
                   border: t.role === "yves" ? `1px solid ${C.border}` : "none",
-                  padding: "10px 12px", borderRadius: 10, fontSize: 13, lineHeight: 1.5,
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  fontSize: 13,
+                  lineHeight: 1.5,
                   whiteSpace: "pre-wrap",
-                }}>
+                }}
+              >
                 {t.text}
                 {t.role === "yves" && (
-                  <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: C.muted }}>
+                  <div
+                    style={{
+                      marginTop: 8,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontSize: 11,
+                      color: C.muted,
+                    }}
+                  >
                     <span>Memory v{t.memoryVersion ?? 0}</span>
                     <span style={{ flex: 1 }} />
-                    <button onClick={() => like(t)} disabled={!t.feedbackId || t.liked}
+                    <button
+                      onClick={() => like(t)}
+                      disabled={!t.feedbackId || t.liked}
                       title="Positive example"
-                      style={pillBtn(t.liked ? C.green : C.muted)}>
+                      style={pillBtn(t.liked ? C.green : C.muted)}
+                    >
                       <ThumbsUp size={12} /> {t.liked ? "Logged" : "Good"}
                     </button>
-                    <button onClick={() => correct(t)} disabled={!t.feedbackId}
+                    <button
+                      onClick={() => correct(t)}
+                      disabled={!t.feedbackId}
                       title="Correct this answer"
-                      style={pillBtn(C.amber)}>
+                      style={pillBtn(C.amber)}
+                    >
                       <MessageSquareWarning size={12} /> Correct this
                     </button>
                   </div>
@@ -368,41 +527,93 @@ function TeachYves() {
             <input
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
               placeholder="Ask Yves a test question…"
               style={{ ...inputStyle, flex: 1 }}
             />
-            <button onClick={send} disabled={!canSend}
+            <button
+              onClick={send}
+              disabled={!canSend}
               style={{
                 background: canSend ? C.blue : "rgba(74,141,240,0.4)",
-                color: C.white, border: "none", borderRadius: 8, padding: "0 14px",
-                cursor: canSend ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: 6, fontWeight: 600,
-              }}>
+                color: C.white,
+                border: "none",
+                borderRadius: 8,
+                padding: "0 14px",
+                cursor: canSend ? "pointer" : "not-allowed",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontWeight: 600,
+              }}
+            >
               <Send size={14} /> Send
             </button>
           </div>
         </section>
 
         {/* RIGHT: memory */}
-        <aside style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, minHeight: 560 }}>
-          <div style={{ display: "flex", gap: 4, background: "rgba(0,0,0,0.2)", padding: 4, borderRadius: 8, marginBottom: 10 }}>
+        <aside
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: 12,
+            minHeight: 560,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: 4,
+              background: "rgba(0,0,0,0.2)",
+              padding: 4,
+              borderRadius: 8,
+              marginBottom: 10,
+            }}
+          >
             {(["published", "staging", "versions"] as const).map((k) => (
-              <button key={k} onClick={() => setTab(k)}
+              <button
+                key={k}
+                onClick={() => setTab(k)}
                 style={{
-                  flex: 1, padding: "6px 8px", borderRadius: 6, border: "none", cursor: "pointer",
+                  flex: 1,
+                  padding: "6px 8px",
+                  borderRadius: 6,
+                  border: "none",
+                  cursor: "pointer",
                   background: tab === k ? C.blue : "transparent",
-                  color: tab === k ? C.white : C.muted, fontWeight: 600, fontSize: 12, textTransform: "capitalize",
-                }}>{k}</button>
+                  color: tab === k ? C.white : C.muted,
+                  fontWeight: 600,
+                  fontSize: 12,
+                  textTransform: "capitalize",
+                }}
+              >
+                {k}
+              </button>
             ))}
           </div>
 
           {panelMsg && (
-            <div style={{
-              marginBottom: 10, padding: 8, borderRadius: 6, fontSize: 11,
-              background: "rgba(0,0,0,0.25)",
-              border: `1px solid ${panelMsg.tone === "ok" ? C.green : panelMsg.tone === "warn" ? C.amber : C.red}`,
-              color: panelMsg.tone === "ok" ? C.green : panelMsg.tone === "warn" ? C.amber : C.red,
-            }}>{panelMsg.text}</div>
+            <div
+              style={{
+                marginBottom: 10,
+                padding: 8,
+                borderRadius: 6,
+                fontSize: 11,
+                background: "rgba(0,0,0,0.25)",
+                border: `1px solid ${panelMsg.tone === "ok" ? C.green : panelMsg.tone === "warn" ? C.amber : C.red}`,
+                color:
+                  panelMsg.tone === "ok" ? C.green : panelMsg.tone === "warn" ? C.amber : C.red,
+              }}
+            >
+              {panelMsg.text}
+            </div>
           )}
 
           {panelBusy && <div style={{ color: C.muted, fontSize: 12 }}>Loading memory…</div>}
@@ -410,9 +621,13 @@ function TeachYves() {
             <div style={memListStyle}>
               {panel.published.length === 0 && <Empty label="No active rules yet." />}
               {panel.published.map((r) => (
-                <MemoryCard key={r.id}
-                  badge={`${r.scope} · ${r.rule_type}`} title={r.title} body={r.rule_text}
-                  meta={`Updated ${new Date(r.updated_at).toLocaleDateString("en-ZA")}`} />
+                <MemoryCard
+                  key={r.id}
+                  badge={`${r.scope} · ${r.rule_type}`}
+                  title={r.title}
+                  body={r.rule_text}
+                  meta={`Updated ${new Date(r.updated_at).toLocaleDateString("en-ZA")}`}
+                />
               ))}
             </div>
           )}
@@ -425,35 +640,72 @@ function TeachYves() {
                   .filter((t): t is string => Boolean(t));
                 const hasConflict = r.conflict_flags.length > 0;
                 return (
-                  <div key={r.id}
-                    style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${hasConflict ? C.amber : C.border}`, borderRadius: 8, padding: 10 }}>
-                    <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: hasConflict ? C.amber : C.muted }}>
+                  <div
+                    key={r.id}
+                    style={{
+                      background: "rgba(0,0,0,0.2)",
+                      border: `1px solid ${hasConflict ? C.amber : C.border}`,
+                      borderRadius: 8,
+                      padding: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 10,
+                        textTransform: "uppercase",
+                        letterSpacing: 0.5,
+                        color: hasConflict ? C.amber : C.muted,
+                      }}
+                    >
                       {r.scope} · {r.rule_type} · {r.status}
                     </div>
                     <div style={{ fontWeight: 700, fontSize: 13, marginTop: 2 }}>{r.title}</div>
-                    <div style={{ color: C.white, fontSize: 12, marginTop: 4, whiteSpace: "pre-wrap" }}>{r.rule_text}</div>
+                    <div
+                      style={{ color: C.white, fontSize: 12, marginTop: 4, whiteSpace: "pre-wrap" }}
+                    >
+                      {r.rule_text}
+                    </div>
                     {r.rationale && (
-                      <div style={{ color: C.muted, fontSize: 11, marginTop: 6, fontStyle: "italic" }}>Why: {r.rationale}</div>
+                      <div
+                        style={{ color: C.muted, fontSize: 11, marginTop: 6, fontStyle: "italic" }}
+                      >
+                        Why: {r.rationale}
+                      </div>
                     )}
                     {hasConflict && (
                       <div style={{ color: C.amber, fontSize: 11, marginTop: 6 }}>
-                        Conflicts with: {conflictTitles.length ? conflictTitles.join("; ") : `${r.conflict_flags.length} rule(s)`}
+                        Conflicts with:{" "}
+                        {conflictTitles.length
+                          ? conflictTitles.join("; ")
+                          : `${r.conflict_flags.length} rule(s)`}
                       </div>
                     )}
                     <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                      <button onClick={() => approveRow(r, undefined, r.conflict_flags[0] ?? null)}
+                      <button
+                        onClick={() => approveRow(r, undefined, r.conflict_flags[0] ?? null)}
                         disabled={rowBusyId === r.id || r.status !== "pending"}
-                        style={pillBtn(r.status === "pending" ? C.green : C.muted)}>
+                        style={pillBtn(r.status === "pending" ? C.green : C.muted)}
+                      >
                         {rowBusyId === r.id ? "…" : "Approve"}
                       </button>
-                      <button onClick={() => openEdit(r)}
+                      <button
+                        onClick={() => openEdit(r)}
                         disabled={rowBusyId === r.id || r.status !== "pending"}
-                        style={pillBtn(C.blue)}>Edit</button>
-                      <button onClick={() => rejectRow(r)}
+                        style={pillBtn(C.blue)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => rejectRow(r)}
                         disabled={rowBusyId === r.id || r.status !== "pending"}
-                        style={pillBtn(C.red)}>Reject</button>
+                        style={pillBtn(C.red)}
+                      >
+                        Reject
+                      </button>
                       <span style={{ flex: 1 }} />
-                      <span style={{ color: C.muted, fontSize: 11 }}>{new Date(r.created_at).toLocaleDateString("en-ZA")}</span>
+                      <span style={{ color: C.muted, fontSize: 11 }}>
+                        {new Date(r.created_at).toLocaleDateString("en-ZA")}
+                      </span>
                     </div>
                   </div>
                 );
@@ -464,16 +716,42 @@ function TeachYves() {
             <div style={memListStyle}>
               {panel.versions.length === 0 && <Empty label="No snapshots yet." />}
               {panel.versions.map((v) => (
-                <div key={v.id} style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${C.border}`, borderRadius: 8, padding: 10 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div
+                  key={v.id}
+                  style={{
+                    background: "rgba(0,0,0,0.2)",
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 8,
+                    padding: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
                     <div style={{ fontWeight: 700 }}>v{v.version_number}</div>
-                    <button onClick={() => rollback(v.version_number)}
+                    <button
+                      onClick={() => rollback(v.version_number)}
                       disabled={rowBusyId === `v-${v.version_number}`}
-                      style={{ background: "transparent", color: C.amber, border: `1px solid ${C.amber}`, borderRadius: 6, padding: "4px 8px", fontSize: 11, cursor: rowBusyId === `v-${v.version_number}` ? "not-allowed" : "pointer" }}>
+                      style={{
+                        background: "transparent",
+                        color: C.amber,
+                        border: `1px solid ${C.amber}`,
+                        borderRadius: 6,
+                        padding: "4px 8px",
+                        fontSize: 11,
+                        cursor: rowBusyId === `v-${v.version_number}` ? "not-allowed" : "pointer",
+                      }}
+                    >
                       {rowBusyId === `v-${v.version_number}` ? "Restoring…" : "Rollback"}
                     </button>
                   </div>
-                  {v.note && <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{v.note}</div>}
+                  {v.note && (
+                    <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{v.note}</div>
+                  )}
                   <div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>
                     {new Date(v.created_at).toLocaleString("en-ZA")}
                   </div>
@@ -487,42 +765,96 @@ function TeachYves() {
       {correctFor && (
         <div
           onClick={() => !correctBusy && setCorrectFor(null)}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16 }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+            padding: 16,
+          }}
         >
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, width: "min(560px, 100%)", maxHeight: "90vh", overflowY: "auto" }}>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 12,
+              padding: 16,
+              width: "min(560px, 100%)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+          >
             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Correct Yves</h2>
             <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>
-              Write how Yves should have answered, or the rule it should follow. Yves will draft a reusable, generalised rule from it. No client names, ids, dates, or one-off values.
+              Write how Yves should have answered, or the rule it should follow. Yves will draft a
+              reusable, generalised rule from it. No client names, ids, dates, or one-off values.
             </div>
             <textarea
               value={correctionText}
               onChange={(e) => setCorrectionText(e.target.value)}
               rows={6}
               placeholder="e.g. When HRV drops >15% below baseline for 3+ nights, flag as recovery risk before recommending training…"
-              style={{ ...inputStyle, width: "100%", marginTop: 10, resize: "vertical", minHeight: 120 }}
+              style={{
+                ...inputStyle,
+                width: "100%",
+                marginTop: 10,
+                resize: "vertical",
+                minHeight: 120,
+              }}
             />
             {correctMsg && (
-              <div style={{
-                marginTop: 10, padding: 10, borderRadius: 8, fontSize: 12,
-                background: "rgba(0,0,0,0.25)",
-                border: `1px solid ${correctMsg.tone === "ok" ? C.green : correctMsg.tone === "warn" ? C.amber : C.red}`,
-                color: correctMsg.tone === "ok" ? C.green : correctMsg.tone === "warn" ? C.amber : C.red,
-              }}>
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: 10,
+                  borderRadius: 8,
+                  fontSize: 12,
+                  background: "rgba(0,0,0,0.25)",
+                  border: `1px solid ${correctMsg.tone === "ok" ? C.green : correctMsg.tone === "warn" ? C.amber : C.red}`,
+                  color:
+                    correctMsg.tone === "ok"
+                      ? C.green
+                      : correctMsg.tone === "warn"
+                        ? C.amber
+                        : C.red,
+                }}
+              >
                 {correctMsg.text}
               </div>
             )}
             <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
-              <button onClick={() => setCorrectFor(null)} disabled={correctBusy}
-                style={{ background: "transparent", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", cursor: correctBusy ? "not-allowed" : "pointer" }}>
+              <button
+                onClick={() => setCorrectFor(null)}
+                disabled={correctBusy}
+                style={{
+                  background: "transparent",
+                  color: C.muted,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  padding: "8px 14px",
+                  cursor: correctBusy ? "not-allowed" : "pointer",
+                }}
+              >
                 Close
               </button>
-              <button onClick={submitCorrection} disabled={correctBusy || !correctionText.trim()}
+              <button
+                onClick={submitCorrection}
+                disabled={correctBusy || !correctionText.trim()}
                 style={{
-                  background: correctBusy || !correctionText.trim() ? "rgba(74,141,240,0.4)" : C.blue,
-                  color: C.white, border: "none", borderRadius: 8, padding: "8px 14px",
-                  cursor: correctBusy || !correctionText.trim() ? "not-allowed" : "pointer", fontWeight: 600,
-                }}>
+                  background:
+                    correctBusy || !correctionText.trim() ? "rgba(74,141,240,0.4)" : C.blue,
+                  color: C.white,
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 14px",
+                  cursor: correctBusy || !correctionText.trim() ? "not-allowed" : "pointer",
+                  fontWeight: 600,
+                }}
+              >
                 {correctBusy ? "Drafting…" : "Propose rule"}
               </button>
             </div>
@@ -531,69 +863,158 @@ function TeachYves() {
       )}
 
       {editRow && panel && (
-        <div onClick={() => rowBusyId !== editRow.id && setEditRow(null)}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16 }}>
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, width: "min(640px, 100%)", maxHeight: "90vh", overflowY: "auto" }}>
+        <div
+          onClick={() => rowBusyId !== editRow.id && setEditRow(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 12,
+              padding: 16,
+              width: "min(640px, 100%)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+          >
             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Edit & approve candidate</h2>
             <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>
               Edits are re-checked by the privacy sanitiser before publish.
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
-              <label style={labelStyle}>Scope
-                <input value={editDraft.scope} onChange={(e) => setEditDraft({ ...editDraft, scope: e.target.value })} style={inputStyle} />
+              <label style={labelStyle}>
+                Scope
+                <input
+                  value={editDraft.scope}
+                  onChange={(e) => setEditDraft({ ...editDraft, scope: e.target.value })}
+                  style={inputStyle}
+                />
               </label>
-              <label style={labelStyle}>Rule type
-                <select value={editDraft.rule_type} onChange={(e) => setEditDraft({ ...editDraft, rule_type: e.target.value })} style={inputStyle}>
-                  {["reasoning", "phrasing", "safety", "escalation", "style"].map((t) => (<option key={t} value={t}>{t}</option>))}
+              <label style={labelStyle}>
+                Rule type
+                <select
+                  value={editDraft.rule_type}
+                  onChange={(e) => setEditDraft({ ...editDraft, rule_type: e.target.value })}
+                  style={inputStyle}
+                >
+                  {["reasoning", "phrasing", "safety", "escalation", "style"].map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
                 </select>
               </label>
             </div>
-            <label style={{ ...labelStyle, marginTop: 8 }}>Title
-              <input value={editDraft.title} onChange={(e) => setEditDraft({ ...editDraft, title: e.target.value })} style={inputStyle} maxLength={80} />
+            <label style={{ ...labelStyle, marginTop: 8 }}>
+              Title
+              <input
+                value={editDraft.title}
+                onChange={(e) => setEditDraft({ ...editDraft, title: e.target.value })}
+                style={inputStyle}
+                maxLength={80}
+              />
             </label>
-            <label style={{ ...labelStyle, marginTop: 8 }}>Rule text
-              <textarea value={editDraft.rule_text} onChange={(e) => setEditDraft({ ...editDraft, rule_text: e.target.value })}
-                rows={4} maxLength={600} style={{ ...inputStyle, resize: "vertical", minHeight: 90 }} />
+            <label style={{ ...labelStyle, marginTop: 8 }}>
+              Rule text
+              <textarea
+                value={editDraft.rule_text}
+                onChange={(e) => setEditDraft({ ...editDraft, rule_text: e.target.value })}
+                rows={4}
+                maxLength={600}
+                style={{ ...inputStyle, resize: "vertical", minHeight: 90 }}
+              />
             </label>
-            <label style={{ ...labelStyle, marginTop: 8 }}>Rationale
-              <textarea value={editDraft.rationale} onChange={(e) => setEditDraft({ ...editDraft, rationale: e.target.value })}
-                rows={2} maxLength={400} style={{ ...inputStyle, resize: "vertical", minHeight: 50 }} />
+            <label style={{ ...labelStyle, marginTop: 8 }}>
+              Rationale
+              <textarea
+                value={editDraft.rationale}
+                onChange={(e) => setEditDraft({ ...editDraft, rationale: e.target.value })}
+                rows={2}
+                maxLength={400}
+                style={{ ...inputStyle, resize: "vertical", minHeight: 50 }}
+              />
             </label>
-            <label style={{ ...labelStyle, marginTop: 8 }}>Supersedes existing rule
-              <select value={editSupersedesId} onChange={(e) => setEditSupersedesId(e.target.value)} style={inputStyle}>
+            <label style={{ ...labelStyle, marginTop: 8 }}>
+              Supersedes existing rule
+              <select
+                value={editSupersedesId}
+                onChange={(e) => setEditSupersedesId(e.target.value)}
+                style={inputStyle}
+              >
                 <option value="">None (new rule)</option>
                 {panel.published
                   .filter((p) => p.scope === editDraft.scope)
                   .map((p) => (
                     <option key={p.id} value={p.id}>
-                      {editRow.conflict_flags.includes(p.id) ? "⚠ " : ""}{p.title}
+                      {editRow.conflict_flags.includes(p.id) ? "⚠ " : ""}
+                      {p.title}
                     </option>
                   ))}
               </select>
             </label>
-            <label style={{ ...labelStyle, marginTop: 8 }}>Review note (optional)
-              <input value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} style={inputStyle} maxLength={400} />
+            <label style={{ ...labelStyle, marginTop: 8 }}>
+              Review note (optional)
+              <input
+                value={reviewNote}
+                onChange={(e) => setReviewNote(e.target.value)}
+                style={inputStyle}
+                maxLength={400}
+              />
             </label>
             <div style={{ display: "flex", gap: 8, marginTop: 14, justifyContent: "flex-end" }}>
-              <button onClick={() => setEditRow(null)} disabled={rowBusyId === editRow.id}
-                style={{ background: "transparent", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", cursor: rowBusyId === editRow.id ? "not-allowed" : "pointer" }}>
+              <button
+                onClick={() => setEditRow(null)}
+                disabled={rowBusyId === editRow.id}
+                style={{
+                  background: "transparent",
+                  color: C.muted,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  padding: "8px 14px",
+                  cursor: rowBusyId === editRow.id ? "not-allowed" : "pointer",
+                }}
+              >
                 Cancel
               </button>
               <button
-                onClick={() => approveRow(editRow, {
-                  title: editDraft.title,
-                  rule_text: editDraft.rule_text,
-                  rationale: editDraft.rationale,
-                  scope: editDraft.scope,
-                  rule_type: editDraft.rule_type,
-                }, editSupersedesId || null, reviewNote.trim() || undefined)}
-                disabled={rowBusyId === editRow.id || !editDraft.title.trim() || !editDraft.rule_text.trim()}
+                onClick={() =>
+                  approveRow(
+                    editRow,
+                    {
+                      title: editDraft.title,
+                      rule_text: editDraft.rule_text,
+                      rationale: editDraft.rationale,
+                      scope: editDraft.scope,
+                      rule_type: editDraft.rule_type,
+                    },
+                    editSupersedesId || null,
+                    reviewNote.trim() || undefined,
+                  )
+                }
+                disabled={
+                  rowBusyId === editRow.id || !editDraft.title.trim() || !editDraft.rule_text.trim()
+                }
                 style={{
                   background: rowBusyId === editRow.id ? "rgba(52,211,153,0.4)" : C.green,
-                  color: "#0b1b34", border: "none", borderRadius: 8, padding: "8px 14px",
-                  cursor: rowBusyId === editRow.id ? "not-allowed" : "pointer", fontWeight: 700,
-                }}>
+                  color: "#0b1b34",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 14px",
+                  cursor: rowBusyId === editRow.id ? "not-allowed" : "pointer",
+                  fontWeight: 700,
+                }}
+              >
                 {rowBusyId === editRow.id ? "Publishing…" : "Publish"}
               </button>
             </div>
@@ -605,7 +1026,12 @@ function TeachYves() {
 }
 
 const labelStyle: React.CSSProperties = {
-  display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "#b8c5db", fontWeight: 600,
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+  fontSize: 11,
+  color: "#b8c5db",
+  fontWeight: 600,
 };
 
 const inputStyle: React.CSSProperties = {
@@ -620,27 +1046,71 @@ const inputStyle: React.CSSProperties = {
 };
 
 const memListStyle: React.CSSProperties = {
-  display: "flex", flexDirection: "column", gap: 8,
-  maxHeight: 480, overflowY: "auto", paddingRight: 4,
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+  maxHeight: 480,
+  overflowY: "auto",
+  paddingRight: 4,
 };
 
 function pillBtn(color: string): React.CSSProperties {
   return {
-    background: "transparent", color, border: `1px solid ${color}`, borderRadius: 999,
-    padding: "3px 8px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer",
+    background: "transparent",
+    color,
+    border: `1px solid ${color}`,
+    borderRadius: 999,
+    padding: "3px 8px",
+    fontSize: 11,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    cursor: "pointer",
   };
 }
 
 function Empty({ label }: { label: string }) {
-  return <div style={{ color: C.muted, fontSize: 12, textAlign: "center", padding: 16 }}>{label}</div>;
+  return (
+    <div style={{ color: C.muted, fontSize: 12, textAlign: "center", padding: 16 }}>{label}</div>
+  );
 }
 
-function MemoryCard({ badge, title, body, meta, tone }: { badge: string; title: string; body: string; meta: string; tone?: string }) {
+function MemoryCard({
+  badge,
+  title,
+  body,
+  meta,
+  tone,
+}: {
+  badge: string;
+  title: string;
+  body: string;
+  meta: string;
+  tone?: string;
+}) {
   return (
-    <div style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${tone ?? C.border}`, borderRadius: 8, padding: 10 }}>
-      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: tone ?? C.muted }}>{badge}</div>
+    <div
+      style={{
+        background: "rgba(0,0,0,0.2)",
+        border: `1px solid ${tone ?? C.border}`,
+        borderRadius: 8,
+        padding: 10,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          textTransform: "uppercase",
+          letterSpacing: 0.5,
+          color: tone ?? C.muted,
+        }}
+      >
+        {badge}
+      </div>
       <div style={{ fontWeight: 700, fontSize: 13, marginTop: 2 }}>{title}</div>
-      <div style={{ color: C.white, fontSize: 12, marginTop: 4, whiteSpace: "pre-wrap" }}>{body}</div>
+      <div style={{ color: C.white, fontSize: 12, marginTop: 4, whiteSpace: "pre-wrap" }}>
+        {body}
+      </div>
       <div style={{ color: C.muted, fontSize: 11, marginTop: 6 }}>{meta}</div>
     </div>
   );

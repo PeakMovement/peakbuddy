@@ -12,7 +12,12 @@ import {
   type MorningAnalysisPayload,
 } from "@/lib/morning-analysis.functions";
 import { registerPushToken } from "@/lib/push";
-import { countActiveWearableConnections, getPractitionerClientWearables } from "@/lib/wearables.functions";
+import {
+  countActiveWearableConnections,
+  getPractitionerClientWearables,
+} from "@/lib/wearables.functions";
+import { getPractitionerRoster } from "@/lib/practitioner-roster.functions";
+import { useServerFn } from "@tanstack/react-start";
 
 export const Route = createFileRoute("/practitioner/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Buddy" }] }),
@@ -48,6 +53,7 @@ function isSameDay(a: string, b: Date) {
 
 function Dashboard() {
   const navigate = useNavigate();
+  const loadRoster = useServerFn(getPractitionerRoster);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [rows, setRows] = useState<ClientRow[]>([]);
   const [unread, setUnread] = useState(0);
@@ -63,48 +69,25 @@ function Dashboard() {
       if (!u.user) return;
       void registerPushToken();
 
-
-
-      const [
-        { data: prof },
-        { data: clients, error: cErr },
-        { count: unreadCount, error: aErr },
-        wc,
-        wmap,
-      ] = await Promise.all([
+      const [{ data: prof }, roster, wc, wmap] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
-        supabase
-          .from("clients")
-          .select("*")
-          .eq("practitioner_id", u.user.id)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("alerts")
-          .select("*", { count: "exact", head: true })
-          .eq("practitioner_id", u.user.id)
-          .eq("is_read", false),
+        loadRoster(),
         countActiveWearableConnections().catch(() => 0),
         getPractitionerClientWearables().catch(() => ({}) as Record<string, string[]>),
       ]);
-      if (cErr || aErr) throw cErr || aErr;
 
       setProfile(prof as Profile | null);
-      setUnread(unreadCount ?? 0);
+      setUnread(roster.unreadAlerts ?? 0);
       setWearableCount(typeof wc === "number" ? wc : 0);
 
-      const list = (clients as Client[]) ?? [];
+      const list = (roster.clients as Client[]) ?? [];
       if (list.length === 0) {
         setRows([]);
         setLoading(false);
         return;
       }
-      const ids = list.map((c) => c.id);
-      const { data: checkIns, error: ciErr } = await supabase
-        .from("check_ins")
-        .select("*")
-        .in("client_id", ids)
-        .order("created_at", { ascending: false });
-      if (ciErr) throw ciErr;
+
+      const checkIns = (roster.checkIns as CheckIn[]) ?? [];
 
       const today = new Date();
       const byClient = new Map<string, CheckIn[]>();
@@ -148,7 +131,7 @@ function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadRoster]);
 
   useEffect(() => {
     load();
@@ -202,8 +185,6 @@ function Dashboard() {
       </section>
 
       <MorningAnalysisCard />
-
-
 
       <div
         style={{
@@ -311,7 +292,15 @@ function Dashboard() {
                 >
                   {r.primary_complaint || "—"}
                 </div>
-                <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <div
+                  style={{
+                    marginTop: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    flexWrap: "wrap",
+                  }}
+                >
                   <span
                     style={{
                       width: 8,
@@ -407,7 +396,17 @@ function WearableBadge({ providers }: { providers: string[] }) {
   );
 }
 
-function Stat({ label, value, danger, icon }: { label: string; value: number; danger?: boolean; icon?: React.ReactNode }) {
+function Stat({
+  label,
+  value,
+  danger,
+  icon,
+}: {
+  label: string;
+  value: number;
+  danger?: boolean;
+  icon?: React.ReactNode;
+}) {
   return (
     <div
       style={{
@@ -500,7 +499,9 @@ function MorningAnalysisCard() {
         padding: 14,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+      <div
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}
+      >
         <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
           <Sparkles size={16} color="var(--blue-accent)" />
           <h2
@@ -516,7 +517,16 @@ function MorningAnalysisCard() {
             Morning Analysis
           </h2>
         </div>
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--white-muted)", cursor: (saving || loading) ? "wait" : "pointer" }}>
+        <label
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 12,
+            color: "var(--white-muted)",
+            cursor: saving || loading ? "wait" : "pointer",
+          }}
+        >
           <input
             type="checkbox"
             checked={data?.user_enabled ?? true}
@@ -537,7 +547,6 @@ function MorningAnalysisCard() {
         <p style={{ marginTop: 10, fontSize: 12, color: "var(--white-muted)" }}>
           Daily analysis is paused. Turn on to receive AI summaries each morning.
         </p>
-
       ) : data.client_count === 0 ? (
         <p style={{ marginTop: 10, fontSize: 12, color: "var(--white-muted)" }}>
           Add a client to start receiving morning analysis.
@@ -583,7 +592,14 @@ function MorningAnalysisCard() {
                   padding: 10,
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    alignItems: "center",
+                  }}
+                >
                   <strong style={{ fontSize: 13, color: "var(--white)" }}>{i.client_name}</strong>
                   {i.risk_score !== null && (
                     <span
@@ -606,7 +622,14 @@ function MorningAnalysisCard() {
                 <div style={{ marginTop: 4, fontSize: 12, color: "var(--white)", fontWeight: 600 }}>
                   {i.draft_title}
                 </div>
-                <p style={{ marginTop: 4, fontSize: 12, lineHeight: 1.4, color: "var(--white-muted)" }}>
+                <p
+                  style={{
+                    marginTop: 4,
+                    fontSize: 12,
+                    lineHeight: 1.4,
+                    color: "var(--white-muted)",
+                  }}
+                >
                   {i.draft_body}
                 </p>
                 {i.suggested_program && (
@@ -635,4 +658,3 @@ function MorningAnalysisCard() {
     </section>
   );
 }
-

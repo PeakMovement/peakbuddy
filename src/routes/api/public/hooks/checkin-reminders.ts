@@ -1,4 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { authorizeCronRequest } from "@/lib/cron-auth";
+import { log } from "@/lib/log";
 
 /**
  * Cron endpoint — runs every 5 minutes.
@@ -9,20 +11,8 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        // Auth: prefer CRON_SECRET; fall back to the publishable key (same pattern
-        // as the nightly risk cron). Closes this previously-unauthenticated endpoint.
-        const cronSecret = process.env.CRON_SECRET;
-        if (cronSecret) {
-          const provided =
-            request.headers.get("x-cron-secret") ??
-            request.headers.get("X-Cron-Secret") ??
-            (request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null);
-          if (provided !== cronSecret) return new Response("Unauthorized", { status: 401 });
-        } else {
-          // No CRON_SECRET configured -> fail closed. Never accept the public
-          // anon key (SUPABASE_PUBLISHABLE_KEY ships in the client bundle).
-          return new Response("Unauthorized", { status: 401 });
-        }
+        const denied = authorizeCronRequest(request);
+        if (denied) return denied;
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { sendPushCore } = await import("@/lib/push.functions");
@@ -59,29 +49,49 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
             const parts = fmt.formatToParts(now);
             const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
             const weekdayMap: Record<string, number> = {
-              Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+              Sun: 0,
+              Mon: 1,
+              Tue: 2,
+              Wed: 3,
+              Thu: 4,
+              Fri: 5,
+              Sat: 6,
             };
             const wd = weekdayMap[get("weekday")] ?? -1;
             const hour = parseInt(get("hour"), 10);
             const minute = parseInt(get("minute"), 10);
             const localDate = `${get("year")}-${get("month")}-${get("day")}`;
 
-            if (!(r.days_of_week ?? []).includes(wd)) { skipped++; continue; }
-            if (r.last_sent_on === localDate) { skipped++; continue; }
+            if (!(r.days_of_week ?? []).includes(wd)) {
+              skipped++;
+              continue;
+            }
+            if (r.last_sent_on === localDate) {
+              skipped++;
+              continue;
+            }
 
-            const [tH, tM] = String(r.time_of_day).split(":").map((x) => parseInt(x, 10));
+            const [tH, tM] = String(r.time_of_day)
+              .split(":")
+              .map((x) => parseInt(x, 10));
             const nowMin = hour * 60 + minute;
             const targetMin = tH * 60 + tM;
             const diff = nowMin - targetMin;
             // fire if we're within 0..6 minutes past the target (5-min cron cadence)
-            if (diff < 0 || diff > 6) { skipped++; continue; }
+            if (diff < 0 || diff > 6) {
+              skipped++;
+              continue;
+            }
 
             const { data: client } = await supabaseAdmin
               .from("clients")
               .select("id, auth_user_id, full_name")
               .eq("id", r.client_id)
               .maybeSingle();
-            if (!client?.auth_user_id) { skipped++; continue; }
+            if (!client?.auth_user_id) {
+              skipped++;
+              continue;
+            }
 
             // Skip if a check-in already exists today (local date).
             const dayStart = new Date(`${localDate}T00:00:00`).toISOString();
@@ -124,7 +134,7 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
             });
             sent++;
           } catch (e) {
-            console.error("[checkin-reminders] failed for", r.id, e);
+            log.warn("checkin-reminders failed", { id: r.id, error: e });
           }
         }
 

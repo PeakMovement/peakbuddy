@@ -16,7 +16,8 @@ export function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
   const mm = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
   // iOS Safari exposes navigator.standalone for home-screen web apps.
-  const iosStandalone = (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+  const iosStandalone =
+    (window.navigator as unknown as { standalone?: boolean }).standalone === true;
   return Boolean(mm || iosStandalone);
 }
 
@@ -31,7 +32,8 @@ export function getRuntimeContext(): RuntimeContext {
 export function isIosSafari(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent;
-  const isIos = /iphone|ipad|ipod/i.test(ua) ||
+  const isIos =
+    /iphone|ipad|ipod/i.test(ua) ||
     // iPadOS 13+ reports as Mac; detect touch to disambiguate.
     (/macintosh/i.test(ua) && typeof document !== "undefined" && "ontouchend" in document);
   const isSafari = /safari/i.test(ua) && !/crios|fxios|edgios|chrome/i.test(ua);
@@ -44,11 +46,9 @@ export function registerServiceWorker(): void {
   if (isDespia()) return; // native shell keeps its own push
   if (!("serviceWorker" in navigator)) return;
   const doRegister = () => {
-    navigator.serviceWorker
-      .register("/OneSignalSDKWorker.js", { scope: "/" })
-      .catch(() => {
-        /* best-effort; OneSignal also registers this same worker on init */
-      });
+    navigator.serviceWorker.register("/OneSignalSDKWorker.js", { scope: "/" }).catch(() => {
+      /* best-effort; OneSignal also registers this same worker on init */
+    });
   };
   // The page "load" event may have ALREADY fired by the time this runs (SPA
   // hydration), so register immediately when the document is ready.

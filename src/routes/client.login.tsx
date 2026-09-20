@@ -1,12 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { passwordResetRedirectUrl } from "@/lib/app-url";
 import { setClientId } from "@/lib/client-session";
 import { BuddyLogo } from "@/components/CrosshairLogo";
 import { QuickCodeSignIn } from "@/components/QuickCodeSignIn";
 import { PasswordInput } from "@/components/PasswordInput";
 import { markQuickCodeSession } from "@/lib/quick-login";
-
 
 export const Route = createFileRoute("/client/login")({
   head: () => ({ meta: [{ title: "Client Login — Buddy" }] }),
@@ -29,7 +29,6 @@ function ClientLogin() {
   const [cooldown, setCooldown] = useState(0);
   const [resetCooldown, setResetCooldown] = useState(0);
   const [mode, setMode] = useState<"password" | "quick">("password");
-
 
   // Restore last preference
   useEffect(() => {
@@ -119,7 +118,6 @@ function ClientLogin() {
     if (problem) setError(problem);
   };
 
-
   const onResetPassword = async () => {
     setError(null);
     setMagicNotice(null);
@@ -134,7 +132,7 @@ function ClientLogin() {
       // preview/non-production host is NOT in Supabase's redirect allow-list, so
       // the recovery link would bounce to the site root and never reach this
       // page — leaving the password unchanged.
-      redirectTo: "https://peakbuddy.lovable.app/reset-password",
+      redirectTo: passwordResetRedirectUrl(),
     });
     setResetBusy(false);
     if (resetErr) {
@@ -222,178 +220,177 @@ function ClientLogin() {
             }}
           />
         ) : (
-        <form
-          onSubmit={onSubmit}
-
-          style={{
-            width: "100%",
-            marginTop: 32,
-            display: "flex",
-            flexDirection: "column",
-            gap: 14,
-          }}
-        >
-          <input
-            type="email"
-            name="email"
-            autoComplete="email"
-            inputMode="email"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            aria-label="Email"
-            required
-            style={inputStyle}
-          />
-          <PasswordInput
-            name="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-            ariaLabel="Password"
-            required
-            style={inputStyle}
-          />
-
-          <label
+          <form
+            onSubmit={onSubmit}
             style={{
+              width: "100%",
+              marginTop: 32,
               display: "flex",
-              alignItems: "center",
-              gap: 10,
-              color: "var(--white-muted)",
-              fontSize: 13,
-              fontFamily: "var(--font-ui)",
-              marginTop: 2,
-              cursor: "pointer",
+              flexDirection: "column",
+              gap: 14,
             }}
           >
             <input
-              type="checkbox"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-              style={{ width: 18, height: 18, accentColor: "var(--blue-accent)" }}
+              type="email"
+              name="email"
+              autoComplete="email"
+              inputMode="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              aria-label="Email"
+              required
+              style={inputStyle}
             />
-            Keep me signed in on this device
-          </label>
+            <PasswordInput
+              name="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              ariaLabel="Password"
+              required
+              style={inputStyle}
+            />
 
-          {error && (
-            <p
-              role="alert"
+            <label
               style={{
-                color: "var(--red)",
-                marginTop: 4,
-                textAlign: "center",
-                fontSize: 14,
-              }}
-            >
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading || !email || !password}
-            style={{
-              marginTop: 10,
-              width: "100%",
-              minHeight: 48,
-              borderRadius: 8,
-              background: "var(--blue-accent)",
-              color: "var(--white)",
-              border: "none",
-              fontFamily: "var(--font-ui)",
-              fontWeight: 600,
-              fontSize: 16,
-              opacity: loading || !email || !password ? 0.6 : 1,
-            }}
-          >
-            {loading ? "Signing in…" : "Log in"}
-          </button>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              margin: "6px 0 2px",
-              color: "var(--white-muted)",
-              fontSize: 11,
-              fontFamily: "var(--font-ui)",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-            }}
-          >
-            <span style={{ flex: 1, height: 1, background: "var(--navy-border)" }} />
-            or
-            <span style={{ flex: 1, height: 1, background: "var(--navy-border)" }} />
-          </div>
-
-          <button
-            type="button"
-            onClick={onMagicLink}
-            disabled={magicLoading || cooldown > 0}
-            style={{
-              width: "100%",
-              minHeight: 48,
-              borderRadius: 8,
-              background: "transparent",
-              color: "var(--white)",
-              border: "1px solid var(--navy-border)",
-              fontFamily: "var(--font-ui)",
-              fontWeight: 600,
-              fontSize: 15,
-              opacity: magicLoading || cooldown > 0 ? 0.6 : 1,
-            }}
-          >
-            {magicLoading
-              ? "Sending…"
-              : cooldown > 0
-                ? `Email a sign-in link (${cooldown}s)`
-                : "Email me a sign-in link"}
-          </button>
-
-          {magicNotice && (
-            <p
-              style={{
-                color: "var(--white)",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                color: "var(--white-muted)",
                 fontSize: 13,
-                textAlign: "center",
-                lineHeight: 1.5,
-                marginTop: 4,
+                fontFamily: "var(--font-ui)",
+                marginTop: 2,
+                cursor: "pointer",
               }}
             >
-              {magicNotice}
-            </p>
-          )}
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+                style={{ width: 18, height: 18, accentColor: "var(--blue-accent)" }}
+              />
+              Keep me signed in on this device
+            </label>
 
-          <button
-            type="button"
-            onClick={onResetPassword}
-            disabled={resetBusy || resetCooldown > 0}
-            style={{
-              marginTop: 10,
-              alignSelf: "center",
-              background: "transparent",
-              border: "none",
-              color: "var(--blue-accent)",
-              fontFamily: "var(--font-ui)",
-              fontSize: 13,
-              textDecoration: "underline",
-              cursor: resetBusy || resetCooldown > 0 ? "default" : "pointer",
-              opacity: resetBusy || resetCooldown > 0 ? 0.6 : 1,
-            }}
-          >
-            {resetBusy
-              ? "Sending…"
-              : resetCooldown > 0
-                ? `Sent (${resetCooldown}s)`
-                : "Forgot your password?"}
-          </button>
-        </form>
+            {error && (
+              <p
+                role="alert"
+                style={{
+                  color: "var(--red)",
+                  marginTop: 4,
+                  textAlign: "center",
+                  fontSize: 14,
+                }}
+              >
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading || !email || !password}
+              style={{
+                marginTop: 10,
+                width: "100%",
+                minHeight: 48,
+                borderRadius: 8,
+                background: "var(--blue-accent)",
+                color: "var(--white)",
+                border: "none",
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                fontSize: 16,
+                opacity: loading || !email || !password ? 0.6 : 1,
+              }}
+            >
+              {loading ? "Signing in…" : "Log in"}
+            </button>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                margin: "6px 0 2px",
+                color: "var(--white-muted)",
+                fontSize: 11,
+                fontFamily: "var(--font-ui)",
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+              }}
+            >
+              <span style={{ flex: 1, height: 1, background: "var(--navy-border)" }} />
+              or
+              <span style={{ flex: 1, height: 1, background: "var(--navy-border)" }} />
+            </div>
+
+            <button
+              type="button"
+              onClick={onMagicLink}
+              disabled={magicLoading || cooldown > 0}
+              style={{
+                width: "100%",
+                minHeight: 48,
+                borderRadius: 8,
+                background: "transparent",
+                color: "var(--white)",
+                border: "1px solid var(--navy-border)",
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                fontSize: 15,
+                opacity: magicLoading || cooldown > 0 ? 0.6 : 1,
+              }}
+            >
+              {magicLoading
+                ? "Sending…"
+                : cooldown > 0
+                  ? `Email a sign-in link (${cooldown}s)`
+                  : "Email me a sign-in link"}
+            </button>
+
+            {magicNotice && (
+              <p
+                style={{
+                  color: "var(--white)",
+                  fontSize: 13,
+                  textAlign: "center",
+                  lineHeight: 1.5,
+                  marginTop: 4,
+                }}
+              >
+                {magicNotice}
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={onResetPassword}
+              disabled={resetBusy || resetCooldown > 0}
+              style={{
+                marginTop: 10,
+                alignSelf: "center",
+                background: "transparent",
+                border: "none",
+                color: "var(--blue-accent)",
+                fontFamily: "var(--font-ui)",
+                fontSize: 13,
+                textDecoration: "underline",
+                cursor: resetBusy || resetCooldown > 0 ? "default" : "pointer",
+                opacity: resetBusy || resetCooldown > 0 ? 0.6 : 1,
+              }}
+            >
+              {resetBusy
+                ? "Sending…"
+                : resetCooldown > 0
+                  ? `Sent (${resetCooldown}s)`
+                  : "Forgot your password?"}
+            </button>
+          </form>
         )}
 
         {mode === "password" && (
@@ -420,7 +417,6 @@ function ClientLogin() {
             Use my 4-digit code
           </button>
         )}
-
 
         <p
           style={{

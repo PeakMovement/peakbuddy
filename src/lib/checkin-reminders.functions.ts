@@ -19,7 +19,11 @@ const ReminderSchema = z.object({
 // auth_user_id and write with the service-role client instead (same pattern as
 // redeemMyReward). The caller can only ever touch their own client's row.
 async function myClientId(admin: SupabaseClient, userId: string): Promise<string | null> {
-  const { data } = await admin.from("clients").select("id").eq("auth_user_id", userId).maybeSingle();
+  const { data } = await admin
+    .from("clients")
+    .select("id")
+    .eq("auth_user_id", userId)
+    .maybeSingle();
   return (data?.id as string | undefined) ?? null;
 }
 
@@ -30,7 +34,11 @@ export const getMyReminder = createServerFn({ method: "GET" })
     const db = supabaseAdmin as unknown as SupabaseClient;
     const clientId = await myClientId(db, context.userId);
     if (!clientId) return { reminder: null };
-    const { data } = await db.from("checkin_reminders").select("*").eq("client_id", clientId).maybeSingle();
+    const { data } = await db
+      .from("checkin_reminders")
+      .select("*")
+      .eq("client_id", clientId)
+      .maybeSingle();
     return { reminder: data ?? null };
   });
 

@@ -56,14 +56,30 @@ export function ClientPatternsCard({ clientId, patterns }: { clientId: string; p
         <CalendarClock size={17} color="var(--blue-accent)" aria-hidden />
         <span style={eyebrow}>Weekly patterns</span>
       </div>
-      <p style={sub}>Day-of-week tendencies from this client's own check-ins. Signals to discuss, not diagnoses.</p>
+      <p style={sub}>
+        Day-of-week tendencies from this client's own check-ins. Signals to discuss, not diagnoses.
+      </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
         {rows.map((r, i) => (
           <div key={`${r.metric}-${r.day_of_week}-${i}`} style={item}>
-            <div style={{ color: "var(--white)", fontFamily: "var(--font-ui)", fontSize: 14, lineHeight: 1.45 }}>
+            <div
+              style={{
+                color: "var(--white)",
+                fontFamily: "var(--font-ui)",
+                fontSize: 14,
+                lineHeight: 1.45,
+              }}
+            >
               {describePattern(r as unknown as DetectedPattern)}
             </div>
-            <div style={{ color: "var(--white-muted)", fontFamily: "var(--font-data)", fontSize: 11, marginTop: 4 }}>
+            <div
+              style={{
+                color: "var(--white-muted)",
+                fontFamily: "var(--font-data)",
+                fontSize: 11,
+                marginTop: 4,
+              }}
+            >
               {Math.round(r.confidence * 100)}% confidence · {r.sample_size} check-ins
             </div>
           </div>
