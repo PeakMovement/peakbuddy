@@ -767,6 +767,7 @@ export type Database = {
           programs_feature_enabled: boolean
           rewards_allowed_days: number[]
           rewards_enabled: boolean
+          training_schedule_enabled: boolean
         }
         Insert: {
           created_at?: string | null
@@ -778,6 +779,7 @@ export type Database = {
           programs_feature_enabled?: boolean
           rewards_allowed_days?: number[]
           rewards_enabled?: boolean
+          training_schedule_enabled?: boolean
         }
         Update: {
           created_at?: string | null
@@ -789,6 +791,7 @@ export type Database = {
           programs_feature_enabled?: boolean
           rewards_allowed_days?: number[]
           rewards_enabled?: boolean
+          training_schedule_enabled?: boolean
         }
         Relationships: []
       }
@@ -1245,14 +1248,73 @@ export type Database = {
         }
         Relationships: []
       }
+      restaurant_partners: {
+        Row: {
+          active: boolean
+          address: string
+          city: string
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          is_placeholder: boolean
+          maps_url: string | null
+          name: string
+          practice_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          address?: string
+          city?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          is_placeholder?: boolean
+          maps_url?: string | null
+          name: string
+          practice_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          address?: string
+          city?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          is_placeholder?: boolean
+          maps_url?: string | null
+          name?: string
+          practice_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_partners_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rewards: {
         Row: {
           active: boolean
           created_at: string
           description: string
+          discount_percent: number | null
+          earn_on: string
           id: string
           maps_url: string | null
+          min_check_ins: number | null
+          min_streak: number | null
           name: string
+          partner_id: string | null
+          practice_id: string | null
           updated_at: string
           voucher_code: string
         }
@@ -1260,9 +1322,15 @@ export type Database = {
           active?: boolean
           created_at?: string
           description?: string
+          discount_percent?: number | null
+          earn_on?: string
           id?: string
           maps_url?: string | null
+          min_check_ins?: number | null
+          min_streak?: number | null
           name: string
+          partner_id?: string | null
+          practice_id?: string | null
           updated_at?: string
           voucher_code: string
         }
@@ -1270,13 +1338,34 @@ export type Database = {
           active?: boolean
           created_at?: string
           description?: string
+          discount_percent?: number | null
+          earn_on?: string
           id?: string
           maps_url?: string | null
+          min_check_ins?: number | null
+          min_streak?: number | null
           name?: string
+          partner_id?: string | null
+          practice_id?: string | null
           updated_at?: string
           voucher_code?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "rewards_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rewards_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practices"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       risk_scores: {
         Row: {
@@ -1496,6 +1585,69 @@ export type Database = {
             columns: ["practitioner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_sessions: {
+        Row: {
+          client_id: string
+          created_at: string
+          duration_minutes: number | null
+          id: string
+          intensity: number | null
+          notes: string
+          practice_id: string | null
+          practitioner_id: string
+          session_date: string
+          session_type: string
+          source: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          intensity?: number | null
+          notes?: string
+          practice_id?: string | null
+          practitioner_id: string
+          session_date: string
+          session_type: string
+          source?: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          intensity?: number | null
+          notes?: string
+          practice_id?: string | null
+          practitioner_id?: string
+          session_date?: string
+          session_type?: string
+          source?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_sessions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_sessions_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practices"
             referencedColumns: ["id"]
           },
         ]
@@ -2059,6 +2211,15 @@ export type Database = {
             }
             Returns: string
           }
+      is_active_practice_member: {
+        Args: { p_practice: string; p_user: string }
+        Returns: boolean
+      }
+      is_owner_of_client_practice: {
+        Args: { p_client: string }
+        Returns: boolean
+      }
+      is_owner_of_practice: { Args: { p_practice: string }; Returns: boolean }
       is_super_admin: { Args: { _uid: string }; Returns: boolean }
     }
     Enums: {
