@@ -58,11 +58,11 @@ import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/l
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as ApiPublicHooksWeeklyPractitionerDigestRouteImport } from './routes/api/public/hooks/weekly-practitioner-digest'
+import { Route as ApiPublicHooksWearablesSyncRouteImport } from './routes/api/public/hooks/wearables-sync'
 import { Route as ApiPublicHooksOnboardingLibraryNudgeRouteImport } from './routes/api/public/hooks/onboarding-library-nudge'
 import { Route as ApiPublicHooksNightlyRiskAnalysisRouteImport } from './routes/api/public/hooks/nightly-risk-analysis'
 import { Route as ApiPublicHooksNightlyPatternDetectionRouteImport } from './routes/api/public/hooks/nightly-pattern-detection'
 import { Route as ApiPublicHooksCheckinRemindersRouteImport } from './routes/api/public/hooks/checkin-reminders'
-import { Route as ApiPublicHooksWearablesSyncRouteImport } from './routes/api/public/hooks/wearables-sync'
 import { Route as ApiPublicGoogleCalendarCallbackRouteImport } from './routes/api/public/google-calendar/callback'
 import { Route as ApiPublicCalendarTokenRouteImport } from './routes/api/public/calendar/$token'
 import { Route as ApiPublicAlertsActionRouteImport } from './routes/api/public/alerts/action'
@@ -325,6 +325,12 @@ const ApiPublicHooksWeeklyPractitionerDigestRoute =
     path: '/api/public/hooks/weekly-practitioner-digest',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksWearablesSyncRoute =
+  ApiPublicHooksWearablesSyncRouteImport.update({
+    id: '/api/public/hooks/wearables-sync',
+    path: '/api/public/hooks/wearables-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksOnboardingLibraryNudgeRoute =
   ApiPublicHooksOnboardingLibraryNudgeRouteImport.update({
     id: '/api/public/hooks/onboarding-library-nudge',
@@ -347,12 +353,6 @@ const ApiPublicHooksCheckinRemindersRoute =
   ApiPublicHooksCheckinRemindersRouteImport.update({
     id: '/api/public/hooks/checkin-reminders',
     path: '/api/public/hooks/checkin-reminders',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksWearablesSyncRoute =
-  ApiPublicHooksWearablesSyncRouteImport.update({
-    id: '/api/public/hooks/wearables-sync',
-    path: '/api/public/hooks/wearables-sync',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicGoogleCalendarCallbackRoute =
@@ -465,10 +465,10 @@ export interface FileRoutesByFullPath {
   '/api/public/calendar/$token': typeof ApiPublicCalendarTokenRoute
   '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
-  '/api/public/hooks/wearables-sync': typeof ApiPublicHooksWearablesSyncRoute
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
   '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
+  '/api/public/hooks/wearables-sync': typeof ApiPublicHooksWearablesSyncRoute
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -530,10 +530,10 @@ export interface FileRoutesByTo {
   '/api/public/calendar/$token': typeof ApiPublicCalendarTokenRoute
   '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
-  '/api/public/hooks/wearables-sync': typeof ApiPublicHooksWearablesSyncRoute
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
   '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
+  '/api/public/hooks/wearables-sync': typeof ApiPublicHooksWearablesSyncRoute
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -597,10 +597,10 @@ export interface FileRoutesById {
   '/api/public/calendar/$token': typeof ApiPublicCalendarTokenRoute
   '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
-  '/api/public/hooks/wearables-sync': typeof ApiPublicHooksWearablesSyncRoute
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
   '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
+  '/api/public/hooks/wearables-sync': typeof ApiPublicHooksWearablesSyncRoute
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -665,10 +665,10 @@ export interface FileRouteTypes {
     | '/api/public/calendar/$token'
     | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
-    | '/api/public/hooks/wearables-sync'
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
     | '/api/public/hooks/onboarding-library-nudge'
+    | '/api/public/hooks/wearables-sync'
     | '/api/public/hooks/weekly-practitioner-digest'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -730,10 +730,10 @@ export interface FileRouteTypes {
     | '/api/public/calendar/$token'
     | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
-    | '/api/public/hooks/wearables-sync'
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
     | '/api/public/hooks/onboarding-library-nudge'
+    | '/api/public/hooks/wearables-sync'
     | '/api/public/hooks/weekly-practitioner-digest'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -796,10 +796,10 @@ export interface FileRouteTypes {
     | '/api/public/calendar/$token'
     | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
-    | '/api/public/hooks/wearables-sync'
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
     | '/api/public/hooks/onboarding-library-nudge'
+    | '/api/public/hooks/wearables-sync'
     | '/api/public/hooks/weekly-practitioner-digest'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -837,10 +837,10 @@ export interface RootRouteChildren {
   ApiPublicCalendarTokenRoute: typeof ApiPublicCalendarTokenRoute
   ApiPublicGoogleCalendarCallbackRoute: typeof ApiPublicGoogleCalendarCallbackRoute
   ApiPublicHooksCheckinRemindersRoute: typeof ApiPublicHooksCheckinRemindersRoute
-  ApiPublicHooksWearablesSyncRoute: typeof ApiPublicHooksWearablesSyncRoute
   ApiPublicHooksNightlyPatternDetectionRoute: typeof ApiPublicHooksNightlyPatternDetectionRoute
   ApiPublicHooksNightlyRiskAnalysisRoute: typeof ApiPublicHooksNightlyRiskAnalysisRoute
   ApiPublicHooksOnboardingLibraryNudgeRoute: typeof ApiPublicHooksOnboardingLibraryNudgeRoute
+  ApiPublicHooksWearablesSyncRoute: typeof ApiPublicHooksWearablesSyncRoute
   ApiPublicHooksWeeklyPractitionerDigestRoute: typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
@@ -1197,6 +1197,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksWeeklyPractitionerDigestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/wearables-sync': {
+      id: '/api/public/hooks/wearables-sync'
+      path: '/api/public/hooks/wearables-sync'
+      fullPath: '/api/public/hooks/wearables-sync'
+      preLoaderRoute: typeof ApiPublicHooksWearablesSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/onboarding-library-nudge': {
       id: '/api/public/hooks/onboarding-library-nudge'
       path: '/api/public/hooks/onboarding-library-nudge'
@@ -1223,13 +1230,6 @@ declare module '@tanstack/react-router' {
       path: '/api/public/hooks/checkin-reminders'
       fullPath: '/api/public/hooks/checkin-reminders'
       preLoaderRoute: typeof ApiPublicHooksCheckinRemindersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/wearables-sync': {
-      id: '/api/public/hooks/wearables-sync'
-      path: '/api/public/hooks/wearables-sync'
-      fullPath: '/api/public/hooks/wearables-sync'
-      preLoaderRoute: typeof ApiPublicHooksWearablesSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/google-calendar/callback': {
@@ -1416,13 +1416,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicCalendarTokenRoute: ApiPublicCalendarTokenRoute,
   ApiPublicGoogleCalendarCallbackRoute: ApiPublicGoogleCalendarCallbackRoute,
   ApiPublicHooksCheckinRemindersRoute: ApiPublicHooksCheckinRemindersRoute,
-  ApiPublicHooksWearablesSyncRoute: ApiPublicHooksWearablesSyncRoute,
   ApiPublicHooksNightlyPatternDetectionRoute:
     ApiPublicHooksNightlyPatternDetectionRoute,
   ApiPublicHooksNightlyRiskAnalysisRoute:
     ApiPublicHooksNightlyRiskAnalysisRoute,
   ApiPublicHooksOnboardingLibraryNudgeRoute:
     ApiPublicHooksOnboardingLibraryNudgeRoute,
+  ApiPublicHooksWearablesSyncRoute: ApiPublicHooksWearablesSyncRoute,
   ApiPublicHooksWeeklyPractitionerDigestRoute:
     ApiPublicHooksWeeklyPractitionerDigestRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,

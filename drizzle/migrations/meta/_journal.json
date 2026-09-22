@@ -29,6 +29,13 @@
       "when": 1789548978862,
       "tag": "0003_popia_accepted_at",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790070829500,
+      "tag": "0004_apply_practice_helpers_training_sessions_restaurant_partners",
+      "breakpoints": true
     }
   ]
 }
