@@ -324,7 +324,7 @@ export const notifyAlertPush = createServerFn({ method: "POST" })
 
     const { data: alert, error: aErr } = await supabaseAdmin
       .from("alerts")
-      .select("id, practitioner_id, client_id, push_fired")
+      .select("id, practitioner_id, client_id, push_fired, alert_type")
       .eq("id", data.alertId)
       .maybeSingle();
     if (aErr || !alert) return { ok: false as const, reason: "alert_not_found" as const };
@@ -358,6 +358,39 @@ export const notifyAlertPush = createServerFn({ method: "POST" })
       .select("id")
       .maybeSingle();
     if (!claimed) return { ok: true as const, skipped: "already_fired" as const };
+
+    // Red flags go to the treating practitioner AND the practice owner. In a
+    // group practice a single recipient means an alert raised while that one
+    // person is hands-on with someone else goes unread, and the escalation job
+    // that would have chased it has never run in production. Additive: nobody
+    // who was being notified stops being notified.
+    const { resolveAlertRecipients, createRecipientLookup } = await import(
+      "@/lib/alert-recipients"
+    );
+    const fanout = await resolveAlertRecipients(
+      createRecipientLookup(supabaseAdmin as never),
+      {
+        practitioner_id: alert.practitioner_id,
+        client_id: alert.client_id,
+        alert_type: (alert as { alert_type?: string | null }).alert_type ?? null,
+      },
+    );
+
+    for (const recipient of fanout.userIds.slice(1)) {
+      // Best effort. The treating practitioner's own push below is the one that
+      // must not be put at risk by a second send failing.
+      try {
+        await sendPushCore(supabaseAdmin, {
+          userId: recipient,
+          title,
+          body,
+          data: { alertId: alert.id, clientId: alert.client_id },
+          sentBy: context.userId,
+        });
+      } catch {
+        /* ignore */
+      }
+    }
 
     await sendPushCore(supabaseAdmin, {
       userId: alert.practitioner_id,
