@@ -193,13 +193,6 @@ const HARD_OVERRIDE_PHRASES: Array<{ term: string; category: RedFlagCategory }> 
   { term: "to end it all", category: "mental_health" },
   { term: "ek wil doodgaan", category: "mental_health" }, // I want to die
   { term: "wil nie meer lewe nie", category: "mental_health" }, // dont want to live anymore
-  // Respiratory, first-person phrasings
-  { term: "short of breath", category: "respiratory" },
-  { term: "struggling to breathe", category: "respiratory" },
-  { term: "cant catch my breath", category: "respiratory" },
-  { term: "can't catch my breath", category: "respiratory" },
-  { term: "gasping for air", category: "respiratory" },
-  { term: "sukkel om asem te haal", category: "respiratory" }, // struggling to breathe
   // Cauda equina, the phrasings the existing list did not spell
   { term: "cannot control my bladder", category: "cauda_equina" },
   { term: "cannot control my bowel", category: "cauda_equina" },
@@ -412,6 +405,21 @@ const KEYWORD_FLOOR_RAW: Array<{
   // than emergency, because any one of these alone is a call-the-patient
   // signal, not an ambulance signal. The combination floor below can lift them.
   // ───────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
+  // Respiratory, first-person phrasings. These live HERE and not in the hard
+  // override table, on purpose. "shortness of breath" has always been an
+  // urgent/7 keyword, so putting "short of breath" at emergency/10 would mean
+  // the same symptom got two different responses depending on how the patient
+  // typed it. Hard overrides also skip the negation check, and "I am not short
+  // of breath" is a sentence rehab patients genuinely write when reporting
+  // they are fine. Acute inability to breathe stays a hard override above.
+  // ───────────────────────────────────────────────────────────────────────────
+  { term: "short of breath", minUrgency: "urgent", minSeverity: 7, category: "respiratory" },
+  { term: "struggling to breathe", minUrgency: "urgent", minSeverity: 7, category: "respiratory" },
+  { term: "cant catch my breath", minUrgency: "urgent", minSeverity: 7, category: "respiratory" },
+  { term: "can't catch my breath", minUrgency: "urgent", minSeverity: 7, category: "respiratory" },
+  { term: "gasping for air", minUrgency: "urgent", minSeverity: 7, category: "respiratory" },
+  { term: "sukkel om asem te haal", minUrgency: "urgent", minSeverity: 7, category: "respiratory" },
   // DVT. Short Afrikaans terms are spelled as phrases on purpose: matching is
   // substring-based, so a bare "etter" would fire on "better".
   // DVT

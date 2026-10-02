@@ -106,6 +106,11 @@ const MUST_STAY_QUIET: string[] = [
   "I fell asleep on the couch after the session",
   "I would recommend it all day long",
   "Got your letter, thanks",
+  // Negation. These only stay quiet because the breathing phrasings live in the
+  // keyword floor, which checks for negation. As hard overrides they would have
+  // fired an emergency.
+  "I am not short of breath at all",
+  "no shortness of breath today",
 ];
 
 describe("phrasings a patient actually uses are detected", () => {
@@ -144,4 +149,40 @@ describe("the most urgent categories route correctly", () => {
     expect(r.detected).toBe(true);
     expect(r.urgency).toBe("urgent");
   });
+});
+
+/**
+ * Calibration. The same symptom must not get two different responses depending
+ * on how the patient happened to type it. "shortness of breath" has always been
+ * an urgent/7 keyword, so every first-person phrasing of it is urgent too, and
+ * all of them sit in the keyword floor where negation is checked. Acute
+ * inability to breathe is a different thing and stays an emergency.
+ */
+describe("breathlessness is urgent, not an emergency", () => {
+  const phrasings = [
+    "shortness of breath on exertion",
+    "I am short of breath",
+    "struggling to breathe since yesterday",
+    "I cant catch my breath",
+    "gasping for air on the stairs",
+    "ek sukkel om asem te haal",
+  ];
+  for (const text of phrasings) {
+    it(text.slice(0, 44), () => {
+      const r = analyzeRealTime(text);
+      expect(r.detected).toBe(true);
+      expect(r.urgency).toBe("urgent");
+      expect(r.source).toBe("keyword");
+    });
+  }
+});
+
+describe("acute inability to breathe stays an emergency", () => {
+  for (const text of ["I cannot breathe properly", "my throat is closing up", "ek is kortasem"]) {
+    it(text.slice(0, 44), () => {
+      const r = analyzeRealTime(text);
+      expect(r.urgency).toBe("emergency");
+      expect(r.source).toBe("hard_override");
+    });
+  }
 });
