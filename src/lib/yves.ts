@@ -79,8 +79,6 @@ const HARD_OVERRIDE_PHRASES: Array<{ term: string; category: RedFlagCategory }> 
   { term: "cannot breathe", category: "respiratory" },
   { term: "not breathing", category: "respiratory" },
   { term: "stopped breathing", category: "respiratory" },
-  { term: "difficulty breathing", category: "respiratory" },
-  { term: "kortasem", category: "respiratory" }, // Afrikaans: short of breath
   { term: "throat closing", category: "respiratory" },
   { term: "anaphylaxis", category: "respiratory" },
   { term: "severe allergic reaction", category: "respiratory" },
@@ -415,6 +413,12 @@ const KEYWORD_FLOOR_RAW: Array<{
   // they are fine. Acute inability to breathe stays a hard override above.
   // ───────────────────────────────────────────────────────────────────────────
   { term: "short of breath", minUrgency: "urgent", minSeverity: 7, category: "respiratory" },
+  // Moved down from the hard override table on 2026-10-02, same reasoning as
+  // the block above and on Justin's call. These describe breathlessness, not an
+  // inability to breathe, and leaving them at emergency meant "difficulty
+  // breathing" alerted differently from "shortness of breath".
+  { term: "difficulty breathing", minUrgency: "urgent", minSeverity: 7, category: "respiratory" },
+  { term: "kortasem", minUrgency: "urgent", minSeverity: 7, category: "respiratory" }, // short of breath
   { term: "struggling to breathe", minUrgency: "urgent", minSeverity: 7, category: "respiratory" },
   { term: "cant catch my breath", minUrgency: "urgent", minSeverity: 7, category: "respiratory" },
   { term: "can't catch my breath", minUrgency: "urgent", minSeverity: 7, category: "respiratory" },
