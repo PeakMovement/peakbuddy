@@ -166,6 +166,55 @@ const HARD_OVERRIDE_PHRASES: Array<{ term: string; category: RedFlagCategory }> 
   { term: "cant control my bowel", category: "cauda_equina" },
   { term: "can't control my bowel", category: "cauda_equina" },
   { term: "numb between my legs", category: "cauda_equina" },
+  // ───────────────────────────────────────────────────────────────────────────
+  // Added 2026-10-02. Phrasings the engine missed in live probing: patients
+  // write "I am short of breath", not "shortness of breath", and "I cannot
+  // control my bladder", not "can't". Appended, so nothing above changes and
+  // the dedupe below keeps the existing entry wherever a term already exists.
+  // ───────────────────────────────────────────────────────────────────────────
+  // Self-harm. A miss here is the worst outcome in the whole file, so these are
+  // deliberately broad. Hard overrides skip the negation check, which means
+  // "I don't want to kill myself" also alerts. That is the correct trade.
+  { term: "suicide", category: "mental_health" },
+  { term: "kill myself", category: "mental_health" },
+  { term: "killing myself", category: "mental_health" },
+  { term: "harm myself", category: "mental_health" },
+  { term: "self harm", category: "mental_health" },
+  { term: "want to die", category: "mental_health" },
+  { term: "wish i was dead", category: "mental_health" },
+  { term: "wish i were dead", category: "mental_health" },
+  { term: "dont want to be here anymore", category: "mental_health" },
+  { term: "don't want to be here anymore", category: "mental_health" },
+  { term: "dont want to be here any more", category: "mental_health" },
+  { term: "don't want to be here any more", category: "mental_health" },
+  { term: "dont want to live", category: "mental_health" },
+  { term: "don't want to live", category: "mental_health" },
+  { term: "better off without me", category: "mental_health" },
+  { term: "to end it all", category: "mental_health" },
+  { term: "ek wil doodgaan", category: "mental_health" }, // I want to die
+  { term: "wil nie meer lewe nie", category: "mental_health" }, // dont want to live anymore
+  // Respiratory, first-person phrasings
+  { term: "short of breath", category: "respiratory" },
+  { term: "struggling to breathe", category: "respiratory" },
+  { term: "cant catch my breath", category: "respiratory" },
+  { term: "can't catch my breath", category: "respiratory" },
+  { term: "gasping for air", category: "respiratory" },
+  { term: "sukkel om asem te haal", category: "respiratory" }, // struggling to breathe
+  // Cauda equina, the phrasings the existing list did not spell
+  { term: "cannot control my bladder", category: "cauda_equina" },
+  { term: "cannot control my bowel", category: "cauda_equina" },
+  { term: "cant control my bowels", category: "cauda_equina" },
+  { term: "can't control my bowels", category: "cauda_equina" },
+  { term: "cannot control my bowels", category: "cauda_equina" },
+  { term: "wetting myself", category: "cauda_equina" },
+  { term: "soiled myself", category: "cauda_equina" },
+  { term: "numb in my groin", category: "cauda_equina" },
+  { term: "numbness in my groin", category: "cauda_equina" },
+  { term: "numb around my groin", category: "cauda_equina" },
+  { term: "cannot urinate", category: "cauda_equina" },
+  { term: "cant urinate", category: "cauda_equina" },
+  { term: "can't urinate", category: "cauda_equina" },
+  { term: "nie my blaas beheer nie", category: "cauda_equina" }, // cant control my bladder
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -356,6 +405,72 @@ const KEYWORD_FLOOR_RAW: Array<{
   // Mental health
   { term: "depressed", minUrgency: "soon", minSeverity: 5, category: "mental_health" },
   { term: "depression", minUrgency: "soon", minSeverity: 5, category: "mental_health" },
+  // ───────────────────────────────────────────────────────────────────────────
+  // Added 2026-10-02. The post-surgical set, which the engine had no terms for
+  // at all. These are the two things that matter most after orthopaedic
+  // surgery: deep vein thrombosis and wound infection. Set at "urgent" rather
+  // than emergency, because any one of these alone is a call-the-patient
+  // signal, not an ambulance signal. The combination floor below can lift them.
+  // ───────────────────────────────────────────────────────────────────────────
+  // DVT. Short Afrikaans terms are spelled as phrases on purpose: matching is
+  // substring-based, so a bare "etter" would fire on "better".
+  // DVT
+  { term: "calf pain", minUrgency: "urgent", minSeverity: 7, category: "systemic" },
+  { term: "pain in my calf", minUrgency: "urgent", minSeverity: 7, category: "systemic" },
+  { term: "calf is swollen", minUrgency: "urgent", minSeverity: 8, category: "systemic" },
+  { term: "swollen calf", minUrgency: "urgent", minSeverity: 8, category: "systemic" },
+  { term: "blood clot", minUrgency: "urgent", minSeverity: 8, category: "systemic" },
+  { term: "bloedklont", minUrgency: "urgent", minSeverity: 8, category: "systemic" }, // blood clot
+  { term: "kuit", minUrgency: "soon", minSeverity: 5, category: "systemic" }, // calf
+  { term: "red and hot", minUrgency: "urgent", minSeverity: 7, category: "systemic" },
+  { term: "hot and swollen", minUrgency: "urgent", minSeverity: 7, category: "systemic" },
+  { term: "leg is swollen", minUrgency: "soon", minSeverity: 6, category: "systemic" },
+  { term: "swollen leg", minUrgency: "soon", minSeverity: 6, category: "systemic" },
+  { term: "one leg is bigger", minUrgency: "urgent", minSeverity: 7, category: "systemic" },
+  // Wound infection
+  { term: "wound is red", minUrgency: "urgent", minSeverity: 7, category: "infection" },
+  { term: "wound is hot", minUrgency: "urgent", minSeverity: 7, category: "infection" },
+  { term: "wound is leaking", minUrgency: "urgent", minSeverity: 7, category: "infection" },
+  { term: "wound has opened", minUrgency: "urgent", minSeverity: 8, category: "infection" },
+  { term: "wound opened up", minUrgency: "urgent", minSeverity: 8, category: "infection" },
+  { term: "wound smells", minUrgency: "urgent", minSeverity: 8, category: "infection" },
+  { term: "pus coming", minUrgency: "urgent", minSeverity: 8, category: "infection" },
+  { term: "pus from", minUrgency: "urgent", minSeverity: 8, category: "infection" },
+  { term: "pus in the", minUrgency: "urgent", minSeverity: 8, category: "infection" },
+  { term: "is pus", minUrgency: "urgent", minSeverity: 8, category: "infection" },
+  { term: "etter kom", minUrgency: "urgent", minSeverity: 8, category: "infection" }, // pus coming
+  { term: "daar is etter", minUrgency: "urgent", minSeverity: 8, category: "infection" }, // there is pus
+  { term: "oozing", minUrgency: "urgent", minSeverity: 7, category: "infection" },
+  { term: "discharge from the wound", minUrgency: "urgent", minSeverity: 7, category: "infection" },
+  { term: "discharge from my wound", minUrgency: "urgent", minSeverity: 7, category: "infection" },
+  { term: "incision is red", minUrgency: "urgent", minSeverity: 7, category: "infection" },
+  { term: "incision is open", minUrgency: "urgent", minSeverity: 8, category: "infection" },
+  { term: "stitches have come", minUrgency: "urgent", minSeverity: 7, category: "infection" },
+  { term: "stitches came out", minUrgency: "urgent", minSeverity: 7, category: "infection" },
+  { term: "wond is rooi", minUrgency: "urgent", minSeverity: 7, category: "infection" }, // wound is red
+  { term: "wond is oop", minUrgency: "urgent", minSeverity: 8, category: "infection" }, // wound is open
+  { term: "my wond lek", minUrgency: "urgent", minSeverity: 7, category: "infection" }, // my wound leaks
+  // Weakness and giving way, first-person phrasings the list did not spell
+  { term: "weakness in my leg", minUrgency: "urgent", minSeverity: 7, category: "neuro" },
+  { term: "weakness in my arm", minUrgency: "urgent", minSeverity: 7, category: "neuro" },
+  { term: "my leg is weak", minUrgency: "urgent", minSeverity: 7, category: "neuro" },
+  { term: "my legs are weak", minUrgency: "urgent", minSeverity: 7, category: "neuro" },
+  { term: "leg gave way", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
+  { term: "knee gave way", minUrgency: "soon", minSeverity: 6, category: "msk_alarm" },
+  { term: "giving way", minUrgency: "soon", minSeverity: 6, category: "msk_alarm" },
+  { term: "buckling", minUrgency: "soon", minSeverity: 6, category: "msk_alarm" },
+  { term: "foot drop", minUrgency: "urgent", minSeverity: 8, category: "neuro" },
+  // Falls and new injury
+  { term: "had a fall", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
+  { term: "i fell in", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
+  { term: "i fell on", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
+  { term: "i fell down", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
+  { term: "i fell and", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
+  { term: "i fell at", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
+  { term: "i fell yesterday", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
+  { term: "i fell this", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
+  { term: "fell over", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" },
+  { term: "het geval", minUrgency: "urgent", minSeverity: 7, category: "msk_alarm" }, // fell
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
