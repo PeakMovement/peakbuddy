@@ -71,6 +71,13 @@
       "when": 1791140405786,
       "tag": "0009_restore_missing_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791140578065,
+      "tag": "0010_0010_whatsapp_consent_grants",
+      "breakpoints": true
     }
   ]
 }
