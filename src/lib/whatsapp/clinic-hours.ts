@@ -19,10 +19,7 @@ export const CLOSE_MINUTE = 18 * 60;
 /**
  * Days the practice is open, 1 = Monday through 7 = Sunday.
  *
- * Saturday is OUT until Justin confirms it. That is the safe direction: an
- * open day wrongly marked closed sends the patient to emergency services
- * instead of asking them to wait, and a closed day wrongly marked open leaves
- * someone waiting for a reply that is not coming.
+ * Saturday is OUT. Confirmed by Justin on 4 October: no Saturdays for now.
  */
 export const OPEN_WEEKDAYS: ReadonlySet<number> = new Set([1, 2, 3, 4, 5]);
 
