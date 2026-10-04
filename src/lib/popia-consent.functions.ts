@@ -39,7 +39,8 @@ export const getPopiaStatus = createServerFn({ method: "GET" })
 
       let onCurrentVersion = false;
       try {
-        const { data: rec } = await supabaseAdmin
+        // consent_records is not in the generated types until its migration lands.
+        const { data: rec } = await (supabaseAdmin as unknown as { from: (t: string) => any })
           .from("consent_records")
           .select("version")
           .eq("client_id", client.id)
@@ -102,7 +103,7 @@ export const acceptPopiaConsent = createServerFn({ method: "POST" })
     // Supersede any earlier live record of this type, so two versions can never
     // both read as current.
     try {
-      await supabaseAdmin
+      await (supabaseAdmin as unknown as { from: (t: string) => any })
         .from("consent_records")
         .update({ superseded_by: null })
         .eq("client_id", client.id)
@@ -114,7 +115,7 @@ export const acceptPopiaConsent = createServerFn({ method: "POST" })
       /* table may not exist yet; the insert below is the thing that matters */
     }
 
-    const { data: inserted, error: insErr } = await supabaseAdmin
+    const { data: inserted, error: insErr } = await (supabaseAdmin as unknown as { from: (t: string) => any })
       .from("consent_records")
       .insert({
         client_id: client.id,
