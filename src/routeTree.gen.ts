@@ -17,6 +17,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as MarketingRouteImport } from './routes/marketing'
 import { Route as DataDeletionRouteImport } from './routes/data-deletion'
+import { Route as ConsentRouteImport } from './routes/consent'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PractitionerSignupRouteImport } from './routes/practitioner.signup'
 import { Route as PractitionerPendingRouteImport } from './routes/practitioner.pending'
@@ -115,6 +116,11 @@ const MarketingRoute = MarketingRouteImport.update({
 const DataDeletionRoute = DataDeletionRouteImport.update({
   id: '/data-deletion',
   path: '/data-deletion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConsentRoute = ConsentRouteImport.update({
+  id: '/consent',
+  path: '/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -435,6 +441,7 @@ const ApiPublicWearablesGarminCallbackRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/consent': typeof ConsentRoute
   '/data-deletion': typeof DataDeletionRoute
   '/marketing': typeof MarketingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
@@ -504,6 +511,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/consent': typeof ConsentRoute
   '/data-deletion': typeof DataDeletionRoute
   '/marketing': typeof MarketingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
@@ -573,6 +581,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/consent': typeof ConsentRoute
   '/data-deletion': typeof DataDeletionRoute
   '/marketing': typeof MarketingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
@@ -644,6 +653,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/consent'
     | '/data-deletion'
     | '/marketing'
     | '/privacy-policy'
@@ -713,6 +723,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/consent'
     | '/data-deletion'
     | '/marketing'
     | '/privacy-policy'
@@ -781,6 +792,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/consent'
     | '/data-deletion'
     | '/marketing'
     | '/privacy-policy'
@@ -851,6 +863,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ConsentRoute: typeof ConsentRoute
   DataDeletionRoute: typeof DataDeletionRoute
   MarketingRoute: typeof MarketingRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
@@ -941,6 +954,13 @@ declare module '@tanstack/react-router' {
       path: '/marketing'
       fullPath: '/marketing'
       preLoaderRoute: typeof MarketingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/consent': {
+      id: '/consent'
+      path: '/consent'
+      fullPath: '/consent'
+      preLoaderRoute: typeof ConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/data-deletion': {
@@ -1454,6 +1474,7 @@ const PractitionerAppRouteWithChildren = PractitionerAppRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ConsentRoute: ConsentRoute,
   DataDeletionRoute: DataDeletionRoute,
   MarketingRoute: MarketingRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
