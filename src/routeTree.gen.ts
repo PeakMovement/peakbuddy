@@ -67,6 +67,7 @@ import { Route as ApiPublicHooksNightlyRiskAnalysisRouteImport } from './routes/
 import { Route as ApiPublicHooksOnboardingLibraryNudgeRouteImport } from './routes/api/public/hooks/onboarding-library-nudge'
 import { Route as ApiPublicHooksWearablesSyncRouteImport } from './routes/api/public/hooks/wearables-sync'
 import { Route as ApiPublicHooksWeeklyPractitionerDigestRouteImport } from './routes/api/public/hooks/weekly-practitioner-digest'
+import { Route as ApiPublicHooksWhatsappWorkerRouteImport } from './routes/api/public/hooks/whatsapp-worker'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
@@ -380,6 +381,12 @@ const ApiPublicHooksWeeklyPractitionerDigestRoute =
     path: '/api/public/hooks/weekly-practitioner-digest',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksWhatsappWorkerRoute =
+  ApiPublicHooksWhatsappWorkerRouteImport.update({
+    id: '/api/public/hooks/whatsapp-worker',
+    path: '/api/public/hooks/whatsapp-worker',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicWhatsappWebhookRoute =
   ApiPublicWhatsappWebhookRouteImport.update({
     id: '/api/public/whatsapp/webhook',
@@ -498,6 +505,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
   '/api/public/hooks/wearables-sync': typeof ApiPublicHooksWearablesSyncRoute
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
+  '/api/public/hooks/whatsapp-worker': typeof ApiPublicHooksWhatsappWorkerRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -567,6 +575,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
   '/api/public/hooks/wearables-sync': typeof ApiPublicHooksWearablesSyncRoute
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
+  '/api/public/hooks/whatsapp-worker': typeof ApiPublicHooksWhatsappWorkerRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -638,6 +647,7 @@ export interface FileRoutesById {
   '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
   '/api/public/hooks/wearables-sync': typeof ApiPublicHooksWearablesSyncRoute
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
+  '/api/public/hooks/whatsapp-worker': typeof ApiPublicHooksWhatsappWorkerRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -710,6 +720,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/onboarding-library-nudge'
     | '/api/public/hooks/wearables-sync'
     | '/api/public/hooks/weekly-practitioner-digest'
+    | '/api/public/hooks/whatsapp-worker'
     | '/api/public/whatsapp/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -779,6 +790,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/onboarding-library-nudge'
     | '/api/public/hooks/wearables-sync'
     | '/api/public/hooks/weekly-practitioner-digest'
+    | '/api/public/hooks/whatsapp-worker'
     | '/api/public/whatsapp/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -849,6 +861,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/onboarding-library-nudge'
     | '/api/public/hooks/wearables-sync'
     | '/api/public/hooks/weekly-practitioner-digest'
+    | '/api/public/hooks/whatsapp-worker'
     | '/api/public/whatsapp/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -894,6 +907,7 @@ export interface RootRouteChildren {
   ApiPublicHooksOnboardingLibraryNudgeRoute: typeof ApiPublicHooksOnboardingLibraryNudgeRoute
   ApiPublicHooksWearablesSyncRoute: typeof ApiPublicHooksWearablesSyncRoute
   ApiPublicHooksWeeklyPractitionerDigestRoute: typeof ApiPublicHooksWeeklyPractitionerDigestRoute
+  ApiPublicHooksWhatsappWorkerRoute: typeof ApiPublicHooksWhatsappWorkerRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
@@ -1313,6 +1327,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksWeeklyPractitionerDigestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/whatsapp-worker': {
+      id: '/api/public/hooks/whatsapp-worker'
+      path: '/api/public/hooks/whatsapp-worker'
+      fullPath: '/api/public/hooks/whatsapp-worker'
+      preLoaderRoute: typeof ApiPublicHooksWhatsappWorkerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/whatsapp/webhook': {
       id: '/api/public/whatsapp/webhook'
       path: '/api/public/whatsapp/webhook'
@@ -1509,6 +1530,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksWearablesSyncRoute: ApiPublicHooksWearablesSyncRoute,
   ApiPublicHooksWeeklyPractitionerDigestRoute:
     ApiPublicHooksWeeklyPractitionerDigestRoute,
+  ApiPublicHooksWhatsappWorkerRoute: ApiPublicHooksWhatsappWorkerRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,

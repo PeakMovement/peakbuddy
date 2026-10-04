@@ -14,8 +14,9 @@ import type { ProviderSecrets, WhatsAppProviderId } from "@/lib/whatsapp/provide
  * Its only gate is the signature check inside the handler, which is why that
  * runs before the body is parsed and why a failure returns a bare 403.
  *
- * Nothing here is wired to patients yet. No credentials are set in any
- * environment, so with WHATSAPP_PROVIDER unset every request is refused.
+ * After storing, it hands new messages straight to the worker
+ * (worker.server.ts) so the patient gets an answer in seconds. The
+ * whatsapp-worker cron hook picks up anything that call did not finish.
  */
 
 function readSecrets(): { provider: WhatsAppProviderId; secrets: ProviderSecrets } | null {
@@ -81,6 +82,27 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
         // Counts only. Never the body, never a phone number.
         if (outcome.summary.rejected || outcome.summary.failed > 0) {
           log.warn("whatsapp webhook", { ...outcome.summary, provider: config.provider });
+        }
+
+        // Answer the patient now rather than at the next cron tick. Bounded so
+        // a slow send can never hold Meta's delivery open long enough for it
+        // to retry. Anything unfinished stays pending for the worker hook.
+        if (outcome.summary.accepted > 0) {
+          try {
+            const { processPendingInbound, whatsappConfigFromEnv } =
+              await import("@/lib/whatsapp/worker.server");
+            const cfg = whatsappConfigFromEnv();
+            if (cfg) {
+              await Promise.race([
+                processPendingInbound({ admin: supabaseAdmin as never, ...cfg }, 5),
+                new Promise((resolve) => setTimeout(resolve, 8_000)),
+              ]);
+            }
+          } catch (e) {
+            log.warn("whatsapp webhook: inline processing failed", {
+              error: e instanceof Error ? e.message.slice(0, 120) : "unknown",
+            });
+          }
         }
 
         return new Response(outcome.body, { status: outcome.status });
