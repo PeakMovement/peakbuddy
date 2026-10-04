@@ -61,6 +61,7 @@ export type Database = {
           client_id: string
           created_at: string
           email_fired: boolean
+          escalation_fired: boolean
           id: string
           is_read: boolean
           message: string | null
@@ -82,6 +83,7 @@ export type Database = {
           client_id: string
           created_at?: string
           email_fired?: boolean
+          escalation_fired?: boolean
           id?: string
           is_read?: boolean
           message?: string | null
@@ -103,6 +105,7 @@ export type Database = {
           client_id?: string
           created_at?: string
           email_fired?: boolean
+          escalation_fired?: boolean
           id?: string
           is_read?: boolean
           message?: string | null
@@ -399,24 +402,33 @@ export type Database = {
           client_id: string
           earned_at: string
           id: string
+          milestone: number | null
           practitioner_id: string | null
+          redeemed_at: string | null
           reward_id: string
+          source: string | null
           status: string
         }
         Insert: {
           client_id: string
           earned_at?: string
           id?: string
+          milestone?: number | null
           practitioner_id?: string | null
+          redeemed_at?: string | null
           reward_id: string
+          source?: string | null
           status?: string
         }
         Update: {
           client_id?: string
           earned_at?: string
           id?: string
+          milestone?: number | null
           practitioner_id?: string | null
+          redeemed_at?: string | null
           reward_id?: string
+          source?: string | null
           status?: string
         }
         Relationships: [
@@ -466,6 +478,7 @@ export type Database = {
           program_suggested_by: string | null
           suggested_program_id: string | null
           timezone: string
+          tracking_duration_weeks: number
           yves_ai_consent: boolean
           yves_ai_consent_at: string | null
           yves_enabled: boolean
@@ -499,6 +512,7 @@ export type Database = {
           program_suggested_by?: string | null
           suggested_program_id?: string | null
           timezone?: string
+          tracking_duration_weeks?: number
           yves_ai_consent?: boolean
           yves_ai_consent_at?: string | null
           yves_enabled?: boolean
@@ -532,6 +546,7 @@ export type Database = {
           program_suggested_by?: string | null
           suggested_program_id?: string | null
           timezone?: string
+          tracking_duration_weeks?: number
           yves_ai_consent?: boolean
           yves_ai_consent_at?: string | null
           yves_enabled?: boolean
@@ -549,6 +564,60 @@ export type Database = {
             columns: ["suggested_program_id"]
             isOneToOne: false
             referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consent_records: {
+        Row: {
+          accepted_at: string
+          channel: string
+          client_id: string
+          consent_type: string
+          evidence: Json
+          id: string
+          superseded_by: string | null
+          version: string
+          withdrawn_at: string | null
+          wording_snapshot: string
+        }
+        Insert: {
+          accepted_at?: string
+          channel: string
+          client_id: string
+          consent_type: string
+          evidence?: Json
+          id?: string
+          superseded_by?: string | null
+          version: string
+          withdrawn_at?: string | null
+          wording_snapshot: string
+        }
+        Update: {
+          accepted_at?: string
+          channel?: string
+          client_id?: string
+          consent_type?: string
+          evidence?: Json
+          id?: string
+          superseded_by?: string | null
+          version?: string
+          withdrawn_at?: string | null
+          wording_snapshot?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consent_records_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consent_records_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "consent_records"
             referencedColumns: ["id"]
           },
         ]
@@ -699,6 +768,7 @@ export type Database = {
       google_calendar_tokens: {
         Row: {
           access_token: string
+          checkin_event_id: string | null
           created_at: string
           expires_at: string
           google_email: string | null
@@ -711,6 +781,7 @@ export type Database = {
         }
         Insert: {
           access_token: string
+          checkin_event_id?: string | null
           created_at?: string
           expires_at: string
           google_email?: string | null
@@ -723,6 +794,7 @@ export type Database = {
         }
         Update: {
           access_token?: string
+          checkin_event_id?: string | null
           created_at?: string
           expires_at?: string
           google_email?: string | null
@@ -758,7 +830,10 @@ export type Database = {
       }
       platform_settings: {
         Row: {
+          central_webhook_enabled: boolean
+          central_webhook_url: string | null
           created_at: string | null
+          detection_thresholds: Json | null
           id: string
           new_practitioner_webhook_enabled: boolean | null
           new_practitioner_webhook_url: string | null
@@ -770,7 +845,10 @@ export type Database = {
           training_schedule_enabled: boolean
         }
         Insert: {
+          central_webhook_enabled?: boolean
+          central_webhook_url?: string | null
           created_at?: string | null
+          detection_thresholds?: Json | null
           id?: string
           new_practitioner_webhook_enabled?: boolean | null
           new_practitioner_webhook_url?: string | null
@@ -782,7 +860,10 @@ export type Database = {
           training_schedule_enabled?: boolean
         }
         Update: {
+          central_webhook_enabled?: boolean
+          central_webhook_url?: string | null
           created_at?: string | null
+          detection_thresholds?: Json | null
           id?: string
           new_practitioner_webhook_enabled?: boolean | null
           new_practitioner_webhook_url?: string | null
@@ -847,6 +928,7 @@ export type Database = {
           is_approved: boolean
           join_enabled: boolean
           join_token: string | null
+          last_digest_sent_on: string | null
           max_members: number
           onboarding_complete: boolean
           popia_agreed: boolean
@@ -858,6 +940,8 @@ export type Database = {
           programs_suggest_enabled: boolean
           webhook_enabled: boolean
           webhook_url: string | null
+          weekly_digest_enabled: boolean
+          whatsapp_number: string | null
           yves_enabled: boolean
         }
         Insert: {
@@ -876,6 +960,7 @@ export type Database = {
           is_approved?: boolean
           join_enabled?: boolean
           join_token?: string | null
+          last_digest_sent_on?: string | null
           max_members?: number
           onboarding_complete?: boolean
           popia_agreed?: boolean
@@ -887,6 +972,8 @@ export type Database = {
           programs_suggest_enabled?: boolean
           webhook_enabled?: boolean
           webhook_url?: string | null
+          weekly_digest_enabled?: boolean
+          whatsapp_number?: string | null
           yves_enabled?: boolean
         }
         Update: {
@@ -905,6 +992,7 @@ export type Database = {
           is_approved?: boolean
           join_enabled?: boolean
           join_token?: string | null
+          last_digest_sent_on?: string | null
           max_members?: number
           onboarding_complete?: boolean
           popia_agreed?: boolean
@@ -916,6 +1004,8 @@ export type Database = {
           programs_suggest_enabled?: boolean
           webhook_enabled?: boolean
           webhook_url?: string | null
+          weekly_digest_enabled?: boolean
+          whatsapp_number?: string | null
           yves_enabled?: boolean
         }
         Relationships: []
@@ -1835,6 +1925,104 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_inbound: {
+        Row: {
+          body: string
+          client_id: string | null
+          failure_reason: string | null
+          from_phone: string
+          id: string
+          kind: string
+          media_id: string | null
+          media_mime_type: string | null
+          processed_at: string | null
+          provider: string
+          provider_message_id: string
+          received_at: string
+          reply_id: string | null
+          reply_title: string | null
+          sent_at: string
+          status: string
+          to_phone: string
+        }
+        Insert: {
+          body?: string
+          client_id?: string | null
+          failure_reason?: string | null
+          from_phone: string
+          id?: string
+          kind: string
+          media_id?: string | null
+          media_mime_type?: string | null
+          processed_at?: string | null
+          provider: string
+          provider_message_id: string
+          received_at?: string
+          reply_id?: string | null
+          reply_title?: string | null
+          sent_at: string
+          status?: string
+          to_phone: string
+        }
+        Update: {
+          body?: string
+          client_id?: string | null
+          failure_reason?: string | null
+          from_phone?: string
+          id?: string
+          kind?: string
+          media_id?: string | null
+          media_mime_type?: string | null
+          processed_at?: string | null
+          provider?: string
+          provider_message_id?: string
+          received_at?: string
+          reply_id?: string | null
+          reply_title?: string | null
+          sent_at?: string
+          status?: string
+          to_phone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_inbound_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_message_status: {
+        Row: {
+          error_text: string | null
+          id: string
+          occurred_at: string
+          provider: string
+          provider_message_id: string
+          recorded_at: string
+          status: string
+        }
+        Insert: {
+          error_text?: string | null
+          id?: string
+          occurred_at: string
+          provider: string
+          provider_message_id: string
+          recorded_at?: string
+          status: string
+        }
+        Update: {
+          error_text?: string | null
+          id?: string
+          occurred_at?: string
+          provider?: string
+          provider_message_id?: string
+          recorded_at?: string
+          status?: string
+        }
+        Relationships: []
       }
       yves_feedback_log: {
         Row: {

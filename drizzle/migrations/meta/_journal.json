@@ -64,6 +64,13 @@
       "when": 1791134084342,
       "tag": "0008_consent_records",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791140405786,
+      "tag": "0009_restore_missing_columns",
+      "breakpoints": true
     }
   ]
 }
