@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { ShieldCheck } from "lucide-react";
 import { getPopiaStatus, acceptPopiaConsent } from "@/lib/popia-consent.functions";
+import { currentConsent } from "@/lib/consent/wording";
 
 type Gate = "loading" | "error" | "needs_consent" | "ok";
 
@@ -15,7 +16,9 @@ export function PopiaConsentModal() {
   const fetchStatus = useServerFn(getPopiaStatus);
   const accept = useServerFn(acceptPopiaConsent);
   const [gate, setGate] = useState<Gate>("loading");
+  const [reconsent, setReconsent] = useState(false);
   const [checked, setChecked] = useState(false);
+  const [readToEnd, setReadToEnd] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,6 +27,7 @@ export function PopiaConsentModal() {
     setError(null);
     try {
       const r = await fetchStatus();
+      setReconsent(r?.needsReconsent === true);
       setGate(r?.accepted === true ? "ok" : "needs_consent");
     } catch {
       setGate("error");
@@ -35,6 +39,17 @@ export function PopiaConsentModal() {
     void loadStatus();
   }, [loadStatus]);
 
+  const consent = currentConsent("popia_core");
+
+  // Enabling the button only once they have reached the bottom is the one piece
+  // of evidence a tap alone cannot give: that the wording was actually in front
+  // of them. Generous threshold so a short viewport or a trackpad overshoot
+  // does not trap anyone.
+  const onScroll = (e: { currentTarget: HTMLDivElement }) => {
+    const el = e.currentTarget;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 24) setReadToEnd(true);
+  };
+
   if (gate === "ok") return null;
 
   const onAccept = async () => {
@@ -42,7 +57,15 @@ export function PopiaConsentModal() {
     setSaving(true);
     setError(null);
     try {
-      await accept();
+      await accept({
+        data: {
+          type: "popia_core",
+          channel: "pwa",
+          version: consent.version,
+          userAgent:
+            typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 400) : undefined,
+        },
+      });
       setGate("ok");
     } catch {
       setError("Couldn't save your consent. Please check your connection and try again.");
@@ -58,7 +81,11 @@ export function PopiaConsentModal() {
           <span style={eyebrow}>Your privacy</span>
         </div>
         <h2 style={title}>
-          {gate === "error" ? "We need to check your consent" : "Before you start"}
+          {gate === "error"
+            ? "We need to check your consent"
+            : reconsent
+              ? "We've updated this"
+              : consent.heading}
         </h2>
         {gate === "loading" && <p style={body}>Checking your privacy consent…</p>}
         {gate === "error" && (
@@ -71,20 +98,31 @@ export function PopiaConsentModal() {
         )}
         {gate === "needs_consent" && (
           <>
-            <p style={body}>
-              Buddy records the symptoms and wellbeing check-ins you log, and shares them with your
-              practitioner so they can support your care. If you connect a wearable, its health data
-              is included too.
-            </p>
-            <p style={body}>
-              In line with South Africa's POPIA, we process your personal and health information
-              only to provide this service to you and your practitioner. We don't sell it, and you
-              can ask your practitioner to remove your data at any time. Full detail is in our{" "}
-              <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" style={link}>
-                Privacy Policy
-              </a>
-              .
-            </p>
+            {reconsent && (
+              <p style={body}>
+                We have changed what this says since you last agreed, so please read it again. It
+                now names the companies that handle your information and says that some of it is
+                processed outside South Africa. Nothing about your treatment changes.
+              </p>
+            )}
+            <div style={scroller} onScroll={onScroll}>
+              {consent.sections.map((sec, i) => (
+                <div key={i} style={{ marginBottom: 14 }}>
+                  {sec.heading && <div style={sectionHeading}>{sec.heading}</div>}
+                  <p style={{ ...body, margin: 0 }}>{sec.body}</p>
+                </div>
+              ))}
+              <p style={{ ...body, margin: 0 }}>
+                Full detail is in our{" "}
+                <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" style={link}>
+                  Privacy Policy
+                </a>
+                .
+              </p>
+            </div>
+            {!readToEnd && (
+              <p style={fine}>Scroll to the end before you agree.</p>
+            )}
 
             <label style={checkRow}>
               <input
@@ -101,8 +139,7 @@ export function PopiaConsentModal() {
                   color: "var(--white)",
                 }}
               >
-                I consent to Buddy processing my personal and health information as described, and
-                to sharing it with my practitioner.
+                {consent.affirmation}
               </span>
             </label>
 
@@ -122,8 +159,8 @@ export function PopiaConsentModal() {
             <button
               type="button"
               onClick={onAccept}
-              disabled={!checked || saving}
-              style={cta(!checked || saving)}
+              disabled={!checked || !readToEnd || saving}
+              style={cta(!checked || !readToEnd || saving)}
             >
               {saving ? "Saving…" : "I agree — continue"}
             </button>
@@ -180,6 +217,19 @@ const body: CSSProperties = {
   lineHeight: 1.55,
   color: "var(--white-muted)",
   margin: "0 0 12px",
+};
+const scroller: CSSProperties = {
+  maxHeight: "42vh",
+  overflowY: "auto",
+  padding: "4px 10px 4px 0",
+  marginBottom: 10,
+};
+const sectionHeading: CSSProperties = {
+  fontFamily: "var(--font-ui)",
+  fontSize: 13,
+  fontWeight: 700,
+  color: "var(--white)",
+  marginBottom: 3,
 };
 const link: CSSProperties = { color: "var(--blue-accent)", textDecoration: "underline" };
 const checkRow: CSSProperties = {

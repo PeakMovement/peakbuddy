@@ -57,6 +57,13 @@
       "when": 1790913584982,
       "tag": "0007_whatsapp_inbound",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791134084342,
+      "tag": "0008_consent_records",
+      "breakpoints": true
     }
   ]
 }
