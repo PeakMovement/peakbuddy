@@ -511,6 +511,26 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     expect(db.tables.whatsapp_conversations[0].state).toBe("awaiting_email");
   });
 
+  it("a join link from someone already on Buddy is a hello, not a note", async () => {
+    const db = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [inbound("Hi Buddy, I'm a patient and I'd like to join (JOIN-ABCDEF)")],
+      whatsapp_conversations: [
+        { id: "c1", phone: "27820000001", client_id: "client-1", state: "idle", draft: {} },
+      ],
+      whatsapp_invites: [{ id: "i1", code: "ABCDEF", kind: "practice", practice_id: "practice-1" }],
+      consent_records: CONSENTED(),
+      check_ins: [{ id: "x1", client_id: "client-1", created_at: NOW().toISOString() }],
+      alerts: [],
+    });
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    const body = JSON.stringify(sent);
+    expect(body).toMatch(/already checked in today/);
+    expect(body).not.toMatch(/passed that on/);
+    expect(db.tables.alerts).toHaveLength(0);
+  });
+
   it("a clinical question raises an alert waiting for Justin and promises an answer", async () => {
     const db = fakeDb({
       clients: [CLIENT],

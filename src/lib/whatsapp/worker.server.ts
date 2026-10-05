@@ -28,7 +28,7 @@ import {
 import { type ConverseResult, type ConverseTurn } from "./converse";
 import { progressSummary, routeByKeywords, routeFromMenu, type AssistRoute } from "./assistant";
 import { hasAiConsent } from "@/lib/ai-consent";
-import { ONBOARD_MSG, parseJoinCode, stripJoinCode } from "./onboarding";
+import { ONBOARD_MSG, parseJoinCode } from "./onboarding";
 import {
   createSelfSignupClient,
   currentConsentTypes,
@@ -389,7 +389,10 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   const isAudio = row.kind === "media" && (row.media_mime_type ?? "").startsWith("audio/");
 
   const message: InboundForDecision = {
-    text: (code ? stripJoinCode(row.body ?? "") : row.body) || row.reply_title || "",
+    // A join message is a hello, whoever sends it. Someone already on Buddy
+    // gets their normal greeting (or consent link), never a "note" saying
+    // they'd like to join.
+    text: (code ? "hi" : row.body) || row.reply_title || "",
     replyId: row.reply_id ?? undefined,
     kind: row.kind,
     mediaType: row.kind === "media" ? (isAudio ? "audio" : "other") : undefined,
