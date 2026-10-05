@@ -17,7 +17,7 @@ import { maskPhone, matchPhone, toE164Digits } from "./phone";
 import { getProvider, type ProviderSecrets, type WhatsAppProvider } from "./provider";
 import { runRedFlagRules, type RuleLayerResult } from "./red-flag-rules";
 import { readAnswerWithAi, routeWithAi, transcribeVoiceNote, type AnswerField } from "./ai.server";
-import { progressSummary, routeByKeywords, routeFromMenu, type AssistRoute } from "./assistant";
+import { progressSummary, routeByKeywords, type AssistRoute } from "./assistant";
 import { hasAiConsent } from "@/lib/ai-consent";
 
 /**
@@ -370,14 +370,11 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     client &&
     consent &&
     (state === "idle" || state === "awaiting_wearable") &&
-    message.text.trim()
+    message.text.trim() &&
+    !message.replyId
   ) {
-    route =
-      routeFromMenu(message.replyId) ??
-      (message.replyId
-        ? undefined
-        : ((aiAllowed ? await routeWithAi(message.text) : null) ?? routeByKeywords(message.text)));
-    if (route?.intent === "progress") {
+    route = (aiAllowed ? await routeWithAi(message.text) : null) ?? routeByKeywords(message.text);
+    if (route.intent === "progress") {
       const { data } = await admin
         .from("check_ins")
         .select("created_at, pain_level")

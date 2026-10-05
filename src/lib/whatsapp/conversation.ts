@@ -6,9 +6,6 @@ import { currentConsent } from "@/lib/consent/wording";
 import {
   ASSIST_MSG,
   CHECKIN_REQUEST,
-  MENU,
-  PRACTICE_SUMMARY,
-  routeFromMenu,
   practiceAnswerByKeywords,
   routeByKeywords,
   type AssistRoute,
@@ -57,10 +54,6 @@ export interface CheckinDraft {
   misses?: number;
   /** A "log a change" update: pain and what changed only, saved alongside today's check-in. */
   update?: boolean;
-  /** They tapped "Ask a question": the next message is the question for Justin. */
-  awaitingQuestion?: boolean;
-  /** They tapped "Change check-in time": the next message is the time. */
-  awaitingTime?: boolean;
 }
 
 export interface ConversationSnapshot {
@@ -364,22 +357,6 @@ export function readReminderTime(text: string): string | null {
   return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
-const menuList = (body: string): Reply => ({
-  kind: "list",
-  body,
-  buttonLabel: "See options",
-  rows: MENU.map((m) => ({ id: m.id, title: m.title, description: m.description })),
-});
-
-/** A bare time, for when we have just asked "what time?": 7am, 07:00, 18h30, 6 pm. */
-export function readBareTime(text: string): string | null {
-  const m = text
-    .trim()
-    .match(/^(?:at\s*)?(\d{1,2})(?:[:h.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?[.!]*$/i);
-  if (!m) return null;
-  return readReminderTime(`remind me at ${m[1]}${m[2] ? `:${m[2]}` : ""}${m[3] ? ` ${m[3]}` : ""}`);
-}
-
 const askNotes = (): Reply => ({
   kind: "buttons",
   body: MSG.askNotes,
@@ -661,60 +638,15 @@ export function decide(ctx: DecisionContext): Decision {
       }
       if (CHECKIN_REQUEST.test(raw)) return withSafety(startCheckin(ctx, []), ctx);
 
-      // Follow-ups to a menu choice made in the previous message.
-      if (conv.draft.awaitingQuestion && raw && !msg.replyId) {
-        return withSafety(
-          {
-            replies: [text(ASSIST_MSG.clinical)],
-            next: IDLE(),
-            clinicalQuestion: raw.slice(0, 1000),
-          },
-          ctx,
-        );
-      }
-      if (conv.draft.awaitingTime && !msg.replyId) {
-        const t = readBareTime(raw);
-        if (t) {
-          return withSafety(
-            { replies: [text(MSG.reminderSet(t))], next: IDLE(), setReminderTime: t },
-            ctx,
-          );
-        }
-      }
-
-      // Menu items that are not a routing intent of their own.
-      switch (msg.replyId) {
-        case "menu_info":
-          return withSafety({ replies: [text(PRACTICE_SUMMARY)], next: IDLE() }, ctx);
-        case "menu_question":
-          return withSafety(
-            {
-              replies: [text(ASSIST_MSG.askQuestion)],
-              next: { state: "idle", draft: { awaitingQuestion: true }, checkinStartedAt: null },
-            },
-            ctx,
-          );
-        case "menu_time":
-          return withSafety(
-            {
-              replies: [text(ASSIST_MSG.askTime)],
-              next: { state: "idle", draft: { awaitingTime: true }, checkinStartedAt: null },
-            },
-            ctx,
-          );
-        case "menu_watch":
-          return withSafety(
-            { replies: [text(MSG.wearableLink)], next: IDLE(), markWearableOffered: true },
-            ctx,
-          );
-        default:
-          break;
-      }
-
       // Questions and requests get answered rather than turned into a check-in.
-      const route = routeFromMenu(msg.replyId) ?? ctx.route ?? routeByKeywords(raw);
+      const route = ctx.route ?? routeByKeywords(raw);
       const nudge = ctx.checkedInToday ? [] : [text(ASSIST_MSG.checkinNudge)];
       switch (route.intent) {
+        case "capabilities":
+          return withSafety(
+            { replies: [text(ASSIST_MSG.capabilities)], next: IDLE() },
+            ctx,
+          );
         case "log_change":
           // Before today's check-in, the check-in itself is the way to log it.
           if (!ctx.checkedInToday) return withSafety(startCheckin(ctx, []), ctx);
@@ -761,26 +693,6 @@ export function decide(ctx: DecisionContext): Decision {
           );
         case "exercises":
           return withSafety({ replies: [text(ASSIST_MSG.exercises), ...nudge], next: IDLE() }, ctx);
-        case "help":
-          return withSafety(
-            {
-              replies: [menuList(ASSIST_MSG.menuIntro(ctx.client!.firstName, ctx.checkedInToday))],
-              next: IDLE(),
-            },
-            ctx,
-          );
-        case "greeting":
-          // Hello after today's check-in: say hello back and show what else Buddy does.
-          if (ctx.checkedInToday) {
-            return withSafety(
-              {
-                replies: [menuList(ASSIST_MSG.menuIntro(ctx.client!.firstName, true))],
-                next: IDLE(),
-              },
-              ctx,
-            );
-          }
-          break;
         default:
           break;
       }
@@ -790,9 +702,15 @@ export function decide(ctx: DecisionContext): Decision {
       if (ctx.checkedInToday) {
         const isChitChat =
           !raw || /^(hi|hello|hey|hallo|thanks|thank you|dankie|ok|okay)[.!]*$/i.test(raw);
+        // A short question we couldn't place is asked back, not silently filed as a note.
+        const isUnplacedQuestion =
+          !isChitChat && /\?\s*$/.test(raw) && raw.length < 120 && !ctx.redFlags.triggered;
+        if (isUnplacedQuestion) {
+          return withSafety({ replies: [text(ASSIST_MSG.clarify)], next: IDLE() }, ctx);
+        }
         return withSafety(
           {
-            replies: [text(isChitChat ? MSG.alreadyToday : ASSIST_MSG.noteAddedMenu)],
+            replies: [text(isChitChat ? MSG.alreadyToday : MSG.noteAdded)],
             next: IDLE(),
             noteForPractitioner: isChitChat ? undefined : raw.slice(0, 1000),
           },
