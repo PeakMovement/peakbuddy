@@ -1,5 +1,12 @@
 import type { AiAssist } from "./conversation";
 import { ASSIST_INTENTS, PRACTICE_INFO, type AssistRoute } from "./assistant";
+import {
+  CONVERSE_ACTIONS,
+  formatHistory,
+  validConverse,
+  type ConverseResult,
+  type ConverseTurn,
+} from "./converse";
 
 /**
  * The two places the WhatsApp agent uses AI, both strictly as a fallback.
@@ -261,4 +268,122 @@ export function validRoute(
       ? input.answer.trim().slice(0, 600)
       : null;
   return { intent: intent as AssistRoute["intent"], answer };
+}
+
+/* ------------------------------------------------------------------ */
+/* Conversation: anything that fits no fixed path                      */
+/* ------------------------------------------------------------------ */
+
+export interface ConverseInput {
+  firstName: string;
+  message: string;
+  history: ConverseTurn[];
+  /** The check-in question waiting for an answer, if one is. */
+  pendingQuestion: string | null;
+  checkedInToday: boolean;
+  hasWearable: boolean;
+}
+
+const CONVERSE_TOOL = {
+  name: "respond",
+  description: "Reply to the patient and choose the one action Buddy should take next.",
+  input_schema: {
+    type: "object",
+    properties: {
+      reply: {
+        type: "string",
+        description:
+          "What Buddy says, 1 to 3 short WhatsApp sentences. Empty only for clinical_question or menu.",
+      },
+      action: { type: "string", enum: [...CONVERSE_ACTIONS] },
+      time: {
+        type: ["string", "null"],
+        description: "Only for set_checkin_time: the time they asked for as HH:MM, 24 hour.",
+      },
+    },
+    required: ["reply", "action", "time"],
+  },
+} as const;
+
+function converseSystem(input: ConverseInput): string {
+  const situation = input.pendingQuestion
+    ? `A check-in is in progress. Buddy just asked: "${input.pendingQuestion}". The patient's message did not answer it. After your reply, the system will repeat that question automatically, so do not ask it yourself.`
+    : input.checkedInToday
+      ? "No check-in is in progress. The patient has already done today's check-in."
+      : "No check-in is in progress. The patient has NOT done today's check-in yet; gently steer towards it when it fits (action start_checkin when they seem ready, or mention they can reply CHECK IN).";
+
+  return `You are Buddy, the WhatsApp assistant of Peak Movement, a physiotherapy practice in Cape Town. You are talking to ${input.firstName}, a patient.
+
+${situation}
+
+Your job: understand what they mean, even if it is vague, misspelt, slang, Afrikaans or off topic. Reply like a warm, sensible person would, in 1 to 3 short sentences. Then bring the conversation back to centre by choosing the ONE action that moves it forward. Be interpretative and conversational, not robotic. Never lecture.
+
+What Buddy can do (the actions):
+- none: just reply. Use for chit-chat, thanks, feelings, jokes, or when a reply is all that's needed. Still steer back gently.
+- start_checkin: start today's check-in now (pain, sleep, energy, notes).
+- log_change: they want to update or correct pain or symptoms since today's check-in.
+- booking: they want an appointment, check-up, reschedule or cancel. The system adds the booking links.
+- practice_info: a question about the practice. Answer it in your reply using ONLY the practice information below.
+- clinical_question: ANY question about their body, symptoms, injury, treatment, exercises' safety, medication, or what is normal or safe. Do not answer it at all. Leave reply empty; the system tells them Justin will answer.
+- progress: they want to know how they've been going. The system adds their trend.
+- exercises: they want their exercise programme. The system adds the link.
+- menu: they are lost or ask what you can do. The system shows the options list; your reply becomes its intro.
+- note_for_practitioner: they are telling their physiotherapist something (how they feel, an update, a worry that isn't a question). Acknowledge kindly; the system passes it on.
+- connect_wearable: they want to link a smartwatch or ring. The system adds the link.
+- set_checkin_time: they want their daily check-in at a different time. Put it in "time" as HH:MM.
+- skip_question: during a check-in, they don't want to answer the current sleep or energy question. Never for pain.
+- pause_checkin: during a check-in, they want to stop for now and carry on later.
+
+Hard rules:
+- Never give medical advice, a diagnosis, reassurance about symptoms, or tell them what to do for their body. That is always clinical_question.
+- Never state a price, time, address, policy or name that is not in the practice information. If you don't know, say the practice can help and choose booking or none.
+- Never write links or phone numbers yourself; the system adds the right ones.
+- Never claim to have done something other than the action you chose. Never promise a callback time.
+- If they are upset or frustrated, acknowledge it first, kindly and briefly.
+- If they write in Afrikaans or isiXhosa, reply in the same language.
+- Plain, warm South African English. No dashes, no emojis unless they used one, no markdown headings.
+
+PRACTICE INFORMATION:
+${PRACTICE_INFO}`;
+}
+
+/** The conversational fallback. Null on any failure; the caller uses fixed replies. */
+export async function converseWithAi(input: ConverseInput): Promise<ConverseResult | null> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key || !input.message.trim()) return null;
+  const history = formatHistory(input.history);
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_MODEL,
+        max_tokens: 400,
+        system: converseSystem(input),
+        tools: [CONVERSE_TOOL],
+        tool_choice: { type: "tool", name: CONVERSE_TOOL.name },
+        messages: [
+          {
+            role: "user",
+            content: `${history ? `Recent conversation:\n${history}\n\n` : ""}Patient's new message: ${input.message.slice(0, 1500)}`,
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      content?: Array<{
+        type: string;
+        input?: { reply?: unknown; action?: unknown; time?: unknown };
+      }>;
+    };
+    return validConverse(json.content?.find((c) => c.type === "tool_use")?.input);
+  } catch {
+    return null;
+  }
 }

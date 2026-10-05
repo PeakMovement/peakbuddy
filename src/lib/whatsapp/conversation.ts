@@ -2,6 +2,7 @@ import type { OutboundMessage } from "./provider";
 import { extractDeterministic } from "./extraction";
 import { classifyIntent, CONTACT_ACKNOWLEDGEMENT, OPT_OUT_CONFIRMATION } from "./intent";
 import type { RuleLayerResult } from "./red-flag-rules";
+import type { ConverseResult } from "./converse";
 import { currentConsent } from "@/lib/consent/wording";
 import {
   ASSIST_MSG,
@@ -110,6 +111,11 @@ export interface DecisionContext {
   route?: AssistRoute;
   /** The patient's own trend, worked out by the worker when they ask. */
   progressText?: string;
+  /**
+   * The conversational fallback's reading of a message that fits no fixed
+   * path (AI consent only). Absent: the fixed replies are used.
+   */
+  converse?: ConverseResult;
 }
 
 export interface CheckinToSave {
@@ -421,6 +427,166 @@ function withSafety(decision: Decision, ctx: DecisionContext): Decision {
   return { ...decision, replies: [text(safety), ...decision.replies] };
 }
 
+/** The question waiting for an answer, as the patient last saw it. */
+function pendingQuestionReply(state: ConversationState, draft: CheckinDraft): Reply | null {
+  if (state === "awaiting_pain") return text(draft.update ? ASSIST_MSG.changeAskPain : MSG.askPain);
+  if (state === "awaiting_sleep") return askSleep();
+  if (state === "awaiting_energy") return askEnergy();
+  return null;
+}
+
+/** Wording of the pending question, for the conversational model's context. */
+export function pendingQuestionText(state: ConversationState): string | null {
+  if (state === "awaiting_pain") return MSG.askPain;
+  if (state === "awaiting_sleep") return `${MSG.askSleep} (1 very poorly to 5 very well)`;
+  if (state === "awaiting_energy") return `${MSG.askEnergy} (1 very low to 5 very high)`;
+  return null;
+}
+
+/**
+ * A conversational reply in the middle of a check-in: say something human
+ * about what they said, do the one thing they asked for if it is safe to do
+ * mid-check-in, then put the pending question back in front of them.
+ */
+function interjectMidCheckin(
+  ctx: DecisionContext,
+  state: ConversationState,
+  draft: CheckinDraft,
+  keepHere: ConversationSnapshot,
+  raw: string,
+): Decision | null {
+  const c = ctx.converse;
+  const again = pendingQuestionReply(state, draft);
+  if (!c || !again) return null;
+  const lead = c.reply ? [text(c.reply)] : [];
+  switch (c.action) {
+    case "clinical_question":
+      return {
+        replies: [text(ASSIST_MSG.clinical), again],
+        next: keepHere,
+        clinicalQuestion: raw.slice(0, 1000),
+      };
+    case "pause_checkin":
+      // Keep what they've answered; the 12 hour stale rule clears it if they don't come back.
+      return {
+        replies: lead.length ? lead : [text(ASSIST_MSG.paused)],
+        next: { ...keepHere, state: "idle" },
+      };
+    case "skip_question":
+      if (state === "awaiting_sleep") {
+        return { replies: [...lead, askEnergy()], next: { ...keepHere, state: "awaiting_energy" } };
+      }
+      if (state === "awaiting_energy") {
+        return { replies: [...lead, askNotes()], next: { ...keepHere, state: "awaiting_notes" } };
+      }
+      return { replies: [...lead, again], next: keepHere };
+    case "booking":
+      return { replies: [...lead, text(ASSIST_MSG.booking), again], next: keepHere };
+    case "exercises":
+      return { replies: [...lead, text(ASSIST_MSG.exercises), again], next: keepHere };
+    case "connect_wearable":
+      return {
+        replies: [...lead, text(MSG.wearableLink), again],
+        next: keepHere,
+        markWearableOffered: true,
+      };
+    case "set_checkin_time":
+      return c.time
+        ? {
+            replies: [text(MSG.reminderSet(c.time)), again],
+            next: keepHere,
+            setReminderTime: c.time,
+          }
+        : { replies: [...lead, again], next: keepHere };
+    case "note_for_practitioner":
+      // Their words already go into this check-in's notes.
+      return { replies: [...lead, again], next: keepHere };
+    default:
+      return { replies: [...lead, again], next: keepHere };
+  }
+}
+
+/**
+ * A conversational reply outside a check-in: answer like a person, carry out
+ * the one action, and bring it back to centre.
+ */
+function converseIdle(ctx: DecisionContext, raw: string): Decision | null {
+  const c = ctx.converse;
+  if (!c) return null;
+  const lead = c.reply ? [text(c.reply)] : [];
+  const nudge = ctx.checkedInToday ? [] : [text(ASSIST_MSG.checkinNudge)];
+  switch (c.action) {
+    case "clinical_question":
+      return {
+        replies: [text(ASSIST_MSG.clinical)],
+        next: IDLE(),
+        clinicalQuestion: raw.slice(0, 1000),
+      };
+    case "start_checkin":
+      if (ctx.checkedInToday) return { replies: [...lead, text(MSG.alreadyToday)], next: IDLE() };
+      return {
+        replies: [
+          ...(lead.length ? lead : [text(MSG.checkinOpener(ctx.client!.firstName))]),
+          text(MSG.askPain),
+        ],
+        next: { state: "awaiting_pain", draft: { notes: [] }, checkinStartedAt: ctx.now },
+      };
+    case "log_change":
+      if (!ctx.checkedInToday) {
+        return {
+          replies: [...lead, text(MSG.askPain)],
+          next: { state: "awaiting_pain", draft: { notes: [] }, checkinStartedAt: ctx.now },
+        };
+      }
+      return {
+        replies: [...lead, text(ASSIST_MSG.changeAskPain)],
+        next: {
+          state: "awaiting_pain",
+          draft: { notes: [], update: true },
+          checkinStartedAt: ctx.now,
+        },
+      };
+    case "booking":
+      return { replies: [...lead, text(ASSIST_MSG.booking)], next: IDLE() };
+    case "exercises":
+      return { replies: [...lead, text(ASSIST_MSG.exercises), ...nudge], next: IDLE() };
+    case "progress":
+      return {
+        replies: [...lead, text(ctx.progressText ?? ASSIST_MSG.progressNone), ...nudge],
+        next: IDLE(),
+      };
+    case "menu":
+      return {
+        replies: [
+          menuList(c.reply || ASSIST_MSG.menuIntro(ctx.client!.firstName, ctx.checkedInToday)),
+        ],
+        next: IDLE(),
+      };
+    case "connect_wearable":
+      return {
+        replies: [...lead, text(MSG.wearableLink)],
+        next: IDLE(),
+        markWearableOffered: true,
+      };
+    case "set_checkin_time":
+      return c.time
+        ? { replies: [text(MSG.reminderSet(c.time))], next: IDLE(), setReminderTime: c.time }
+        : {
+            replies: [...lead, text(ASSIST_MSG.askTime)],
+            next: { state: "idle", draft: { awaitingTime: true }, checkinStartedAt: null },
+          };
+    case "note_for_practitioner":
+      return {
+        replies: [...lead, ...nudge],
+        next: IDLE(),
+        noteForPractitioner: raw.slice(0, 1000),
+      };
+    case "practice_info":
+    default:
+      return { replies: [...lead, ...nudge], next: IDLE() };
+  }
+}
+
 export function decide(ctx: DecisionContext): Decision {
   const { message: msg, conversation: conv } = ctx;
   const raw = (msg.text ?? "").trim();
@@ -534,6 +700,8 @@ export function decide(ctx: DecisionContext): Decision {
       if (pain === null) {
         // Not a number. Keep what they said for the practitioner and ask again.
         const notes = raw ? [...(draft.notes ?? []), raw] : draft.notes;
+        const human = interjectMidCheckin(ctx, state, draft, keep({ notes }, "awaiting_pain"), raw);
+        if (human) return withSafety(human, ctx);
         return withSafety(
           {
             replies: [text(MSG.askPainRetry)],
@@ -573,6 +741,14 @@ export function decide(ctx: DecisionContext): Decision {
       const sleep = readScale(msg, "wsleep_") ?? ctx.assist?.sleep ?? null;
       if (sleep === null) {
         const notes = raw ? [...(draft.notes ?? []), raw] : draft.notes;
+        const human = interjectMidCheckin(
+          ctx,
+          state,
+          draft,
+          keep({ notes }, "awaiting_sleep"),
+          raw,
+        );
+        if (human) return withSafety(human, ctx);
         return withSafety(
           {
             replies: [askSleep(MSG.askSleepRetry)],
@@ -591,6 +767,14 @@ export function decide(ctx: DecisionContext): Decision {
       const energy = readScale(msg, "wenergy_") ?? ctx.assist?.energy ?? null;
       if (energy === null) {
         const notes = raw ? [...(draft.notes ?? []), raw] : draft.notes;
+        const human = interjectMidCheckin(
+          ctx,
+          state,
+          draft,
+          keep({ notes }, "awaiting_energy"),
+          raw,
+        );
+        if (human) return withSafety(human, ctx);
         return withSafety(
           {
             replies: [askEnergy(MSG.askEnergyRetry)],
@@ -784,6 +968,10 @@ export function decide(ctx: DecisionContext): Decision {
         default:
           break;
       }
+
+      // Nothing fixed fits: talk like a person and bring it back to centre.
+      const human = converseIdle(ctx, raw);
+      if (human) return withSafety(human, ctx);
 
       // Idle. Any message starts today's check-in, unless it is already done,
       // in which case what they wrote is a note for the practitioner.

@@ -4,7 +4,9 @@ import { currentConsent, renderConsentText } from "@/lib/consent/wording";
 import { toSast } from "./clinic-hours";
 import {
   decide,
+  pendingQuestionText,
   readPain,
+  readReminderTime,
   readScale,
   type AiAssist,
   MSG,
@@ -16,7 +18,14 @@ import {
 import { maskPhone, matchPhone, toE164Digits } from "./phone";
 import { getProvider, type ProviderSecrets, type WhatsAppProvider } from "./provider";
 import { runRedFlagRules, type RuleLayerResult } from "./red-flag-rules";
-import { readAnswerWithAi, routeWithAi, transcribeVoiceNote, type AnswerField } from "./ai.server";
+import {
+  converseWithAi,
+  readAnswerWithAi,
+  routeWithAi,
+  transcribeVoiceNote,
+  type AnswerField,
+} from "./ai.server";
+import { type ConverseResult, type ConverseTurn } from "./converse";
 import { progressSummary, routeByKeywords, routeFromMenu, type AssistRoute } from "./assistant";
 import { hasAiConsent } from "@/lib/ai-consent";
 
@@ -377,20 +386,38 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
       (message.replyId
         ? undefined
         : ((aiAllowed ? await routeWithAi(message.text) : null) ?? routeByKeywords(message.text)));
-    if (route?.intent === "progress") {
-      const { data } = await admin
-        .from("check_ins")
-        .select("created_at, pain_level")
-        .eq("client_id", client.id)
-        .order("created_at", { ascending: false })
-        .limit(7);
-      progressText = progressSummary(
-        ((data ?? []) as Array<{ created_at: string; pain_level: number | null }>).map((r) => ({
-          at: r.created_at,
-          pain: r.pain_level,
-        })),
-      );
-    }
+    if (route?.intent === "progress") progressText = await progressFor(admin, client.id);
+  }
+
+  // Nothing fixed fits: let the conversational layer interpret it (AI consent
+  // only). Outside a check-in that is a message the router called "other";
+  // inside one, an answer neither the plain reader nor the answer reader
+  // could place.
+  const clientHasWearable = client ? await hasWearable(admin, client.id) : false;
+  let converse: ConverseResult | undefined;
+  const midCheckin =
+    state === "awaiting_pain" || state === "awaiting_sleep" || state === "awaiting_energy";
+  const typed = message.text.trim();
+  const unplacedMid =
+    midCheckin &&
+    !message.replyId &&
+    !assist &&
+    (state === "awaiting_pain"
+      ? readPain(message) === null
+      : readScale(message, state === "awaiting_sleep" ? "wsleep_" : "wenergy_") === null);
+  const unplacedIdle = route?.intent === "other" && !readReminderTime(typed);
+  if (client && consent && aiAllowed && typed && (unplacedMid || unplacedIdle)) {
+    const history = await recentTurns(admin, row.from_phone, phone, row.id);
+    if (!progressText && unplacedIdle) progressText = await progressFor(admin, client.id);
+    converse =
+      (await converseWithAi({
+        firstName: firstNameOf(client.full_name),
+        message: typed,
+        history,
+        pendingQuestion: midCheckin ? pendingQuestionText(state) : null,
+        checkedInToday: today,
+        hasWearable: clientHasWearable,
+      })) ?? undefined;
   }
 
   const painNow =
@@ -413,7 +440,8 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     checkedInToday: today,
     redFlags,
     now,
-    hasWearable: client ? await hasWearable(admin, client.id) : false,
+    hasWearable: clientHasWearable,
+    converse,
     route,
     progressText,
     wearableOffered: Boolean(conv.wearable_offer_at),
@@ -547,6 +575,71 @@ async function aiAssist(
   if (field === "energy" && readScale(message, "wenergy_") !== null) return undefined;
   const value = await readAnswerWithAi(field, message.text);
   return value === null ? undefined : { [field]: value };
+}
+
+async function progressFor(admin: Admin, clientId: string): Promise<string> {
+  const { data } = await admin
+    .from("check_ins")
+    .select("created_at, pain_level")
+    .eq("client_id", clientId)
+    .order("created_at", { ascending: false })
+    .limit(7);
+  return progressSummary(
+    ((data ?? []) as Array<{ created_at: string; pain_level: number | null }>).map((r) => ({
+      at: r.created_at,
+      pain: r.pain_level,
+    })),
+  );
+}
+
+/** The last few turns with this number, oldest first, excluding the message being handled. */
+async function recentTurns(
+  admin: Admin,
+  fromPhone: string,
+  phone: string,
+  currentId: string,
+): Promise<ConverseTurn[]> {
+  const since = new Date(Date.now() - 2 * DAY_MS).toISOString();
+  const [inbound, outbound] = await Promise.all([
+    admin
+      .from("whatsapp_inbound")
+      .select("id, received_at, body, reply_title")
+      .eq("from_phone", fromPhone)
+      .gte("received_at", since)
+      .order("received_at", { ascending: false })
+      .limit(8),
+    admin
+      .from("whatsapp_outbound")
+      .select("created_at, body")
+      .eq("phone", phone)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(8),
+  ]);
+  const turns: Array<ConverseTurn & { at: string }> = [
+    ...(
+      (inbound.data ?? []) as Array<{
+        id: string;
+        received_at: string;
+        body: string | null;
+        reply_title: string | null;
+      }>
+    )
+      .filter((r) => r.id !== currentId)
+      .map((r) => ({
+        at: r.received_at,
+        from: "patient" as const,
+        text: r.body || r.reply_title || "",
+      })),
+    ...(
+      (outbound.error ? [] : (outbound.data ?? [])) as Array<{ created_at: string; body: string }>
+    ).map((r) => ({ at: r.created_at, from: "buddy" as const, text: r.body })),
+  ];
+  return turns
+    .filter((t) => t.text)
+    .sort((a, b) => a.at.localeCompare(b.at))
+    .slice(-8)
+    .map(({ from, text }) => ({ from, text }));
 }
 
 async function hasWearable(admin: Admin, clientId: string): Promise<boolean> {

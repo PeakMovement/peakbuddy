@@ -149,6 +149,7 @@ export const ASSIST_MSG = {
     checkedInToday
       ? `Hi ${firstName}! You've already checked in today, thank you. Here's what else I can help with:`
       : `Hi ${firstName}! I'm Buddy, Peak Movement's check-in assistant. Reply CHECK IN to do today's check-in, or tap below for anything else:`,
+  paused: "No problem, we can pick this up later. Just send me a message when you're ready.",
   askQuestion: "Sure, type your question and I'll make sure Justin, our practice manager, gets it.",
   askTime: "What time would you like your daily check-in? For example, reply: remind me at 7am",
   contactPractice: `You can chat to the practice directly on WhatsApp here: ${PRACTICE_WHATSAPP_LINK}`,

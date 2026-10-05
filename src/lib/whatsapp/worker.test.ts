@@ -554,4 +554,76 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     });
     expect(db.tables.alerts[0].message).toContain("Should I ice it?");
   });
+
+  it("hands an unplaced message to the conversational model, with recent history, and acts on its choice", async () => {
+    const prevKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    const calls: Array<{ system: string; content: string }> = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (_url: unknown, init?: { body?: string }) => {
+      const body = JSON.parse(init?.body ?? "{}");
+      const tool = body.tools?.[0]?.name;
+      calls.push({ system: body.system, content: body.messages?.[0]?.content ?? "" });
+      const input =
+        tool === "route_message"
+          ? { intent: "other", answer: null }
+          : {
+              reply: "Thanks for telling me, I'll let your physio know.",
+              action: "note_for_practitioner",
+              time: null,
+            };
+      return new Response(JSON.stringify({ content: [{ type: "tool_use", input }] }), {
+        status: 200,
+      });
+    }) as typeof fetch;
+    try {
+      const db = fakeDb({
+        clients: [{ ...CLIENT, yves_ai_consent: true }],
+        whatsapp_inbound: [inbound("glute still feels like a rock lol")],
+        whatsapp_outbound: [
+          {
+            phone: "27820000001",
+            body: "Thanks, that's saved.",
+            created_at: "2026-10-05T06:00:00Z",
+          },
+        ],
+        whatsapp_conversations: [
+          {
+            id: "c1",
+            phone: "27820000001",
+            client_id: "client-1",
+            state: "idle",
+            draft: {},
+            checkin_started_at: null,
+          },
+        ],
+        consent_records: [
+          {
+            id: "k1",
+            client_id: "client-1",
+            consent_type: "whatsapp_checkins",
+            withdrawn_at: null,
+            superseded_by: null,
+          },
+        ],
+        check_ins: [
+          { id: "x", client_id: "client-1", created_at: "2026-10-05T06:00:00Z", pain_level: 3 },
+        ],
+        alerts: [],
+      });
+      const { provider, sent } = fakeProvider();
+      await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+      expect((sent[0] as { body: string }).body).toBe(
+        "Thanks for telling me, I'll let your physio know.",
+      );
+      expect(db.tables.alerts[0].message).toContain("glute still feels like a rock lol");
+      const converseCall = calls.find((c) => c.system?.includes("You are Buddy"));
+      expect(converseCall?.content).toContain("Buddy: Thanks, that's saved.");
+      expect(converseCall?.system).toContain("already done today's check-in");
+    } finally {
+      globalThis.fetch = realFetch;
+      if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = prevKey;
+    }
+  });
 });
