@@ -1943,6 +1943,7 @@ export type Database = {
           state: string
           unmatched_notice_at: string | null
           updated_at: string
+          wearable_offer_at: string | null
         }
         Insert: {
           checkin_started_at?: string | null
@@ -1957,6 +1958,7 @@ export type Database = {
           state?: string
           unmatched_notice_at?: string | null
           updated_at?: string
+          wearable_offer_at?: string | null
         }
         Update: {
           checkin_started_at?: string | null
@@ -1971,6 +1973,7 @@ export type Database = {
           state?: string
           unmatched_notice_at?: string | null
           updated_at?: string
+          wearable_offer_at?: string | null
         }
         Relationships: [
           {
@@ -2079,6 +2082,50 @@ export type Database = {
           status?: string
         }
         Relationships: []
+      }
+      whatsapp_outbound: {
+        Row: {
+          body: string
+          client_id: string | null
+          created_at: string
+          id: string
+          kind: string
+          phone: string
+          provider: string
+          provider_message_id: string | null
+          sent_ok: boolean
+        }
+        Insert: {
+          body?: string
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          phone: string
+          provider: string
+          provider_message_id?: string | null
+          sent_ok?: boolean
+        }
+        Update: {
+          body?: string
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          phone?: string
+          provider?: string
+          provider_message_id?: string | null
+          sent_ok?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_outbound_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       yves_feedback_log: {
         Row: {
