@@ -642,6 +642,11 @@ export function decide(ctx: DecisionContext): Decision {
       const route = ctx.route ?? routeByKeywords(raw);
       const nudge = ctx.checkedInToday ? [] : [text(ASSIST_MSG.checkinNudge)];
       switch (route.intent) {
+        case "capabilities":
+          return withSafety(
+            { replies: [text(ASSIST_MSG.capabilities)], next: IDLE() },
+            ctx,
+          );
         case "log_change":
           // Before today's check-in, the check-in itself is the way to log it.
           if (!ctx.checkedInToday) return withSafety(startCheckin(ctx, []), ctx);
@@ -697,6 +702,12 @@ export function decide(ctx: DecisionContext): Decision {
       if (ctx.checkedInToday) {
         const isChitChat =
           !raw || /^(hi|hello|hey|hallo|thanks|thank you|dankie|ok|okay)[.!]*$/i.test(raw);
+        // A short question we couldn't place is asked back, not silently filed as a note.
+        const isUnplacedQuestion =
+          !isChitChat && /\?\s*$/.test(raw) && raw.length < 120 && !ctx.redFlags.triggered;
+        if (isUnplacedQuestion) {
+          return withSafety({ replies: [text(ASSIST_MSG.clarify)], next: IDLE() }, ctx);
+        }
         return withSafety(
           {
             replies: [text(isChitChat ? MSG.alreadyToday : MSG.noteAdded)],

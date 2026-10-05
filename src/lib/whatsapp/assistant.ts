@@ -120,7 +120,7 @@ export function routeByKeywords(text: string): AssistRoute {
   if (
     has(
       t,
-      /\b(what can you do|what do you do|who are you|what are you|how does (this|it|buddy) work|how do (i|you) use|help|menu|options|commands)\b/,
+      /\b(what can you do|what you can do|what do you do|who are you|what are you|how does (this|it|buddy) work|how do (i|you) use|help|menu|options|commands)\b/,
     ) &&
     t.length < 80
   ) {
