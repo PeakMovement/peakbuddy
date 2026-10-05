@@ -16,7 +16,8 @@ import {
 import { maskPhone, matchPhone, toE164Digits } from "./phone";
 import { getProvider, type ProviderSecrets, type WhatsAppProvider } from "./provider";
 import { runRedFlagRules, type RuleLayerResult } from "./red-flag-rules";
-import { readAnswerWithAi, transcribeVoiceNote, type AnswerField } from "./ai.server";
+import { readAnswerWithAi, routeWithAi, transcribeVoiceNote, type AnswerField } from "./ai.server";
+import { progressSummary, routeByKeywords, type AssistRoute } from "./assistant";
 import { hasAiConsent } from "@/lib/ai-consent";
 
 /**
@@ -360,6 +361,35 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   // the patient typed.
   const assist = aiAllowed ? await aiAssist(state, message) : undefined;
 
+  // A message outside a check-in question: work out what it is for. The AI
+  // router answers practice questions from the approved sheet only; without AI
+  // consent the keyword router decides and nothing leaves Buddy.
+  let route: AssistRoute | undefined;
+  let progressText: string | undefined;
+  if (
+    client &&
+    consent &&
+    (state === "idle" || state === "awaiting_wearable") &&
+    message.text.trim() &&
+    !message.replyId
+  ) {
+    route = (aiAllowed ? await routeWithAi(message.text) : null) ?? routeByKeywords(message.text);
+    if (route.intent === "progress") {
+      const { data } = await admin
+        .from("check_ins")
+        .select("created_at, pain_level")
+        .eq("client_id", client.id)
+        .order("created_at", { ascending: false })
+        .limit(7);
+      progressText = progressSummary(
+        ((data ?? []) as Array<{ created_at: string; pain_level: number | null }>).map((r) => ({
+          at: r.created_at,
+          pain: r.pain_level,
+        })),
+      );
+    }
+  }
+
   const painNow =
     state === "awaiting_pain" ? (readPain(message) ?? assist?.painScore ?? null) : null;
   const redFlags = runRedFlagRules({
@@ -381,6 +411,8 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     redFlags,
     now,
     hasWearable: client ? await hasWearable(admin, client.id) : false,
+    route,
+    progressText,
     wearableOffered: Boolean(conv.wearable_offer_at),
     assist,
   });
@@ -622,6 +654,14 @@ async function applyEffects(
       `${firstNameOf(client.full_name)} asked on WhatsApp to be contacted.`,
     ).catch(() => {});
   }
+  if (decision.clinicalQuestion) {
+    await raiseClinicalQuestion(admin, client, decision.clinicalQuestion).catch((e) =>
+      log.warn("whatsapp worker: clinical question alert failed", {
+        error: e instanceof Error ? e.message : "unknown",
+      }),
+    );
+  }
+
   if (decision.noteForPractitioner) {
     await raiseContactAlert(
       admin,
@@ -721,6 +761,51 @@ async function raiseRedFlagAlert(
     log.warn("whatsapp worker: webhook failed", {
       error: e instanceof Error ? e.message : "unknown",
     });
+  }
+}
+
+/**
+ * A clinical question Buddy will not answer. Justin (practice manager) is told
+ * Buddy promised him: an alert on the client, push to the treating
+ * practitioner and the practice owner, and the alert email to the practice
+ * inbox.
+ */
+async function raiseClinicalQuestion(
+  admin: Admin,
+  client: ClientRow,
+  question: string,
+): Promise<void> {
+  const firstName = firstNameOf(client.full_name);
+  const { data: alertRow } = await admin
+    .from("alerts")
+    .insert({
+      practitioner_id: client.practitioner_id,
+      client_id: client.id,
+      alert_type: "client_contact_request",
+      message: `Clinical question on WhatsApp, waiting for an answer: ${question}`.slice(0, 1000),
+      urgency: "soon",
+      is_read: false,
+      webhook_fired: false,
+    })
+    .select("id")
+    .single();
+  const alertId = (alertRow as { id?: string } | null)?.id;
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { sendPushCore } = await import("@/lib/push.functions");
+  const push = {
+    title: "Question for you",
+    body: `${firstName} asked a clinical question on WhatsApp. Buddy said you'd answer shortly.`,
+    data: { clientId: client.id, kind: "whatsapp_question" },
+  };
+  const owner = await practiceOwnerId(admin, client);
+  const recipients = [...new Set([client.practitioner_id, owner].filter(Boolean) as string[])];
+  for (const userId of recipients) {
+    await sendPushCore(supabaseAdmin, { userId, ...push }).catch(() => undefined);
+  }
+  if (alertId) {
+    const { sendAlertEmailCore } = await import("@/lib/notify-practitioner.functions");
+    await sendAlertEmailCore(supabaseAdmin, alertId).catch(() => undefined);
   }
 }
 

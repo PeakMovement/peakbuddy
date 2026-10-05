@@ -515,4 +515,42 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     expect(sent).toHaveLength(1);
     expect(db.tables.whatsapp_conversations[0].state).toBe("idle");
   });
+
+  it("a clinical question raises an alert waiting for Justin and promises an answer", async () => {
+    const db = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [inbound("Should I ice it?")],
+      whatsapp_conversations: [
+        {
+          id: "c1",
+          phone: "27820000001",
+          client_id: "client-1",
+          state: "idle",
+          draft: {},
+          checkin_started_at: null,
+        },
+      ],
+      consent_records: [
+        {
+          id: "k1",
+          client_id: "client-1",
+          consent_type: "whatsapp_checkins",
+          withdrawn_at: null,
+          superseded_by: null,
+        },
+      ],
+      check_ins: [{ id: "x", client_id: "client-1", created_at: "2026-10-05T06:00:00Z", pain_level: 3 }],
+      alerts: [],
+    });
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect((sent[0] as { body: string }).body).toMatch(/not medically equipped/);
+    expect(db.tables.alerts[0]).toMatchObject({
+      client_id: "client-1",
+      alert_type: "client_contact_request",
+      urgency: "soon",
+    });
+    expect(db.tables.alerts[0].message).toContain("Should I ice it?");
+  });
 });
+

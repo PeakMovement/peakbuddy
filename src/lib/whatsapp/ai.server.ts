@@ -1,4 +1,5 @@
 import type { AiAssist } from "./conversation";
+import { ASSIST_INTENTS, PRACTICE_INFO, type AssistRoute } from "./assistant";
 
 /**
  * The two places the WhatsApp agent uses AI, both strictly as a fallback.
@@ -162,4 +163,92 @@ function toBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
   }
   return btoa(binary);
+}
+
+/* ------------------------------------------------------------------ */
+/* Routing messages that are not check-in answers                      */
+/* ------------------------------------------------------------------ */
+
+const ROUTE_TOOL = {
+  name: "route_message",
+  description:
+    "Classify the patient's message and, for practice questions, answer from the practice information only.",
+  input_schema: {
+    type: "object",
+    properties: {
+      intent: {
+        type: "string",
+        enum: [...ASSIST_INTENTS],
+      },
+      answer: {
+        type: ["string", "null"],
+        description:
+          "Only for practice_info: a short, friendly answer using ONLY facts in the practice information. Null if the information does not contain the answer.",
+      },
+    },
+    required: ["intent", "answer"],
+  },
+} as const;
+
+const ROUTE_SYSTEM = `You route WhatsApp messages sent to Buddy, the check-in assistant of a physiotherapy practice. The patient is not answering a check-in question right now.
+Pick exactly one intent:
+- log_change: they want to record that something has changed (pain, a symptom, how they feel) since their last check-in.
+- booking: they want an appointment, check-up, to reschedule or cancel, or ask about availability.
+- practice_info: a question about the practice itself: hours, address, parking, fees, medical aid, services, how to contact.
+- clinical_question: any question about their condition, symptoms, treatment, exercises' safety, medication, what they should or shouldn't do, whether something is normal.
+- progress: they ask how they have been doing according to their check-ins.
+- exercises: they want their exercise programme (not advice about it).
+- greeting: a greeting, thanks or small talk with nothing else in it.
+- other: anything else, including statements about how they feel.
+When unsure between clinical_question and anything else, choose clinical_question.
+For practice_info, write the answer in 1 to 3 short sentences using ONLY the practice information below. Never invent prices, times, names or policies. If the information does not cover it, answer null.
+Write in plain, warm South African English. No dashes.
+
+PRACTICE INFORMATION:
+${PRACTICE_INFO}`;
+
+/** AI router. Null on any failure, and the caller falls back to keywords. */
+export async function routeWithAi(text: string): Promise<AssistRoute | null> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key || !text.trim()) return null;
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_MODEL,
+        max_tokens: 300,
+        system: ROUTE_SYSTEM,
+        tools: [ROUTE_TOOL],
+        tool_choice: { type: "tool", name: ROUTE_TOOL.name },
+        messages: [{ role: "user", content: text.slice(0, 1500) }],
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      content?: Array<{ type: string; input?: { intent?: unknown; answer?: unknown } }>;
+    };
+    return validRoute(json.content?.find((c) => c.type === "tool_use")?.input);
+  } catch {
+    return null;
+  }
+}
+
+/** Exported for tests. The model's choice is checked, never trusted blind. */
+export function validRoute(
+  input: { intent?: unknown; answer?: unknown } | undefined,
+): AssistRoute | null {
+  const intent = input?.intent;
+  if (typeof intent !== "string" || !(ASSIST_INTENTS as readonly string[]).includes(intent))
+    return null;
+  const answer =
+    intent === "practice_info" && typeof input?.answer === "string" && input.answer.trim()
+      ? input.answer.trim().slice(0, 600)
+      : null;
+  return { intent: intent as AssistRoute["intent"], answer };
 }

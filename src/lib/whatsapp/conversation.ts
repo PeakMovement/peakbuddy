@@ -3,6 +3,13 @@ import { extractDeterministic } from "./extraction";
 import { classifyIntent, CONTACT_ACKNOWLEDGEMENT, OPT_OUT_CONFIRMATION } from "./intent";
 import type { RuleLayerResult } from "./red-flag-rules";
 import { currentConsent } from "@/lib/consent/wording";
+import {
+  ASSIST_MSG,
+  CHECKIN_REQUEST,
+  practiceAnswerByKeywords,
+  routeByKeywords,
+  type AssistRoute,
+} from "./assistant";
 
 /**
  * The WhatsApp check-in conversation, as a pure function.
@@ -45,6 +52,8 @@ export interface CheckinDraft {
   notes?: string[];
   /** How many times in a row the current question has not been understood. */
   misses?: number;
+  /** A "log a change" update: pain and what changed only, saved alongside today's check-in. */
+  update?: boolean;
 }
 
 export interface ConversationSnapshot {
@@ -90,6 +99,10 @@ export interface DecisionContext {
   /** Buddy has already offered to connect a wearable once. */
   wearableOffered?: boolean;
   assist?: AiAssist;
+  /** What a non-answer message is for, from the AI router. Keywords when absent. */
+  route?: AssistRoute;
+  /** The patient's own trend, worked out by the worker when they ask. */
+  progressText?: string;
 }
 
 export interface CheckinToSave {
@@ -114,6 +127,8 @@ export interface Decision {
   markWearableOffered?: boolean;
   /** "HH:MM", South African time. The patient asked to be checked in at this time. */
   setReminderTime?: string;
+  /** A clinical question Buddy will not answer. Justin is alerted with it. */
+  clinicalQuestion?: string;
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -358,13 +373,13 @@ const IDLE = (s: ConversationSnapshot["state"] = "idle"): ConversationSnapshot =
   checkinStartedAt: null,
 });
 
-function startCheckin(ctx: DecisionContext, lead: Reply[]): Decision {
+function startCheckin(ctx: DecisionContext, lead: Reply[], seedNotes: string[] = []): Decision {
   if (ctx.checkedInToday) {
     return { replies: [...lead, text(MSG.alreadyToday)], next: IDLE() };
   }
   return {
     replies: [...lead, text(MSG.checkinOpener(ctx.client!.firstName)), text(MSG.askPain)],
-    next: { state: "awaiting_pain", draft: { notes: [] }, checkinStartedAt: ctx.now },
+    next: { state: "awaiting_pain", draft: { notes: seedNotes }, checkinStartedAt: ctx.now },
   };
 }
 
@@ -506,6 +521,19 @@ export function decide(ctx: DecisionContext): Decision {
       }
       // "About a 6, knee is stiff" carries more than the number.
       const extra = raw && !/^\d{1,2}(\s*\/\s*10)?[.!]*$/.test(raw) ? [raw] : [];
+      if (draft.update) {
+        // Logging a change: pain, then what changed. No sleep or energy.
+        return withSafety(
+          {
+            replies: [text(ASSIST_MSG.changeAskWhat)],
+            next: keep(
+              { pain, notes: [...(draft.notes ?? []), ...extra], misses: 0 },
+              "awaiting_notes",
+            ),
+          },
+          ctx,
+        );
+      }
       return withSafety(
         {
           replies: [askSleep()],
@@ -557,6 +585,22 @@ export function decide(ctx: DecisionContext): Decision {
     case "awaiting_notes": {
       const added = msg.replyId === IDS.notesNone ? [] : raw ? [raw] : [];
       const notes = [...(draft.notes ?? []), ...added].join("\n").slice(0, 2000);
+      if (draft.update) {
+        return withSafety(
+          {
+            replies: [text(ASSIST_MSG.changeSaved)],
+            next: IDLE(),
+            saveCheckin: {
+              pain: draft.pain ?? 0,
+              sleep: null,
+              energy: null,
+              notes: `Update: ${notes}`.slice(0, 2000),
+              flagged: ctx.redFlags.triggered,
+            },
+          },
+          ctx,
+        );
+      }
       // After the first check-in, offer to connect a wearable. Once only.
       const offer = !ctx.hasWearable && !ctx.wearableOffered;
       const decision: Decision = {
@@ -592,6 +636,62 @@ export function decide(ctx: DecisionContext): Decision {
           ctx,
         );
       }
+      if (CHECKIN_REQUEST.test(raw)) return withSafety(startCheckin(ctx, []), ctx);
+
+      // Questions and requests get answered rather than turned into a check-in.
+      const route = ctx.route ?? routeByKeywords(raw);
+      const nudge = ctx.checkedInToday ? [] : [text(ASSIST_MSG.checkinNudge)];
+      switch (route.intent) {
+        case "log_change":
+          // Before today's check-in, the check-in itself is the way to log it.
+          if (!ctx.checkedInToday) return withSafety(startCheckin(ctx, []), ctx);
+          return withSafety(
+            {
+              replies: [text(ASSIST_MSG.changeAskPain)],
+              next: {
+                state: "awaiting_pain",
+                draft: { notes: [], update: true },
+                checkinStartedAt: ctx.now,
+              },
+            },
+            ctx,
+          );
+        case "booking":
+          return withSafety({ replies: [text(ASSIST_MSG.booking), ...nudge], next: IDLE() }, ctx);
+        case "practice_info":
+          return withSafety(
+            {
+              replies: [
+                text(route.answer ?? practiceAnswerByKeywords(raw) ?? ASSIST_MSG.practiceUnknown),
+                ...nudge,
+              ],
+              next: IDLE(),
+            },
+            ctx,
+          );
+        case "clinical_question":
+          return withSafety(
+            {
+              replies: [text(ASSIST_MSG.clinical)],
+              next: IDLE(),
+              clinicalQuestion: raw.slice(0, 1000),
+            },
+            ctx,
+          );
+        case "progress":
+          return withSafety(
+            {
+              replies: [text(ctx.progressText ?? ASSIST_MSG.progressNone), ...nudge],
+              next: IDLE(),
+            },
+            ctx,
+          );
+        case "exercises":
+          return withSafety({ replies: [text(ASSIST_MSG.exercises), ...nudge], next: IDLE() }, ctx);
+        default:
+          break;
+      }
+
       // Idle. Any message starts today's check-in, unless it is already done,
       // in which case what they wrote is a note for the practitioner.
       if (ctx.checkedInToday) {
@@ -606,7 +706,9 @@ export function decide(ctx: DecisionContext): Decision {
           ctx,
         );
       }
-      return withSafety(startCheckin(ctx, []), ctx);
+      // Whatever they opened with is kept for the practitioner, unless it was just hello.
+      const seed = route.intent === "other" && raw ? [raw] : [];
+      return withSafety(startCheckin(ctx, [], seed), ctx);
     }
   }
 }
