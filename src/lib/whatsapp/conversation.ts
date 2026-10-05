@@ -139,6 +139,11 @@ export interface DecisionContext {
   };
   /** They have a Buddy app login already. */
   hasAppAccount?: boolean;
+  /**
+   * A personal "connect your watch" page link, for patients with no app login
+   * (they can't get past the app's sign-in page). Absent: the app link.
+   */
+  watchUrl?: string;
   /** Eligible for the one-time app offer (no app login, not offered before). */
   appOfferDue?: boolean;
   assist?: AiAssist;
@@ -255,6 +260,10 @@ export const MSG = {
     "\n\nIt only takes a minute. Garmin, Oura and Polar are supported.",
   appAlready:
     "You already have a Buddy app login. Open the app and sign in with your email: https://peakbuddy.lovable.app/client/login",
+  wearableLinkDirect: (url: string) =>
+    "Great. Tap this link and pick your device. You'll sign in with your Garmin, Oura or Polar account, not Buddy:\n\n" +
+    url +
+    "\n\nIt only takes a minute.",
   wearableDeclined:
     "No problem. If you change your mind, just send me the word WATCH and I'll send the link.",
   reminderSet: (hhmm: string) =>
@@ -380,6 +389,9 @@ const askEnergy = (body: string = MSG.askEnergy): Reply => ({
   buttonLabel: "Choose",
   rows: ENERGY_ROWS.map((r) => ({ id: IDS.energy(r.n), title: r.title })),
 });
+
+const wearableLinkReply = (ctx: DecisionContext): Reply =>
+  text(ctx.watchUrl ? MSG.wearableLinkDirect(ctx.watchUrl) : MSG.wearableLink);
 
 const wearableOffer = (): Reply => ({
   kind: "buttons",
@@ -538,7 +550,7 @@ function interjectMidCheckin(
       return { replies: [...lead, text(ASSIST_MSG.exercises), again], next: keepHere };
     case "connect_wearable":
       return {
-        replies: [...lead, text(MSG.wearableLink), again],
+        replies: [...lead, wearableLinkReply(ctx), again],
         next: keepHere,
         markWearableOffered: true,
       };
@@ -616,7 +628,7 @@ function converseIdle(ctx: DecisionContext, raw: string): Decision | null {
       };
     case "connect_wearable":
       return {
-        replies: [...lead, text(MSG.wearableLink)],
+        replies: [...lead, wearableLinkReply(ctx)],
         next: IDLE(),
         markWearableOffered: true,
       };
@@ -967,7 +979,7 @@ export function decide(ctx: DecisionContext): Decision {
 
     case "awaiting_wearable": {
       if (msg.replyId === IDS.wearableYes || YES.test(raw) || WEARABLE_REQUEST.test(raw)) {
-        return withSafety({ replies: [text(MSG.wearableLink)], next: IDLE() }, ctx);
+        return withSafety({ replies: [wearableLinkReply(ctx)], next: IDLE() }, ctx);
       }
       if (msg.replyId === IDS.wearableNo || NO.test(raw) || /^not now[.!]*$/i.test(raw)) {
         return withSafety({ replies: [text(MSG.wearableDeclined)], next: IDLE() }, ctx);
@@ -979,7 +991,7 @@ export function decide(ctx: DecisionContext): Decision {
     default: {
       if (WEARABLE_REQUEST.test(raw)) {
         return withSafety(
-          { replies: [text(MSG.wearableLink)], next: IDLE(), markWearableOffered: true },
+          { replies: [wearableLinkReply(ctx)], next: IDLE(), markWearableOffered: true },
           ctx,
         );
       }
@@ -1040,7 +1052,7 @@ export function decide(ctx: DecisionContext): Decision {
           );
         case "menu_watch":
           return withSafety(
-            { replies: [text(MSG.wearableLink)], next: IDLE(), markWearableOffered: true },
+            { replies: [wearableLinkReply(ctx)], next: IDLE(), markWearableOffered: true },
             ctx,
           );
         default:

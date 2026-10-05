@@ -138,3 +138,20 @@ describe("consent gate for existing profiles", () => {
     expect(bodies(d)).toContain(ONBOARD_MSG.consentReminder(url).split("\n")[0]);
   });
 });
+
+describe("watch link for WhatsApp-only patients", () => {
+  it("sends the no-login connect page when there is one, the app link otherwise", () => {
+    const base = {
+      client: { firstName: "Test" },
+      hasConsent: true,
+      conversation: snap("awaiting_wearable"),
+    };
+    const direct = decide(
+      ctx("Yes", { ...base, watchUrl: "https://example.test/connect-watch?t=abc" }),
+    );
+    expect(bodies(direct)).toContain("/connect-watch?t=abc");
+    expect(bodies(direct)).not.toContain("sign in to Buddy");
+    const app = decide(ctx("Yes", base));
+    expect(bodies(app)).toContain("/client/app/profile#wearables");
+  });
+});

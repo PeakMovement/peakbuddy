@@ -14,13 +14,38 @@ export const Route = createFileRoute("/api/public/wearables/polar/callback")({
         const code = url.searchParams.get("code");
         const state = url.searchParams.get("state"); // = our client_id
         const base = process.env.BUDDY_APP_BASE_URL ?? url.origin;
-        const back = (status: string) =>
-          new Response(null, {
-            status: 302,
-            headers: { Location: `${base}/client/app/profile?wearable=polar&status=${status}` },
-          });
+        // Where to send the browser. Known once the state row is read: a patient
+        // without an app login goes to the public connect page, not a sign-in.
+        let returnClientId: string | null = null;
+        const back = async (status: string) => {
+          let location = `${base}/client/app/profile?wearable=polar&status=${status}`;
+          if (returnClientId) {
+            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+            const { wearableReturnUrl } = await import("@/lib/wearables/watch-link.server");
+            location = await wearableReturnUrl(
+              supabaseAdmin,
+              base,
+              returnClientId,
+              "polar",
+              status,
+            );
+          }
+          return new Response(null, { status: 302, headers: { Location: location } });
+        };
 
-        if (!code || !state) return back("error");
+        if (!code || !state) {
+          // Cancelled on the provider's page: still send them back to the right place.
+          if (state) {
+            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+            const { data: row } = await supabaseAdmin
+              .from("wearable_oauth_state")
+              .select("client_id")
+              .eq("state", state)
+              .maybeSingle();
+            returnClientId = (row?.client_id as string | undefined) ?? null;
+          }
+          return back("error");
+        }
 
         try {
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -34,6 +59,7 @@ export const Route = createFileRoute("/api/public/wearables/polar/callback")({
             .eq("provider", "polar")
             .maybeSingle();
           if (!stateRow) return back("error");
+          returnClientId = stateRow.client_id as string;
           await supabaseAdmin.from("wearable_oauth_state").delete().eq("state", state);
           if (new Date(stateRow.expires_at).getTime() < Date.now()) return back("error");
           const resolvedClientId = stateRow.client_id as string;

@@ -28,7 +28,7 @@ import {
 import { type ConverseResult, type ConverseTurn } from "./converse";
 import { progressSummary, routeByKeywords, routeFromMenu, type AssistRoute } from "./assistant";
 import { hasAiConsent } from "@/lib/ai-consent";
-import { ONBOARD_MSG, parseJoinCode } from "./onboarding";
+import { APP_ORIGIN, ONBOARD_MSG, parseJoinCode } from "./onboarding";
 import {
   createSelfSignupClient,
   currentConsentTypes,
@@ -518,6 +518,15 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     previousPainScore: prevPain,
   });
 
+  // No app login means the app's Wearables page is behind a sign-in they
+  // can't pass, so watch links go to the public connect page instead.
+  let watchUrl: string | undefined;
+  if (client && !client.auth_user_id) {
+    const { mintWatchToken, watchLinkUrl } = await import("@/lib/wearables/watch-link.server");
+    const token = await mintWatchToken(client.id, now).catch(() => null);
+    if (token) watchUrl = watchLinkUrl(APP_ORIGIN, token);
+  }
+
   const decision = decide({
     message,
     conversation: {
@@ -541,6 +550,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     inviteInvalid: !client && inviteInvalid,
     signup,
     hasAppAccount: Boolean(client?.auth_user_id),
+    watchUrl,
     appOfferDue: Boolean(client && !client.auth_user_id && !conv.app_offer_at),
   });
 
