@@ -15,6 +15,18 @@ vi.mock("@/lib/webhooks.functions", () => ({
 import { processPendingInbound } from "./worker.server";
 import type { OutboundMessage, WhatsAppProvider } from "./provider";
 import { IDS } from "./conversation";
+import { acceptConsentLink } from "./onboarding.server";
+import { currentConsent } from "@/lib/consent/wording";
+
+const CONSENTED = () =>
+  (["popia_core", "whatsapp_checkins"] as const).map((t, i) => ({
+    id: `k${i + 1}`,
+    client_id: "client-1",
+    consent_type: t,
+    version: currentConsent(t).version,
+    withdrawn_at: null,
+    superseded_by: null,
+  }));
 
 /* ------------------------------------------------------------------ */
 /* A tiny in-memory stand-in for the parts of supabase-js the worker uses */
@@ -98,6 +110,14 @@ function fakeDb(seed: Record<string, Row[]>) {
       },
       not(c: string, _op: string, v: any) {
         filters.push((r) => (r[c] ?? null) !== v);
+        return api;
+      },
+      in(c: string, vs: any[]) {
+        filters.push((r) => vs.includes(r[c]));
+        return api;
+      },
+      ilike(c: string, v: any) {
+        filters.push((r) => String(r[c] ?? "").toLowerCase() === String(v).toLowerCase());
         return api;
       },
       lt(c: string, v: any) {
@@ -206,16 +226,25 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     await say("Hi");
     expect(db.tables.whatsapp_conversations[0].client_id).toBe("client-1");
     expect(db.tables.whatsapp_conversations[0].state).toBe("awaiting_consent");
-    expect(sent.at(-1)?.kind).toBe("buttons");
+    // Nothing is collected before consent: Buddy sends a personal link to the consent page.
+    const linkMsg = (sent.at(-1) as { body: string }).body;
+    const token = decodeURIComponent(linkMsg.match(/consent\?t=([^\s]+)/)![1]);
+    expect(db.tables.consent_links).toHaveLength(1);
+    expect(db.tables.consent_links[0].token_hash).not.toContain(token);
 
-    await say("I agree", IDS.consentYes);
-    expect(db.tables.consent_records).toHaveLength(1);
-    expect(db.tables.consent_records[0]).toMatchObject({
-      client_id: "client-1",
-      consent_type: "whatsapp_checkins",
-      channel: "whatsapp",
-    });
+    // They sign on the page.
+    const accepted = await acceptConsentLink(db.admin, token, { aiConsent: false });
+    expect(accepted.ok).toBe(true);
+    expect(db.tables.consent_records.map((r) => r.consent_type).sort()).toEqual([
+      "popia_core",
+      "whatsapp_checkins",
+    ]);
     expect(db.tables.consent_records[0].wording_snapshot).toContain("AGREEMENT");
+    // The link only works once.
+    expect((await acceptConsentLink(db.admin, token, { aiConsent: false })).ok).toBe(false);
+
+    await say("hi again");
+    expect(db.tables.whatsapp_conversations[0].state).toBe("awaiting_pain");
 
     await say("4");
     await say("4 Well", IDS.sleep(4));
@@ -322,22 +351,18 @@ describe("WhatsApp worker, end to end against a fake database", () => {
           checkin_started_at: NOW().toISOString(),
         },
       ],
-      consent_records: [
-        {
-          id: "k1",
-          client_id: "client-1",
-          consent_type: "whatsapp_checkins",
-          withdrawn_at: null,
-          superseded_by: null,
-        },
-      ],
+      consent_records: CONSENTED(),
       check_ins: [],
     });
     const { provider } = fakeProvider();
     await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
     expect(db.tables.whatsapp_conversations[0].state).toBe("opted_out");
     expect(db.tables.whatsapp_conversations[0].opted_out_at).toBeTruthy();
-    expect(db.tables.consent_records[0].withdrawn_at).toBeTruthy();
+    const wa = db.tables.consent_records.find((r) => r.consent_type === "whatsapp_checkins");
+    expect(wa?.withdrawn_at).toBeTruthy();
+    // POPIA consent to their treatment record is untouched by a WhatsApp opt-out.
+    const popia = db.tables.consent_records.find((r) => r.consent_type === "popia_core");
+    expect(popia?.withdrawn_at).toBeNull();
   });
 
   it("a red flag raises an alert on the profile and the patient gets the safety message", async () => {
@@ -354,15 +379,7 @@ describe("WhatsApp worker, end to end against a fake database", () => {
           checkin_started_at: null,
         },
       ],
-      consent_records: [
-        {
-          id: "k1",
-          client_id: "client-1",
-          consent_type: "whatsapp_checkins",
-          withdrawn_at: null,
-          superseded_by: null,
-        },
-      ],
+      consent_records: CONSENTED(),
       check_ins: [],
       alerts: [],
     });
@@ -388,15 +405,7 @@ describe("WhatsApp worker, end to end against a fake database", () => {
           checkin_started_at: NOW().toISOString(),
         },
       ],
-      consent_records: [
-        {
-          id: "k1",
-          client_id: "client-1",
-          consent_type: "whatsapp_checkins",
-          withdrawn_at: null,
-          superseded_by: null,
-        },
-      ],
+      consent_records: CONSENTED(),
       check_ins: [],
     });
     const realFrom = db.admin.from;
@@ -463,15 +472,7 @@ describe("WhatsApp worker, end to end against a fake database", () => {
           checkin_started_at: null,
         },
       ],
-      consent_records: [
-        {
-          id: "k1",
-          client_id: "client-1",
-          consent_type: "whatsapp_checkins",
-          withdrawn_at: null,
-          superseded_by: null,
-        },
-      ],
+      consent_records: CONSENTED(),
       check_ins: [],
     });
     const { provider } = fakeProvider();
@@ -498,22 +499,16 @@ describe("WhatsApp worker, end to end against a fake database", () => {
           checkin_started_at: NOW().toISOString(),
         },
       ],
-      consent_records: [
-        {
-          id: "k1",
-          client_id: "client-1",
-          consent_type: "whatsapp_checkins",
-          withdrawn_at: null,
-          superseded_by: null,
-        },
-      ],
+      consent_records: CONSENTED(),
       check_ins: [],
       wearable_tokens: [{ client_id: "client-1", provider: "garmin" }],
     });
     const { provider, sent } = fakeProvider();
     await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
-    expect(sent).toHaveLength(1);
-    expect(db.tables.whatsapp_conversations[0].state).toBe("idle");
+    // No watch offer; the one-time app offer comes instead.
+    expect(sent).toHaveLength(2);
+    expect((sent[1] as { body: string }).body).toMatch(/Buddy app/);
+    expect(db.tables.whatsapp_conversations[0].state).toBe("awaiting_email");
   });
 
   it("a clinical question raises an alert waiting for Justin and promises an answer", async () => {
@@ -530,15 +525,7 @@ describe("WhatsApp worker, end to end against a fake database", () => {
           checkin_started_at: null,
         },
       ],
-      consent_records: [
-        {
-          id: "k1",
-          client_id: "client-1",
-          consent_type: "whatsapp_checkins",
-          withdrawn_at: null,
-          superseded_by: null,
-        },
-      ],
+      consent_records: CONSENTED(),
       check_ins: [
         { id: "x", client_id: "client-1", created_at: "2026-10-05T06:00:00Z", pain_level: 3 },
       ],
@@ -597,15 +584,7 @@ describe("WhatsApp worker, end to end against a fake database", () => {
             checkin_started_at: null,
           },
         ],
-        consent_records: [
-          {
-            id: "k1",
-            client_id: "client-1",
-            consent_type: "whatsapp_checkins",
-            withdrawn_at: null,
-            superseded_by: null,
-          },
-        ],
+        consent_records: CONSENTED(),
         check_ins: [
           { id: "x", client_id: "client-1", created_at: "2026-10-05T06:00:00Z", pain_level: 3 },
         ],

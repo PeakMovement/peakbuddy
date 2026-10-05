@@ -3,6 +3,13 @@ import { extractDeterministic } from "./extraction";
 import { classifyIntent, CONTACT_ACKNOWLEDGEMENT, OPT_OUT_CONFIRMATION } from "./intent";
 import type { RuleLayerResult } from "./red-flag-rules";
 import type { ConverseResult } from "./converse";
+import {
+  ONBOARD_MSG,
+  looksLikeEmail,
+  matchPractitioner,
+  readName,
+  type PractitionerOption,
+} from "./onboarding";
 import { currentConsent } from "@/lib/consent/wording";
 import {
   ASSIST_MSG,
@@ -45,6 +52,9 @@ export type ConversationState =
   | "awaiting_energy"
   | "awaiting_notes"
   | "awaiting_wearable"
+  | "awaiting_name"
+  | "awaiting_practitioner"
+  | "awaiting_email"
   | "opted_out"
   | "unmatched";
 
@@ -62,6 +72,9 @@ export interface CheckinDraft {
   awaitingQuestion?: boolean;
   /** They tapped "Change check-in time": the next message is the time. */
   awaitingTime?: boolean;
+  /** Self sign-up from a practice link: which practice, and the name they gave. */
+  signupPracticeId?: string;
+  signupName?: string;
 }
 
 export interface ConversationSnapshot {
@@ -106,6 +119,28 @@ export interface DecisionContext {
   hasWearable?: boolean;
   /** Buddy has already offered to connect a wearable once. */
   wearableOffered?: boolean;
+  /**
+   * A personal link to the consent page, minted by the worker whenever consent
+   * is missing. Absent only if links can't be made yet (migration not
+   * applied), in which case consent falls back to buttons in the chat.
+   */
+  consentUrl?: string;
+  /** A client invite code was just used: welcome them by practice name. */
+  inviteWelcome?: { practiceName: string };
+  /** A join code was sent that doesn't work (expired, revoked, unknown). */
+  inviteInvalid?: boolean;
+  /** Self sign-up in progress or starting from a practice link (no profile yet). */
+  signup?: {
+    practiceId: string;
+    practiceName: string;
+    practitioners: PractitionerOption[];
+    /** Who "Not sure" goes to: the practice owner. */
+    fallback: PractitionerOption;
+  };
+  /** They have a Buddy app login already. */
+  hasAppAccount?: boolean;
+  /** Eligible for the one-time app offer (no app login, not offered before). */
+  appOfferDue?: boolean;
   assist?: AiAssist;
   /** What a non-answer message is for, from the AI router. Keywords when absent. */
   route?: AssistRoute;
@@ -138,6 +173,11 @@ export interface Decision {
   saveCheckin?: CheckinToSave;
   /** Record that the wearable offer was made, so it is made once. */
   markWearableOffered?: boolean;
+  /** Self sign-up finished: create this profile and link the number to it. */
+  createClient?: { fullName: string; practitionerId: string; practiceId: string };
+  /** Set up a Buddy app login with this email. The worker writes the reply. */
+  accountEmail?: string;
+  markAppOffered?: boolean;
   /** "HH:MM", South African time. The patient asked to be checked in at this time. */
   setReminderTime?: string;
   /** A clinical question Buddy will not answer. Justin is alerted with it. */
@@ -213,6 +253,8 @@ export const MSG = {
     "Great. Tap this link, sign in to Buddy if it asks, and choose your device under Wearables:\n\n" +
     WEARABLE_CONNECT_URL +
     "\n\nIt only takes a minute. Garmin, Oura and Polar are supported.",
+  appAlready:
+    "You already have a Buddy app login. Open the app and sign in with your email: https://peakbuddy.lovable.app/client/login",
   wearableDeclined:
     "No problem. If you change your mind, just send me the word WATCH and I'll send the link.",
   reminderSet: (hhmm: string) =>
@@ -385,6 +427,16 @@ export function readBareTime(text: string): string | null {
   if (!m) return null;
   return readReminderTime(`remind me at ${m[1]}${m[2] ? `:${m[2]}` : ""}${m[3] ? ` ${m[3]}` : ""}`);
 }
+
+const practitionerList = (body: string, s: NonNullable<DecisionContext["signup"]>): Reply => ({
+  kind: "list",
+  body,
+  buttonLabel: "Choose",
+  rows: [
+    ...s.practitioners.slice(0, 9).map((p) => ({ id: `prac_${p.id}`, title: p.name.slice(0, 24) })),
+    { id: "prac_unsure", title: "Not sure" },
+  ],
+});
 
 const askNotes = (): Reply => ({
   kind: "buttons",
@@ -591,13 +643,58 @@ export function decide(ctx: DecisionContext): Decision {
   const { message: msg, conversation: conv } = ctx;
   const raw = (msg.text ?? "").trim();
 
-  // 1. Unknown number. Nothing is recorded anywhere clinical.
+  // 1. No profile for this number (yet). Nothing is recorded anywhere clinical.
   if (!ctx.client) {
     const safety = safetyReply(ctx.redFlags);
-    return {
-      replies: [...(safety ? [text(safety)] : []), text(MSG.unmatched)],
-      next: IDLE("unmatched"),
-    };
+    const safe = safety ? [text(safety)] : [];
+    if (ctx.inviteInvalid) {
+      return { replies: [...safe, text(ONBOARD_MSG.inviteInvalid)], next: IDLE("unmatched") };
+    }
+    const s = ctx.signup;
+    if (s) {
+      // Self sign-up from a practice link: name, then practitioner, then a profile.
+      if (conv.state === "awaiting_practitioner" && conv.draft.signupName) {
+        const pick: PractitionerOption | null =
+          msg.replyId === "prac_unsure"
+            ? s.fallback
+            : msg.replyId?.startsWith("prac_")
+              ? (s.practitioners.find((p) => `prac_${p.id}` === msg.replyId) ?? null)
+              : matchPractitioner(raw, s.practitioners);
+        if (!pick) {
+          return {
+            replies: [...safe, practitionerList(ONBOARD_MSG.practitionerRetry, s)],
+            next: conv,
+          };
+        }
+        const name = conv.draft.signupName;
+        return {
+          replies: [...safe, text(ONBOARD_MSG.linked(name.split(" ")[0], pick.name))],
+          next: IDLE("new"),
+          createClient: { fullName: name, practitionerId: pick.id, practiceId: s.practiceId },
+        };
+      }
+      if (conv.state === "awaiting_name") {
+        const name = readName(raw);
+        if (!name) return { replies: [...safe, text(ONBOARD_MSG.nameRetry)], next: conv };
+        return {
+          replies: [...safe, practitionerList(ONBOARD_MSG.askPractitioner(name.split(" ")[0]), s)],
+          next: {
+            state: "awaiting_practitioner",
+            draft: { signupPracticeId: s.practiceId, signupName: name },
+            checkinStartedAt: null,
+          },
+        };
+      }
+      return {
+        replies: [...safe, text(ONBOARD_MSG.practiceWelcome(s.practiceName))],
+        next: {
+          state: "awaiting_name",
+          draft: { signupPracticeId: s.practiceId },
+          checkinStartedAt: null,
+        },
+      };
+    }
+    return { replies: [...safe, text(MSG.unmatched)], next: IDLE("unmatched") };
   }
   const firstName = ctx.client.firstName;
 
@@ -608,7 +705,11 @@ export function decide(ctx: DecisionContext): Decision {
   if (conv.state === "opted_out") {
     if (START.test(raw)) {
       return {
-        replies: [consentPrompt(firstName)],
+        replies: [
+          ctx.consentUrl
+            ? text(ONBOARD_MSG.consentLink(firstName, ctx.consentUrl))
+            : consentPrompt(firstName),
+        ],
         next: IDLE("awaiting_consent"),
         optIn: true,
       };
@@ -642,7 +743,22 @@ export function decide(ctx: DecisionContext): Decision {
     );
   }
 
-  // 4. Consent before anything is collected.
+  // 4. Consent before anything is collected. Everyone is checked, existing
+  //    profiles included: no current signed consent, no check-in, just the
+  //    personal link to the consent page.
+  const welcome = ctx.inviteWelcome
+    ? [text(ONBOARD_MSG.inviteWelcome(firstName, ctx.inviteWelcome.practiceName))]
+    : [];
+  if (!ctx.hasConsent && ctx.consentUrl) {
+    const body =
+      conv.state === "awaiting_consent" && !ctx.inviteWelcome
+        ? ONBOARD_MSG.consentReminder(ctx.consentUrl)
+        : ONBOARD_MSG.consentLink(firstName, ctx.consentUrl);
+    return withSafety({ replies: [...welcome, text(body)], next: IDLE("awaiting_consent") }, ctx);
+  }
+  if (ctx.hasConsent && ctx.inviteWelcome) {
+    return withSafety(startCheckin(ctx, welcome), ctx);
+  }
   if (!ctx.hasConsent) {
     if (conv.state === "awaiting_consent") {
       if (msg.replyId === IDS.consentYes || YES.test(raw)) {
@@ -810,10 +926,21 @@ export function decide(ctx: DecisionContext): Decision {
       }
       // After the first check-in, offer to connect a wearable. Once only.
       const offer = !ctx.hasWearable && !ctx.wearableOffered;
+      // One offer per check-in: the watch first, the app on a later one.
+      const appOffer = !offer && Boolean(ctx.appOfferDue);
       const decision: Decision = {
-        replies: offer ? [text(MSG.saved), wearableOffer()] : [text(MSG.saved)],
-        next: offer ? { state: "awaiting_wearable", draft: {}, checkinStartedAt: ctx.now } : IDLE(),
+        replies: offer
+          ? [text(MSG.saved), wearableOffer()]
+          : appOffer
+            ? [text(MSG.saved), text(ONBOARD_MSG.appOffer)]
+            : [text(MSG.saved)],
+        next: offer
+          ? { state: "awaiting_wearable", draft: {}, checkinStartedAt: ctx.now }
+          : appOffer
+            ? { state: "awaiting_email", draft: {}, checkinStartedAt: ctx.now }
+            : IDLE(),
         markWearableOffered: offer || undefined,
+        markAppOffered: appOffer || undefined,
         saveCheckin: {
           pain: draft.pain ?? 0,
           sleep: draft.sleep ?? null,
@@ -823,6 +950,19 @@ export function decide(ctx: DecisionContext): Decision {
         },
       };
       return withSafety(decision, ctx);
+    }
+
+    case "awaiting_email": {
+      const email = looksLikeEmail(raw);
+      if (email) return withSafety({ replies: [], next: IDLE(), accountEmail: email }, ctx);
+      if (NO.test(raw) || /^(no thanks|not now|maybe later|later)[.!]*$/i.test(raw)) {
+        return withSafety({ replies: [text(ONBOARD_MSG.appDeclined)], next: IDLE() }, ctx);
+      }
+      if (/@/.test(raw) && raw.length < 80) {
+        return withSafety({ replies: [text(ONBOARD_MSG.appAskAgain)], next: conv }, ctx);
+      }
+      // Something else entirely. Drop the offer and treat it as a fresh message.
+      return decide({ ...ctx, conversation: IDLE() });
     }
 
     case "awaiting_wearable": {
@@ -844,6 +984,18 @@ export function decide(ctx: DecisionContext): Decision {
         );
       }
       if (CHECKIN_REQUEST.test(raw)) return withSafety(startCheckin(ctx, []), ctx);
+      if (/^(app|the app|buddy app|get the app)[.!?]*$/i.test(raw)) {
+        return withSafety(
+          ctx.hasAppAccount
+            ? { replies: [text(MSG.appAlready)], next: IDLE() }
+            : {
+                replies: [text(ONBOARD_MSG.appOffer)],
+                next: { state: "awaiting_email", draft: {}, checkinStartedAt: ctx.now },
+                markAppOffered: true,
+              },
+          ctx,
+        );
+      }
 
       // Follow-ups to a menu choice made in the previous message.
       if (conv.draft.awaitingQuestion && raw && !msg.replyId) {

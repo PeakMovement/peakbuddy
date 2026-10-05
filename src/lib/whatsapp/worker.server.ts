@@ -28,6 +28,16 @@ import {
 import { type ConverseResult, type ConverseTurn } from "./converse";
 import { progressSummary, routeByKeywords, routeFromMenu, type AssistRoute } from "./assistant";
 import { hasAiConsent } from "@/lib/ai-consent";
+import { ONBOARD_MSG, parseJoinCode, stripJoinCode } from "./onboarding";
+import {
+  createSelfSignupClient,
+  currentConsentTypes,
+  findInvite,
+  mintConsentLink,
+  practiceName as practiceNameOf,
+  practiceRoster,
+  setupAppAccount,
+} from "./onboarding.server";
 
 /**
  * Drains whatsapp_inbound: one pending message at a time, oldest first.
@@ -74,6 +84,7 @@ interface ConversationRow {
   opted_out_at: string | null;
   unmatched_notice_at: string | null;
   wearable_offer_at?: string | null;
+  app_offer_at?: string | null;
 }
 
 interface ClientRow {
@@ -82,6 +93,8 @@ interface ClientRow {
   practitioner_id: string;
   practice_id?: string | null;
   yves_ai_consent?: boolean | null;
+  auth_user_id?: string | null;
+  phone?: string | null;
 }
 
 export interface WorkerResult {
@@ -205,7 +218,7 @@ const BASE_CONV_COLS =
 async function loadConversation(admin: Admin, phone: string): Promise<ConversationRow> {
   // wearable_offer_at arrives with migration 0014. Until it is applied, read
   // without it rather than failing every message.
-  let cols = `${BASE_CONV_COLS}, wearable_offer_at`;
+  let cols = `${BASE_CONV_COLS}, wearable_offer_at, app_offer_at`;
   const first = await admin
     .from("whatsapp_conversations")
     .select(cols)
@@ -303,20 +316,68 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
 
   const conv = await loadConversation(admin, phone);
 
+  // A "Chat to Buddy" link carries a join code in its pre-typed message.
+  const code = parseJoinCode(row.body ?? "");
+  let inviteWelcome: { practiceName: string } | undefined;
+  let inviteInvalid = false;
+  let signupPracticeId: string | null =
+    (conv.draft as CheckinDraft | null)?.signupPracticeId ?? null;
+
   // Link to a profile. Retried on every message until it succeeds, because the
   // practitioner may add the number after the patient first writes in.
   let clientId = conv.client_id;
+  if (code) {
+    const invite = await findInvite(admin, code).catch(() => null);
+    if (
+      invite?.kind === "client" &&
+      invite.client_id &&
+      (!invite.used_at || invite.client_id === conv.client_id)
+    ) {
+      // Their own invite: this number now belongs to that profile.
+      clientId = invite.client_id;
+      await admin
+        .from("whatsapp_invites")
+        .update({ used_at: now.toISOString() })
+        .eq("id", invite.id)
+        .is("used_at", null);
+      inviteWelcome = { practiceName: await practiceNameOf(admin, invite.practice_id) };
+    } else if (invite?.kind === "practice" && invite.practice_id) {
+      signupPracticeId = invite.practice_id;
+    } else if (!invite || invite.kind === "client") {
+      inviteInvalid = true;
+    }
+  }
   if (!clientId) clientId = await findClientIdByPhone(admin, phone);
 
   let client: ClientRow | null = null;
   if (clientId) {
     const { data } = await admin
       .from("clients")
-      .select("id, full_name, practitioner_id, practice_id, yves_ai_consent")
+      .select("id, full_name, practitioner_id, practice_id, yves_ai_consent, auth_user_id, phone")
       .eq("id", clientId)
       .maybeSingle();
     client = (data as ClientRow | null) ?? null;
     if (!client) clientId = null;
+  }
+  if (client && inviteWelcome) {
+    // Fill in what the practitioner may not have had when adding them.
+    await admin
+      .from("clients")
+      .update({ ...(client.phone ? {} : { phone: `+${phone}` }) })
+      .eq("id", client.id);
+    await admin
+      .from("clients")
+      .update({ onboarding_source: "whatsapp_invite" })
+      .eq("id", client.id)
+      .is("onboarding_source", null);
+  }
+  if (client) inviteInvalid = false;
+
+  // Self sign-up: a practice link, and no profile for this number yet.
+  let signup: Parameters<typeof decide>[0]["signup"];
+  if (!client && signupPracticeId) {
+    const roster = await practiceRoster(admin, signupPracticeId).catch(() => null);
+    if (roster) signup = { practiceId: signupPracticeId, ...roster };
   }
 
   // Blue ticks and "typing..." straight away, so the patient knows we have it.
@@ -328,7 +389,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   const isAudio = row.kind === "media" && (row.media_mime_type ?? "").startsWith("audio/");
 
   const message: InboundForDecision = {
-    text: row.body || row.reply_title || "",
+    text: (code ? stripJoinCode(row.body ?? "") : row.body) || row.reply_title || "",
     replyId: row.reply_id ?? undefined,
     kind: row.kind,
     mediaType: row.kind === "media" ? (isAudio ? "audio" : "other") : undefined,
@@ -353,15 +414,41 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
 
   // A conversation that was unmatched and has just been matched starts fresh.
   let state: ConversationState = conv.state;
-  if (client && state === "unmatched") state = "new";
+  if (
+    client &&
+    (state === "unmatched" || state === "awaiting_name" || state === "awaiting_practitioner")
+  ) {
+    state = "new";
+  }
+  if (!client && signup && code) state = "new"; // a fresh tap on the practice link restarts sign-up
 
-  const [consent, today, prevPain] = client
+  const [legacyConsent, today, prevPain] = client
     ? await Promise.all([
         hasCurrentConsent(admin, client.id),
         checkedInToday(admin, client.id, now),
         previousPain(admin, client.id),
       ])
     : [false, false, null];
+
+  // Consent is cross-checked on every message: POPIA and WhatsApp check-ins,
+  // current wording. Missing either means a personal link to the consent page.
+  // If links can't be made yet (migration 0016 not applied), fall back to the
+  // in-chat WhatsApp consent so nothing breaks.
+  let consent = legacyConsent;
+  let consentUrl: string | undefined;
+  if (client) {
+    const signed = await currentConsentTypes(admin, client.id).catch(() => null);
+    const strict = signed !== null && signed.has("popia_core") && signed.has("whatsapp_checkins");
+    if (!strict) {
+      const url = await mintConsentLink(admin, client.id, phone).catch(() => null);
+      if (url) {
+        consent = false;
+        consentUrl = url;
+      }
+    } else {
+      consent = true;
+    }
+  }
 
   // Layer 1 safety runs on every message, whatever the conversation state,
   // before anything else is decided.
@@ -446,6 +533,12 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     progressText,
     wearableOffered: Boolean(conv.wearable_offer_at),
     assist,
+    consentUrl,
+    inviteWelcome: client ? inviteWelcome : undefined,
+    inviteInvalid: !client && inviteInvalid,
+    signup,
+    hasAppAccount: Boolean(client?.auth_user_id),
+    appOfferDue: Boolean(client && !client.auth_user_id && !conv.app_offer_at),
   });
 
   // Unknown numbers are told once a day, not on every message.
@@ -463,6 +556,53 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   }
 
   if (client) await applyEffects(env, decision, client, row, redFlags, now);
+
+  // Self sign-up finished: create the profile, tell the practitioner, and send
+  // the consent link so nothing is collected before it is signed.
+  if (!client && decision.createClient) {
+    const id = await createSelfSignupClient(admin, { ...decision.createClient, phone });
+    const { data } = await admin
+      .from("clients")
+      .select("id, full_name, practitioner_id, practice_id, yves_ai_consent, auth_user_id, phone")
+      .eq("id", id)
+      .maybeSingle();
+    client = (data as ClientRow | null) ?? null;
+    if (client) {
+      await raiseContactAlert(
+        admin,
+        client,
+        `New patient joined Buddy on WhatsApp: ${decision.createClient.fullName}. They chose you as their practitioner. Please check this is right.`,
+        "routine",
+      ).catch(() => {});
+      const url = await mintConsentLink(admin, client.id, phone).catch(() => null);
+      if (url) {
+        replies = [
+          ...replies,
+          { kind: "text", body: ONBOARD_MSG.consentLink(firstNameOf(client.full_name), url) },
+        ];
+        decision.next = { state: "awaiting_consent", draft: {}, checkinStartedAt: null };
+      }
+    }
+  }
+
+  // App login requested by email: the outcome decides the reply.
+  if (client && decision.accountEmail) {
+    const outcome = await setupAppAccount(admin, client, decision.accountEmail).catch(
+      () => "error" as const,
+    );
+    replies = [
+      ...replies,
+      {
+        kind: "text",
+        body:
+          outcome === "ok"
+            ? ONBOARD_MSG.appSetUp(decision.accountEmail)
+            : outcome === "taken"
+              ? ONBOARD_MSG.appEmailTaken
+              : "Sorry, I couldn't set that up just now. Please ask the practice to help.",
+      },
+    ];
+  }
 
   // Save where the conversation is BEFORE replying, so a failed send never
   // leaves the patient's answers unrecorded.
@@ -484,6 +624,14 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
       updated_at: now.toISOString(),
     })
     .eq("id", conv.id);
+
+  if (decision.markAppOffered) {
+    // Separate write: the column arrives with migration 0016.
+    await admin
+      .from("whatsapp_conversations")
+      .update({ app_offer_at: now.toISOString() })
+      .eq("id", conv.id);
+  }
 
   if (decision.markWearableOffered) {
     // Separate write: the column arrives with migration 0014.
@@ -941,5 +1089,79 @@ async function raiseContactAlert(
     });
   } catch {
     /* best effort */
+  }
+}
+
+/**
+ * Called by the consent page once the patient has signed: thank them on
+ * WhatsApp and start their first check-in. They messaged Buddy moments ago,
+ * so this is inside WhatsApp's 24 hour window.
+ */
+export async function continueAfterConsent(
+  admin: Admin,
+  clientId: string,
+  phone: string,
+  firstName: string,
+): Promise<void> {
+  const cfg = whatsappConfigFromEnv();
+  if (!cfg) return;
+  const { data } = await admin
+    .from("whatsapp_conversations")
+    .select("id, state")
+    .eq("phone", phone)
+    .maybeSingle();
+  const conv = data as { id: string; state: ConversationState } | null;
+  if (!conv || !["awaiting_consent", "new", "idle"].includes(conv.state)) return;
+
+  const now = new Date();
+  const done = await checkedInToday(admin, clientId, now);
+  const replies: Array<{ kind: "text"; body: string }> = done
+    ? [
+        {
+          kind: "text",
+          body: `Thank you ${firstName}, your consent is signed and saved to your profile.`,
+        },
+      ]
+    : [
+        { kind: "text", body: ONBOARD_MSG.consentDone(firstName) },
+        { kind: "text", body: MSG.askPain },
+      ];
+
+  await admin
+    .from("whatsapp_conversations")
+    .update({
+      client_id: clientId,
+      state: done ? "idle" : "awaiting_pain",
+      draft: done ? {} : { notes: [] },
+      checkin_started_at: done ? null : now.toISOString(),
+      updated_at: now.toISOString(),
+    })
+    .eq("id", conv.id);
+
+  for (const reply of replies) {
+    let id: string | null = null;
+    let ok = false;
+    try {
+      id =
+        (await cfg.provider.send({ ...reply, to: phone }, cfg.secrets)).providerMessageId || null;
+      ok = true;
+    } catch {
+      /* logged as not delivered below */
+    }
+    await admin
+      .from("whatsapp_outbound")
+      .insert({
+        phone,
+        client_id: clientId,
+        provider: cfg.provider.id,
+        provider_message_id: id,
+        kind: "text",
+        body: reply.body,
+        sent_ok: ok,
+      })
+      .then(
+        () => undefined,
+        () => undefined,
+      );
   }
 }

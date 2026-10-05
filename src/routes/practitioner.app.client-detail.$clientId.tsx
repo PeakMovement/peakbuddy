@@ -6,6 +6,7 @@ import { ClientWearablesCard } from "@/components/ClientWearablesCard";
 import { ClientPatternsCard } from "@/components/ClientPatternsCard";
 import { YvesInsightCard } from "@/components/YvesInsightCard";
 import { WhatsAppConversationCard } from "@/components/WhatsAppConversationCard";
+import { ClientWhatsAppInviteCard } from "@/components/WhatsAppInviteCards";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, X } from "lucide-react";
 import {
@@ -250,6 +251,11 @@ function ClientDetail() {
       <ClientSchedulePanel clientId={client.id} mode="practitioner" />
       <YvesInsightCard clientId={client.id} />
       <WhatsAppConversationCard clientId={client.id} />
+      <ClientWhatsAppInviteCard
+        clientId={client.id}
+        clientName={client.full_name ?? ""}
+        phone={(client as unknown as { phone?: string | null }).phone ?? null}
+      />
       <RequestCheckInButton clientId={client.id} />
       <ClientRewardsSection clientId={client.id} />
 

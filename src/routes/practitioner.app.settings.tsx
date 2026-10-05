@@ -4,6 +4,7 @@ import { Info, LogOut } from "lucide-react";
 import { QuickCodeManager } from "@/components/QuickCodeManager";
 import { ChangePasswordCard } from "@/components/ChangePasswordCard";
 import { PracticeJoinLinkCard } from "@/components/PracticeJoinLinkCard";
+import { PracticeWhatsAppLinkCard } from "@/components/WhatsAppInviteCards";
 import { RestaurantPartnersManager } from "@/components/RestaurantPartnersManager";
 
 import { supabase } from "@/lib/supabase";
@@ -354,6 +355,7 @@ function Settings() {
       <div style={{ marginTop: 20 }}>
         <RestaurantPartnersManager scope="practice" />
         <PracticeJoinLinkCard />
+        <PracticeWhatsAppLinkCard />
         <QuickCodeManager />
         <ChangePasswordCard />
       </div>

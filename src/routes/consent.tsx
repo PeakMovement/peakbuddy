@@ -1,4 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { getConsentLinkDetails, signConsentLink } from "@/lib/whatsapp/onboarding.functions";
 import { publicSiteOrigin } from "@/lib/app-url";
 import { POPIA_CORE_V2, WHATSAPP_CHECKINS_V1 } from "@/lib/consent/wording";
 
@@ -10,13 +13,12 @@ import { POPIA_CORE_V2, WHATSAPP_CHECKINS_V1 } from "@/lib/consent/wording";
  * are agreeing to identical words. That is the whole reason the wording lives
  * in one module.
  *
- * Deliberately READ ONLY for now. There is no agree button because there is
- * nothing honest to wire it to yet: a patient arriving from WhatsApp is not
- * logged in, and until the WhatsApp onboarding flow exists there is no token
- * identifying who they are, so an acceptance could not be recorded against
- * anyone. A button that looks like it records consent and does not would be
- * worse than no button. Agreement happens by replying YES on WhatsApp until
- * the tokenised flow lands, at which point the accept path drops in here.
+ * Two modes:
+ *  - /consent            read only, for anyone who wants to read the terms.
+ *  - /consent?t=TOKEN    the personal link Buddy sends on WhatsApp. Shows who
+ *    it is for and lets them sign: POPIA and WhatsApp check-ins required, AI
+ *    optional. Signing records consent_records with the exact wording, then
+ *    Buddy carries on in WhatsApp. The token is single use and expires.
  *
  * Built mobile first, because every single visitor arrives by tapping a link
  * inside WhatsApp on a phone.
@@ -39,10 +41,194 @@ export const Route = createFileRoute("/consent")({
       links: [{ rel: "canonical", href: `${site}/consent` }],
     };
   },
+  validateSearch: (search: Record<string, unknown>): { t?: string } =>
+    typeof search.t === "string" && search.t.length >= 20 && search.t.length <= 100
+      ? { t: search.t }
+      : {},
   component: ConsentPage,
 });
 
+const BUDDY_CHAT = "https://wa.me/27675724314";
+
+type LinkState =
+  | { status: "loading" }
+  | { status: "ready"; firstName: string; practiceName: string; aiConsent: boolean }
+  | { status: "invalid" | "expired" | "used" | "error" }
+  | { status: "signed"; firstName: string };
+
+function SignPanel({ token }: { token: string }) {
+  const load = useServerFn(getConsentLinkDetails);
+  const sign = useServerFn(signConsentLink);
+  const [state, setState] = useState<LinkState>({ status: "loading" });
+  const [popia, setPopia] = useState(false);
+  const [whatsapp, setWhatsapp] = useState(false);
+  const [ai, setAi] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    load({ data: { token } })
+      .then((r) =>
+        r.ok
+          ? setState({
+              status: "ready",
+              firstName: r.firstName,
+              practiceName: r.practiceName,
+              aiConsent: r.aiConsent,
+            })
+          : setState({ status: r.reason }),
+      )
+      .catch(() => setState({ status: "error" }));
+  }, [token, load]);
+
+  const box = {
+    background: "var(--navy-card)",
+    borderColor: "var(--navy-border)",
+  } as const;
+
+  if (state.status === "loading") {
+    return (
+      <div
+        className="mt-6 rounded-lg border p-4 text-sm"
+        style={{ ...box, color: "var(--white-muted)" }}
+      >
+        Loading your consent form...
+      </div>
+    );
+  }
+  if (state.status === "signed") {
+    return (
+      <div className="mt-6 rounded-lg border p-5" style={box}>
+        <h2
+          className="text-lg font-semibold"
+          style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
+        >
+          Thank you, {state.firstName}. You're all set.
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
+          Your consent is saved to your Buddy profile. Head back to WhatsApp, Buddy is ready for
+          your first check-in.
+        </p>
+        <a
+          href={BUDDY_CHAT}
+          className="mt-4 inline-block rounded-lg px-4 py-2.5 text-sm font-semibold"
+          style={{ background: "#25D366", color: "#0b1a12" }}
+        >
+          Back to WhatsApp
+        </a>
+      </div>
+    );
+  }
+  if (state.status !== "ready") {
+    const why =
+      state.status === "used"
+        ? "This link has already been used, so your consent is saved."
+        : state.status === "expired"
+          ? "This link has expired."
+          : "This link isn't working.";
+    return (
+      <div
+        className="mt-6 rounded-lg border p-4 text-sm leading-relaxed"
+        style={{ ...box, color: "var(--white-muted)" }}
+      >
+        {why} Send Buddy a message on WhatsApp and it will send you a fresh link if one is needed.{" "}
+        <a href={BUDDY_CHAT} className="underline" style={{ color: "var(--blue-accent)" }}>
+          Open WhatsApp
+        </a>
+      </div>
+    );
+  }
+
+  const canSign = popia && whatsapp && !busy;
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await sign({
+        data: {
+          token,
+          aiConsent: ai,
+          userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+        },
+      });
+      if (r.ok) setState({ status: "signed", firstName: r.firstName });
+      else if (r.reason === "used") setState({ status: "used" });
+      else if (r.reason === "expired") setState({ status: "expired" });
+      else setError("Something went wrong saving your consent. Please try again.");
+    } catch {
+      setError("Something went wrong saving your consent. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const tick = (checked: boolean, set: (v: boolean) => void, label: string, required: boolean) => (
+    <label
+      className="mt-3 flex cursor-pointer items-start gap-3 text-sm leading-relaxed"
+      style={{ color: "var(--white)" }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => set(e.target.checked)}
+        className="mt-1 h-5 w-5 shrink-0"
+        style={{ accentColor: "var(--blue-accent)" }}
+      />
+      <span>
+        {label}
+        {!required && <span style={{ color: "var(--white-muted)" }}> (optional)</span>}
+      </span>
+    </label>
+  );
+
+  return (
+    <div id="sign" className="mt-8 rounded-lg border p-5" style={box}>
+      <h2
+        className="text-lg font-semibold"
+        style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
+      >
+        Sign your consent, {state.firstName}
+      </h2>
+      <p className="mt-1 text-sm" style={{ color: "var(--white-muted)" }}>
+        For your Buddy profile with {state.practiceName}.
+      </p>
+      {tick(popia, setPopia, POPIA_CORE_V2.affirmation, true)}
+      {tick(whatsapp, setWhatsapp, WHATSAPP_CHECKINS_V1.affirmation, true)}
+      {!state.aiConsent &&
+        tick(
+          ai,
+          setAi,
+          "I allow Buddy's AI to read my messages and voice notes so it can understand my answers and summarise them for my practitioner.",
+          false,
+        )}
+      {error && (
+        <p className="mt-3 text-sm" style={{ color: "var(--red)" }}>
+          {error}
+        </p>
+      )}
+      <button
+        type="button"
+        disabled={!canSign}
+        onClick={submit}
+        className="mt-5 w-full rounded-lg px-4 py-3 text-sm font-semibold"
+        style={{
+          background: canSign ? "var(--blue-accent)" : "var(--navy-border)",
+          color: "var(--white)",
+          opacity: canSign ? 1 : 0.7,
+        }}
+      >
+        {busy ? "Saving..." : "Sign and continue"}
+      </button>
+      <p className="mt-3 text-xs" style={{ color: "var(--white-muted)" }}>
+        You can withdraw at any time by replying STOP on WhatsApp. It won't affect your treatment.
+        Version {POPIA_CORE_V2.version}.
+      </p>
+    </div>
+  );
+}
+
 function ConsentPage() {
+  const { t } = Route.useSearch();
   return (
     <div className="min-h-screen" style={{ background: "var(--navy)" }}>
       <header className="border-b" style={{ borderColor: "var(--navy-border)" }}>
@@ -73,6 +259,15 @@ function ConsentPage() {
         <p className="mt-2 text-sm" style={{ color: "var(--white-muted)" }}>
           Please read this before you start. It is short on purpose.
         </p>
+        {t && (
+          <a
+            href="#sign"
+            className="mt-3 inline-block text-sm underline underline-offset-2"
+            style={{ color: "var(--blue-accent)" }}
+          >
+            Skip to signing
+          </a>
+        )}
 
         <div
           className="mt-5 rounded-lg border p-4 text-sm leading-relaxed"
@@ -123,30 +318,34 @@ function ConsentPage() {
           ))}
         </section>
 
-        <div
-          className="mt-8 rounded-lg border p-4"
-          style={{ background: "var(--navy-card)", borderColor: "var(--navy-border)" }}
-        >
-          <h2
-            className="text-base font-semibold"
-            style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
+        {t ? (
+          <SignPanel token={t} />
+        ) : (
+          <div
+            className="mt-8 rounded-lg border p-4"
+            style={{ background: "var(--navy-card)", borderColor: "var(--navy-border)" }}
           >
-            How to agree
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
-            Go back to WhatsApp and reply <strong style={{ color: "var(--white)" }}>YES</strong> to
-            start. Reply <strong style={{ color: "var(--white)" }}>NO</strong> and we will not
-            message you again.
-          </p>
-          <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
-            You can change your mind at any time by replying{" "}
-            <strong style={{ color: "var(--white)" }}>STOP</strong>. It takes effect immediately and
-            it will not affect your treatment in any way.
-          </p>
-          <p className="mt-3 text-xs" style={{ color: "var(--white-muted)" }}>
-            Version {POPIA_CORE_V2.version}
-          </p>
-        </div>
+            <h2
+              className="text-base font-semibold"
+              style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
+            >
+              How to agree
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
+              Go back to WhatsApp and reply <strong style={{ color: "var(--white)" }}>YES</strong>{" "}
+              to start. Reply <strong style={{ color: "var(--white)" }}>NO</strong> and we will not
+              message you again.
+            </p>
+            <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
+              You can change your mind at any time by replying{" "}
+              <strong style={{ color: "var(--white)" }}>STOP</strong>. It takes effect immediately
+              and it will not affect your treatment in any way.
+            </p>
+            <p className="mt-3 text-xs" style={{ color: "var(--white-muted)" }}>
+              Version {POPIA_CORE_V2.version}
+            </p>
+          </div>
+        )}
 
         <section className="mt-8">
           <h2

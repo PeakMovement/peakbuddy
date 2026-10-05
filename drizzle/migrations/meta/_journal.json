@@ -113,6 +113,13 @@
       "when": 1791174982311,
       "tag": "0015_0014_whatsapp_outbound_and_wearable_offer",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791198000000,
+      "tag": "0016_whatsapp_onboarding",
+      "breakpoints": true
     }
   ]
 }
