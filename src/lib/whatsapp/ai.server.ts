@@ -192,7 +192,8 @@ const ROUTE_TOOL = {
 
 const ROUTE_SYSTEM = `You route WhatsApp messages sent to Buddy, the check-in assistant of a physiotherapy practice. The patient is not answering a check-in question right now.
 Pick exactly one intent:
-- log_change: they want to record that something has changed (pain, a symptom, how they feel) since their last check-in.
+- capabilities: they ask what Buddy can do, how it works, for help or a menu.
+- log_change: they want to record, update, correct or change something (pain, a symptom, how they feel, a check-in answer), including asking permission like "may I change my symptom?".
 - booking: they want an appointment, check-up, to reschedule or cancel, or ask about availability.
 - practice_info: a question about the practice itself: hours, address, parking, fees, medical aid, services, how to contact.
 - clinical_question: any question about their condition, symptoms, treatment, exercises' safety, medication, what they should or shouldn't do, whether something is normal.

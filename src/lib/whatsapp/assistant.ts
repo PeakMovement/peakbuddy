@@ -18,6 +18,7 @@
  */
 
 export type AssistIntent =
+  | "capabilities"
   | "log_change"
   | "booking"
   | "practice_info"
@@ -28,6 +29,7 @@ export type AssistIntent =
   | "other";
 
 export const ASSIST_INTENTS: readonly AssistIntent[] = [
+  "capabilities",
   "log_change",
   "booking",
   "practice_info",
@@ -81,6 +83,18 @@ export const ASSIST_MSG = {
   checkinNudge: "Whenever you're ready for today's check-in, just reply CHECK IN.",
   progressNone:
     "I don't have enough check-ins yet to show a trend. Keep checking in and I'll be able to tell you how you're going.",
+  capabilities:
+    "I'm Buddy, Peak Movement's recovery assistant. Here's what I can help with:\n\n" +
+    "• *Daily check-in*: reply CHECK IN\n" +
+    "• *Update a symptom or pain score*: say \"log a change\"\n" +
+    "• *Your progress*: ask \"how is my progress?\"\n" +
+    "• *Your exercises*: ask \"send my exercises\"\n" +
+    "• *Book an appointment*: say \"book\"\n" +
+    "• *Clinic info*: hours, address, fees, medical aid\n" +
+    "• *Connect a smartwatch*: reply WATCH\n\n" +
+    "Anything else you type goes to your physiotherapist as a note. I can't give medical advice, and in an emergency phone 10177 or 112.",
+  clarify:
+    "I want to make sure I get this right. Would you like to *log a change* to today's check-in, *book* an appointment, ask about the *clinic*, or leave this as a *note* for your physiotherapist? Reply HELP to see everything I can do.",
 } as const;
 
 /** "check in", "checkin", "start check-in". */
@@ -106,7 +120,16 @@ export function routeByKeywords(text: string): AssistRoute {
   if (
     has(
       t,
-      /\b(log|record|update|change|add)\b.{0,25}\b(change|update|symptom|pain|check[\s-]?in|entry)\b|\b(feeling|got) (worse|better) (now|since)\b/,
+      /\b(what can you do|what do you do|who are you|what are you|how does (this|it|buddy) work|how do (i|you) use|help|menu|options|commands)\b/,
+    ) &&
+    t.length < 80
+  ) {
+    return { intent: "capabilities" };
+  }
+  if (
+    has(
+      t,
+      /\b(log|record|update|change|add|edit|fix|correct)\b.{0,25}\b(change|update|symptoms?|pain|score|check[\s-]?in|entry|answer)\b|\b(feeling|got|getting) (worse|better)\b|\b(made a mistake|wrong (number|score|answer))\b|\bpain (is|has) (gone )?(up|down|worse|better)\b/,
     )
   ) {
     return { intent: "log_change" };
