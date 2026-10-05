@@ -9,114 +9,79 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
-import { Route as TermsRouteImport } from './routes/terms'
-import { Route as SupportRouteImport } from './routes/support'
-import { Route as SocialRouteImport } from './routes/social'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
-import { Route as MarketingRouteImport } from './routes/marketing'
-import { Route as DataDeletionRouteImport } from './routes/data-deletion'
-import { Route as ConsentRouteImport } from './routes/consent'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as PractitionerSignupRouteImport } from './routes/practitioner.signup'
-import { Route as PractitionerPendingRouteImport } from './routes/practitioner.pending'
-import { Route as PractitionerOnboardingRouteImport } from './routes/practitioner.onboarding'
-import { Route as PractitionerLoginRouteImport } from './routes/practitioner.login'
-import { Route as PractitionerAppRouteImport } from './routes/practitioner.app'
-import { Route as JoinTokenRouteImport } from './routes/join.$token'
-import { Route as ClientLoginRouteImport } from './routes/client.login'
-import { Route as ClientAppRouteImport } from './routes/client.app'
-import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
-import { Route as AdminLoginRouteImport } from './routes/admin.login'
+import { Route as ConsentRouteImport } from './routes/consent'
+import { Route as DataDeletionRouteImport } from './routes/data-deletion'
+import { Route as MarketingRouteImport } from './routes/marketing'
+import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as SocialRouteImport } from './routes/social'
+import { Route as SupportRouteImport } from './routes/support'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as AdminAppRouteImport } from './routes/admin.app'
-import { Route as ClientAppIndexRouteImport } from './routes/client.app.index'
-import { Route as PractitionerAppTeamRouteImport } from './routes/practitioner.app.team'
-import { Route as PractitionerAppSettingsRouteImport } from './routes/practitioner.app.settings'
-import { Route as PractitionerAppProgramQueueRouteImport } from './routes/practitioner.app.program-queue'
-import { Route as PractitionerAppProfileRouteImport } from './routes/practitioner.app.profile'
-import { Route as PractitionerAppInsightsRouteImport } from './routes/practitioner.app.insights'
-import { Route as PractitionerAppDashboardRouteImport } from './routes/practitioner.app.dashboard'
-import { Route as PractitionerAppAlertsRouteImport } from './routes/practitioner.app.alerts'
-import { Route as PractitionerAppAddClientRouteImport } from './routes/practitioner.app.add-client'
-import { Route as LovableEmailEventsRouteImport } from './routes/lovable/email/events'
-import { Route as ClientAppYvesRouteImport } from './routes/client.app.yves'
-import { Route as ClientAppTimelineRouteImport } from './routes/client.app.timeline'
-import { Route as ClientAppProgressRouteImport } from './routes/client.app.progress'
-import { Route as ClientAppProfileRouteImport } from './routes/client.app.profile'
-import { Route as ClientAppLibraryRouteImport } from './routes/client.app.library'
-import { Route as ClientAppCheckinRouteImport } from './routes/client.app.checkin'
-import { Route as ApiPublicTriageQueryRouteImport } from './routes/api/public/triage-query'
-import { Route as AdminAppYvesTeachRouteImport } from './routes/admin.app.yves-teach'
-import { Route as AdminAppSettingsRouteImport } from './routes/admin.app.settings'
-import { Route as AdminAppProgramsRouteImport } from './routes/admin.app.programs'
-import { Route as AdminAppPractitionersRouteImport } from './routes/admin.app.practitioners'
-import { Route as AdminAppGradingRouteImport } from './routes/admin.app.grading'
-import { Route as AdminAppDataHubRouteImport } from './routes/admin.app.data-hub'
-import { Route as AdminAppDashboardRouteImport } from './routes/admin.app.dashboard'
-import { Route as AdminAppClientsRouteImport } from './routes/admin.app.clients'
+import { Route as AdminLoginRouteImport } from './routes/admin.login'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
+import { Route as ClientAppRouteImport } from './routes/client.app'
+import { Route as ClientLoginRouteImport } from './routes/client.login'
+import { Route as JoinTokenRouteImport } from './routes/join.$token'
+import { Route as PractitionerAppRouteImport } from './routes/practitioner.app'
+import { Route as PractitionerLoginRouteImport } from './routes/practitioner.login'
+import { Route as PractitionerOnboardingRouteImport } from './routes/practitioner.onboarding'
+import { Route as PractitionerPendingRouteImport } from './routes/practitioner.pending'
+import { Route as PractitionerSignupRouteImport } from './routes/practitioner.signup'
 import { Route as AdminAppAlertsRouteImport } from './routes/admin.app.alerts'
-import { Route as PractitionerAppClientDetailClientIdRouteImport } from './routes/practitioner.app.client-detail.$clientId'
-import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
-import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
-import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
-import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp/webhook'
-import { Route as ApiPublicHooksWhatsappWorkerRouteImport } from './routes/api/public/hooks/whatsapp-worker'
-import { Route as ApiPublicHooksWeeklyPractitionerDigestRouteImport } from './routes/api/public/hooks/weekly-practitioner-digest'
-import { Route as ApiPublicHooksWearablesSyncRouteImport } from './routes/api/public/hooks/wearables-sync'
-import { Route as ApiPublicHooksOnboardingLibraryNudgeRouteImport } from './routes/api/public/hooks/onboarding-library-nudge'
-import { Route as ApiPublicHooksNightlyRiskAnalysisRouteImport } from './routes/api/public/hooks/nightly-risk-analysis'
-import { Route as ApiPublicHooksNightlyPatternDetectionRouteImport } from './routes/api/public/hooks/nightly-pattern-detection'
-import { Route as ApiPublicHooksCheckinRemindersRouteImport } from './routes/api/public/hooks/checkin-reminders'
-import { Route as ApiPublicGoogleCalendarCallbackRouteImport } from './routes/api/public/google-calendar/callback'
-import { Route as ApiPublicCalendarTokenRouteImport } from './routes/api/public/calendar/$token'
-import { Route as ApiPublicAlertsActionRouteImport } from './routes/api/public/alerts/action'
-import { Route as AdminAppPractitionerPractitionerIdRouteImport } from './routes/admin.app.practitioner.$practitionerId'
+import { Route as AdminAppClientsRouteImport } from './routes/admin.app.clients'
+import { Route as AdminAppDashboardRouteImport } from './routes/admin.app.dashboard'
+import { Route as AdminAppDataHubRouteImport } from './routes/admin.app.data-hub'
+import { Route as AdminAppGradingRouteImport } from './routes/admin.app.grading'
+import { Route as AdminAppPractitionersRouteImport } from './routes/admin.app.practitioners'
+import { Route as AdminAppProgramsRouteImport } from './routes/admin.app.programs'
+import { Route as AdminAppSettingsRouteImport } from './routes/admin.app.settings'
+import { Route as AdminAppYvesTeachRouteImport } from './routes/admin.app.yves-teach'
+import { Route as ApiPublicTriageQueryRouteImport } from './routes/api/public/triage-query'
+import { Route as ClientAppIndexRouteImport } from './routes/client.app.index'
+import { Route as ClientAppCheckinRouteImport } from './routes/client.app.checkin'
+import { Route as ClientAppLibraryRouteImport } from './routes/client.app.library'
+import { Route as ClientAppProfileRouteImport } from './routes/client.app.profile'
+import { Route as ClientAppProgressRouteImport } from './routes/client.app.progress'
+import { Route as ClientAppTimelineRouteImport } from './routes/client.app.timeline'
+import { Route as ClientAppYvesRouteImport } from './routes/client.app.yves'
+import { Route as LovableEmailEventsRouteImport } from './routes/lovable/email/events'
+import { Route as PractitionerAppAddClientRouteImport } from './routes/practitioner.app.add-client'
+import { Route as PractitionerAppAlertsRouteImport } from './routes/practitioner.app.alerts'
+import { Route as PractitionerAppDashboardRouteImport } from './routes/practitioner.app.dashboard'
+import { Route as PractitionerAppInsightsRouteImport } from './routes/practitioner.app.insights'
+import { Route as PractitionerAppProfileRouteImport } from './routes/practitioner.app.profile'
+import { Route as PractitionerAppProgramQueueRouteImport } from './routes/practitioner.app.program-queue'
+import { Route as PractitionerAppSettingsRouteImport } from './routes/practitioner.app.settings'
+import { Route as PractitionerAppTeamRouteImport } from './routes/practitioner.app.team'
 import { Route as AdminAppClientDetailClientIdRouteImport } from './routes/admin.app.client-detail.$clientId'
-import { Route as ApiPublicWearablesPolarCallbackRouteImport } from './routes/api/public/wearables/polar/callback'
-import { Route as ApiPublicWearablesOuraWebhookRouteImport } from './routes/api/public/wearables/oura/webhook'
-import { Route as ApiPublicWearablesOuraCallbackRouteImport } from './routes/api/public/wearables/oura/callback'
-import { Route as ApiPublicWearablesGarminWebhookRouteImport } from './routes/api/public/wearables/garmin/webhook'
+import { Route as AdminAppPractitionerPractitionerIdRouteImport } from './routes/admin.app.practitioner.$practitionerId'
+import { Route as ApiPublicAlertsActionRouteImport } from './routes/api/public/alerts/action'
+import { Route as ApiPublicCalendarTokenRouteImport } from './routes/api/public/calendar/$token'
+import { Route as ApiPublicGoogleCalendarCallbackRouteImport } from './routes/api/public/google-calendar/callback'
+import { Route as ApiPublicHooksCheckinRemindersRouteImport } from './routes/api/public/hooks/checkin-reminders'
+import { Route as ApiPublicHooksNightlyPatternDetectionRouteImport } from './routes/api/public/hooks/nightly-pattern-detection'
+import { Route as ApiPublicHooksNightlyRiskAnalysisRouteImport } from './routes/api/public/hooks/nightly-risk-analysis'
+import { Route as ApiPublicHooksOnboardingLibraryNudgeRouteImport } from './routes/api/public/hooks/onboarding-library-nudge'
+import { Route as ApiPublicHooksWearablesSyncRouteImport } from './routes/api/public/hooks/wearables-sync'
+import { Route as ApiPublicHooksWeeklyPractitionerDigestRouteImport } from './routes/api/public/hooks/weekly-practitioner-digest'
+import { Route as ApiPublicHooksWhatsappWorkerRouteImport } from './routes/api/public/hooks/whatsapp-worker'
+import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp/webhook'
+import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
+import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
+import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
+import { Route as PractitionerAppClientDetailClientIdRouteImport } from './routes/practitioner.app.client-detail.$clientId'
 import { Route as ApiPublicWearablesGarminCallbackRouteImport } from './routes/api/public/wearables/garmin/callback'
+import { Route as ApiPublicWearablesGarminWebhookRouteImport } from './routes/api/public/wearables/garmin/webhook'
+import { Route as ApiPublicWearablesOuraCallbackRouteImport } from './routes/api/public/wearables/oura/callback'
+import { Route as ApiPublicWearablesOuraWebhookRouteImport } from './routes/api/public/wearables/oura/webhook'
+import { Route as ApiPublicWearablesPolarCallbackRouteImport } from './routes/api/public/wearables/polar/callback'
 
-const UnsubscribeRoute = UnsubscribeRouteImport.update({
-  id: '/unsubscribe',
-  path: '/unsubscribe',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SupportRoute = SupportRouteImport.update({
-  id: '/support',
-  path: '/support',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SocialRoute = SocialRouteImport.update({
-  id: '/social',
-  path: '/social',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
-  id: '/privacy-policy',
-  path: '/privacy-policy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MarketingRoute = MarketingRouteImport.update({
-  id: '/marketing',
-  path: '/marketing',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DataDeletionRoute = DataDeletionRouteImport.update({
-  id: '/data-deletion',
-  path: '/data-deletion',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConsentRoute = ConsentRouteImport.update({
@@ -124,59 +89,44 @@ const ConsentRoute = ConsentRouteImport.update({
   path: '/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const DataDeletionRoute = DataDeletionRouteImport.update({
+  id: '/data-deletion',
+  path: '/data-deletion',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PractitionerSignupRoute = PractitionerSignupRouteImport.update({
-  id: '/practitioner/signup',
-  path: '/practitioner/signup',
+const MarketingRoute = MarketingRouteImport.update({
+  id: '/marketing',
+  path: '/marketing',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PractitionerPendingRoute = PractitionerPendingRouteImport.update({
-  id: '/practitioner/pending',
-  path: '/practitioner/pending',
+const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
+  id: '/privacy-policy',
+  path: '/privacy-policy',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PractitionerOnboardingRoute = PractitionerOnboardingRouteImport.update({
-  id: '/practitioner/onboarding',
-  path: '/practitioner/onboarding',
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PractitionerLoginRoute = PractitionerLoginRouteImport.update({
-  id: '/practitioner/login',
-  path: '/practitioner/login',
+const SocialRoute = SocialRouteImport.update({
+  id: '/social',
+  path: '/social',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PractitionerAppRoute = PractitionerAppRouteImport.update({
-  id: '/practitioner/app',
-  path: '/practitioner/app',
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
   getParentRoute: () => rootRouteImport,
 } as any)
-const JoinTokenRoute = JoinTokenRouteImport.update({
-  id: '/join/$token',
-  path: '/join/$token',
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ClientLoginRoute = ClientLoginRouteImport.update({
-  id: '/client/login',
-  path: '/client/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ClientAppRoute = ClientAppRouteImport.update({
-  id: '/client/app',
-  path: '/client/app',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthCallbackRoute = AuthCallbackRouteImport.update({
-  id: '/auth/callback',
-  path: '/auth/callback',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminLoginRoute = AdminLoginRouteImport.update({
-  id: '/admin/login',
-  path: '/admin/login',
+const UnsubscribeRoute = UnsubscribeRouteImport.update({
+  id: '/unsubscribe',
+  path: '/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminAppRoute = AdminAppRouteImport.update({
@@ -184,35 +134,155 @@ const AdminAppRoute = AdminAppRouteImport.update({
   path: '/admin/app',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin/login',
+  path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientAppRoute = ClientAppRouteImport.update({
+  id: '/client/app',
+  path: '/client/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientLoginRoute = ClientLoginRouteImport.update({
+  id: '/client/login',
+  path: '/client/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JoinTokenRoute = JoinTokenRouteImport.update({
+  id: '/join/$token',
+  path: '/join/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PractitionerAppRoute = PractitionerAppRouteImport.update({
+  id: '/practitioner/app',
+  path: '/practitioner/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PractitionerLoginRoute = PractitionerLoginRouteImport.update({
+  id: '/practitioner/login',
+  path: '/practitioner/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PractitionerOnboardingRoute = PractitionerOnboardingRouteImport.update({
+  id: '/practitioner/onboarding',
+  path: '/practitioner/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PractitionerPendingRoute = PractitionerPendingRouteImport.update({
+  id: '/practitioner/pending',
+  path: '/practitioner/pending',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PractitionerSignupRoute = PractitionerSignupRouteImport.update({
+  id: '/practitioner/signup',
+  path: '/practitioner/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminAppAlertsRoute = AdminAppAlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
+  getParentRoute: () => AdminAppRoute,
+} as any)
+const AdminAppClientsRoute = AdminAppClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
+  getParentRoute: () => AdminAppRoute,
+} as any)
+const AdminAppDashboardRoute = AdminAppDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AdminAppRoute,
+} as any)
+const AdminAppDataHubRoute = AdminAppDataHubRouteImport.update({
+  id: '/data-hub',
+  path: '/data-hub',
+  getParentRoute: () => AdminAppRoute,
+} as any)
+const AdminAppGradingRoute = AdminAppGradingRouteImport.update({
+  id: '/grading',
+  path: '/grading',
+  getParentRoute: () => AdminAppRoute,
+} as any)
+const AdminAppPractitionersRoute = AdminAppPractitionersRouteImport.update({
+  id: '/practitioners',
+  path: '/practitioners',
+  getParentRoute: () => AdminAppRoute,
+} as any)
+const AdminAppProgramsRoute = AdminAppProgramsRouteImport.update({
+  id: '/programs',
+  path: '/programs',
+  getParentRoute: () => AdminAppRoute,
+} as any)
+const AdminAppSettingsRoute = AdminAppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminAppRoute,
+} as any)
+const AdminAppYvesTeachRoute = AdminAppYvesTeachRouteImport.update({
+  id: '/yves-teach',
+  path: '/yves-teach',
+  getParentRoute: () => AdminAppRoute,
+} as any)
+const ApiPublicTriageQueryRoute = ApiPublicTriageQueryRouteImport.update({
+  id: '/api/public/triage-query',
+  path: '/api/public/triage-query',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientAppIndexRoute = ClientAppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ClientAppRoute,
 } as any)
-const PractitionerAppTeamRoute = PractitionerAppTeamRouteImport.update({
-  id: '/team',
-  path: '/team',
-  getParentRoute: () => PractitionerAppRoute,
+const ClientAppCheckinRoute = ClientAppCheckinRouteImport.update({
+  id: '/checkin',
+  path: '/checkin',
+  getParentRoute: () => ClientAppRoute,
 } as any)
-const PractitionerAppSettingsRoute = PractitionerAppSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => PractitionerAppRoute,
+const ClientAppLibraryRoute = ClientAppLibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
+  getParentRoute: () => ClientAppRoute,
 } as any)
-const PractitionerAppProgramQueueRoute =
-  PractitionerAppProgramQueueRouteImport.update({
-    id: '/program-queue',
-    path: '/program-queue',
-    getParentRoute: () => PractitionerAppRoute,
-  } as any)
-const PractitionerAppProfileRoute = PractitionerAppProfileRouteImport.update({
+const ClientAppProfileRoute = ClientAppProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
-  getParentRoute: () => PractitionerAppRoute,
+  getParentRoute: () => ClientAppRoute,
 } as any)
-const PractitionerAppInsightsRoute = PractitionerAppInsightsRouteImport.update({
-  id: '/insights',
-  path: '/insights',
+const ClientAppProgressRoute = ClientAppProgressRouteImport.update({
+  id: '/progress',
+  path: '/progress',
+  getParentRoute: () => ClientAppRoute,
+} as any)
+const ClientAppTimelineRoute = ClientAppTimelineRouteImport.update({
+  id: '/timeline',
+  path: '/timeline',
+  getParentRoute: () => ClientAppRoute,
+} as any)
+const ClientAppYvesRoute = ClientAppYvesRouteImport.update({
+  id: '/yves',
+  path: '/yves',
+  getParentRoute: () => ClientAppRoute,
+} as any)
+const LovableEmailEventsRoute = LovableEmailEventsRouteImport.update({
+  id: '/lovable/email/events',
+  path: '/lovable/email/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PractitionerAppAddClientRoute =
+  PractitionerAppAddClientRouteImport.update({
+    id: '/add-client',
+    path: '/add-client',
+    getParentRoute: () => PractitionerAppRoute,
+  } as any)
+const PractitionerAppAlertsRoute = PractitionerAppAlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
   getParentRoute: () => PractitionerAppRoute,
 } as any)
 const PractitionerAppDashboardRoute =
@@ -221,164 +291,58 @@ const PractitionerAppDashboardRoute =
     path: '/dashboard',
     getParentRoute: () => PractitionerAppRoute,
   } as any)
-const PractitionerAppAlertsRoute = PractitionerAppAlertsRouteImport.update({
-  id: '/alerts',
-  path: '/alerts',
+const PractitionerAppInsightsRoute = PractitionerAppInsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
   getParentRoute: () => PractitionerAppRoute,
 } as any)
-const PractitionerAppAddClientRoute =
-  PractitionerAppAddClientRouteImport.update({
-    id: '/add-client',
-    path: '/add-client',
-    getParentRoute: () => PractitionerAppRoute,
-  } as any)
-const LovableEmailEventsRoute = LovableEmailEventsRouteImport.update({
-  id: '/lovable/email/events',
-  path: '/lovable/email/events',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ClientAppYvesRoute = ClientAppYvesRouteImport.update({
-  id: '/yves',
-  path: '/yves',
-  getParentRoute: () => ClientAppRoute,
-} as any)
-const ClientAppTimelineRoute = ClientAppTimelineRouteImport.update({
-  id: '/timeline',
-  path: '/timeline',
-  getParentRoute: () => ClientAppRoute,
-} as any)
-const ClientAppProgressRoute = ClientAppProgressRouteImport.update({
-  id: '/progress',
-  path: '/progress',
-  getParentRoute: () => ClientAppRoute,
-} as any)
-const ClientAppProfileRoute = ClientAppProfileRouteImport.update({
+const PractitionerAppProfileRoute = PractitionerAppProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
-  getParentRoute: () => ClientAppRoute,
+  getParentRoute: () => PractitionerAppRoute,
 } as any)
-const ClientAppLibraryRoute = ClientAppLibraryRouteImport.update({
-  id: '/library',
-  path: '/library',
-  getParentRoute: () => ClientAppRoute,
-} as any)
-const ClientAppCheckinRoute = ClientAppCheckinRouteImport.update({
-  id: '/checkin',
-  path: '/checkin',
-  getParentRoute: () => ClientAppRoute,
-} as any)
-const ApiPublicTriageQueryRoute = ApiPublicTriageQueryRouteImport.update({
-  id: '/api/public/triage-query',
-  path: '/api/public/triage-query',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminAppYvesTeachRoute = AdminAppYvesTeachRouteImport.update({
-  id: '/yves-teach',
-  path: '/yves-teach',
-  getParentRoute: () => AdminAppRoute,
-} as any)
-const AdminAppSettingsRoute = AdminAppSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AdminAppRoute,
-} as any)
-const AdminAppProgramsRoute = AdminAppProgramsRouteImport.update({
-  id: '/programs',
-  path: '/programs',
-  getParentRoute: () => AdminAppRoute,
-} as any)
-const AdminAppPractitionersRoute = AdminAppPractitionersRouteImport.update({
-  id: '/practitioners',
-  path: '/practitioners',
-  getParentRoute: () => AdminAppRoute,
-} as any)
-const AdminAppGradingRoute = AdminAppGradingRouteImport.update({
-  id: '/grading',
-  path: '/grading',
-  getParentRoute: () => AdminAppRoute,
-} as any)
-const AdminAppDataHubRoute = AdminAppDataHubRouteImport.update({
-  id: '/data-hub',
-  path: '/data-hub',
-  getParentRoute: () => AdminAppRoute,
-} as any)
-const AdminAppDashboardRoute = AdminAppDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => AdminAppRoute,
-} as any)
-const AdminAppClientsRoute = AdminAppClientsRouteImport.update({
-  id: '/clients',
-  path: '/clients',
-  getParentRoute: () => AdminAppRoute,
-} as any)
-const AdminAppAlertsRoute = AdminAppAlertsRouteImport.update({
-  id: '/alerts',
-  path: '/alerts',
-  getParentRoute: () => AdminAppRoute,
-} as any)
-const PractitionerAppClientDetailClientIdRoute =
-  PractitionerAppClientDetailClientIdRouteImport.update({
-    id: '/client-detail/$clientId',
-    path: '/client-detail/$clientId',
+const PractitionerAppProgramQueueRoute =
+  PractitionerAppProgramQueueRouteImport.update({
+    id: '/program-queue',
+    path: '/program-queue',
     getParentRoute: () => PractitionerAppRoute,
   } as any)
-const LovableEmailTransactionalPreviewRoute =
-  LovableEmailTransactionalPreviewRouteImport.update({
-    id: '/lovable/email/transactional/preview',
-    path: '/lovable/email/transactional/preview',
-    getParentRoute: () => rootRouteImport,
+const PractitionerAppSettingsRoute = PractitionerAppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => PractitionerAppRoute,
+} as any)
+const PractitionerAppTeamRoute = PractitionerAppTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => PractitionerAppRoute,
+} as any)
+const AdminAppClientDetailClientIdRoute =
+  AdminAppClientDetailClientIdRouteImport.update({
+    id: '/client-detail/$clientId',
+    path: '/client-detail/$clientId',
+    getParentRoute: () => AdminAppRoute,
   } as any)
-const LovableEmailAuthWebhookRoute = LovableEmailAuthWebhookRouteImport.update({
-  id: '/lovable/email/auth/webhook',
-  path: '/lovable/email/auth/webhook',
+const AdminAppPractitionerPractitionerIdRoute =
+  AdminAppPractitionerPractitionerIdRouteImport.update({
+    id: '/practitioner/$practitionerId',
+    path: '/practitioner/$practitionerId',
+    getParentRoute: () => AdminAppRoute,
+  } as any)
+const ApiPublicAlertsActionRoute = ApiPublicAlertsActionRouteImport.update({
+  id: '/api/public/alerts/action',
+  path: '/api/public/alerts/action',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
-  id: '/lovable/email/auth/preview',
-  path: '/lovable/email/auth/preview',
+const ApiPublicCalendarTokenRoute = ApiPublicCalendarTokenRouteImport.update({
+  id: '/api/public/calendar/$token',
+  path: '/api/public/calendar/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicWhatsappWebhookRoute =
-  ApiPublicWhatsappWebhookRouteImport.update({
-    id: '/api/public/whatsapp/webhook',
-    path: '/api/public/whatsapp/webhook',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksWhatsappWorkerRoute =
-  ApiPublicHooksWhatsappWorkerRouteImport.update({
-    id: '/api/public/hooks/whatsapp-worker',
-    path: '/api/public/hooks/whatsapp-worker',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksWeeklyPractitionerDigestRoute =
-  ApiPublicHooksWeeklyPractitionerDigestRouteImport.update({
-    id: '/api/public/hooks/weekly-practitioner-digest',
-    path: '/api/public/hooks/weekly-practitioner-digest',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksWearablesSyncRoute =
-  ApiPublicHooksWearablesSyncRouteImport.update({
-    id: '/api/public/hooks/wearables-sync',
-    path: '/api/public/hooks/wearables-sync',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksOnboardingLibraryNudgeRoute =
-  ApiPublicHooksOnboardingLibraryNudgeRouteImport.update({
-    id: '/api/public/hooks/onboarding-library-nudge',
-    path: '/api/public/hooks/onboarding-library-nudge',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksNightlyRiskAnalysisRoute =
-  ApiPublicHooksNightlyRiskAnalysisRouteImport.update({
-    id: '/api/public/hooks/nightly-risk-analysis',
-    path: '/api/public/hooks/nightly-risk-analysis',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksNightlyPatternDetectionRoute =
-  ApiPublicHooksNightlyPatternDetectionRouteImport.update({
-    id: '/api/public/hooks/nightly-pattern-detection',
-    path: '/api/public/hooks/nightly-pattern-detection',
+const ApiPublicGoogleCalendarCallbackRoute =
+  ApiPublicGoogleCalendarCallbackRouteImport.update({
+    id: '/api/public/google-calendar/callback',
+    path: '/api/public/google-calendar/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksCheckinRemindersRoute =
@@ -387,50 +351,74 @@ const ApiPublicHooksCheckinRemindersRoute =
     path: '/api/public/hooks/checkin-reminders',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicGoogleCalendarCallbackRoute =
-  ApiPublicGoogleCalendarCallbackRouteImport.update({
-    id: '/api/public/google-calendar/callback',
-    path: '/api/public/google-calendar/callback',
+const ApiPublicHooksNightlyPatternDetectionRoute =
+  ApiPublicHooksNightlyPatternDetectionRouteImport.update({
+    id: '/api/public/hooks/nightly-pattern-detection',
+    path: '/api/public/hooks/nightly-pattern-detection',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicCalendarTokenRoute = ApiPublicCalendarTokenRouteImport.update({
-  id: '/api/public/calendar/$token',
-  path: '/api/public/calendar/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicAlertsActionRoute = ApiPublicAlertsActionRouteImport.update({
-  id: '/api/public/alerts/action',
-  path: '/api/public/alerts/action',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminAppPractitionerPractitionerIdRoute =
-  AdminAppPractitionerPractitionerIdRouteImport.update({
-    id: '/practitioner/$practitionerId',
-    path: '/practitioner/$practitionerId',
-    getParentRoute: () => AdminAppRoute,
+const ApiPublicHooksNightlyRiskAnalysisRoute =
+  ApiPublicHooksNightlyRiskAnalysisRouteImport.update({
+    id: '/api/public/hooks/nightly-risk-analysis',
+    path: '/api/public/hooks/nightly-risk-analysis',
+    getParentRoute: () => rootRouteImport,
   } as any)
-const AdminAppClientDetailClientIdRoute =
-  AdminAppClientDetailClientIdRouteImport.update({
+const ApiPublicHooksOnboardingLibraryNudgeRoute =
+  ApiPublicHooksOnboardingLibraryNudgeRouteImport.update({
+    id: '/api/public/hooks/onboarding-library-nudge',
+    path: '/api/public/hooks/onboarding-library-nudge',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksWearablesSyncRoute =
+  ApiPublicHooksWearablesSyncRouteImport.update({
+    id: '/api/public/hooks/wearables-sync',
+    path: '/api/public/hooks/wearables-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksWeeklyPractitionerDigestRoute =
+  ApiPublicHooksWeeklyPractitionerDigestRouteImport.update({
+    id: '/api/public/hooks/weekly-practitioner-digest',
+    path: '/api/public/hooks/weekly-practitioner-digest',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksWhatsappWorkerRoute =
+  ApiPublicHooksWhatsappWorkerRouteImport.update({
+    id: '/api/public/hooks/whatsapp-worker',
+    path: '/api/public/hooks/whatsapp-worker',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWhatsappWebhookRoute =
+  ApiPublicWhatsappWebhookRouteImport.update({
+    id: '/api/public/whatsapp/webhook',
+    path: '/api/public/whatsapp/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
+  id: '/lovable/email/auth/preview',
+  path: '/lovable/email/auth/preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LovableEmailAuthWebhookRoute = LovableEmailAuthWebhookRouteImport.update({
+  id: '/lovable/email/auth/webhook',
+  path: '/lovable/email/auth/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LovableEmailTransactionalPreviewRoute =
+  LovableEmailTransactionalPreviewRouteImport.update({
+    id: '/lovable/email/transactional/preview',
+    path: '/lovable/email/transactional/preview',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const PractitionerAppClientDetailClientIdRoute =
+  PractitionerAppClientDetailClientIdRouteImport.update({
     id: '/client-detail/$clientId',
     path: '/client-detail/$clientId',
-    getParentRoute: () => AdminAppRoute,
+    getParentRoute: () => PractitionerAppRoute,
   } as any)
-const ApiPublicWearablesPolarCallbackRoute =
-  ApiPublicWearablesPolarCallbackRouteImport.update({
-    id: '/api/public/wearables/polar/callback',
-    path: '/api/public/wearables/polar/callback',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicWearablesOuraWebhookRoute =
-  ApiPublicWearablesOuraWebhookRouteImport.update({
-    id: '/api/public/wearables/oura/webhook',
-    path: '/api/public/wearables/oura/webhook',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicWearablesOuraCallbackRoute =
-  ApiPublicWearablesOuraCallbackRouteImport.update({
-    id: '/api/public/wearables/oura/callback',
-    path: '/api/public/wearables/oura/callback',
+const ApiPublicWearablesGarminCallbackRoute =
+  ApiPublicWearablesGarminCallbackRouteImport.update({
+    id: '/api/public/wearables/garmin/callback',
+    path: '/api/public/wearables/garmin/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicWearablesGarminWebhookRoute =
@@ -439,10 +427,22 @@ const ApiPublicWearablesGarminWebhookRoute =
     path: '/api/public/wearables/garmin/webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicWearablesGarminCallbackRoute =
-  ApiPublicWearablesGarminCallbackRouteImport.update({
-    id: '/api/public/wearables/garmin/callback',
-    path: '/api/public/wearables/garmin/callback',
+const ApiPublicWearablesOuraCallbackRoute =
+  ApiPublicWearablesOuraCallbackRouteImport.update({
+    id: '/api/public/wearables/oura/callback',
+    path: '/api/public/wearables/oura/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWearablesOuraWebhookRoute =
+  ApiPublicWearablesOuraWebhookRouteImport.update({
+    id: '/api/public/wearables/oura/webhook',
+    path: '/api/public/wearables/oura/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWearablesPolarCallbackRoute =
+  ApiPublicWearablesPolarCallbackRouteImport.update({
+    id: '/api/public/wearables/polar/callback',
+    path: '/api/public/wearables/polar/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -921,60 +921,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/unsubscribe': {
-      id: '/unsubscribe'
-      path: '/unsubscribe'
-      fullPath: '/unsubscribe'
-      preLoaderRoute: typeof UnsubscribeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/terms': {
-      id: '/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/support': {
-      id: '/support'
-      path: '/support'
-      fullPath: '/support'
-      preLoaderRoute: typeof SupportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/social': {
-      id: '/social'
-      path: '/social'
-      fullPath: '/social'
-      preLoaderRoute: typeof SocialRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy-policy': {
-      id: '/privacy-policy'
-      path: '/privacy-policy'
-      fullPath: '/privacy-policy'
-      preLoaderRoute: typeof PrivacyPolicyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/marketing': {
-      id: '/marketing'
-      path: '/marketing'
-      fullPath: '/marketing'
-      preLoaderRoute: typeof MarketingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/data-deletion': {
-      id: '/data-deletion'
-      path: '/data-deletion'
-      fullPath: '/data-deletion'
-      preLoaderRoute: typeof DataDeletionRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/consent': {
@@ -984,81 +935,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/data-deletion': {
+      id: '/data-deletion'
+      path: '/data-deletion'
+      fullPath: '/data-deletion'
+      preLoaderRoute: typeof DataDeletionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/practitioner/signup': {
-      id: '/practitioner/signup'
-      path: '/practitioner/signup'
-      fullPath: '/practitioner/signup'
-      preLoaderRoute: typeof PractitionerSignupRouteImport
+    '/marketing': {
+      id: '/marketing'
+      path: '/marketing'
+      fullPath: '/marketing'
+      preLoaderRoute: typeof MarketingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/practitioner/pending': {
-      id: '/practitioner/pending'
-      path: '/practitioner/pending'
-      fullPath: '/practitioner/pending'
-      preLoaderRoute: typeof PractitionerPendingRouteImport
+    '/privacy-policy': {
+      id: '/privacy-policy'
+      path: '/privacy-policy'
+      fullPath: '/privacy-policy'
+      preLoaderRoute: typeof PrivacyPolicyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/practitioner/onboarding': {
-      id: '/practitioner/onboarding'
-      path: '/practitioner/onboarding'
-      fullPath: '/practitioner/onboarding'
-      preLoaderRoute: typeof PractitionerOnboardingRouteImport
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/practitioner/login': {
-      id: '/practitioner/login'
-      path: '/practitioner/login'
-      fullPath: '/practitioner/login'
-      preLoaderRoute: typeof PractitionerLoginRouteImport
+    '/social': {
+      id: '/social'
+      path: '/social'
+      fullPath: '/social'
+      preLoaderRoute: typeof SocialRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/practitioner/app': {
-      id: '/practitioner/app'
-      path: '/practitioner/app'
-      fullPath: '/practitioner/app'
-      preLoaderRoute: typeof PractitionerAppRouteImport
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/join/$token': {
-      id: '/join/$token'
-      path: '/join/$token'
-      fullPath: '/join/$token'
-      preLoaderRoute: typeof JoinTokenRouteImport
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/client/login': {
-      id: '/client/login'
-      path: '/client/login'
-      fullPath: '/client/login'
-      preLoaderRoute: typeof ClientLoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/client/app': {
-      id: '/client/app'
-      path: '/client/app'
-      fullPath: '/client/app'
-      preLoaderRoute: typeof ClientAppRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth/callback': {
-      id: '/auth/callback'
-      path: '/auth/callback'
-      fullPath: '/auth/callback'
-      preLoaderRoute: typeof AuthCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/login': {
-      id: '/admin/login'
-      path: '/admin/login'
-      fullPath: '/admin/login'
-      preLoaderRoute: typeof AdminLoginRouteImport
+    '/unsubscribe': {
+      id: '/unsubscribe'
+      path: '/unsubscribe'
+      fullPath: '/unsubscribe'
+      preLoaderRoute: typeof UnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/app': {
@@ -1068,172 +998,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/client/app/': {
-      id: '/client/app/'
-      path: '/'
-      fullPath: '/client/app/'
-      preLoaderRoute: typeof ClientAppIndexRouteImport
-      parentRoute: typeof ClientAppRoute
+    '/admin/login': {
+      id: '/admin/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/practitioner/app/team': {
-      id: '/practitioner/app/team'
-      path: '/team'
-      fullPath: '/practitioner/app/team'
-      preLoaderRoute: typeof PractitionerAppTeamRouteImport
-      parentRoute: typeof PractitionerAppRoute
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/practitioner/app/settings': {
-      id: '/practitioner/app/settings'
-      path: '/settings'
-      fullPath: '/practitioner/app/settings'
-      preLoaderRoute: typeof PractitionerAppSettingsRouteImport
-      parentRoute: typeof PractitionerAppRoute
+    '/client/app': {
+      id: '/client/app'
+      path: '/client/app'
+      fullPath: '/client/app'
+      preLoaderRoute: typeof ClientAppRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/practitioner/app/program-queue': {
-      id: '/practitioner/app/program-queue'
-      path: '/program-queue'
-      fullPath: '/practitioner/app/program-queue'
-      preLoaderRoute: typeof PractitionerAppProgramQueueRouteImport
-      parentRoute: typeof PractitionerAppRoute
+    '/client/login': {
+      id: '/client/login'
+      path: '/client/login'
+      fullPath: '/client/login'
+      preLoaderRoute: typeof ClientLoginRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/practitioner/app/profile': {
-      id: '/practitioner/app/profile'
-      path: '/profile'
-      fullPath: '/practitioner/app/profile'
-      preLoaderRoute: typeof PractitionerAppProfileRouteImport
-      parentRoute: typeof PractitionerAppRoute
+    '/join/$token': {
+      id: '/join/$token'
+      path: '/join/$token'
+      fullPath: '/join/$token'
+      preLoaderRoute: typeof JoinTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/practitioner/app/insights': {
-      id: '/practitioner/app/insights'
-      path: '/insights'
-      fullPath: '/practitioner/app/insights'
-      preLoaderRoute: typeof PractitionerAppInsightsRouteImport
-      parentRoute: typeof PractitionerAppRoute
+    '/practitioner/app': {
+      id: '/practitioner/app'
+      path: '/practitioner/app'
+      fullPath: '/practitioner/app'
+      preLoaderRoute: typeof PractitionerAppRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/practitioner/app/dashboard': {
-      id: '/practitioner/app/dashboard'
-      path: '/dashboard'
-      fullPath: '/practitioner/app/dashboard'
-      preLoaderRoute: typeof PractitionerAppDashboardRouteImport
-      parentRoute: typeof PractitionerAppRoute
+    '/practitioner/login': {
+      id: '/practitioner/login'
+      path: '/practitioner/login'
+      fullPath: '/practitioner/login'
+      preLoaderRoute: typeof PractitionerLoginRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/practitioner/app/alerts': {
-      id: '/practitioner/app/alerts'
+    '/practitioner/onboarding': {
+      id: '/practitioner/onboarding'
+      path: '/practitioner/onboarding'
+      fullPath: '/practitioner/onboarding'
+      preLoaderRoute: typeof PractitionerOnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/practitioner/pending': {
+      id: '/practitioner/pending'
+      path: '/practitioner/pending'
+      fullPath: '/practitioner/pending'
+      preLoaderRoute: typeof PractitionerPendingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/practitioner/signup': {
+      id: '/practitioner/signup'
+      path: '/practitioner/signup'
+      fullPath: '/practitioner/signup'
+      preLoaderRoute: typeof PractitionerSignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/app/alerts': {
+      id: '/admin/app/alerts'
       path: '/alerts'
-      fullPath: '/practitioner/app/alerts'
-      preLoaderRoute: typeof PractitionerAppAlertsRouteImport
-      parentRoute: typeof PractitionerAppRoute
-    }
-    '/practitioner/app/add-client': {
-      id: '/practitioner/app/add-client'
-      path: '/add-client'
-      fullPath: '/practitioner/app/add-client'
-      preLoaderRoute: typeof PractitionerAppAddClientRouteImport
-      parentRoute: typeof PractitionerAppRoute
-    }
-    '/lovable/email/events': {
-      id: '/lovable/email/events'
-      path: '/lovable/email/events'
-      fullPath: '/lovable/email/events'
-      preLoaderRoute: typeof LovableEmailEventsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/client/app/yves': {
-      id: '/client/app/yves'
-      path: '/yves'
-      fullPath: '/client/app/yves'
-      preLoaderRoute: typeof ClientAppYvesRouteImport
-      parentRoute: typeof ClientAppRoute
-    }
-    '/client/app/timeline': {
-      id: '/client/app/timeline'
-      path: '/timeline'
-      fullPath: '/client/app/timeline'
-      preLoaderRoute: typeof ClientAppTimelineRouteImport
-      parentRoute: typeof ClientAppRoute
-    }
-    '/client/app/progress': {
-      id: '/client/app/progress'
-      path: '/progress'
-      fullPath: '/client/app/progress'
-      preLoaderRoute: typeof ClientAppProgressRouteImport
-      parentRoute: typeof ClientAppRoute
-    }
-    '/client/app/profile': {
-      id: '/client/app/profile'
-      path: '/profile'
-      fullPath: '/client/app/profile'
-      preLoaderRoute: typeof ClientAppProfileRouteImport
-      parentRoute: typeof ClientAppRoute
-    }
-    '/client/app/library': {
-      id: '/client/app/library'
-      path: '/library'
-      fullPath: '/client/app/library'
-      preLoaderRoute: typeof ClientAppLibraryRouteImport
-      parentRoute: typeof ClientAppRoute
-    }
-    '/client/app/checkin': {
-      id: '/client/app/checkin'
-      path: '/checkin'
-      fullPath: '/client/app/checkin'
-      preLoaderRoute: typeof ClientAppCheckinRouteImport
-      parentRoute: typeof ClientAppRoute
-    }
-    '/api/public/triage-query': {
-      id: '/api/public/triage-query'
-      path: '/api/public/triage-query'
-      fullPath: '/api/public/triage-query'
-      preLoaderRoute: typeof ApiPublicTriageQueryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/app/yves-teach': {
-      id: '/admin/app/yves-teach'
-      path: '/yves-teach'
-      fullPath: '/admin/app/yves-teach'
-      preLoaderRoute: typeof AdminAppYvesTeachRouteImport
-      parentRoute: typeof AdminAppRoute
-    }
-    '/admin/app/settings': {
-      id: '/admin/app/settings'
-      path: '/settings'
-      fullPath: '/admin/app/settings'
-      preLoaderRoute: typeof AdminAppSettingsRouteImport
-      parentRoute: typeof AdminAppRoute
-    }
-    '/admin/app/programs': {
-      id: '/admin/app/programs'
-      path: '/programs'
-      fullPath: '/admin/app/programs'
-      preLoaderRoute: typeof AdminAppProgramsRouteImport
-      parentRoute: typeof AdminAppRoute
-    }
-    '/admin/app/practitioners': {
-      id: '/admin/app/practitioners'
-      path: '/practitioners'
-      fullPath: '/admin/app/practitioners'
-      preLoaderRoute: typeof AdminAppPractitionersRouteImport
-      parentRoute: typeof AdminAppRoute
-    }
-    '/admin/app/grading': {
-      id: '/admin/app/grading'
-      path: '/grading'
-      fullPath: '/admin/app/grading'
-      preLoaderRoute: typeof AdminAppGradingRouteImport
-      parentRoute: typeof AdminAppRoute
-    }
-    '/admin/app/data-hub': {
-      id: '/admin/app/data-hub'
-      path: '/data-hub'
-      fullPath: '/admin/app/data-hub'
-      preLoaderRoute: typeof AdminAppDataHubRouteImport
-      parentRoute: typeof AdminAppRoute
-    }
-    '/admin/app/dashboard': {
-      id: '/admin/app/dashboard'
-      path: '/dashboard'
-      fullPath: '/admin/app/dashboard'
-      preLoaderRoute: typeof AdminAppDashboardRouteImport
+      fullPath: '/admin/app/alerts'
+      preLoaderRoute: typeof AdminAppAlertsRouteImport
       parentRoute: typeof AdminAppRoute
     }
     '/admin/app/clients': {
@@ -1243,102 +1082,193 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppClientsRouteImport
       parentRoute: typeof AdminAppRoute
     }
-    '/admin/app/alerts': {
-      id: '/admin/app/alerts'
-      path: '/alerts'
-      fullPath: '/admin/app/alerts'
-      preLoaderRoute: typeof AdminAppAlertsRouteImport
+    '/admin/app/dashboard': {
+      id: '/admin/app/dashboard'
+      path: '/dashboard'
+      fullPath: '/admin/app/dashboard'
+      preLoaderRoute: typeof AdminAppDashboardRouteImport
       parentRoute: typeof AdminAppRoute
     }
-    '/practitioner/app/client-detail/$clientId': {
-      id: '/practitioner/app/client-detail/$clientId'
-      path: '/client-detail/$clientId'
-      fullPath: '/practitioner/app/client-detail/$clientId'
-      preLoaderRoute: typeof PractitionerAppClientDetailClientIdRouteImport
+    '/admin/app/data-hub': {
+      id: '/admin/app/data-hub'
+      path: '/data-hub'
+      fullPath: '/admin/app/data-hub'
+      preLoaderRoute: typeof AdminAppDataHubRouteImport
+      parentRoute: typeof AdminAppRoute
+    }
+    '/admin/app/grading': {
+      id: '/admin/app/grading'
+      path: '/grading'
+      fullPath: '/admin/app/grading'
+      preLoaderRoute: typeof AdminAppGradingRouteImport
+      parentRoute: typeof AdminAppRoute
+    }
+    '/admin/app/practitioners': {
+      id: '/admin/app/practitioners'
+      path: '/practitioners'
+      fullPath: '/admin/app/practitioners'
+      preLoaderRoute: typeof AdminAppPractitionersRouteImport
+      parentRoute: typeof AdminAppRoute
+    }
+    '/admin/app/programs': {
+      id: '/admin/app/programs'
+      path: '/programs'
+      fullPath: '/admin/app/programs'
+      preLoaderRoute: typeof AdminAppProgramsRouteImport
+      parentRoute: typeof AdminAppRoute
+    }
+    '/admin/app/settings': {
+      id: '/admin/app/settings'
+      path: '/settings'
+      fullPath: '/admin/app/settings'
+      preLoaderRoute: typeof AdminAppSettingsRouteImport
+      parentRoute: typeof AdminAppRoute
+    }
+    '/admin/app/yves-teach': {
+      id: '/admin/app/yves-teach'
+      path: '/yves-teach'
+      fullPath: '/admin/app/yves-teach'
+      preLoaderRoute: typeof AdminAppYvesTeachRouteImport
+      parentRoute: typeof AdminAppRoute
+    }
+    '/api/public/triage-query': {
+      id: '/api/public/triage-query'
+      path: '/api/public/triage-query'
+      fullPath: '/api/public/triage-query'
+      preLoaderRoute: typeof ApiPublicTriageQueryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/client/app/': {
+      id: '/client/app/'
+      path: '/'
+      fullPath: '/client/app/'
+      preLoaderRoute: typeof ClientAppIndexRouteImport
+      parentRoute: typeof ClientAppRoute
+    }
+    '/client/app/checkin': {
+      id: '/client/app/checkin'
+      path: '/checkin'
+      fullPath: '/client/app/checkin'
+      preLoaderRoute: typeof ClientAppCheckinRouteImport
+      parentRoute: typeof ClientAppRoute
+    }
+    '/client/app/library': {
+      id: '/client/app/library'
+      path: '/library'
+      fullPath: '/client/app/library'
+      preLoaderRoute: typeof ClientAppLibraryRouteImport
+      parentRoute: typeof ClientAppRoute
+    }
+    '/client/app/profile': {
+      id: '/client/app/profile'
+      path: '/profile'
+      fullPath: '/client/app/profile'
+      preLoaderRoute: typeof ClientAppProfileRouteImport
+      parentRoute: typeof ClientAppRoute
+    }
+    '/client/app/progress': {
+      id: '/client/app/progress'
+      path: '/progress'
+      fullPath: '/client/app/progress'
+      preLoaderRoute: typeof ClientAppProgressRouteImport
+      parentRoute: typeof ClientAppRoute
+    }
+    '/client/app/timeline': {
+      id: '/client/app/timeline'
+      path: '/timeline'
+      fullPath: '/client/app/timeline'
+      preLoaderRoute: typeof ClientAppTimelineRouteImport
+      parentRoute: typeof ClientAppRoute
+    }
+    '/client/app/yves': {
+      id: '/client/app/yves'
+      path: '/yves'
+      fullPath: '/client/app/yves'
+      preLoaderRoute: typeof ClientAppYvesRouteImport
+      parentRoute: typeof ClientAppRoute
+    }
+    '/lovable/email/events': {
+      id: '/lovable/email/events'
+      path: '/lovable/email/events'
+      fullPath: '/lovable/email/events'
+      preLoaderRoute: typeof LovableEmailEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/practitioner/app/add-client': {
+      id: '/practitioner/app/add-client'
+      path: '/add-client'
+      fullPath: '/practitioner/app/add-client'
+      preLoaderRoute: typeof PractitionerAppAddClientRouteImport
       parentRoute: typeof PractitionerAppRoute
     }
-    '/lovable/email/transactional/preview': {
-      id: '/lovable/email/transactional/preview'
-      path: '/lovable/email/transactional/preview'
-      fullPath: '/lovable/email/transactional/preview'
-      preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
-      parentRoute: typeof rootRouteImport
+    '/practitioner/app/alerts': {
+      id: '/practitioner/app/alerts'
+      path: '/alerts'
+      fullPath: '/practitioner/app/alerts'
+      preLoaderRoute: typeof PractitionerAppAlertsRouteImport
+      parentRoute: typeof PractitionerAppRoute
     }
-    '/lovable/email/auth/webhook': {
-      id: '/lovable/email/auth/webhook'
-      path: '/lovable/email/auth/webhook'
-      fullPath: '/lovable/email/auth/webhook'
-      preLoaderRoute: typeof LovableEmailAuthWebhookRouteImport
-      parentRoute: typeof rootRouteImport
+    '/practitioner/app/dashboard': {
+      id: '/practitioner/app/dashboard'
+      path: '/dashboard'
+      fullPath: '/practitioner/app/dashboard'
+      preLoaderRoute: typeof PractitionerAppDashboardRouteImport
+      parentRoute: typeof PractitionerAppRoute
     }
-    '/lovable/email/auth/preview': {
-      id: '/lovable/email/auth/preview'
-      path: '/lovable/email/auth/preview'
-      fullPath: '/lovable/email/auth/preview'
-      preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
-      parentRoute: typeof rootRouteImport
+    '/practitioner/app/insights': {
+      id: '/practitioner/app/insights'
+      path: '/insights'
+      fullPath: '/practitioner/app/insights'
+      preLoaderRoute: typeof PractitionerAppInsightsRouteImport
+      parentRoute: typeof PractitionerAppRoute
     }
-    '/api/public/whatsapp/webhook': {
-      id: '/api/public/whatsapp/webhook'
-      path: '/api/public/whatsapp/webhook'
-      fullPath: '/api/public/whatsapp/webhook'
-      preLoaderRoute: typeof ApiPublicWhatsappWebhookRouteImport
-      parentRoute: typeof rootRouteImport
+    '/practitioner/app/profile': {
+      id: '/practitioner/app/profile'
+      path: '/profile'
+      fullPath: '/practitioner/app/profile'
+      preLoaderRoute: typeof PractitionerAppProfileRouteImport
+      parentRoute: typeof PractitionerAppRoute
     }
-    '/api/public/hooks/whatsapp-worker': {
-      id: '/api/public/hooks/whatsapp-worker'
-      path: '/api/public/hooks/whatsapp-worker'
-      fullPath: '/api/public/hooks/whatsapp-worker'
-      preLoaderRoute: typeof ApiPublicHooksWhatsappWorkerRouteImport
-      parentRoute: typeof rootRouteImport
+    '/practitioner/app/program-queue': {
+      id: '/practitioner/app/program-queue'
+      path: '/program-queue'
+      fullPath: '/practitioner/app/program-queue'
+      preLoaderRoute: typeof PractitionerAppProgramQueueRouteImport
+      parentRoute: typeof PractitionerAppRoute
     }
-    '/api/public/hooks/weekly-practitioner-digest': {
-      id: '/api/public/hooks/weekly-practitioner-digest'
-      path: '/api/public/hooks/weekly-practitioner-digest'
-      fullPath: '/api/public/hooks/weekly-practitioner-digest'
-      preLoaderRoute: typeof ApiPublicHooksWeeklyPractitionerDigestRouteImport
-      parentRoute: typeof rootRouteImport
+    '/practitioner/app/settings': {
+      id: '/practitioner/app/settings'
+      path: '/settings'
+      fullPath: '/practitioner/app/settings'
+      preLoaderRoute: typeof PractitionerAppSettingsRouteImport
+      parentRoute: typeof PractitionerAppRoute
     }
-    '/api/public/hooks/wearables-sync': {
-      id: '/api/public/hooks/wearables-sync'
-      path: '/api/public/hooks/wearables-sync'
-      fullPath: '/api/public/hooks/wearables-sync'
-      preLoaderRoute: typeof ApiPublicHooksWearablesSyncRouteImport
-      parentRoute: typeof rootRouteImport
+    '/practitioner/app/team': {
+      id: '/practitioner/app/team'
+      path: '/team'
+      fullPath: '/practitioner/app/team'
+      preLoaderRoute: typeof PractitionerAppTeamRouteImport
+      parentRoute: typeof PractitionerAppRoute
     }
-    '/api/public/hooks/onboarding-library-nudge': {
-      id: '/api/public/hooks/onboarding-library-nudge'
-      path: '/api/public/hooks/onboarding-library-nudge'
-      fullPath: '/api/public/hooks/onboarding-library-nudge'
-      preLoaderRoute: typeof ApiPublicHooksOnboardingLibraryNudgeRouteImport
-      parentRoute: typeof rootRouteImport
+    '/admin/app/client-detail/$clientId': {
+      id: '/admin/app/client-detail/$clientId'
+      path: '/client-detail/$clientId'
+      fullPath: '/admin/app/client-detail/$clientId'
+      preLoaderRoute: typeof AdminAppClientDetailClientIdRouteImport
+      parentRoute: typeof AdminAppRoute
     }
-    '/api/public/hooks/nightly-risk-analysis': {
-      id: '/api/public/hooks/nightly-risk-analysis'
-      path: '/api/public/hooks/nightly-risk-analysis'
-      fullPath: '/api/public/hooks/nightly-risk-analysis'
-      preLoaderRoute: typeof ApiPublicHooksNightlyRiskAnalysisRouteImport
-      parentRoute: typeof rootRouteImport
+    '/admin/app/practitioner/$practitionerId': {
+      id: '/admin/app/practitioner/$practitionerId'
+      path: '/practitioner/$practitionerId'
+      fullPath: '/admin/app/practitioner/$practitionerId'
+      preLoaderRoute: typeof AdminAppPractitionerPractitionerIdRouteImport
+      parentRoute: typeof AdminAppRoute
     }
-    '/api/public/hooks/nightly-pattern-detection': {
-      id: '/api/public/hooks/nightly-pattern-detection'
-      path: '/api/public/hooks/nightly-pattern-detection'
-      fullPath: '/api/public/hooks/nightly-pattern-detection'
-      preLoaderRoute: typeof ApiPublicHooksNightlyPatternDetectionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/checkin-reminders': {
-      id: '/api/public/hooks/checkin-reminders'
-      path: '/api/public/hooks/checkin-reminders'
-      fullPath: '/api/public/hooks/checkin-reminders'
-      preLoaderRoute: typeof ApiPublicHooksCheckinRemindersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/google-calendar/callback': {
-      id: '/api/public/google-calendar/callback'
-      path: '/api/public/google-calendar/callback'
-      fullPath: '/api/public/google-calendar/callback'
-      preLoaderRoute: typeof ApiPublicGoogleCalendarCallbackRouteImport
+    '/api/public/alerts/action': {
+      id: '/api/public/alerts/action'
+      path: '/api/public/alerts/action'
+      fullPath: '/api/public/alerts/action'
+      preLoaderRoute: typeof ApiPublicAlertsActionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/calendar/$token': {
@@ -1348,46 +1278,102 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCalendarTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/alerts/action': {
-      id: '/api/public/alerts/action'
-      path: '/api/public/alerts/action'
-      fullPath: '/api/public/alerts/action'
-      preLoaderRoute: typeof ApiPublicAlertsActionRouteImport
+    '/api/public/google-calendar/callback': {
+      id: '/api/public/google-calendar/callback'
+      path: '/api/public/google-calendar/callback'
+      fullPath: '/api/public/google-calendar/callback'
+      preLoaderRoute: typeof ApiPublicGoogleCalendarCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/app/practitioner/$practitionerId': {
-      id: '/admin/app/practitioner/$practitionerId'
-      path: '/practitioner/$practitionerId'
-      fullPath: '/admin/app/practitioner/$practitionerId'
-      preLoaderRoute: typeof AdminAppPractitionerPractitionerIdRouteImport
-      parentRoute: typeof AdminAppRoute
+    '/api/public/hooks/checkin-reminders': {
+      id: '/api/public/hooks/checkin-reminders'
+      path: '/api/public/hooks/checkin-reminders'
+      fullPath: '/api/public/hooks/checkin-reminders'
+      preLoaderRoute: typeof ApiPublicHooksCheckinRemindersRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/admin/app/client-detail/$clientId': {
-      id: '/admin/app/client-detail/$clientId'
+    '/api/public/hooks/nightly-pattern-detection': {
+      id: '/api/public/hooks/nightly-pattern-detection'
+      path: '/api/public/hooks/nightly-pattern-detection'
+      fullPath: '/api/public/hooks/nightly-pattern-detection'
+      preLoaderRoute: typeof ApiPublicHooksNightlyPatternDetectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/nightly-risk-analysis': {
+      id: '/api/public/hooks/nightly-risk-analysis'
+      path: '/api/public/hooks/nightly-risk-analysis'
+      fullPath: '/api/public/hooks/nightly-risk-analysis'
+      preLoaderRoute: typeof ApiPublicHooksNightlyRiskAnalysisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/onboarding-library-nudge': {
+      id: '/api/public/hooks/onboarding-library-nudge'
+      path: '/api/public/hooks/onboarding-library-nudge'
+      fullPath: '/api/public/hooks/onboarding-library-nudge'
+      preLoaderRoute: typeof ApiPublicHooksOnboardingLibraryNudgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/wearables-sync': {
+      id: '/api/public/hooks/wearables-sync'
+      path: '/api/public/hooks/wearables-sync'
+      fullPath: '/api/public/hooks/wearables-sync'
+      preLoaderRoute: typeof ApiPublicHooksWearablesSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/weekly-practitioner-digest': {
+      id: '/api/public/hooks/weekly-practitioner-digest'
+      path: '/api/public/hooks/weekly-practitioner-digest'
+      fullPath: '/api/public/hooks/weekly-practitioner-digest'
+      preLoaderRoute: typeof ApiPublicHooksWeeklyPractitionerDigestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/whatsapp-worker': {
+      id: '/api/public/hooks/whatsapp-worker'
+      path: '/api/public/hooks/whatsapp-worker'
+      fullPath: '/api/public/hooks/whatsapp-worker'
+      preLoaderRoute: typeof ApiPublicHooksWhatsappWorkerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/whatsapp/webhook': {
+      id: '/api/public/whatsapp/webhook'
+      path: '/api/public/whatsapp/webhook'
+      fullPath: '/api/public/whatsapp/webhook'
+      preLoaderRoute: typeof ApiPublicWhatsappWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/auth/preview': {
+      id: '/lovable/email/auth/preview'
+      path: '/lovable/email/auth/preview'
+      fullPath: '/lovable/email/auth/preview'
+      preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/auth/webhook': {
+      id: '/lovable/email/auth/webhook'
+      path: '/lovable/email/auth/webhook'
+      fullPath: '/lovable/email/auth/webhook'
+      preLoaderRoute: typeof LovableEmailAuthWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/transactional/preview': {
+      id: '/lovable/email/transactional/preview'
+      path: '/lovable/email/transactional/preview'
+      fullPath: '/lovable/email/transactional/preview'
+      preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/practitioner/app/client-detail/$clientId': {
+      id: '/practitioner/app/client-detail/$clientId'
       path: '/client-detail/$clientId'
-      fullPath: '/admin/app/client-detail/$clientId'
-      preLoaderRoute: typeof AdminAppClientDetailClientIdRouteImport
-      parentRoute: typeof AdminAppRoute
+      fullPath: '/practitioner/app/client-detail/$clientId'
+      preLoaderRoute: typeof PractitionerAppClientDetailClientIdRouteImport
+      parentRoute: typeof PractitionerAppRoute
     }
-    '/api/public/wearables/polar/callback': {
-      id: '/api/public/wearables/polar/callback'
-      path: '/api/public/wearables/polar/callback'
-      fullPath: '/api/public/wearables/polar/callback'
-      preLoaderRoute: typeof ApiPublicWearablesPolarCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/wearables/oura/webhook': {
-      id: '/api/public/wearables/oura/webhook'
-      path: '/api/public/wearables/oura/webhook'
-      fullPath: '/api/public/wearables/oura/webhook'
-      preLoaderRoute: typeof ApiPublicWearablesOuraWebhookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/wearables/oura/callback': {
-      id: '/api/public/wearables/oura/callback'
-      path: '/api/public/wearables/oura/callback'
-      fullPath: '/api/public/wearables/oura/callback'
-      preLoaderRoute: typeof ApiPublicWearablesOuraCallbackRouteImport
+    '/api/public/wearables/garmin/callback': {
+      id: '/api/public/wearables/garmin/callback'
+      path: '/api/public/wearables/garmin/callback'
+      fullPath: '/api/public/wearables/garmin/callback'
+      preLoaderRoute: typeof ApiPublicWearablesGarminCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/wearables/garmin/webhook': {
@@ -1397,11 +1383,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWearablesGarminWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/wearables/garmin/callback': {
-      id: '/api/public/wearables/garmin/callback'
-      path: '/api/public/wearables/garmin/callback'
-      fullPath: '/api/public/wearables/garmin/callback'
-      preLoaderRoute: typeof ApiPublicWearablesGarminCallbackRouteImport
+    '/api/public/wearables/oura/callback': {
+      id: '/api/public/wearables/oura/callback'
+      path: '/api/public/wearables/oura/callback'
+      fullPath: '/api/public/wearables/oura/callback'
+      preLoaderRoute: typeof ApiPublicWearablesOuraCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/wearables/oura/webhook': {
+      id: '/api/public/wearables/oura/webhook'
+      path: '/api/public/wearables/oura/webhook'
+      fullPath: '/api/public/wearables/oura/webhook'
+      preLoaderRoute: typeof ApiPublicWearablesOuraWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/wearables/polar/callback': {
+      id: '/api/public/wearables/polar/callback'
+      path: '/api/public/wearables/polar/callback'
+      fullPath: '/api/public/wearables/polar/callback'
+      preLoaderRoute: typeof ApiPublicWearablesPolarCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -1544,13 +1544,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
