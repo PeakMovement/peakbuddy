@@ -5,6 +5,7 @@ import { RequestCheckInButton } from "@/components/RequestCheckInButton";
 import { ClientWearablesCard } from "@/components/ClientWearablesCard";
 import { ClientPatternsCard } from "@/components/ClientPatternsCard";
 import { YvesInsightCard } from "@/components/YvesInsightCard";
+import { WhatsAppConversationCard } from "@/components/WhatsAppConversationCard";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, X } from "lucide-react";
 import {
@@ -248,6 +249,7 @@ function ClientDetail() {
       <ClientPatternsCard clientId={client.id} patterns={patternRows as never} />
       <ClientSchedulePanel clientId={client.id} mode="practitioner" />
       <YvesInsightCard clientId={client.id} />
+      <WhatsAppConversationCard clientId={client.id} />
       <RequestCheckInButton clientId={client.id} />
       <ClientRewardsSection clientId={client.id} />
 
@@ -534,6 +536,23 @@ function ClientDetail() {
                     }}
                   >
                     {new Date(ci.created_at).toLocaleString()}
+                    {(ci as unknown as { source?: string }).source === "whatsapp" && (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          padding: "1px 7px",
+                          borderRadius: 999,
+                          background: "rgba(37,211,102,0.15)",
+                          color: "#25D366",
+                          fontFamily: "var(--font-ui)",
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          letterSpacing: "0.06em",
+                        }}
+                      >
+                        via WhatsApp
+                      </span>
+                    )}
                   </span>
                   {ci.pain_level != null && (
                     <span

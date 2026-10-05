@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { takeReturnTo } from "@/lib/after-login";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { passwordResetRedirectUrl } from "@/lib/app-url";
@@ -88,7 +89,9 @@ function ClientLogin() {
       return "No client record found for this account. Contact your practitioner.";
     }
     setClientId(client.id);
-    navigate({ to: "/client/app/checkin" });
+    const back = takeReturnTo();
+    if (back) navigate({ to: back.to, hash: back.hash } as never);
+    else navigate({ to: "/client/app/checkin" });
     return null;
   };
 

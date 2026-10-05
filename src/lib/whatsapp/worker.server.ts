@@ -5,6 +5,8 @@ import { toSast } from "./clinic-hours";
 import {
   decide,
   readPain,
+  readScale,
+  type AiAssist,
   MSG,
   type CheckinDraft,
   type ConversationState,
@@ -14,6 +16,8 @@ import {
 import { maskPhone, matchPhone, toE164Digits } from "./phone";
 import { getProvider, type ProviderSecrets, type WhatsAppProvider } from "./provider";
 import { runRedFlagRules, type RuleLayerResult } from "./red-flag-rules";
+import { readAnswerWithAi, transcribeVoiceNote, type AnswerField } from "./ai.server";
+import { hasAiConsent } from "@/lib/ai-consent";
 
 /**
  * Drains whatsapp_inbound: one pending message at a time, oldest first.
@@ -45,6 +49,8 @@ interface InboundRow {
   body: string;
   reply_id: string | null;
   reply_title: string | null;
+  media_id?: string | null;
+  media_mime_type?: string | null;
   received_at: string;
 }
 
@@ -57,12 +63,15 @@ interface ConversationRow {
   checkin_started_at: string | null;
   opted_out_at: string | null;
   unmatched_notice_at: string | null;
+  wearable_offer_at?: string | null;
 }
 
 interface ClientRow {
   id: string;
   full_name: string | null;
   practitioner_id: string;
+  practice_id?: string | null;
+  yves_ai_consent?: boolean | null;
 }
 
 export interface WorkerResult {
@@ -123,7 +132,7 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
   const { data: rows, error } = await admin
     .from("whatsapp_inbound")
     .select(
-      "id, provider, provider_message_id, from_phone, kind, body, reply_id, reply_title, received_at",
+      "id, provider, provider_message_id, from_phone, kind, body, reply_id, reply_title, media_id, media_mime_type, received_at",
     )
     .eq("status", "pending")
     .order("received_at", { ascending: true })
@@ -180,22 +189,35 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
 
 /* ------------------------------------------------------------------ */
 
+const BASE_CONV_COLS =
+  "id, phone, client_id, state, draft, checkin_started_at, opted_out_at, unmatched_notice_at";
+
 async function loadConversation(admin: Admin, phone: string): Promise<ConversationRow> {
-  const cols =
-    "id, phone, client_id, state, draft, checkin_started_at, opted_out_at, unmatched_notice_at";
-  const { data: existing } = await admin
+  // wearable_offer_at arrives with migration 0014. Until it is applied, read
+  // without it rather than failing every message.
+  let cols = `${BASE_CONV_COLS}, wearable_offer_at`;
+  const first = await admin
     .from("whatsapp_conversations")
     .select(cols)
     .eq("phone", phone)
     .maybeSingle();
-  if (existing) return existing as ConversationRow;
+  let existing = first.data;
+  if (first.error) {
+    cols = BASE_CONV_COLS;
+    ({ data: existing } = await admin
+      .from("whatsapp_conversations")
+      .select(cols)
+      .eq("phone", phone)
+      .maybeSingle());
+  }
+  if (existing) return existing as unknown as ConversationRow;
 
   const { data: created, error } = await admin
     .from("whatsapp_conversations")
     .insert({ phone, state: "new" })
     .select(cols)
     .single();
-  if (created) return created as ConversationRow;
+  if (created) return created as unknown as ConversationRow;
 
   // Lost a race with a parallel worker. The row exists now.
   const { data: again } = await admin
@@ -203,7 +225,7 @@ async function loadConversation(admin: Admin, phone: string): Promise<Conversati
     .select(cols)
     .eq("phone", phone)
     .maybeSingle();
-  if (again) return again as ConversationRow;
+  if (again) return again as unknown as ConversationRow;
   throw new Error(`conversation load failed: ${error?.code ?? "unknown"}`);
 }
 
@@ -280,18 +302,44 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   if (clientId) {
     const { data } = await admin
       .from("clients")
-      .select("id, full_name, practitioner_id")
+      .select("id, full_name, practitioner_id, practice_id, yves_ai_consent")
       .eq("id", clientId)
       .maybeSingle();
     client = (data as ClientRow | null) ?? null;
     if (!client) clientId = null;
   }
 
+  // Blue ticks and "typing..." straight away, so the patient knows we have it.
+  if (env.provider.markRead) {
+    env.provider.markRead(row.provider_message_id, env.secrets).catch(() => {});
+  }
+
+  const aiAllowed = client ? hasAiConsent(client) : false;
+  const isAudio = row.kind === "media" && (row.media_mime_type ?? "").startsWith("audio/");
+
   const message: InboundForDecision = {
     text: row.body || row.reply_title || "",
     replyId: row.reply_id ?? undefined,
     kind: row.kind,
+    mediaType: row.kind === "media" ? (isAudio ? "audio" : "other") : undefined,
   };
+
+  // Voice notes become text, then go down exactly the same path as typing,
+  // red flags included. The transcript is kept on the inbound row so the
+  // practitioner can read what was said.
+  if (isAudio && aiAllowed && row.media_id && env.provider.fetchMedia) {
+    const transcript = await transcribe(env, row.media_id).catch(() => null);
+    if (transcript) {
+      message.text = transcript;
+      message.kind = "text";
+      await admin
+        .from("whatsapp_inbound")
+        .update({ body: `[voice note] ${transcript}` })
+        .eq("id", row.id);
+    } else {
+      log.warn("whatsapp worker: voice note not transcribed", { from: maskPhone(phone) });
+    }
+  }
 
   // A conversation that was unmatched and has just been matched starts fresh.
   let state: ConversationState = conv.state;
@@ -307,9 +355,15 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
 
   // Layer 1 safety runs on every message, whatever the conversation state,
   // before anything else is decided.
-  const painNow = state === "awaiting_pain" ? readPain(message) : null;
+  // When the plain reader can't find the answer to the question we asked,
+  // and the patient allows AI, let the model try. Never overrides a number
+  // the patient typed.
+  const assist = aiAllowed ? await aiAssist(state, message) : undefined;
+
+  const painNow =
+    state === "awaiting_pain" ? (readPain(message) ?? assist?.painScore ?? null) : null;
   const redFlags = runRedFlagRules({
-    text: row.body ?? "",
+    text: message.text ?? "",
     painScore: painNow,
     previousPainScore: prevPain,
   });
@@ -326,6 +380,9 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     checkedInToday: today,
     redFlags,
     now,
+    hasWearable: client ? await hasWearable(admin, client.id) : false,
+    wearableOffered: Boolean(conv.wearable_offer_at),
+    assist,
   });
 
   // Unknown numbers are told once a day, not on every message.
@@ -365,13 +422,25 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     })
     .eq("id", conv.id);
 
+  if (decision.markWearableOffered) {
+    // Separate write: the column arrives with migration 0014.
+    await admin
+      .from("whatsapp_conversations")
+      .update({ wearable_offer_at: now.toISOString() })
+      .eq("id", conv.id);
+  }
+
   let sent = 0;
   for (const reply of replies) {
+    let providerMessageId: string | null = null;
+    let ok = false;
     try {
-      await env.provider.send(
+      const r = await env.provider.send(
         { ...reply, to: phone } as Parameters<WhatsAppProvider["send"]>[0],
         env.secrets,
       );
+      providerMessageId = r.providerMessageId || null;
+      ok = true;
       sent++;
     } catch (e) {
       // Status only, never the text.
@@ -380,6 +449,23 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
         error: e instanceof Error ? e.message.slice(0, 120) : "unknown",
       });
     }
+    // Keep Buddy's side of the conversation for the practitioner's view.
+    // Best effort: a logging failure never affects the patient.
+    await admin
+      .from("whatsapp_outbound")
+      .insert({
+        phone,
+        client_id: client?.id ?? null,
+        provider: env.provider.id,
+        provider_message_id: providerMessageId,
+        kind: reply.kind,
+        body: flattenReply(reply),
+        sent_ok: ok,
+      })
+      .then(
+        () => undefined,
+        () => undefined,
+      );
   }
   if (sent > 0) {
     await admin
@@ -390,6 +476,51 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   if (replies.length > 0 && sent === 0) throw new Error("all replies failed to send");
 
   return client?.id ?? null;
+}
+
+/** Buddy's words as the practitioner should read them, choices included. */
+export function flattenReply(reply: Decision["replies"][number]): string {
+  if (reply.kind === "text") return reply.body;
+  if (reply.kind === "buttons")
+    return `${reply.body}\n[${reply.buttons.map((b) => b.title).join(" | ")}]`;
+  if (reply.kind === "list")
+    return `${reply.body}\n[${reply.rows.map((r) => r.title).join(" | ")}]`;
+  return `[template ${reply.templateName}]`;
+}
+
+async function transcribe(env: WorkerEnv, mediaId: string): Promise<string | null> {
+  const media = await env.provider.fetchMedia!(mediaId, env.secrets);
+  if (!media) return null;
+  return transcribeVoiceNote(media.bytes, media.mimeType);
+}
+
+const ASSIST_FIELD: Partial<Record<ConversationState, AnswerField>> = {
+  awaiting_pain: "painScore",
+  awaiting_sleep: "sleep",
+  awaiting_energy: "energy",
+};
+
+async function aiAssist(
+  state: ConversationState,
+  message: InboundForDecision,
+): Promise<AiAssist | undefined> {
+  const field = ASSIST_FIELD[state];
+  if (!field || !message.text.trim() || message.replyId) return undefined;
+  // Only when the plain reader found nothing.
+  if (field === "painScore" && readPain(message) !== null) return undefined;
+  if (field === "sleep" && readScale(message, "wsleep_") !== null) return undefined;
+  if (field === "energy" && readScale(message, "wenergy_") !== null) return undefined;
+  const value = await readAnswerWithAi(field, message.text);
+  return value === null ? undefined : { [field]: value };
+}
+
+async function hasWearable(admin: Admin, clientId: string): Promise<boolean> {
+  const { data } = await admin
+    .from("wearable_tokens")
+    .select("client_id")
+    .eq("client_id", clientId)
+    .limit(1);
+  return (data ?? []).length > 0;
 }
 
 function firstNameOf(fullName: string | null): string {
@@ -463,6 +594,27 @@ async function applyEffects(
     );
   }
 
+  if (decision.setReminderTime) {
+    // Same row the app's reminder screen writes, so the two never disagree.
+    await admin
+      .from("checkin_reminders")
+      .upsert(
+        {
+          client_id: client.id,
+          enabled: true,
+          frequency: "daily",
+          time_of_day: decision.setReminderTime,
+          days_of_week: [0, 1, 2, 3, 4, 5, 6],
+          timezone: "Africa/Johannesburg",
+        },
+        { onConflict: "client_id" },
+      )
+      .then(
+        () => undefined,
+        () => undefined,
+      );
+  }
+
   if (decision.contactRequest) {
     await raiseContactAlert(
       admin,
@@ -529,12 +681,17 @@ async function raiseRedFlagAlert(
       .maybeSingle();
     if (claimed) {
       const { sendPushCore } = await import("@/lib/push.functions");
-      await sendPushCore(supabaseAdmin, {
-        userId: client.practitioner_id,
+      const push = {
         title: "Buddy alert",
         body: `${firstName} reported symptoms on WhatsApp that may need review`,
         data: { clientId: client.id, kind: "whatsapp" },
-      });
+      };
+      await sendPushCore(supabaseAdmin, { userId: client.practitioner_id, ...push });
+      // Red flags also reach the practice owner, when that is someone else.
+      const owner = await practiceOwnerId(admin, client);
+      if (owner && owner !== client.practitioner_id) {
+        await sendPushCore(supabaseAdmin, { userId: owner, ...push });
+      }
     }
   } catch (e) {
     log.warn("whatsapp worker: push failed", { error: e instanceof Error ? e.message : "unknown" });
@@ -565,6 +722,16 @@ async function raiseRedFlagAlert(
       error: e instanceof Error ? e.message : "unknown",
     });
   }
+}
+
+async function practiceOwnerId(admin: Admin, client: ClientRow): Promise<string | null> {
+  if (!client.practice_id) return null;
+  const { data } = await admin
+    .from("practices")
+    .select("practitioner_id")
+    .eq("id", client.practice_id)
+    .maybeSingle();
+  return (data as { practitioner_id?: string } | null)?.practitioner_id ?? null;
 }
 
 async function raiseContactAlert(

@@ -67,6 +67,18 @@ function ClientProfile() {
   const [busy, setBusy] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [wearablesOpen, setWearablesOpen] = useState(false);
+
+  // Arriving from a "connect your watch" link (the check-in prompt or a
+  // WhatsApp message) opens the Wearables section and scrolls to it.
+  useEffect(() => {
+    if (typeof window === "undefined" || window.location.hash !== "#wearables") return;
+    setWearablesOpen(true);
+    const t = setTimeout(
+      () => document.getElementById("wearables")?.scrollIntoView({ behavior: "smooth" }),
+      300,
+    );
+    return () => clearTimeout(t);
+  }, []);
   const [timelineItems, setTimelineItems] = useState<CheckIn[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [openCheckInId, setOpenCheckInId] = useState<string | null>(null);

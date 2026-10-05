@@ -99,6 +99,13 @@
       "when": 1791167593071,
       "tag": "0013_whatsapp_conversations",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791194400000,
+      "tag": "0014_whatsapp_outbound_and_wearable_offer",
+      "breakpoints": true
     }
   ]
 }

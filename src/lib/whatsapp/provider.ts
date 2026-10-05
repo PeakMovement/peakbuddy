@@ -114,6 +114,17 @@ export interface WhatsAppProvider {
   /** Parse a verified request into our shape. Unknown event types are dropped. */
   parseWebhook(req: RawWebhookRequest): WebhookPayload;
   send(message: OutboundMessage, secrets: ProviderSecrets): Promise<SendResult>;
+  /**
+   * Show the patient their message was read, and a typing indicator while we
+   * work on the reply. Cosmetic: callers must ignore failures. Optional, since
+   * Twilio has no equivalent.
+   */
+  markRead?(providerMessageId: string, secrets: ProviderSecrets): Promise<void>;
+  /** Download an inbound media item (a voice note). Optional per provider. */
+  fetchMedia?(
+    mediaId: string,
+    secrets: ProviderSecrets,
+  ): Promise<{ bytes: Uint8Array; mimeType: string } | null>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -197,6 +208,42 @@ const META_GRAPH_VERSION = "v21.0";
 export const metaProvider: WhatsAppProvider = {
   id: "meta",
 
+  async markRead(providerMessageId, secrets) {
+    await fetch(`https://graph.facebook.com/${META_GRAPH_VERSION}/${secrets.senderId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secrets.accessToken ?? ""}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        status: "read",
+        message_id: providerMessageId,
+        typing_indicator: { type: "text" },
+      }),
+      signal: AbortSignal.timeout(5_000),
+    });
+  },
+
+  async fetchMedia(mediaId, secrets) {
+    const auth = { Authorization: `Bearer ${secrets.accessToken ?? ""}` };
+    // Two steps: the media id resolves to a short-lived URL, which needs the
+    // same token to download.
+    const meta = await fetch(
+      `https://graph.facebook.com/${META_GRAPH_VERSION}/${encodeURIComponent(mediaId)}`,
+      { headers: auth, signal: AbortSignal.timeout(10_000) },
+    );
+    if (!meta.ok) return null;
+    const info = (await meta.json()) as { url?: string; mime_type?: string; file_size?: number };
+    if (!info.url || (info.file_size ?? 0) > 16 * 1024 * 1024) return null;
+    const file = await fetch(info.url, { headers: auth, signal: AbortSignal.timeout(15_000) });
+    if (!file.ok) return null;
+    return {
+      bytes: new Uint8Array(await file.arrayBuffer()),
+      mimeType: info.mime_type ?? file.headers.get("content-type") ?? "audio/ogg",
+    };
+  },
+
   async verifySignature(req, secrets) {
     const given = header(req, "x-hub-signature-256");
     if (!given || !given.startsWith("sha256=")) return false;
@@ -221,9 +268,7 @@ export const metaProvider: WhatsAppProvider = {
       for (const change of entry?.changes ?? []) {
         const value = change?.value;
         if (!value) continue;
-        const businessNumber = normalisePhone(
-          value?.metadata?.display_phone_number ?? "",
-        );
+        const businessNumber = normalisePhone(value?.metadata?.display_phone_number ?? "");
 
         for (const m of value?.messages ?? []) {
           if (!m?.id || !m?.from) continue;
@@ -486,16 +531,12 @@ export const twilioProvider: WhatsAppProvider = {
         .map((b, i) => `${i + 1}. ${b.title}`)
         .join("\n")}`;
     } else if (message.kind === "list") {
-      body = `${message.body}\n\n${message.rows
-        .map((r, i) => `${i + 1}. ${r.title}`)
-        .join("\n")}`;
+      body = `${message.body}\n\n${message.rows.map((r, i) => `${i + 1}. ${r.title}`).join("\n")}`;
     } else {
       form.set("ContentSid", message.templateName);
       form.set(
         "ContentVariables",
-        JSON.stringify(
-          Object.fromEntries(message.variables.map((v, i) => [String(i + 1), v])),
-        ),
+        JSON.stringify(Object.fromEntries(message.variables.map((v, i) => [String(i + 1), v]))),
       );
       body = "";
     }
@@ -529,7 +570,5 @@ export const twilioProvider: WhatsAppProvider = {
 export function getProvider(id: string | undefined): WhatsAppProvider {
   if (id === "twilio") return twilioProvider;
   if (id === "meta") return metaProvider;
-  throw new Error(
-    "WHATSAPP_PROVIDER is not set to 'meta' or 'twilio'. Refusing to guess.",
-  );
+  throw new Error("WHATSAPP_PROVIDER is not set to 'meta' or 'twilio'. Refusing to guess.");
 }

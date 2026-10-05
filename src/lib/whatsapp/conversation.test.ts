@@ -7,6 +7,8 @@ import {
   type ConversationSnapshot,
   type DecisionContext,
   type InboundForDecision,
+  WEARABLE_CONNECT_URL,
+  readReminderTime,
 } from "./conversation";
 import { runRedFlagRules } from "./red-flag-rules";
 import { OPT_OUT_CONFIRMATION, CONTACT_ACKNOWLEDGEMENT } from "./intent";
@@ -174,8 +176,9 @@ describe("the check-in", () => {
       notes: "Knee a bit stiff in the morning",
       flagged: false,
     });
-    expect(d.next.state).toBe("idle");
-    expect(bodies(d)).toEqual([MSG.saved]);
+    expect(d.next.state).toBe("awaiting_wearable");
+    expect(bodies(d)).toEqual([MSG.saved, MSG.wearableOffer]);
+    expect(d.markWearableOffered).toBe(true);
   });
 
   it("Nothing to add saves with empty notes", () => {
@@ -335,5 +338,101 @@ describe("reading pain from a sentence", () => {
     expect(read("between 4 and 6")).toBeUndefined();
     expect(read("did 12 reps")).toBeUndefined();
     expect(read("it's like 15")).toBeUndefined();
+  });
+});
+
+describe("wearable offer", () => {
+  const done = snap("awaiting_notes", { pain: 3, sleep: 4, energy: 4, notes: [] }, NOW);
+  it("is not offered to someone who already has a wearable, or was already asked", () => {
+    for (const extra of [{ hasWearable: true }, { wearableOffered: true }]) {
+      const d = decide(
+        ctx({ message: msg("Nothing", IDS.notesNone), conversation: done, ...extra }),
+      );
+      expect(bodies(d)).toEqual([MSG.saved]);
+      expect(d.next.state).toBe("idle");
+    }
+  });
+  it("Yes sends the same link the app's Connect button uses", () => {
+    const d = decide(
+      ctx({
+        message: msg("Yes, connect it", IDS.wearableYes),
+        conversation: snap("awaiting_wearable", {}, NOW),
+      }),
+    );
+    expect(bodies(d)[0]).toContain(WEARABLE_CONNECT_URL);
+    expect(d.next.state).toBe("idle");
+  });
+  it("Not now is accepted and tells them how to ask later", () => {
+    const d = decide(
+      ctx({
+        message: msg("Not now", IDS.wearableNo),
+        conversation: snap("awaiting_wearable", {}, NOW),
+      }),
+    );
+    expect(bodies(d)).toEqual([MSG.wearableDeclined]);
+  });
+  it("anything else drops the offer and is handled normally", () => {
+    const d = decide(
+      ctx({
+        message: msg("hi"),
+        conversation: snap("awaiting_wearable", {}, NOW),
+        checkedInToday: true,
+      }),
+    );
+    expect(bodies(d)).toEqual([MSG.alreadyToday]);
+  });
+  it("WATCH or 'connect my garmin' sends the link any time", () => {
+    for (const t of ["WATCH", "can I connect my garmin?"]) {
+      const d = decide(ctx({ message: msg(t), checkedInToday: true }));
+      expect(bodies(d)[0]).toContain(WEARABLE_CONNECT_URL);
+    }
+  });
+});
+
+describe("check-in time", () => {
+  it("reads common ways of asking", () => {
+    expect(readReminderTime("remind me at 7am")).toBe("07:00");
+    expect(readReminderTime("Can you check in at 18:30 please")).toBe("18:30");
+    expect(readReminderTime("change my check-in time to 6pm")).toBe("18:00");
+    expect(readReminderTime("message me at 12am")).toBe("00:00");
+    expect(readReminderTime("remind me at 25")).toBeNull();
+    expect(readReminderTime("my knee hurts at 7")).toBeNull();
+  });
+  it("sets it without disturbing a check-in in progress", () => {
+    const conv = snap("awaiting_sleep", { pain: 3 }, NOW);
+    const d = decide(ctx({ message: msg("remind me at 7am"), conversation: conv }));
+    expect(d.setReminderTime).toBe("07:00");
+    expect(d.next).toEqual(conv);
+  });
+  it("is not read out of a note", () => {
+    const conv = snap("awaiting_notes", { pain: 3, sleep: 3, energy: 3, notes: [] }, NOW);
+    const d = decide(
+      ctx({ message: msg("I need a check in at the hospital at 3"), conversation: conv }),
+    );
+    expect(d.setReminderTime).toBeUndefined();
+    expect(d.saveCheckin).toBeTruthy();
+  });
+});
+
+describe("AI fallback and voice notes", () => {
+  it("uses the AI reading only when the plain reader found nothing", () => {
+    const conv = snap("awaiting_pain", { notes: [] }, NOW);
+    expect(
+      decide(
+        ctx({
+          message: msg("much better, barely notice it"),
+          conversation: conv,
+          assist: { painScore: 1 },
+        }),
+      ).next.draft.pain,
+    ).toBe(1);
+    expect(
+      decide(ctx({ message: msg("6"), conversation: conv, assist: { painScore: 1 } })).next.draft
+        .pain,
+    ).toBe(6);
+  });
+  it("a voice note that could not be read asks them to type", () => {
+    const d = decide(ctx({ message: { text: "", kind: "media", mediaType: "audio" } }));
+    expect(bodies(d)).toEqual([MSG.voiceUnreadable]);
   });
 });

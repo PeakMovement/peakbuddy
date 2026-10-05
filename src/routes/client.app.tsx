@@ -1,4 +1,5 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
+import { rememberReturnTo } from "@/lib/after-login";
 import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { ClipboardList, Activity, MessageCircle, User, Dumbbell } from "lucide-react";
@@ -64,6 +65,8 @@ function ClientAppLayout() {
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
       if (!data.session || !getClientId()) {
+        // Come back here after signing in (e.g. a WhatsApp link to Wearables).
+        rememberReturnTo(window.location.pathname + window.location.hash);
         navigate({ to: "/client/login" });
         return;
       }

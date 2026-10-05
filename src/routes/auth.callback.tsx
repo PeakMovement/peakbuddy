@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { takeReturnTo } from "@/lib/after-login";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { practitionerDestination } from "@/lib/practitioner-routing";
@@ -70,7 +71,11 @@ function AuthCallback() {
 
       if (client) {
         setClientId(client.id);
-        navigate({ to: "/client/app/checkin" });
+        {
+          const back = takeReturnTo();
+          if (back) navigate({ to: back.to, hash: back.hash } as never);
+          else navigate({ to: "/client/app/checkin" });
+        }
       } else {
         setMessage(
           "Signed in, but no client record is linked to this email. Please contact your practitioner.",

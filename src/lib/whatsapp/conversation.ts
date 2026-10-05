@@ -33,6 +33,7 @@ export type ConversationState =
   | "awaiting_sleep"
   | "awaiting_energy"
   | "awaiting_notes"
+  | "awaiting_wearable"
   | "opted_out"
   | "unmatched";
 
@@ -57,6 +58,19 @@ export interface InboundForDecision {
   text: string;
   replyId?: string;
   kind: "text" | "interactive" | "media" | "unsupported";
+  /** Set for media. A voice note we could not transcribe gets its own reply. */
+  mediaType?: "audio" | "other";
+}
+
+/**
+ * What the AI read out of a free-text answer, when the deterministic reader
+ * could not. Only ever a fallback: a number the patient typed always wins.
+ * Absent when the patient has not given AI consent.
+ */
+export interface AiAssist {
+  painScore?: number | null;
+  sleep?: number | null;
+  energy?: number | null;
 }
 
 export interface DecisionContext {
@@ -71,6 +85,11 @@ export interface DecisionContext {
   /** Layer 1 safety result for this message, already computed. */
   redFlags: RuleLayerResult;
   now: Date;
+  /** The profile already has a wearable connected. */
+  hasWearable?: boolean;
+  /** Buddy has already offered to connect a wearable once. */
+  wearableOffered?: boolean;
+  assist?: AiAssist;
 }
 
 export interface CheckinToSave {
@@ -91,6 +110,10 @@ export interface Decision {
   /** Free text sent after today's check-in. Passed to the practitioner, not lost. */
   noteForPractitioner?: string;
   saveCheckin?: CheckinToSave;
+  /** Record that the wearable offer was made, so it is made once. */
+  markWearableOffered?: boolean;
+  /** "HH:MM", South African time. The patient asked to be checked in at this time. */
+  setReminderTime?: string;
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -102,11 +125,20 @@ export const IDS = {
   consentYes: "consent_yes",
   consentNo: "consent_no",
   notesNone: "notes_none",
+  wearableYes: "wear_yes",
+  wearableNo: "wear_no",
   sleep: (n: number) => `wsleep_${n}`,
   energy: (n: number) => `wenergy_${n}`,
 } as const;
 
 const PRACTICE_PHONE = "067 369 0593";
+
+/**
+ * Where the app's own "Connect" button on the check-in screen goes. Opening it
+ * from WhatsApp asks the patient to sign in first, then lands them on the
+ * Wearables section, opened.
+ */
+export const WEARABLE_CONNECT_URL = "https://peakbuddy.lovable.app/client/app/profile#wearables";
 
 /* ------------------------------------------------------------------ */
 /* Wording                                                             */
@@ -143,7 +175,20 @@ export const MSG = {
   alreadyToday:
     "You've already checked in today, thank you. If anything changes, tell me here and I'll make sure your physiotherapist sees it.",
   noteAdded: "Thanks, I've passed that on to your physiotherapist.",
-  unsupported: "Sorry, I can only read typed messages and button replies at the moment.",
+  unsupported:
+    "Sorry, I can only read typed messages, voice notes and button replies at the moment.",
+  voiceUnreadable:
+    "Sorry, I couldn't make out that voice note. Could you type your answer instead?",
+  wearableOffer:
+    "One more thing. Do you wear a smartwatch or ring, like a Garmin, Oura or Polar? If you connect it, your physiotherapist can see your sleep, heart rate and activity alongside your check-ins, without you having to type anything.",
+  wearableLink:
+    "Great. Tap this link, sign in to Buddy if it asks, and choose your device under Wearables:\n\n" +
+    WEARABLE_CONNECT_URL +
+    "\n\nIt only takes a minute. Garmin, Oura and Polar are supported.",
+  wearableDeclined:
+    "No problem. If you change your mind, just send me the word WATCH and I'll send the link.",
+  reminderSet: (hhmm: string) =>
+    `Done, your check-in time is now ${hhmm} every day. Reply with a new time whenever you like.`,
 } as const;
 
 /**
@@ -266,6 +311,37 @@ const askEnergy = (body: string = MSG.askEnergy): Reply => ({
   rows: ENERGY_ROWS.map((r) => ({ id: IDS.energy(r.n), title: r.title })),
 });
 
+const wearableOffer = (): Reply => ({
+  kind: "buttons",
+  body: MSG.wearableOffer,
+  buttons: [
+    { id: IDS.wearableYes, title: "Yes, connect it" },
+    { id: IDS.wearableNo, title: "Not now" },
+  ],
+});
+
+/** "connect my watch", "link my garmin", or just "watch". */
+const WEARABLE_REQUEST =
+  /^(watch|wearable|smartwatch|garmin|oura|polar)[.!]*$|\b(connect|link|add|sync|koppel)\b.{0,25}\b(watch|wearable|smartwatch|garmin|oura|polar|ring|horlosie)\b/i;
+
+/**
+ * "remind me at 7am", "check in at 18:30", "change my check-in time to 6pm".
+ * Returns "HH:MM" or null. Hours outside a day, or ambiguous text, give null.
+ */
+export function readReminderTime(text: string): string | null {
+  const m = text.match(
+    /\b(?:remind|reminder|check[\s-]?in|message|text|herinner)\b.{0,30}?\b(?:at|to|for|om)\s*(\d{1,2})(?:[:h.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?/i,
+  );
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = m[2] ? Number(m[2]) : 0;
+  const ap = (m[3] ?? "").toLowerCase().replace(/\./g, "");
+  if (ap === "pm" && h < 12) h += 12;
+  if (ap === "am" && h === 12) h = 0;
+  if (h > 23 || min > 59) return null;
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
 const askNotes = (): Reply => ({
   kind: "buttons",
   body: MSG.askNotes,
@@ -378,7 +454,21 @@ export function decide(ctx: DecisionContext): Decision {
   }
 
   if (msg.kind === "media" || msg.kind === "unsupported") {
-    if (!raw) return withSafety({ replies: [text(MSG.unsupported)], next: conv }, ctx);
+    if (!raw) {
+      const reply = msg.mediaType === "audio" ? MSG.voiceUnreadable : MSG.unsupported;
+      return withSafety({ replies: [text(reply)], next: conv }, ctx);
+    }
+  }
+
+  // Asking for a check-in time works from anywhere in the conversation, and
+  // does not disturb a check-in in progress.
+  // Not while writing their notes, where "my scan is at 3" is a note.
+  const reminder = conv.state === "awaiting_notes" ? null : readReminderTime(raw);
+  if (reminder) {
+    return withSafety(
+      { replies: [text(MSG.reminderSet(reminder))], next: conv, setReminderTime: reminder },
+      ctx,
+    );
   }
 
   // 5. A half-finished check-in from yesterday is not resumed.
@@ -402,7 +492,7 @@ export function decide(ctx: DecisionContext): Decision {
 
   switch (state) {
     case "awaiting_pain": {
-      const pain = readPain(msg);
+      const pain = readPain(msg) ?? ctx.assist?.painScore ?? null;
       if (pain === null) {
         // Not a number. Keep what they said for the practitioner and ask again.
         const notes = raw ? [...(draft.notes ?? []), raw] : draft.notes;
@@ -429,7 +519,7 @@ export function decide(ctx: DecisionContext): Decision {
     }
 
     case "awaiting_sleep": {
-      const sleep = readScale(msg, "wsleep_");
+      const sleep = readScale(msg, "wsleep_") ?? ctx.assist?.sleep ?? null;
       if (sleep === null) {
         const notes = raw ? [...(draft.notes ?? []), raw] : draft.notes;
         return withSafety(
@@ -447,7 +537,7 @@ export function decide(ctx: DecisionContext): Decision {
     }
 
     case "awaiting_energy": {
-      const energy = readScale(msg, "wenergy_");
+      const energy = readScale(msg, "wenergy_") ?? ctx.assist?.energy ?? null;
       if (energy === null) {
         const notes = raw ? [...(draft.notes ?? []), raw] : draft.notes;
         return withSafety(
@@ -467,9 +557,12 @@ export function decide(ctx: DecisionContext): Decision {
     case "awaiting_notes": {
       const added = msg.replyId === IDS.notesNone ? [] : raw ? [raw] : [];
       const notes = [...(draft.notes ?? []), ...added].join("\n").slice(0, 2000);
+      // After the first check-in, offer to connect a wearable. Once only.
+      const offer = !ctx.hasWearable && !ctx.wearableOffered;
       const decision: Decision = {
-        replies: [text(MSG.saved)],
-        next: IDLE(),
+        replies: offer ? [text(MSG.saved), wearableOffer()] : [text(MSG.saved)],
+        next: offer ? { state: "awaiting_wearable", draft: {}, checkinStartedAt: ctx.now } : IDLE(),
+        markWearableOffered: offer || undefined,
         saveCheckin: {
           pain: draft.pain ?? 0,
           sleep: draft.sleep ?? null,
@@ -481,7 +574,24 @@ export function decide(ctx: DecisionContext): Decision {
       return withSafety(decision, ctx);
     }
 
+    case "awaiting_wearable": {
+      if (msg.replyId === IDS.wearableYes || YES.test(raw) || WEARABLE_REQUEST.test(raw)) {
+        return withSafety({ replies: [text(MSG.wearableLink)], next: IDLE() }, ctx);
+      }
+      if (msg.replyId === IDS.wearableNo || NO.test(raw) || /^not now[.!]*$/i.test(raw)) {
+        return withSafety({ replies: [text(MSG.wearableDeclined)], next: IDLE() }, ctx);
+      }
+      // Something else entirely. Drop the offer and treat it as a fresh message.
+      return decide({ ...ctx, conversation: IDLE() });
+    }
+
     default: {
+      if (WEARABLE_REQUEST.test(raw)) {
+        return withSafety(
+          { replies: [text(MSG.wearableLink)], next: IDLE(), markWearableOffered: true },
+          ctx,
+        );
+      }
       // Idle. Any message starts today's check-in, unless it is already done,
       // in which case what they wrote is a note for the practitioner.
       if (ctx.checkedInToday) {

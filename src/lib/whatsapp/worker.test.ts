@@ -70,6 +70,15 @@ function fakeDb(seed: Record<string, Row[]>) {
         rows().push(...inserted);
         return api;
       },
+      upsert(r: Row, o?: { onConflict?: string }) {
+        const key = o?.onConflict ?? "id";
+        const existing = rows().find((x) => x[key] === r[key]);
+        if (existing) Object.assign(existing, r);
+        else rows().push({ id: `id-${++idSeq}`, ...r });
+        op = "insert";
+        inserted = [];
+        return api;
+      },
       update(p: Row) {
         op = "update";
         patch = p;
@@ -224,7 +233,13 @@ describe("WhatsApp worker, end to end against a fake database", () => {
       flagged: false,
       source: "whatsapp",
     });
-    expect(db.tables.whatsapp_conversations[0].state).toBe("idle");
+    expect(db.tables.whatsapp_conversations[0].state).toBe("awaiting_wearable");
+    expect(db.tables.whatsapp_conversations[0].wearable_offer_at).toBeTruthy();
+    // Both sides of the conversation are kept for the practitioner.
+    expect(db.tables.whatsapp_outbound.length).toBe(sent.length);
+    expect(db.tables.whatsapp_outbound.every((r) => r.client_id === "client-1" && r.body)).toBe(
+      true,
+    );
     expect(
       db.tables.whatsapp_inbound.every(
         (r) => r.status === "processed" && r.client_id === "client-1",
@@ -432,5 +447,72 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     // A claim still within its window belongs to whoever holds it.
     expect(db.tables.whatsapp_inbound[1].status).toBe("processing");
     expect(sent).toHaveLength(1);
+  });
+
+  it("saves a requested check-in time to the same reminder row the app uses", async () => {
+    const db = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [inbound("remind me at 7am")],
+      whatsapp_conversations: [
+        {
+          id: "c1",
+          phone: "27820000001",
+          client_id: "client-1",
+          state: "idle",
+          draft: {},
+          checkin_started_at: null,
+        },
+      ],
+      consent_records: [
+        {
+          id: "k1",
+          client_id: "client-1",
+          consent_type: "whatsapp_checkins",
+          withdrawn_at: null,
+          superseded_by: null,
+        },
+      ],
+      check_ins: [],
+    });
+    const { provider } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.checkin_reminders[0]).toMatchObject({
+      client_id: "client-1",
+      time_of_day: "07:00",
+      enabled: true,
+      timezone: "Africa/Johannesburg",
+    });
+  });
+
+  it("does not offer a wearable to someone who already has one connected", async () => {
+    const db = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [inbound("Nothing", IDS.notesNone)],
+      whatsapp_conversations: [
+        {
+          id: "c1",
+          phone: "27820000001",
+          client_id: "client-1",
+          state: "awaiting_notes",
+          draft: { pain: 2, sleep: 4, energy: 4 },
+          checkin_started_at: NOW().toISOString(),
+        },
+      ],
+      consent_records: [
+        {
+          id: "k1",
+          client_id: "client-1",
+          consent_type: "whatsapp_checkins",
+          withdrawn_at: null,
+          superseded_by: null,
+        },
+      ],
+      check_ins: [],
+      wearable_tokens: [{ client_id: "client-1", provider: "garmin" }],
+    });
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(sent).toHaveLength(1);
+    expect(db.tables.whatsapp_conversations[0].state).toBe("idle");
   });
 });
