@@ -244,16 +244,27 @@ export interface InviteRow {
 }
 
 export async function findInvite(admin: Admin, code: string): Promise<InviteRow | null> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("whatsapp_invites")
     .select(
       "id, code, kind, practice_id, practitioner_id, client_id, expires_at, used_at, revoked_at",
     )
     .eq("code", code.toUpperCase())
     .maybeSingle();
+  if (error) log.warn("invite lookup failed", { code: error.code, message: error.message });
   const inv = data as InviteRow | null;
-  if (!inv || inv.revoked_at) return null;
-  if (inv.expires_at && new Date(inv.expires_at).getTime() < Date.now()) return null;
+  if (!inv) {
+    log.info("invite not found", { length: code.length });
+    return null;
+  }
+  if (inv.revoked_at) {
+    log.info("invite revoked", { id: inv.id });
+    return null;
+  }
+  if (inv.expires_at && new Date(inv.expires_at).getTime() < Date.now()) {
+    log.info("invite expired", { id: inv.id });
+    return null;
+  }
   return inv;
 }
 
