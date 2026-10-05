@@ -1,3 +1,4 @@
+import { ASSIST_MSG } from "./assistant";
 import { describe, expect, it } from "vitest";
 import {
   decide,
@@ -218,7 +219,8 @@ describe("the check-in", () => {
 
   it("does not start a second check-in on the same day", () => {
     const d = decide(ctx({ message: msg("hi"), checkedInToday: true }));
-    expect(bodies(d)).toEqual([MSG.alreadyToday]);
+    expect(d.replies[0].kind).toBe("list");
+    expect(bodies(d)[0]).toMatch(/already checked in today/);
     expect(d.next.state).toBe("idle");
   });
 
@@ -227,7 +229,7 @@ describe("the check-in", () => {
       ctx({ message: msg("The new exercise makes my hip click"), checkedInToday: true }),
     );
     expect(d.noteForPractitioner).toBe("The new exercise makes my hip click");
-    expect(bodies(d)).toEqual([MSG.noteAdded]);
+    expect(bodies(d)).toEqual([ASSIST_MSG.noteAddedMenu]);
   });
 });
 
@@ -379,7 +381,7 @@ describe("wearable offer", () => {
         checkedInToday: true,
       }),
     );
-    expect(bodies(d)).toEqual([MSG.alreadyToday]);
+    expect(d.replies[0].kind).toBe("list");
   });
   it("WATCH or 'connect my garmin' sends the link any time", () => {
     for (const t of ["WATCH", "can I connect my garmin?"]) {

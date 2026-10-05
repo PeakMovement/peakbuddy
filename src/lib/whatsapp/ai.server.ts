@@ -198,9 +198,19 @@ Pick exactly one intent:
 - clinical_question: any question about their condition, symptoms, treatment, exercises' safety, medication, what they should or shouldn't do, whether something is normal.
 - progress: they ask how they have been doing according to their check-ins.
 - exercises: they want their exercise programme (not advice about it).
-- greeting: a greeting, thanks or small talk with nothing else in it.
+- greeting: a greeting, thanks or small talk with nothing else in it ("Hi buddy", "thanks!").
+- help: they ask what Buddy can do, how it works, who it is, or for a menu or options.
 - other: anything else, including statements about how they feel.
-When unsure between clinical_question and anything else, choose clinical_question.
+Examples:
+"Can I change my symptoms?" -> log_change (they want to update what they logged, not medical advice)
+"I want to update my check-in" -> log_change
+"Can you tell me what you can do?" -> help
+"Hi buddy" -> greeting
+"When can I come in for a check-up?" -> booking
+"Should I ice my knee?" -> clinical_question
+"Is it normal for it to click?" -> clinical_question
+"My glute is really tight today" -> other
+Only choose clinical_question for a genuine question about their body, symptoms, treatment or what is safe for them to do.
 For practice_info, write the answer in 1 to 3 short sentences using ONLY the practice information below. Never invent prices, times, names or policies. If the information does not cover it, answer null.
 Write in plain, warm South African English. No dashes.
 
