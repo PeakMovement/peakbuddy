@@ -80,6 +80,9 @@ export interface WorkerEnv {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** A message claimed longer ago than this, and still processing, was abandoned. */
+export const STUCK_CLAIM_MS = 3 * 60 * 1000;
+
 /** Reads the provider config from the environment. Null when WhatsApp is not configured. */
 export function whatsappConfigFromEnv(): {
   provider: WhatsAppProvider;
@@ -106,6 +109,17 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
   const { admin } = env;
   const result: WorkerResult = { processed: 0, failed: 0, skipped: 0 };
 
+  // Release claims that never finished. The webhook bounds its inline call at
+  // 8 seconds, and a Worker that has already answered can be stopped mid
+  // message. Without this, that message would sit in "processing" forever and
+  // the patient would never get an answer.
+  const stuckBefore = new Date(Date.now() - STUCK_CLAIM_MS).toISOString();
+  await admin
+    .from("whatsapp_inbound")
+    .update({ status: "pending", processed_at: null })
+    .eq("status", "processing")
+    .lt("processed_at", stuckBefore);
+
   const { data: rows, error } = await admin
     .from("whatsapp_inbound")
     .select(
@@ -123,7 +137,9 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
     // Claim. Only the caller that flips pending -> processing handles it.
     const { data: claimed } = await admin
       .from("whatsapp_inbound")
-      .update({ status: "processing" })
+      // processed_at doubles as "claimed at" while processing, so a claim that
+      // never finished can be found and released (see STUCK_CLAIM_MS).
+      .update({ status: "processing", processed_at: new Date().toISOString() })
       .eq("id", row.id)
       .eq("status", "pending")
       .select("id")

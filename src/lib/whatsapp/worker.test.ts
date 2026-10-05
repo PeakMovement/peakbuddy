@@ -91,6 +91,10 @@ function fakeDb(seed: Record<string, Row[]>) {
         filters.push((r) => (r[c] ?? null) !== v);
         return api;
       },
+      lt(c: string, v: any) {
+        filters.push((r) => r[c] != null && r[c] < v);
+        return api;
+      },
       gte(c: string, v: any) {
         filters.push((r) => r[c] >= v);
         return api;
@@ -402,5 +406,31 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     expect(r.failed).toBe(1);
     expect(db.tables.whatsapp_inbound[0]).toMatchObject({ status: "failed" });
     expect(db.tables.whatsapp_inbound[0].failure_reason).toContain("42501");
+  });
+
+  it("releases a message abandoned mid-processing so the patient still gets an answer", async () => {
+    const abandoned = {
+      ...inbound("Hi"),
+      status: "processing",
+      processed_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    };
+    const fresh = {
+      ...inbound("Hi", undefined, "27820000002"),
+      status: "processing",
+      processed_at: new Date().toISOString(),
+    };
+    const db = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [abandoned, fresh],
+      whatsapp_conversations: [],
+      consent_records: [],
+      check_ins: [],
+    });
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.whatsapp_inbound[0].status).toBe("processed");
+    // A claim still within its window belongs to whoever holds it.
+    expect(db.tables.whatsapp_inbound[1].status).toBe("processing");
+    expect(sent).toHaveLength(1);
   });
 });
