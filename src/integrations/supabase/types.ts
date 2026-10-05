@@ -465,6 +465,7 @@ export type Database = {
           login_code: string
           notes: string | null
           onboarding_library_nudge_sent_at: string | null
+          onboarding_source: string | null
           passive_monitoring_enabled: boolean
           phone: string | null
           popia_accepted: boolean
@@ -499,6 +500,7 @@ export type Database = {
           login_code: string
           notes?: string | null
           onboarding_library_nudge_sent_at?: string | null
+          onboarding_source?: string | null
           passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean
@@ -533,6 +535,7 @@ export type Database = {
           login_code?: string
           notes?: string | null
           onboarding_library_nudge_sent_at?: string | null
+          onboarding_source?: string | null
           passive_monitoring_enabled?: boolean
           phone?: string | null
           popia_accepted?: boolean
@@ -567,6 +570,44 @@ export type Database = {
             columns: ["suggested_program_id"]
             isOneToOne: false
             referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consent_links: {
+        Row: {
+          client_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          phone: string | null
+          token_hash: string
+          used_at: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          phone?: string | null
+          token_hash: string
+          used_at?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          phone?: string | null
+          token_hash?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consent_links_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
@@ -1931,6 +1972,7 @@ export type Database = {
       }
       whatsapp_conversations: {
         Row: {
+          app_offer_at: string | null
           checkin_started_at: string | null
           client_id: string | null
           created_at: string
@@ -1946,6 +1988,7 @@ export type Database = {
           wearable_offer_at: string | null
         }
         Insert: {
+          app_offer_at?: string | null
           checkin_started_at?: string | null
           client_id?: string | null
           created_at?: string
@@ -1961,6 +2004,7 @@ export type Database = {
           wearable_offer_at?: string | null
         }
         Update: {
+          app_offer_at?: string | null
           checkin_started_at?: string | null
           client_id?: string | null
           created_at?: string
@@ -2049,6 +2093,63 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_invites: {
+        Row: {
+          client_id: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          kind: string
+          practice_id: string | null
+          practitioner_id: string | null
+          revoked_at: string | null
+          used_at: string | null
+        }
+        Insert: {
+          client_id?: string | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          kind: string
+          practice_id?: string | null
+          practitioner_id?: string | null
+          revoked_at?: string | null
+          used_at?: string | null
+        }
+        Update: {
+          client_id?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          kind?: string
+          practice_id?: string | null
+          practitioner_id?: string | null
+          revoked_at?: string | null
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_invites_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_invites_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practices"
             referencedColumns: ["id"]
           },
         ]
