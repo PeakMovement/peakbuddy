@@ -157,3 +157,69 @@ describe("AI route validation", () => {
     });
   });
 });
+
+describe("the second live test (5 Oct, 05:41)", () => {
+  it("Hi buddy after checking in gets a hello and the menu, not 'passed on'", () => {
+    expect(routeByKeywords("Hi buddy").intent).toBe("greeting");
+    const d = decide(ctx("Hi buddy"));
+    expect(d.replies[0].kind).toBe("list");
+    expect(d.noteForPractitioner).toBeUndefined();
+  });
+  it("Can I change my symptoms? logs a change, it is not a clinical question", () => {
+    expect(routeByKeywords("Can I change my symptoms?").intent).toBe("log_change");
+    const d = decide(ctx("Can I change my symptoms?"));
+    expect(d.clinicalQuestion).toBeUndefined();
+    expect(bodies(d)).toEqual([ASSIST_MSG.changeAskPain]);
+  });
+  it("Can you tell what you can do? shows the menu", () => {
+    expect(routeByKeywords("Can you tell what you can do ?").intent).toBe("help");
+    expect(routeByKeywords("menu").intent).toBe("help");
+    const d = decide(ctx("Can you tell what you can do ?"));
+    expect(d.replies[0].kind).toBe("list");
+  });
+});
+
+describe("menu choices", () => {
+  const pick = (id: string, over: Partial<DecisionContext> = {}) =>
+    decide({ ...ctx("", over), message: { text: "", replyId: id, kind: "interactive" } });
+  it("each item does what it says", () => {
+    expect(bodies(pick("menu_change"))).toEqual([ASSIST_MSG.changeAskPain]);
+    expect(bodies(pick("menu_book"))[0]).toContain(PRACTICE_WHATSAPP_LINK);
+    expect(bodies(pick("menu_info"))[0]).toMatch(/Strand Street/);
+    expect(bodies(pick("menu_exercises"))[0]).toMatch(/Library/);
+    expect(bodies(pick("menu_watch"))[0]).toMatch(/Wearables/);
+    expect(bodies(pick("menu_progress", { progressText: "trend" }))).toEqual(["trend"]);
+  });
+  it("Ask a question takes the next message as the question for Justin", () => {
+    const first = pick("menu_question");
+    expect(first.next.draft.awaitingQuestion).toBe(true);
+    const d = decide(ctx("Is it ok to run on it yet", { conversation: first.next }));
+    expect(d.clinicalQuestion).toBe("Is it ok to run on it yet");
+  });
+  it("Change check-in time takes a bare time next", () => {
+    const first = pick("menu_time");
+    const d = decide(ctx("7am", { conversation: first.next }));
+    expect(d.setReminderTime).toBe("07:00");
+  });
+});
+
+describe("merged from Lovable's pass (5 Oct)", () => {
+  it("reads more ways of logging a change", () => {
+    for (const t of [
+      "I made a mistake",
+      "wrong score earlier",
+      "my pain has gone up",
+      "I'm getting worse",
+    ]) {
+      expect(routeByKeywords(t).intent).toBe("log_change");
+    }
+  });
+  it("a short question it can't place is asked back instead of filed as a note", () => {
+    const d = decide(ctx("Is the parking free on weekends?", { route: { intent: "other" } }));
+    expect(bodies(d)).toEqual([ASSIST_MSG.clarify]);
+    expect(d.noteForPractitioner).toBeUndefined();
+  });
+  it("the model calling it 'capabilities' still shows the menu", () => {
+    expect(validRoute({ intent: "capabilities" })).toEqual({ intent: "help", answer: null });
+  });
+});

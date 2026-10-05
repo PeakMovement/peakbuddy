@@ -539,7 +539,9 @@ describe("WhatsApp worker, end to end against a fake database", () => {
           superseded_by: null,
         },
       ],
-      check_ins: [{ id: "x", client_id: "client-1", created_at: "2026-10-05T06:00:00Z", pain_level: 3 }],
+      check_ins: [
+        { id: "x", client_id: "client-1", created_at: "2026-10-05T06:00:00Z", pain_level: 3 },
+      ],
       alerts: [],
     });
     const { provider, sent } = fakeProvider();
@@ -553,4 +555,3 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     expect(db.tables.alerts[0].message).toContain("Should I ice it?");
   });
 });
-

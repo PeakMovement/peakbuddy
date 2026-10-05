@@ -18,7 +18,6 @@
  */
 
 export type AssistIntent =
-  | "capabilities"
   | "log_change"
   | "booking"
   | "practice_info"
@@ -26,10 +25,10 @@ export type AssistIntent =
   | "progress"
   | "exercises"
   | "greeting"
+  | "help"
   | "other";
 
 export const ASSIST_INTENTS: readonly AssistIntent[] = [
-  "capabilities",
   "log_change",
   "booking",
   "practice_info",
@@ -37,6 +36,7 @@ export const ASSIST_INTENTS: readonly AssistIntent[] = [
   "progress",
   "exercises",
   "greeting",
+  "help",
   "other",
 ];
 
@@ -67,6 +67,70 @@ Contact: WhatsApp or phone ${PRACTICE_WHATSAPP}.`;
 
 const PRACTICE_CHAT = `You can chat to the practice directly on WhatsApp here: ${PRACTICE_WHATSAPP_LINK}`;
 
+/** The tappable menu: what Buddy can do, as WhatsApp list rows (max 10, titles max 24 chars). */
+export const MENU = [
+  {
+    id: "menu_change",
+    title: "Log a change",
+    description: "Update today's pain and symptoms",
+    intent: "log_change",
+  },
+  {
+    id: "menu_book",
+    title: "Book an appointment",
+    description: "Book or ask about a check-up",
+    intent: "booking",
+  },
+  {
+    id: "menu_progress",
+    title: "My progress",
+    description: "How your pain has been trending",
+    intent: "progress",
+  },
+  {
+    id: "menu_exercises",
+    title: "My exercises",
+    description: "Your programme in the app",
+    intent: "exercises",
+  },
+  {
+    id: "menu_info",
+    title: "Practice info",
+    description: "Hours, fees, parking, medical aid",
+    intent: "practice_info",
+  },
+  {
+    id: "menu_question",
+    title: "Ask a question",
+    description: "Justin will answer you",
+    intent: "clinical_question",
+  },
+  {
+    id: "menu_watch",
+    title: "Connect my watch",
+    description: "Garmin, Oura or Polar",
+    intent: "other",
+  },
+  {
+    id: "menu_time",
+    title: "Change check-in time",
+    description: "Pick when I check in daily",
+    intent: "other",
+  },
+] as const;
+
+export function routeFromMenu(replyId: string | undefined): AssistRoute | null {
+  const item = MENU.find((m) => m.id === replyId);
+  return item ? { intent: item.intent } : null;
+}
+
+/** Everything Buddy may say about the practice, for the Practice info menu item. */
+export const PRACTICE_SUMMARY =
+  "Peak Movement is at 94 Strand Street, in The Barracks building, Cape Town CBD, with on-street parking outside.\n\n" +
+  "We're open from 08:30, last booking at 17:00, Monday to Friday.\n\n" +
+  "A physiotherapy initial consultation is R900 (1 hour) and a follow-up is R750 (45 minutes).\n\n" +
+  "We don't bill medical aids directly: you pay us and we give you an invoice to claim back from your medical aid.";
+
 export const ASSIST_MSG = {
   booking:
     `To book, message the practice on WhatsApp and they'll find you a time: ${PRACTICE_WHATSAPP_LINK}\n\n` +
@@ -81,20 +145,19 @@ export const ASSIST_MSG = {
     "Got it, I've logged that change on your Buddy profile and your physiotherapist can see it.",
   exercises: `Your exercise programme is in the Buddy app under Library: ${LIBRARY_URL}\n\nIf you're not sure about an exercise, ${PRACTICE_CHAT.charAt(0).toLowerCase()}${PRACTICE_CHAT.slice(1)}`,
   checkinNudge: "Whenever you're ready for today's check-in, just reply CHECK IN.",
+  menuIntro: (firstName: string, checkedInToday: boolean) =>
+    checkedInToday
+      ? `Hi ${firstName}! You've already checked in today, thank you. Here's what else I can help with:`
+      : `Hi ${firstName}! I'm Buddy, Peak Movement's check-in assistant. Reply CHECK IN to do today's check-in, or tap below for anything else:`,
+  askQuestion: "Sure, type your question and I'll make sure Justin, our practice manager, gets it.",
+  askTime: "What time would you like your daily check-in? For example, reply: remind me at 7am",
+  contactPractice: `You can chat to the practice directly on WhatsApp here: ${PRACTICE_WHATSAPP_LINK}`,
+  clarify:
+    "I want to make sure I get this right. Would you like to log a change to today's check-in, book an appointment, ask about the practice, or leave this as a note for your physiotherapist? Reply MENU to see everything I can do.",
+  noteAddedMenu:
+    "Thanks, I've passed that on to your physiotherapist. Reply MENU any time to see what else I can do.",
   progressNone:
     "I don't have enough check-ins yet to show a trend. Keep checking in and I'll be able to tell you how you're going.",
-  capabilities:
-    "I'm Buddy, Peak Movement's recovery assistant. Here's what I can help with:\n\n" +
-    "• *Daily check-in*: reply CHECK IN\n" +
-    "• *Update a symptom or pain score*: say \"log a change\"\n" +
-    "• *Your progress*: ask \"how is my progress?\"\n" +
-    "• *Your exercises*: ask \"send my exercises\"\n" +
-    "• *Book an appointment*: say \"book\"\n" +
-    "• *Clinic info*: hours, address, fees, medical aid\n" +
-    "• *Connect a smartwatch*: reply WATCH\n\n" +
-    "Anything else you type goes to your physiotherapist as a note. I can't give medical advice, and in an emergency phone 10177 or 112.",
-  clarify:
-    "I want to make sure I get this right. Would you like to *log a change* to today's check-in, *book* an appointment, ask about the *clinic*, or leave this as a *note* for your physiotherapist? Reply HELP to see everything I can do.",
 } as const;
 
 /** "check in", "checkin", "start check-in". */
@@ -111,7 +174,7 @@ export function routeByKeywords(text: string): AssistRoute {
   const t = text.toLowerCase().trim();
   if (!t) return { intent: "other" };
   if (
-    /^(hi|hello|hey|hallo|howzit|good (morning|afternoon|evening)|thanks|thank you|dankie|ok|okay|cool|great)[.!]*$/.test(
+    /^(hi|hello|hey|hallo|howzit|hiya|morning|evening|good (morning|afternoon|evening)|thanks|thank you|thanks a lot|dankie|ok|okay|cool|great|awesome|perfect)( (buddy|there|again))?[.!]*$/.test(
       t,
     )
   ) {
@@ -120,16 +183,15 @@ export function routeByKeywords(text: string): AssistRoute {
   if (
     has(
       t,
-      /\b(what can you do|what you can do|what do you do|who are you|what are you|how does (this|it|buddy) work|how do (i|you) use|help|menu|options|commands)\b/,
-    ) &&
-    t.length < 80
+      /^(help|menu|options|start over)[.!?]*$|\bwhat (can|do) you do\b|\bwhat can i (do|ask)\b|\bhow (does this|do you) work\b|\bwhat are you\b|\bwho are you\b|\btell (me )?what you can do\b/,
+    )
   ) {
-    return { intent: "capabilities" };
+    return { intent: "help" };
   }
   if (
     has(
       t,
-      /\b(log|record|update|change|add|edit|fix|correct)\b.{0,25}\b(change|update|symptoms?|pain|score|check[\s-]?in|entry|answer)\b|\b(feeling|got|getting) (worse|better)\b|\b(made a mistake|wrong (number|score|answer))\b|\bpain (is|has) (gone )?(up|down|worse|better)\b/,
+      /\b(log|record|update|change|edit|correct|fix|add)\b.{0,25}\b(changes?|updates?|symptoms?|pain|check[\s-]?ins?|entry|entries|answers?|scores?)\b|\b(feeling|got|getting) (worse|better)\b|\b(made a mistake|wrong (number|score|answer))\b|\bpain (is|has) (gone )?(up|down|worse|better)\b/,
     )
   ) {
     return { intent: "log_change" };
