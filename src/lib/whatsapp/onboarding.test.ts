@@ -55,8 +55,11 @@ describe("join codes and links", () => {
 
   it("reads the code however it's typed and strips it from the text", () => {
     expect(parseJoinCode("Hi Buddy (JOIN-ab23cd)")).toBe("AB23CD");
-    expect(parseJoinCode("join ab23cd")).toBe("AB23CD");
+    expect(parseJoinCode("join - ab23cd")).toBe("AB23CD");
+    expect(parseJoinCode("Hi Buddy, I'd like to join (JOIN-PEAK)")).toBe("PEAK");
     expect(parseJoinCode("I want to join")).toBeNull();
+    expect(parseJoinCode("I'd like to join your practice")).toBeNull();
+    expect(parseJoinCode("join today")).toBeNull();
     expect(stripJoinCode("Hi Buddy, I'd like to start (JOIN-AB23CD)")).toBe(
       "Hi Buddy, I'd like to start",
     );

@@ -32,16 +32,21 @@ export function newInviteCode(random: () => number = Math.random): string {
   return out;
 }
 
-/** The code inside a message, if there is one. Case and spacing forgiving. */
+/**
+ * The code inside a message, if there is one. Case-insensitive, 4 to 8
+ * characters (generated codes are 6, a practice can have a short one like
+ * PEAK). The hyphen is required so ordinary words never read as a code:
+ * "I'd like to join your practice" has no code in it.
+ */
 export function parseJoinCode(text: string): string | null {
-  const m = text.match(/\bjoin[\s-]*([a-z0-9]{6})\b/i);
+  const m = text.match(/\bjoin\s*-\s*([a-z0-9]{4,8})\b/i);
   return m ? m[1].toUpperCase() : null;
 }
 
 /** The message text with the code removed, so the rest reads normally. */
 export function stripJoinCode(text: string): string {
   return text
-    .replace(/\(?\s*\bjoin[\s-]*[a-z0-9]{6}\b\s*\)?/gi, " ")
+    .replace(/\(?\s*\bjoin\s*-\s*[a-z0-9]{4,8}\b\s*\)?/gi, " ")
     .replace(/\s{2,}/g, " ")
     .trim();
 }
