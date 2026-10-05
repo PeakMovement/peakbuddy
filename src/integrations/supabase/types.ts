@@ -147,6 +147,7 @@ export type Database = {
           pain_level: number | null
           practitioner_id: string
           sleep_quality: number | null
+          source: string
           stress_level: number | null
         }
         Insert: {
@@ -163,6 +164,7 @@ export type Database = {
           pain_level?: number | null
           practitioner_id: string
           sleep_quality?: number | null
+          source?: string
           stress_level?: number | null
         }
         Update: {
@@ -179,6 +181,7 @@ export type Database = {
           pain_level?: number | null
           practitioner_id?: string
           sleep_quality?: number | null
+          source?: string
           stress_level?: number | null
         }
         Relationships: [
@@ -1919,6 +1922,59 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "wearable_tokens_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_conversations: {
+        Row: {
+          checkin_started_at: string | null
+          client_id: string | null
+          created_at: string
+          draft: Json
+          id: string
+          last_inbound_at: string | null
+          last_outbound_at: string | null
+          opted_out_at: string | null
+          phone: string
+          state: string
+          unmatched_notice_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          checkin_started_at?: string | null
+          client_id?: string | null
+          created_at?: string
+          draft?: Json
+          id?: string
+          last_inbound_at?: string | null
+          last_outbound_at?: string | null
+          opted_out_at?: string | null
+          phone: string
+          state?: string
+          unmatched_notice_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          checkin_started_at?: string | null
+          client_id?: string | null
+          created_at?: string
+          draft?: Json
+          id?: string
+          last_inbound_at?: string | null
+          last_outbound_at?: string | null
+          opted_out_at?: string | null
+          phone?: string
+          state?: string
+          unmatched_notice_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversations_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
