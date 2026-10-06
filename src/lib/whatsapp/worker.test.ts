@@ -700,6 +700,32 @@ describe("daily WhatsApp reminders", () => {
     }
   });
 
+  it("nudges an unfinished check-in instead of starting another, but not straight away", async () => {
+    const db = seed({
+      whatsapp_inbound: [
+        { from_phone: "+27820000001", received_at: "2026-10-05T07:00:00Z", status: "done" },
+      ],
+    });
+    Object.assign(db.tables.whatsapp_conversations[0], {
+      state: "awaiting_pain",
+      checkin_started_at: "2026-10-05T07:10:00Z",
+    });
+    const { provider, sent } = fakeProvider();
+    const cfg = { provider, secrets: SECRETS };
+    // 20 minutes in: still busy with Buddy.
+    expect(
+      await sendWhatsAppReminder(db.admin, "client-1", new Date("2026-10-05T07:30:00Z"), cfg),
+    ).toBe("busy");
+    expect(sent).toHaveLength(0);
+    // An hour later: a nudge with the same question, state unchanged.
+    expect(
+      await sendWhatsAppReminder(db.admin, "client-1", new Date("2026-10-05T08:15:00Z"), cfg),
+    ).toBe("sent");
+    expect(JSON.stringify(sent)).toMatch(/finish today's check-in/);
+    expect(JSON.stringify(sent)).toMatch(/How is your pain/);
+    expect(db.tables.whatsapp_conversations[0].state).toBe("awaiting_pain");
+  });
+
   it("never messages someone who opted out", async () => {
     const db = seed();
     db.tables.whatsapp_conversations[0].opted_out_at = "2026-10-04T10:00:00Z";

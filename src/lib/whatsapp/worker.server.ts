@@ -1275,12 +1275,16 @@ export async function sendWhatsAppReminder(
   } | null;
   if (!conv || conv.opted_out_at || conv.state === "opted_out") return "not_whatsapp";
   if (!(await hasCurrentConsent(admin, clientId))) return "not_whatsapp";
-  // Mid-conversation in the last few hours: leave them be. Anything older is
-  // an abandoned step, and today's check-in replaces it.
-  const recent =
-    conv.checkin_started_at &&
-    now.getTime() - new Date(conv.checkin_started_at).getTime() < 6 * 60 * 60 * 1000;
-  if (conv.state !== "idle" && recent) return "busy";
+  // Mid-conversation in the last half hour: they're busy with Buddy, leave
+  // them be. A check-in left unfinished for longer gets a nudge to finish it
+  // (same question again). Any other unfinished step is dropped and today's
+  // check-in starts fresh.
+  const ageMs = conv.checkin_started_at
+    ? now.getTime() - new Date(conv.checkin_started_at).getTime()
+    : Number.POSITIVE_INFINITY;
+  if (conv.state !== "idle" && ageMs < 30 * 60 * 1000) return "busy";
+  const openQuestion =
+    conv.state === "awaiting_notes" ? MSG.askNotes : pendingQuestionText(conv.state);
 
   const { data: client } = await admin
     .from("clients")
@@ -1316,6 +1320,26 @@ export async function sendWhatsAppReminder(
         () => undefined,
         () => undefined,
       );
+
+  if (windowOpen && openQuestion) {
+    // Finish the open check-in rather than start a second one.
+    const nudge = `Hi ${firstName}, just a reminder to finish today's check-in.`;
+    for (const body of [nudge, openQuestion]) {
+      let id: string | null = null;
+      let ok = false;
+      try {
+        id =
+          (await cfg.provider.send({ kind: "text", to: conv.phone, body }, cfg.secrets))
+            .providerMessageId || null;
+        ok = true;
+      } catch {
+        /* logged below */
+      }
+      await log1("text", body, id, ok);
+      if (!ok) return "failed";
+    }
+    return "sent";
+  }
 
   if (windowOpen) {
     const bodies = [MSG.checkinOpener(firstName), MSG.askPain];
