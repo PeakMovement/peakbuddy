@@ -77,6 +77,12 @@ const OPT_OUT_PHRASES = [
   "i don't want to receive",
   "please stop",
   "moenie meer", // Afrikaans: no more
+  "cancel the check",
+  "cancel my check",
+  "cancel check",
+  "pause the check",
+  "pause my check",
+  "pause check",
   "hou op met", // stop with
   "ek wil nie meer", // I don't want any more
 ];
@@ -123,11 +129,7 @@ const PERSON_WORDS = [
 ];
 
 function normalise(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[‘’]/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
+  return text.toLowerCase().replace(/[‘’]/g, "'").replace(/\s+/g, " ").trim();
 }
 
 function hasWord(haystack: string, term: string): boolean {
@@ -154,7 +156,11 @@ export function classifyIntent(input: {
         matched: ["button:contact_practitioner"],
       };
     }
-    return { intent: "checkin_answer", confidence: "certain", matched: [`button:${input.replyId}`] };
+    return {
+      intent: "checkin_answer",
+      confidence: "certain",
+      matched: [`button:${input.replyId}`],
+    };
   }
 
   if (!raw) return { intent: "unclear", confidence: "unsure", matched: [] };

@@ -4,8 +4,9 @@ import { log } from "@/lib/log";
 
 /**
  * Cron endpoint — runs every 5 minutes.
- * Sends a "time to check in" push to any client whose reminder falls in the
- * current 5-minute window in their local timezone and hasn't been sent today.
+ * Sends a "time to check in" to any client whose reminder falls in the current
+ * 5-minute window in their local timezone and hasn't been sent today: on
+ * WhatsApp for WhatsApp patients (daily by default), as an app push otherwise.
  */
 export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
   server: {
@@ -16,6 +17,7 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { sendPushCore } = await import("@/lib/push.functions");
+        const { sendWhatsAppReminder } = await import("@/lib/whatsapp/worker.server");
 
         const { data: reminders, error } = await supabaseAdmin
           .from("checkin_reminders")
@@ -88,7 +90,7 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
               .select("id, auth_user_id, full_name")
               .eq("id", r.client_id)
               .maybeSingle();
-            if (!client?.auth_user_id) {
+            if (!client) {
               skipped++;
               continue;
             }
@@ -125,6 +127,18 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
               continue;
             }
 
+            // WhatsApp first for anyone checking in there; the app push otherwise.
+            const wa = await sendWhatsAppReminder(supabaseAdmin, client.id, now).catch(
+              () => "failed" as const,
+            );
+            if (wa === "sent" || wa === "template") {
+              sent++;
+              continue;
+            }
+            if (!client.auth_user_id) {
+              skipped++;
+              continue;
+            }
             await sendPushCore(supabaseAdmin, {
               userId: client.auth_user_id,
               title: "Time for your check-in",

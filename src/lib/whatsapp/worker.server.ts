@@ -842,6 +842,8 @@ async function applyEffects(
       evidence: { provider: row.provider, provider_message_id: row.provider_message_id },
     });
     if (error) throw new Error(`consent insert failed: ${error.code ?? "unknown"}`);
+    // Everyone starts on a daily check-in.
+    await ensureDailyReminder(admin, client.id, true);
   }
 
   if (decision.optOut) {
@@ -851,6 +853,15 @@ async function applyEffects(
       .eq("client_id", client.id)
       .eq("consent_type", "whatsapp_checkins")
       .is("withdrawn_at", null);
+    // "Stop the check-ins" means the daily reminder too, app push included.
+    await admin
+      .from("checkin_reminders")
+      .update({ enabled: false })
+      .eq("client_id", client.id)
+      .then(
+        () => undefined,
+        () => undefined,
+      );
   }
 
   if (decision.saveCheckin) {
@@ -1116,6 +1127,8 @@ export async function continueAfterConsent(
   phone: string,
   firstName: string,
 ): Promise<void> {
+  // Signed up for WhatsApp check-ins: daily by default.
+  await ensureDailyReminder(admin, clientId, true);
   const cfg = whatsappConfigFromEnv();
   if (!cfg) return;
   const { data } = await admin
@@ -1176,5 +1189,190 @@ export async function continueAfterConsent(
         () => undefined,
         () => undefined,
       );
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Daily check-in reminders on WhatsApp                                */
+/* ------------------------------------------------------------------ */
+
+/** Everyone on WhatsApp starts on a daily check-in at this time (SAST). */
+export const DEFAULT_REMINDER_TIME = "18:00";
+
+/**
+ * Make sure this profile has a daily reminder. Never overwrites a time the
+ * patient or app already chose. `enable` switches a paused one back on (they
+ * have just signed up again).
+ */
+export async function ensureDailyReminder(
+  admin: Admin,
+  clientId: string,
+  enable = false,
+): Promise<void> {
+  await admin
+    .from("checkin_reminders")
+    .upsert(
+      {
+        client_id: clientId,
+        enabled: true,
+        frequency: "daily",
+        time_of_day: DEFAULT_REMINDER_TIME,
+        days_of_week: [0, 1, 2, 3, 4, 5, 6],
+        timezone: "Africa/Johannesburg",
+      },
+      { onConflict: "client_id", ignoreDuplicates: true },
+    )
+    .then(
+      () => undefined,
+      () => undefined,
+    );
+  if (enable) {
+    await admin
+      .from("checkin_reminders")
+      .update({ enabled: true })
+      .eq("client_id", clientId)
+      .then(
+        () => undefined,
+        () => undefined,
+      );
+  }
+}
+
+/** Free-form messages are only allowed this long after the patient last wrote. */
+const SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000 - 10 * 60 * 1000;
+
+export type WhatsAppReminderResult =
+  | "sent" // free-form check-in started (inside the 24h window)
+  | "template" // approved template sent (window closed)
+  | "not_whatsapp" // not on WhatsApp, opted out, or no current consent
+  | "busy" // already mid-conversation, left alone
+  | "no_template" // window closed and no approved template configured
+  | "failed";
+
+/**
+ * The daily nudge for a WhatsApp patient. Inside the 24 hour window Buddy just
+ * starts the check-in. Outside it, Meta only allows an approved template
+ * (WHATSAPP_REMINDER_TEMPLATE) with a "Start check-in" button.
+ */
+export async function sendWhatsAppReminder(
+  admin: Admin,
+  clientId: string,
+  now: Date = new Date(),
+  cfg: ReturnType<typeof whatsappConfigFromEnv> = whatsappConfigFromEnv(),
+): Promise<WhatsAppReminderResult> {
+  if (!cfg) return "not_whatsapp";
+  const { data: convData } = await admin
+    .from("whatsapp_conversations")
+    .select("id, phone, state, opted_out_at, checkin_started_at")
+    .eq("client_id", clientId)
+    .maybeSingle();
+  const conv = convData as {
+    id: string;
+    phone: string;
+    state: ConversationState;
+    opted_out_at: string | null;
+    checkin_started_at: string | null;
+  } | null;
+  if (!conv || conv.opted_out_at || conv.state === "opted_out") return "not_whatsapp";
+  if (!(await hasCurrentConsent(admin, clientId))) return "not_whatsapp";
+  // Mid-conversation in the last few hours: leave them be. Anything older is
+  // an abandoned step, and today's check-in replaces it.
+  const recent =
+    conv.checkin_started_at &&
+    now.getTime() - new Date(conv.checkin_started_at).getTime() < 6 * 60 * 60 * 1000;
+  if (conv.state !== "idle" && recent) return "busy";
+
+  const { data: client } = await admin
+    .from("clients")
+    .select("full_name")
+    .eq("id", clientId)
+    .maybeSingle();
+  const firstName = firstNameOf((client as { full_name: string | null } | null)?.full_name ?? null);
+
+  const { data: last } = await admin
+    .from("whatsapp_inbound")
+    .select("received_at")
+    .in("from_phone", [`+${conv.phone}`, conv.phone])
+    .order("received_at", { ascending: false })
+    .limit(1);
+  const lastAt = (last as Array<{ received_at: string }> | null)?.[0]?.received_at;
+  const windowOpen = Boolean(
+    lastAt && now.getTime() - new Date(lastAt).getTime() < SERVICE_WINDOW_MS,
+  );
+
+  const log1 = async (kind: string, body: string, id: string | null, ok: boolean) =>
+    admin
+      .from("whatsapp_outbound")
+      .insert({
+        phone: conv.phone,
+        client_id: clientId,
+        provider: cfg.provider.id,
+        provider_message_id: id,
+        kind,
+        body,
+        sent_ok: ok,
+      })
+      .then(
+        () => undefined,
+        () => undefined,
+      );
+
+  if (windowOpen) {
+    const bodies = [MSG.checkinOpener(firstName), MSG.askPain];
+    let allOk = true;
+    for (const body of bodies) {
+      let id: string | null = null;
+      let ok = false;
+      try {
+        id =
+          (await cfg.provider.send({ kind: "text", to: conv.phone, body }, cfg.secrets))
+            .providerMessageId || null;
+        ok = true;
+      } catch {
+        allOk = false;
+      }
+      await log1("text", body, id, ok);
+      if (!ok) break;
+    }
+    if (!allOk) return "failed";
+    await admin
+      .from("whatsapp_conversations")
+      .update({
+        state: "awaiting_pain",
+        draft: { notes: [] },
+        checkin_started_at: now.toISOString(),
+        updated_at: now.toISOString(),
+      })
+      .eq("id", conv.id);
+    return "sent";
+  }
+
+  const template = process.env.WHATSAPP_REMINDER_TEMPLATE;
+  if (!template) {
+    log.info("whatsapp reminder skipped: window closed, no template", {
+      to: maskPhone(conv.phone),
+    });
+    return "no_template";
+  }
+  try {
+    const r = await cfg.provider.send(
+      {
+        kind: "template",
+        to: conv.phone,
+        templateName: template,
+        languageCode: process.env.WHATSAPP_REMINDER_TEMPLATE_LANG ?? "en",
+        variables: [firstName],
+      },
+      cfg.secrets,
+    );
+    await log1("template", `[template ${template}]`, r.providerMessageId || null, true);
+    return "template";
+  } catch (e) {
+    log.warn("whatsapp reminder template failed", {
+      to: maskPhone(conv.phone),
+      error: e instanceof Error ? e.message.slice(0, 200) : "unknown",
+    });
+    await log1("template", `[template ${template}]`, null, false);
+    return "failed";
   }
 }

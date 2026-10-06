@@ -12,7 +12,7 @@ vi.mock("@/lib/webhooks.functions", () => ({
   fireAlertWebhookCore: vi.fn(async () => ({ fired: false })),
 }));
 
-import { processPendingInbound } from "./worker.server";
+import { processPendingInbound, sendWhatsAppReminder } from "./worker.server";
 import type { OutboundMessage, WhatsAppProvider } from "./provider";
 import { IDS } from "./conversation";
 import { acceptConsentLink } from "./onboarding.server";
@@ -82,11 +82,13 @@ function fakeDb(seed: Record<string, Row[]>) {
         rows().push(...inserted);
         return api;
       },
-      upsert(r: Row, o?: { onConflict?: string }) {
+      upsert(r: Row, o?: { onConflict?: string; ignoreDuplicates?: boolean }) {
         const key = o?.onConflict ?? "id";
         const existing = rows().find((x) => x[key] === r[key]);
-        if (existing) Object.assign(existing, r);
-        else rows().push({ id: `id-${++idSeq}`, ...r });
+        if (existing && !o?.ignoreDuplicates) Object.assign(existing, r);
+        else if (existing) {
+          /* keep what is there */
+        } else rows().push({ id: `id-${++idSeq}`, ...r });
         op = "insert";
         inserted = [];
         return api;
@@ -242,6 +244,15 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     expect(db.tables.consent_records[0].wording_snapshot).toContain("AGREEMENT");
     // The link only works once.
     expect((await acceptConsentLink(db.admin, token, { aiConsent: false })).ok).toBe(false);
+    // Signing puts them on a daily check-in by default.
+    const { continueAfterConsent } = await import("./worker.server");
+    await continueAfterConsent(db.admin, "client-1", "27820000001", "Test");
+    expect(db.tables.checkin_reminders?.[0]).toMatchObject({
+      client_id: "client-1",
+      enabled: true,
+      frequency: "daily",
+      time_of_day: "18:00",
+    });
 
     await say("hi again");
     expect(db.tables.whatsapp_conversations[0].state).toBe("awaiting_pain");
@@ -624,5 +635,81 @@ describe("WhatsApp worker, end to end against a fake database", () => {
       if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
       else process.env.ANTHROPIC_API_KEY = prevKey;
     }
+  });
+
+  it("STOP switches the daily reminder off as well", async () => {
+    const db = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [inbound("Please cancel my check-ins")],
+      whatsapp_conversations: [
+        { id: "c1", phone: "27820000001", client_id: "client-1", state: "idle", draft: {} },
+      ],
+      consent_records: CONSENTED(),
+      checkin_reminders: [{ id: "r1", client_id: "client-1", enabled: true }],
+      check_ins: [],
+      alerts: [],
+    });
+    const { provider } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.checkin_reminders[0].enabled).toBe(false);
+    expect(db.tables.whatsapp_conversations[0].state).toBe("opted_out");
+  });
+});
+
+describe("daily WhatsApp reminders", () => {
+  const seed = (extra: Record<string, Row[]> = {}) =>
+    fakeDb({
+      clients: [CLIENT],
+      whatsapp_conversations: [
+        { id: "c1", phone: "27820000001", client_id: "client-1", state: "idle", draft: {} },
+      ],
+      consent_records: CONSENTED(),
+      whatsapp_inbound: [],
+      whatsapp_outbound: [],
+      ...extra,
+    });
+
+  it("starts the check-in straight away inside the 24 hour window", async () => {
+    const db = seed({
+      whatsapp_inbound: [
+        { from_phone: "+27820000001", received_at: "2026-10-04T18:30:00Z", status: "done" },
+      ],
+    });
+    const { provider, sent } = fakeProvider();
+    const r = await sendWhatsAppReminder(db.admin, "client-1", NOW(), {
+      provider,
+      secrets: SECRETS,
+    });
+    expect(r).toBe("sent");
+    expect(JSON.stringify(sent)).toMatch(/time for a quick check-in/);
+    expect(db.tables.whatsapp_conversations[0].state).toBe("awaiting_pain");
+  });
+
+  it("outside the window it needs an approved template, and says so when there isn't one", async () => {
+    const db = seed();
+    const { provider, sent } = fakeProvider();
+    const cfg = { provider, secrets: SECRETS };
+    expect(await sendWhatsAppReminder(db.admin, "client-1", NOW(), cfg)).toBe("no_template");
+    expect(sent).toHaveLength(0);
+    process.env.WHATSAPP_REMINDER_TEMPLATE = "checkin_reminder";
+    try {
+      expect(await sendWhatsAppReminder(db.admin, "client-1", NOW(), cfg)).toBe("template");
+      expect(sent[0]).toMatchObject({ kind: "template", templateName: "checkin_reminder" });
+    } finally {
+      delete process.env.WHATSAPP_REMINDER_TEMPLATE;
+    }
+  });
+
+  it("never messages someone who opted out", async () => {
+    const db = seed();
+    db.tables.whatsapp_conversations[0].opted_out_at = "2026-10-04T10:00:00Z";
+    db.tables.whatsapp_conversations[0].state = "opted_out";
+    const { provider, sent } = fakeProvider();
+    const r = await sendWhatsAppReminder(db.admin, "client-1", NOW(), {
+      provider,
+      secrets: SECRETS,
+    });
+    expect(r).toBe("not_whatsapp");
+    expect(sent).toHaveLength(0);
   });
 });
