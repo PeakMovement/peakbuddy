@@ -225,7 +225,7 @@ export const Route = createFileRoute("/api/public/hooks/weekly-practitioner-dige
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const denied = authorizeCronRequest(request);
+        const denied = await authorizeCronRequest(request);
         if (denied) return denied;
 
         const lovableKey = process.env.LOVABLE_API_KEY;

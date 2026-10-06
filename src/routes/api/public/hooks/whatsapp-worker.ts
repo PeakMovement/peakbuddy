@@ -13,7 +13,7 @@ export const Route = createFileRoute("/api/public/hooks/whatsapp-worker")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const denied = authorizeCronRequest(request);
+        const denied = await authorizeCronRequest(request);
         if (denied) return denied;
 
         const { processPendingInbound, whatsappConfigFromEnv } =

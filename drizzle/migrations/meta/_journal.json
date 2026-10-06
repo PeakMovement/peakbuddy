@@ -127,6 +127,13 @@
       "when": 1791192754678,
       "tag": "0017_whatsapp_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791280000000,
+      "tag": "0018_cron_auth_vault",
+      "breakpoints": true
     }
   ]
 }

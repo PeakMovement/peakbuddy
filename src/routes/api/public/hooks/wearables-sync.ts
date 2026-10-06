@@ -13,7 +13,7 @@ export const Route = createFileRoute("/api/public/hooks/wearables-sync")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const denied = authorizeCronRequest(request);
+        const denied = await authorizeCronRequest(request);
         if (denied) return denied;
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
