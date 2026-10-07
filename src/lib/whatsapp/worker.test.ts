@@ -637,6 +637,28 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     }
   });
 
+  it("does not answer a message hours late, unless it carries a red flag", async () => {
+    const old = { ...inbound("6"), received_at: "2026-10-05T02:00:00Z" };
+    const oldFlag = {
+      ...inbound("I have chest pain and can't breathe"),
+      received_at: "2026-10-05T02:01:00Z",
+    };
+    const db = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [old, oldFlag],
+      whatsapp_conversations: [
+        { id: "c1", phone: "27820000001", client_id: "client-1", state: "idle", draft: {} },
+      ],
+      consent_records: CONSENTED(),
+      check_ins: [],
+      alerts: [],
+    });
+    const { provider } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.whatsapp_inbound[0].status).toBe("ignored");
+    expect(db.tables.whatsapp_inbound[1].status).toBe("processed");
+  });
+
   it("STOP switches the daily reminder off as well", async () => {
     const db = fakeDb({
       clients: [CLIENT],

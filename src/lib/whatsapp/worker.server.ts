@@ -115,6 +115,13 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** A message claimed longer ago than this, and still processing, was abandoned. */
 export const STUCK_CLAIM_MS = 3 * 60 * 1000;
 
+/**
+ * A message still unanswered after this long is not answered at all: a reply
+ * hours later to "6" or "hi" only confuses. Exception: anything with a red
+ * flag in it is still handled, late or not.
+ */
+export const STALE_INBOUND_MS = 2 * 60 * 60 * 1000;
+
 /** Reads the provider config from the environment. Null when WhatsApp is not configured. */
 export function whatsappConfigFromEnv(): {
   provider: WhatsAppProvider;
@@ -165,7 +172,25 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
     return result;
   }
 
+  const nowMs = (env.now?.() ?? new Date()).getTime();
   for (const row of (rows ?? []) as InboundRow[]) {
+    if (
+      nowMs - new Date(row.received_at).getTime() > STALE_INBOUND_MS &&
+      !runRedFlagRules({ text: row.body ?? "" }).triggered
+    ) {
+      await admin
+        .from("whatsapp_inbound")
+        .update({
+          status: "ignored",
+          processed_at: new Date().toISOString(),
+          failure_reason: "stale: not reached within 2 hours, not answered",
+        })
+        .eq("id", row.id)
+        .eq("status", "pending");
+      result.skipped++;
+      continue;
+    }
+
     // Claim. Only the caller that flips pending -> processing handles it.
     const { data: claimed } = await admin
       .from("whatsapp_inbound")
