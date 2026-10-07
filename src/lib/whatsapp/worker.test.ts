@@ -685,19 +685,29 @@ describe("daily WhatsApp reminders", () => {
     expect(db.tables.whatsapp_conversations[0].state).toBe("awaiting_pain");
   });
 
-  it("outside the window it needs an approved template, and says so when there isn't one", async () => {
+  it("stays quiet outside the 24 hour window", async () => {
     const db = seed();
     const { provider, sent } = fakeProvider();
-    const cfg = { provider, secrets: SECRETS };
-    expect(await sendWhatsAppReminder(db.admin, "client-1", NOW(), cfg)).toBe("no_template");
+    const r = await sendWhatsAppReminder(db.admin, "client-1", NOW(), {
+      provider,
+      secrets: SECRETS,
+    });
+    expect(r).toBe("window_closed");
     expect(sent).toHaveLength(0);
-    process.env.WHATSAPP_REMINDER_TEMPLATE = "checkin_reminder";
-    try {
-      expect(await sendWhatsAppReminder(db.admin, "client-1", NOW(), cfg)).toBe("template");
-      expect(sent[0]).toMatchObject({ kind: "template", templateName: "checkin_reminder" });
-    } finally {
-      delete process.env.WHATSAPP_REMINDER_TEMPLATE;
-    }
+  });
+
+  it("still reaches someone who replied to yesterday's reminder within a few minutes", async () => {
+    const db = seed({
+      whatsapp_inbound: [
+        { from_phone: "+27820000001", received_at: "2026-10-04T07:33:00Z", status: "done" },
+      ],
+    });
+    const { provider } = fakeProvider();
+    const r = await sendWhatsAppReminder(db.admin, "client-1", NOW(), {
+      provider,
+      secrets: SECRETS,
+    });
+    expect(r).toBe("sent");
   });
 
   it("nudges an unfinished check-in instead of starting another, but not straight away", async () => {

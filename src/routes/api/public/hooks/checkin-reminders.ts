@@ -131,7 +131,7 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
             const wa = await sendWhatsAppReminder(supabaseAdmin, client.id, now).catch(
               () => "failed" as const,
             );
-            if (wa === "sent" || wa === "template") {
+            if (wa === "sent") {
               sent++;
               continue;
             }

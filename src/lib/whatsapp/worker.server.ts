@@ -1238,21 +1238,25 @@ export async function ensureDailyReminder(
   }
 }
 
-/** Free-form messages are only allowed this long after the patient last wrote. */
-const SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000 - 10 * 60 * 1000;
+/**
+ * Meta only lets Buddy message someone within 24 hours of their last message
+ * (no templates or paid messages by decision, 7 Oct). A small margin covers
+ * clock drift. A patient who answers each evening keeps the window open: the
+ * next reminder fires at the same cron tick, just under 24 hours later.
+ */
+const SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000 - 2 * 60 * 1000;
 
 export type WhatsAppReminderResult =
   | "sent" // free-form check-in started (inside the 24h window)
-  | "template" // approved template sent (window closed)
   | "not_whatsapp" // not on WhatsApp, opted out, or no current consent
   | "busy" // already mid-conversation, left alone
-  | "no_template" // window closed and no approved template configured
+  | "window_closed" // no message from them in 24h, so Meta won't allow it
   | "failed";
 
 /**
- * The daily nudge for a WhatsApp patient. Inside the 24 hour window Buddy just
- * starts the check-in. Outside it, Meta only allows an approved template
- * (WHATSAPP_REMINDER_TEMPLATE) with a "Start check-in" button.
+ * The daily nudge for a WhatsApp patient. Only inside Meta's 24 hour window:
+ * outside it Buddy stays quiet until the patient next writes in (no paid
+ * template messages, by decision).
  */
 export async function sendWhatsAppReminder(
   admin: Admin,
@@ -1371,32 +1375,8 @@ export async function sendWhatsAppReminder(
     return "sent";
   }
 
-  const template = process.env.WHATSAPP_REMINDER_TEMPLATE;
-  if (!template) {
-    log.info("whatsapp reminder skipped: window closed, no template", {
-      to: maskPhone(conv.phone),
-    });
-    return "no_template";
-  }
-  try {
-    const r = await cfg.provider.send(
-      {
-        kind: "template",
-        to: conv.phone,
-        templateName: template,
-        languageCode: process.env.WHATSAPP_REMINDER_TEMPLATE_LANG ?? "en",
-        variables: [firstName],
-      },
-      cfg.secrets,
-    );
-    await log1("template", `[template ${template}]`, r.providerMessageId || null, true);
-    return "template";
-  } catch (e) {
-    log.warn("whatsapp reminder template failed", {
-      to: maskPhone(conv.phone),
-      error: e instanceof Error ? e.message.slice(0, 200) : "unknown",
-    });
-    await log1("template", `[template ${template}]`, null, false);
-    return "failed";
-  }
+  log.info("whatsapp reminder skipped: outside the 24h window", {
+    to: maskPhone(conv.phone),
+  });
+  return "window_closed";
 }
