@@ -108,8 +108,11 @@ describe("the snapshot is a faithful record of what was shown", () => {
 
 describe("version bookkeeping", () => {
   it("every current consent is reachable by type", () => {
-    expect(currentConsent("popia_core").version).toBe(POPIA_CORE_V2.version);
-    expect(currentConsent("whatsapp_checkins").version).toBe(WHATSAPP_CHECKINS_V1.version);
+    expect(currentConsent("popia_core").version).toBe("2026-10-07.1");
+    expect(currentConsent("whatsapp_checkins").version).toBe("2026-10-07.1");
+    expect(renderConsentText(currentConsent("popia_core"))).toContain("Google Drive");
+    expect(renderConsentText(currentConsent("whatsapp_checkins"))).toContain("Google Drive");
+    expect(renderConsentText(currentConsent("popia_core"))).not.toContain("90 days");
   });
 
   it("every registered consent has a version and an effective date", () => {

@@ -3,7 +3,11 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { getConsentLinkDetails, signConsentLink } from "@/lib/whatsapp/onboarding.functions";
 import { publicSiteOrigin } from "@/lib/app-url";
-import { POPIA_CORE_V2, WHATSAPP_CHECKINS_V1 } from "@/lib/consent/wording";
+import { currentConsent } from "@/lib/consent/wording";
+
+// Always the current versions, the same ones the server records when signing.
+const POPIA_CORE = currentConsent("popia_core");
+const WHATSAPP_CHECKINS = currentConsent("whatsapp_checkins");
 
 /**
  * The page a patient lands on from the WhatsApp invitation.
@@ -192,8 +196,8 @@ function SignPanel({ token }: { token: string }) {
       <p className="mt-1 text-sm" style={{ color: "var(--white-muted)" }}>
         For your Buddy profile with {state.practiceName}.
       </p>
-      {tick(popia, setPopia, POPIA_CORE_V2.affirmation, true)}
-      {tick(whatsapp, setWhatsapp, WHATSAPP_CHECKINS_V1.affirmation, true)}
+      {tick(popia, setPopia, POPIA_CORE.affirmation, true)}
+      {tick(whatsapp, setWhatsapp, WHATSAPP_CHECKINS.affirmation, true)}
       {!state.aiConsent &&
         tick(
           ai,
@@ -221,7 +225,7 @@ function SignPanel({ token }: { token: string }) {
       </button>
       <p className="mt-3 text-xs" style={{ color: "var(--white-muted)" }}>
         You can withdraw at any time by replying STOP on WhatsApp. It won't affect your treatment.
-        Version {POPIA_CORE_V2.version}.
+        Version {POPIA_CORE.version}.
       </p>
     </div>
   );
@@ -284,7 +288,7 @@ function ConsentPage() {
           nearest emergency unit. Please do not wait for a reply from us.
         </div>
 
-        {POPIA_CORE_V2.sections.map((section) => (
+        {POPIA_CORE.sections.map((section) => (
           <section className="mt-7" key={section.heading ?? section.body.slice(0, 20)}>
             {section.heading && (
               <h2
@@ -305,9 +309,9 @@ function ConsentPage() {
             className="text-base font-semibold"
             style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
           >
-            {WHATSAPP_CHECKINS_V1.heading}
+            {WHATSAPP_CHECKINS.heading}
           </h2>
-          {WHATSAPP_CHECKINS_V1.sections.map((s, i) => (
+          {WHATSAPP_CHECKINS.sections.map((s, i) => (
             <p
               key={i}
               className="mt-2 text-sm leading-relaxed"
@@ -342,7 +346,7 @@ function ConsentPage() {
               and it will not affect your treatment in any way.
             </p>
             <p className="mt-3 text-xs" style={{ color: "var(--white-muted)" }}>
-              Version {POPIA_CORE_V2.version}
+              Version {POPIA_CORE.version}
             </p>
           </div>
         )}

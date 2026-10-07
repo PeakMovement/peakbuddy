@@ -50,13 +50,11 @@ export const POPIA_CORE_V2: ConsentVersion = {
   sections: [
     {
       heading: "What we collect",
-      body:
-        "The symptoms and check-ins you log: pain, how you are moving, how you are sleeping, how your exercises are going, and anything you tell us in your own words. Your name and contact details. If you connect a wearable, the health data it sends.",
+      body: "The symptoms and check-ins you log: pain, how you are moving, how you are sleeping, how your exercises are going, and anything you tell us in your own words. Your name and contact details. If you connect a wearable, the health data it sends.",
     },
     {
       heading: "Why",
-      body:
-        "So your physiotherapist can see how you are doing between appointments, adjust your treatment, and notice early if something needs attention sooner.",
+      body: "So your physiotherapist can see how you are doing between appointments, adjust your treatment, and notice early if something needs attention sooner.",
     },
     {
       heading: "Who else sees it",
@@ -64,23 +62,19 @@ export const POPIA_CORE_V2: ConsentVersion = {
     },
     {
       heading: "It leaves South Africa",
-      body:
-        "Because of the above, your information is processed outside South Africa, mainly in the European Union. Those providers are required to protect it to a standard comparable to South African law.",
+      body: "Because of the above, your information is processed outside South Africa, mainly in the European Union. Those providers are required to protect it to a standard comparable to South African law.",
     },
     {
       heading: "This is not an emergency service",
-      body:
-        "Nobody watches Buddy around the clock. If something is wrong and it cannot wait, phone an ambulance on 10177, or 112 from any cellphone, or go to your nearest emergency unit. Please do not wait for a reply from us.",
+      body: "Nobody watches Buddy around the clock. If something is wrong and it cannot wait, phone an ambulance on 10177, or 112 from any cellphone, or go to your nearest emergency unit. Please do not wait for a reply from us.",
     },
     {
       heading: "How long we keep it",
-      body:
-        "Your check-ins stay with your clinical record for as long as we are required to keep clinical records. Raw WhatsApp messages are deleted after 90 days, and only the summarised information stays on your record.",
+      body: "Your check-ins stay with your clinical record for as long as we are required to keep clinical records. Raw WhatsApp messages are deleted after 90 days, and only the summarised information stays on your record.",
     },
     {
       heading: "Changing your mind",
-      body:
-        "You can withdraw at any time and it will not affect your treatment. In the app, ask your physiotherapist or email hello@peakmovement.co.za. On WhatsApp, reply STOP and the messages end immediately. You can also ask us for a copy of what we hold, or ask us to correct it.",
+      body: "You can withdraw at any time and it will not affect your treatment. In the app, ask your physiotherapist or email hello@peakmovement.co.za. On WhatsApp, reply STOP and the messages end immediately. You can also ask us for a copy of what we hold, or ask us to correct it.",
     },
   ],
   affirmation:
@@ -94,21 +88,74 @@ export const WHATSAPP_CHECKINS_V1: ConsentVersion = {
   heading: "WhatsApp check-ins",
   sections: [
     {
-      body:
-        "Buddy can check in with you on WhatsApp between appointments and pass your answers to your physiotherapist. Messages travel through WhatsApp, which is run by Meta.",
+      body: "Buddy can check in with you on WhatsApp between appointments and pass your answers to your physiotherapist. Messages travel through WhatsApp, which is run by Meta.",
     },
     {
-      body:
-        "Replying STOP ends the check-ins immediately and permanently, with no effect on your treatment. Nobody watches this line around the clock, so in an emergency phone 10177, or 112 from any cellphone, rather than waiting for a reply.",
+      body: "Replying STOP ends the check-ins immediately and permanently, with no effect on your treatment. Nobody watches this line around the clock, so in an emergency phone 10177, or 112 from any cellphone, rather than waiting for a reply.",
     },
   ],
   affirmation:
     "I consent to Peak Movement sending me check-in messages on WhatsApp and processing my replies as part of my care.",
 };
 
+/*
+ * 7 Oct 2026: weekly backup of WhatsApp conversations to Peak Movement's
+ * private Google Drive. New recipient purpose, a new storage place and a new
+ * retention position, so both versions are bumped. The old "raw WhatsApp
+ * messages are deleted after 90 days" promise is replaced: messages now stay
+ * with the clinical record. Everyone re-consents on their next message.
+ */
+const RECIPIENTS_V3 =
+  "Lovable, which runs the Buddy software and stores your records on servers in Germany; " +
+  "Anthropic, whose AI reads your messages to summarise them for your physiotherapist; " +
+  "Google and Microsoft, whose cloud services carry some of that processing; " +
+  "Google Drive, where Peak Movement keeps a private weekly backup of your WhatsApp conversations with Buddy; " +
+  "and, if you use the WhatsApp check-ins, Meta, who operate WhatsApp.";
+
+export const POPIA_CORE_V3: ConsentVersion = {
+  type: "popia_core",
+  version: "2026-10-07.1",
+  effectiveFrom: "2026-10-07",
+  heading: "Before you start",
+  sections: [
+    POPIA_CORE_V2.sections[0],
+    POPIA_CORE_V2.sections[1],
+    {
+      heading: "Who else sees it",
+      body: `Your clinical team at Peak Movement reads it. Behind the scenes it is handled by ${RECIPIENTS_V3} The backup folder is private to Peak Movement and is not shared with anyone. We never sell your information and we never share it for advertising.`,
+    },
+    {
+      heading: "It leaves South Africa",
+      body: "Because of the above, your information is processed outside South Africa, mainly in the European Union and the United States. Those providers are required to protect it to a standard comparable to South African law.",
+    },
+    POPIA_CORE_V2.sections[4],
+    {
+      heading: "How long we keep it",
+      body: "Your check-ins and your WhatsApp conversations with Buddy, including the weekly backup copy, stay with your clinical record for as long as we are required to keep clinical records, and are then deleted.",
+    },
+    POPIA_CORE_V2.sections[6],
+  ],
+  affirmation: POPIA_CORE_V2.affirmation,
+};
+
+export const WHATSAPP_CHECKINS_V2: ConsentVersion = {
+  type: "whatsapp_checkins",
+  version: "2026-10-07.1",
+  effectiveFrom: "2026-10-07",
+  heading: "WhatsApp check-ins",
+  sections: [
+    {
+      body: "Buddy can check in with you on WhatsApp between appointments and pass your answers to your physiotherapist. Messages travel through WhatsApp, which is run by Meta. Your conversation with Buddy is saved to your Buddy record, and a copy is backed up every week to Peak Movement's private Google Drive.",
+    },
+    WHATSAPP_CHECKINS_V1.sections[1],
+  ],
+  affirmation:
+    "I consent to Peak Movement sending me check-in messages on WhatsApp, processing my replies as part of my care, and keeping a backup copy of our conversation as described.",
+};
+
 export const CURRENT_CONSENTS: Record<ConsentType, ConsentVersion> = {
-  popia_core: POPIA_CORE_V2,
-  whatsapp_checkins: WHATSAPP_CHECKINS_V1,
+  popia_core: POPIA_CORE_V3,
+  whatsapp_checkins: WHATSAPP_CHECKINS_V2,
 };
 
 /**
