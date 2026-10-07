@@ -134,6 +134,13 @@
       "when": 1791280000000,
       "tag": "0018_cron_auth_vault",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791370000000,
+      "tag": "0020_schedule_all_hooks",
+      "breakpoints": true
     }
   ]
 }
