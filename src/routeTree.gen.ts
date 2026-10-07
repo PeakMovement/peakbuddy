@@ -68,6 +68,7 @@ import { Route as ApiPublicHooksNightlyRiskAnalysisRouteImport } from './routes/
 import { Route as ApiPublicHooksOnboardingLibraryNudgeRouteImport } from './routes/api/public/hooks/onboarding-library-nudge'
 import { Route as ApiPublicHooksWearablesSyncRouteImport } from './routes/api/public/hooks/wearables-sync'
 import { Route as ApiPublicHooksWeeklyPractitionerDigestRouteImport } from './routes/api/public/hooks/weekly-practitioner-digest'
+import { Route as ApiPublicHooksWhatsappDriveBackupRouteImport } from './routes/api/public/hooks/whatsapp-drive-backup'
 import { Route as ApiPublicHooksWhatsappWorkerRouteImport } from './routes/api/public/hooks/whatsapp-worker'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
@@ -387,6 +388,12 @@ const ApiPublicHooksWeeklyPractitionerDigestRoute =
     path: '/api/public/hooks/weekly-practitioner-digest',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksWhatsappDriveBackupRoute =
+  ApiPublicHooksWhatsappDriveBackupRouteImport.update({
+    id: '/api/public/hooks/whatsapp-drive-backup',
+    path: '/api/public/hooks/whatsapp-drive-backup',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksWhatsappWorkerRoute =
   ApiPublicHooksWhatsappWorkerRouteImport.update({
     id: '/api/public/hooks/whatsapp-worker',
@@ -512,6 +519,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
   '/api/public/hooks/wearables-sync': typeof ApiPublicHooksWearablesSyncRoute
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
+  '/api/public/hooks/whatsapp-drive-backup': typeof ApiPublicHooksWhatsappDriveBackupRoute
   '/api/public/hooks/whatsapp-worker': typeof ApiPublicHooksWhatsappWorkerRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -583,6 +591,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
   '/api/public/hooks/wearables-sync': typeof ApiPublicHooksWearablesSyncRoute
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
+  '/api/public/hooks/whatsapp-drive-backup': typeof ApiPublicHooksWhatsappDriveBackupRoute
   '/api/public/hooks/whatsapp-worker': typeof ApiPublicHooksWhatsappWorkerRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -656,6 +665,7 @@ export interface FileRoutesById {
   '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
   '/api/public/hooks/wearables-sync': typeof ApiPublicHooksWearablesSyncRoute
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
+  '/api/public/hooks/whatsapp-drive-backup': typeof ApiPublicHooksWhatsappDriveBackupRoute
   '/api/public/hooks/whatsapp-worker': typeof ApiPublicHooksWhatsappWorkerRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -730,6 +740,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/onboarding-library-nudge'
     | '/api/public/hooks/wearables-sync'
     | '/api/public/hooks/weekly-practitioner-digest'
+    | '/api/public/hooks/whatsapp-drive-backup'
     | '/api/public/hooks/whatsapp-worker'
     | '/api/public/whatsapp/webhook'
     | '/lovable/email/auth/preview'
@@ -801,6 +812,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/onboarding-library-nudge'
     | '/api/public/hooks/wearables-sync'
     | '/api/public/hooks/weekly-practitioner-digest'
+    | '/api/public/hooks/whatsapp-drive-backup'
     | '/api/public/hooks/whatsapp-worker'
     | '/api/public/whatsapp/webhook'
     | '/lovable/email/auth/preview'
@@ -873,6 +885,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/onboarding-library-nudge'
     | '/api/public/hooks/wearables-sync'
     | '/api/public/hooks/weekly-practitioner-digest'
+    | '/api/public/hooks/whatsapp-drive-backup'
     | '/api/public/hooks/whatsapp-worker'
     | '/api/public/whatsapp/webhook'
     | '/lovable/email/auth/preview'
@@ -920,6 +933,7 @@ export interface RootRouteChildren {
   ApiPublicHooksOnboardingLibraryNudgeRoute: typeof ApiPublicHooksOnboardingLibraryNudgeRoute
   ApiPublicHooksWearablesSyncRoute: typeof ApiPublicHooksWearablesSyncRoute
   ApiPublicHooksWeeklyPractitionerDigestRoute: typeof ApiPublicHooksWeeklyPractitionerDigestRoute
+  ApiPublicHooksWhatsappDriveBackupRoute: typeof ApiPublicHooksWhatsappDriveBackupRoute
   ApiPublicHooksWhatsappWorkerRoute: typeof ApiPublicHooksWhatsappWorkerRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
@@ -1347,6 +1361,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksWeeklyPractitionerDigestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/whatsapp-drive-backup': {
+      id: '/api/public/hooks/whatsapp-drive-backup'
+      path: '/api/public/hooks/whatsapp-drive-backup'
+      fullPath: '/api/public/hooks/whatsapp-drive-backup'
+      preLoaderRoute: typeof ApiPublicHooksWhatsappDriveBackupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/whatsapp-worker': {
       id: '/api/public/hooks/whatsapp-worker'
       path: '/api/public/hooks/whatsapp-worker'
@@ -1551,6 +1572,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksWearablesSyncRoute: ApiPublicHooksWearablesSyncRoute,
   ApiPublicHooksWeeklyPractitionerDigestRoute:
     ApiPublicHooksWeeklyPractitionerDigestRoute,
+  ApiPublicHooksWhatsappDriveBackupRoute:
+    ApiPublicHooksWhatsappDriveBackupRoute,
   ApiPublicHooksWhatsappWorkerRoute: ApiPublicHooksWhatsappWorkerRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
