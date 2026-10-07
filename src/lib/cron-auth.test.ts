@@ -33,7 +33,7 @@ describe("authorizeCronRequest", () => {
     ).toBeNull();
   });
 
-  it("allows the Vault secret the scheduled jobs send, even when CRON_SECRET differs or is unset", async () => {
+  it("allows the database key the scheduled jobs send, even when CRON_SECRET differs or is unset", async () => {
     expect(
       await authorizeCronRequest(req({ authorization: `Bearer ${VAULT}` }), undefined, vaultYes),
     ).toBeNull();

@@ -2,28 +2,35 @@
 --
 -- Fixes every scheduled job getting 401 from /api/public/hooks/*.
 --
--- The jobs never sent the CRON_SECRET the app checks, and nobody could copy
--- the value across safely. Now the secret lives only in Supabase Vault:
---   1. A random 'cron_secret' is created in Vault (only if there isn't one).
+-- The jobs never sent the CRON_SECRET the app checks. Instead of Vault (which
+-- Lovable's agent is not allowed to touch), the job key lives in a locked
+-- table in a "private" schema that the website API cannot see:
+--   1. private.cron_auth holds one random key, created here if missing.
+--      No grants to anon or authenticated, RLS on, not exposed by the API.
 --   2. public.verify_cron_secret(token) answers true/false inside the
---      database. The app calls it (service role only); the secret itself is
---      never returned to the app or shown to anyone.
+--      database. Service role only. The key itself is never returned.
 --   3. Every pg_cron job that calls /api/public/hooks/* is rewritten to read
---      the Vault value at run time and send it as "Authorization: Bearer".
+--      the key when it runs and send it as "Authorization: Bearer".
 --      Each job keeps its schedule and URL.
 --
--- Safe to run twice. No table data changes.
+-- Safe to run twice. No patient data touched.
 
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM vault.secrets WHERE name = 'cron_secret') THEN
-    PERFORM vault.create_secret(
-      replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
-      'cron_secret',
-      'Sent by scheduled jobs to /api/public/hooks/*. Checked by public.verify_cron_secret.'
-    );
-  END IF;
-END $$;
+CREATE SCHEMA IF NOT EXISTS private;
+REVOKE ALL ON SCHEMA private FROM PUBLIC;
+REVOKE ALL ON SCHEMA private FROM anon, authenticated;
+
+CREATE TABLE IF NOT EXISTS private.cron_auth (
+  id int PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  token text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE private.cron_auth ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON private.cron_auth FROM PUBLIC;
+REVOKE ALL ON private.cron_auth FROM anon, authenticated;
+
+INSERT INTO private.cron_auth (id, token)
+VALUES (1, replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''))
+ON CONFLICT (id) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION public.verify_cron_secret(p_token text)
 RETURNS boolean
@@ -34,10 +41,7 @@ SET search_path = ''
 AS $$
   SELECT p_token IS NOT NULL
      AND length(p_token) >= 32
-     AND EXISTS (
-       SELECT 1 FROM vault.decrypted_secrets
-       WHERE name = 'cron_secret' AND decrypted_secret = p_token
-     );
+     AND EXISTS (SELECT 1 FROM private.cron_auth WHERE token = p_token);
 $$;
 
 REVOKE ALL ON FUNCTION public.verify_cron_secret(text) FROM PUBLIC;
@@ -62,7 +66,7 @@ BEGIN
   url := %L,
   headers := jsonb_build_object(
     'Content-Type', 'application/json',
-    'Authorization', 'Bearer ' || (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'cron_secret')
+    'Authorization', 'Bearer ' || (SELECT token FROM private.cron_auth WHERE id = 1)
   ),
   body := '{}'::jsonb,
   timeout_milliseconds := 30000
@@ -70,5 +74,6 @@ BEGIN
         u
       )
     );
+    RAISE NOTICE 'cron job % now authenticates to %', j.jobid, u;
   END LOOP;
 END $$;
