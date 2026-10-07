@@ -2613,6 +2613,7 @@ export type Database = {
       }
       is_owner_of_practice: { Args: { p_practice: string }; Returns: boolean }
       is_super_admin: { Args: { _uid: string }; Returns: boolean }
+      verify_cron_secret: { Args: { p_token: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
