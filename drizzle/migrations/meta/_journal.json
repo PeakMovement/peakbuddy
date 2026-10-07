@@ -141,6 +141,13 @@
       "when": 1791370000000,
       "tag": "0020_schedule_all_hooks",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791338430072,
+      "tag": "0021_schedule_all_hooks",
+      "breakpoints": true
     }
   ]
 }
