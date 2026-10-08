@@ -25,7 +25,10 @@ import type { CheckIn, Client } from "@/lib/types";
 import { CircularRing, ringColor } from "@/components/CircularRing";
 import { useServerFn } from "@tanstack/react-start";
 import { TransferClientButton } from "@/components/TransferClientButton";
-import { getPractitionerClientBundle } from "@/lib/practice-members.functions";
+import {
+  getPractitionerClientBundle,
+  getPractitionerClientCheckIns,
+} from "@/lib/practice-members.functions";
 import { getClientProgramForPractitioner, type ProgramLite } from "@/lib/client-program.functions";
 
 export const Route = createFileRoute("/practitioner/app/client-detail/$clientId")({
@@ -33,9 +36,10 @@ export const Route = createFileRoute("/practitioner/app/client-detail/$clientId"
   component: ClientDetail,
 });
 
-function avg(items: CheckIn[], key: keyof CheckIn) {
+/** Mean of a numeric field, or null when no check-in has a value for it. */
+function avg(items: CheckIn[], key: keyof CheckIn): number | null {
   const vals = items.map((i) => i[key]).filter((v) => typeof v === "number") as number[];
-  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
 }
 
 function ClientDetail() {
@@ -44,6 +48,14 @@ function ClientDetail() {
   const [client, setClient] = useState<Client | null>(null);
   const [items, setItems] = useState<CheckIn[]>([]);
   const [loading, setLoading] = useState(true);
+  // Why the client couldn't be shown: no access / missing, a failed request,
+  // or a lost session. Kept apart so a network blip isn't "Client not found".
+  const [loadError, setLoadError] = useState<"denied" | "failed" | "signed_out" | null>(null);
+  const [checkInTotal, setCheckInTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const [yvesError, setYvesError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [practiceYves, setPracticeYves] = useState<boolean>(true);
   const [savingYves, setSavingYves] = useState(false);
@@ -56,44 +68,94 @@ function ClientDetail() {
   } | null>(null);
   const getProgram = useServerFn(getClientProgramForPractitioner);
   const loadBundle = useServerFn(getPractitionerClientBundle);
+  const loadOlder = useServerFn(getPractitionerClientCheckIns);
   const [wearSessions, setWearSessions] = useState<Record<string, unknown>[]>([]);
   const [patternRows, setPatternRows] = useState<Record<string, unknown>[]>([]);
 
   const load = async () => {
-    const { data: u } = await supabase.auth.getUser();
-    if (!u.user) return;
-    // Access-checked bundle: works for the client's own practitioner AND for the
-    // practice admin viewing a member's client (server-side ownership check).
-    const [bundle, { data: pr }] = await Promise.all([
-      loadBundle({ data: { clientId } }).catch(() => null),
-      supabase
-        .from("practices")
-        .select("yves_enabled")
-        .eq("practitioner_id", u.user.id)
-        .maybeSingle(),
-    ]);
-    if (bundle && bundle.ok) {
-      setClient(bundle.client as Client | null);
-      setItems((bundle.checkIns as CheckIn[]) ?? []);
-      setWearSessions((bundle.wearableSessions as Record<string, unknown>[]) ?? []);
-      setPatternRows((bundle.patterns as Record<string, unknown>[]) ?? []);
-    } else {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) {
+        setClient(null);
+        setLoadError("signed_out");
+        return;
+      }
+      // Access-checked bundle: works for the client's own practitioner AND for the
+      // practice admin viewing a member's client (server-side ownership check).
+      const [bundle, { data: pr }] = await Promise.all([
+        loadBundle({ data: { clientId } }),
+        supabase
+          .from("practices")
+          .select("yves_enabled")
+          .eq("practitioner_id", u.user.id)
+          .maybeSingle(),
+      ]);
+      setPracticeYves((pr as { yves_enabled: boolean } | null)?.yves_enabled !== false);
+      if (bundle.ok && bundle.client) {
+        const rows = (bundle.checkIns as CheckIn[]) ?? [];
+        setClient(bundle.client as unknown as Client);
+        setItems(rows);
+        setHasMore(!!bundle.hasMoreCheckIns);
+        setCheckInTotal(bundle.checkInTotal ?? rows.length);
+        setWearSessions((bundle.wearableSessions as Record<string, unknown>[]) ?? []);
+        setPatternRows((bundle.patterns as Record<string, unknown>[]) ?? []);
+      } else {
+        setClient(null);
+        setLoadError("denied");
+      }
+    } catch {
       setClient(null);
+      setLoadError("failed");
+    } finally {
+      setLoading(false);
     }
-    setPracticeYves((pr as { yves_enabled: boolean } | null)?.yves_enabled !== false);
-    setLoading(false);
+  };
+
+  const showMore = async () => {
+    const oldest = items[items.length - 1];
+    if (!oldest || loadingMore) return;
+    setLoadingMore(true);
+    setMoreError(null);
+    try {
+      const res = await loadOlder({ data: { clientId, before: oldest.created_at } });
+      if (!res.ok) {
+        setMoreError(res.error);
+        return;
+      }
+      setItems((prev) => {
+        const seen = new Set(prev.map((p) => p.id));
+        return [...prev, ...(res.checkIns as CheckIn[]).filter((c) => !seen.has(c.id))];
+      });
+      setHasMore(res.hasMore);
+    } catch {
+      setMoreError("Couldn't load older check-ins. Tap to try again.");
+    } finally {
+      setLoadingMore(false);
+    }
   };
 
   const toggleYves = async () => {
     if (!client || savingYves) return;
     const next = !(client.yves_enabled !== false);
     setSavingYves(true);
-    const { error } = await supabase
-      .from("clients")
-      .update({ yves_enabled: next })
-      .eq("id", client.id);
-    if (!error) setClient({ ...client, yves_enabled: next });
-    setSavingYves(false);
+    setYvesError(null);
+    try {
+      const { data, error } = await supabase
+        .from("clients")
+        .update({ yves_enabled: next })
+        .eq("id", client.id)
+        .select("id");
+      if (error) setYvesError("Couldn't save that change. Please try again.");
+      else if (!data || data.length === 0)
+        setYvesError("You don't have permission to change this for this client.");
+      else setClient({ ...client, yves_enabled: next });
+    } catch {
+      setYvesError("Couldn't save that change. Check your connection and try again.");
+    } finally {
+      setSavingYves(false);
+    }
   };
 
   useEffect(() => {
@@ -127,8 +189,9 @@ function ClientDetail() {
               Math.ceil(elapsed / (client.check_in_frequency === "every_3_days" ? 3 : 2)),
               weeks * 4,
             );
-    return Math.min(100, Math.round((items.length / Math.max(1, expectedSoFar)) * 100));
-  }, [client, items]);
+    // Total from the server: the page only holds the newest check-ins.
+    return Math.min(100, Math.round((checkInTotal / Math.max(1, expectedSoFar)) * 100));
+  }, [client, checkInTotal]);
 
   const trendUp = useMemo(() => {
     const pains = [...items]
@@ -175,7 +238,8 @@ function ClientDetail() {
     const noRecent =
       !last || Date.now() - new Date(last.created_at).getTime() > 7 * 24 * 60 * 60 * 1000;
     if (noRecent) recs.push("No recent check-ins. Follow up with this client.");
-    if (stats.pain >= 7) recs.push("High average pain reported. Consider specialist referral.");
+    if (stats.pain !== null && stats.pain >= 7)
+      recs.push("High average pain reported. Consider specialist referral.");
     return recs.slice(0, 4);
   }, [trendUp, compliance, items, stats.pain]);
 
@@ -186,7 +250,52 @@ function ClientDetail() {
         <Link to="/practitioner/app/dashboard" style={{ color: "var(--blue-accent)" }}>
           ← Back
         </Link>
-        <p style={{ marginTop: 16, color: "var(--white-muted)" }}>Client not found.</p>
+        {loadError === "failed" ? (
+          <div
+            role="alert"
+            style={{
+              marginTop: 16,
+              background: "var(--navy-card)",
+              border: "1px solid var(--navy-border)",
+              borderRadius: 12,
+              padding: 16,
+            }}
+          >
+            <p style={{ color: "var(--white)", fontSize: 14 }}>
+              Couldn't load this client. Check your connection and try again.
+            </p>
+            <button
+              type="button"
+              onClick={() => void load()}
+              style={{
+                marginTop: 12,
+                minHeight: 44,
+                padding: "0 18px",
+                background: "var(--blue-accent)",
+                color: "var(--white)",
+                border: "none",
+                borderRadius: 8,
+                fontFamily: "var(--font-ui)",
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: "pointer",
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        ) : loadError === "signed_out" ? (
+          <p style={{ marginTop: 16, color: "var(--white-muted)" }}>
+            You're signed out.{" "}
+            <Link to="/practitioner/login" style={{ color: "var(--blue-accent)" }}>
+              Sign in again
+            </Link>
+          </p>
+        ) : (
+          <p style={{ marginTop: 16, color: "var(--white-muted)" }}>
+            Client not found, or you don't have access to this client.
+          </p>
+        )}
       </div>
     );
   }
@@ -424,7 +533,7 @@ function ClientDetail() {
               {(["pain", "sleep", "stress", "energy"] as const).map((k) => {
                 const v = stats[k];
                 const max = metricMeta[k].max;
-                const pct = Math.min(100, Math.round((v / max) * 100));
+                const pct = v === null ? 0 : Math.min(100, Math.round((v / max) * 100));
                 return (
                   <div
                     key={k}
@@ -439,7 +548,7 @@ function ClientDetail() {
                           color: "var(--white)",
                         }}
                       >
-                        {v.toFixed(1)}
+                        {v === null ? "—" : v.toFixed(1)}
                       </div>
                     </CircularRing>
                     <div
@@ -608,6 +717,32 @@ function ClientDetail() {
                 )}
               </div>
             ))}
+            {hasMore && (
+              <button
+                type="button"
+                onClick={() => void showMore()}
+                disabled={loadingMore}
+                style={{
+                  minHeight: 44,
+                  background: "transparent",
+                  color: "var(--blue-accent)",
+                  border: "1px solid var(--navy-border)",
+                  borderRadius: 10,
+                  fontFamily: "var(--font-ui)",
+                  fontWeight: 600,
+                  fontSize: 14,
+                  cursor: loadingMore ? "wait" : "pointer",
+                  opacity: loadingMore ? 0.6 : 1,
+                }}
+              >
+                {loadingMore ? "Loading…" : "Show more"}
+              </button>
+            )}
+            {moreError && (
+              <div role="alert" style={{ color: "var(--red)", fontSize: 13 }}>
+                {moreError}
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -681,6 +816,11 @@ function ClientDetail() {
             );
           })()}
         </div>
+        {yvesError && (
+          <div role="alert" style={{ marginTop: 8, color: "var(--red)", fontSize: 12 }}>
+            {yvesError}
+          </div>
+        )}
 
         <div
           style={{
@@ -772,8 +912,8 @@ function ClientDetail() {
   );
 }
 
-function MetricMini({ label, value, max }: { label: string; value: number; max: number }) {
-  const pct = max ? (value / max) * 100 : 0;
+function MetricMini({ label, value, max }: { label: string; value: number | null; max: number }) {
+  const pct = max && value !== null ? (value / max) * 100 : 0;
   return (
     <div
       style={{
@@ -796,7 +936,7 @@ function MetricMini({ label, value, max }: { label: string; value: number; max: 
             color: "var(--white)",
           }}
         >
-          {value ? value.toFixed(1) : "—"}
+          {value === null ? "—" : value.toFixed(1)}
         </span>
       </CircularRing>
       <div

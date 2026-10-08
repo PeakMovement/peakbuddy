@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MessageCircle, ChevronDown } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { getWhatsAppTranscript, type TranscriptLine } from "@/lib/whatsapp/transcript.functions";
@@ -7,22 +7,87 @@ import { getWhatsAppTranscript, type TranscriptLine } from "@/lib/whatsapp/trans
 // The patient's WhatsApp conversation with Buddy, read-only. Silent when the
 // patient has never used WhatsApp. Collapsed by default: the check-ins it
 // produced already appear in the timeline, this is the words behind them.
+// Loads the newest 100 messages; "Load earlier" pages back from there.
 
 export function WhatsAppConversationCard({ clientId }: { clientId: string }) {
   const load = useServerFn(getWhatsAppTranscript);
   const [lines, setLines] = useState<TranscriptLine[] | null>(null);
+  const [nextBefore, setNextBefore] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(false);
+  const [earlierBusy, setEarlierBusy] = useState(false);
+  const [earlierError, setEarlierError] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // After prepending older messages, keep the view anchored where it was.
+  const anchorRef = useRef<number | null>(null);
 
-  useEffect(() => {
+  const loadNewest = useCallback(() => {
     let cancelled = false;
+    setFailed(false);
     load({ data: { clientId } })
-      .then((r) => !cancelled && setLines(r.lines))
-      .catch(() => !cancelled && setLines([]));
+      .then((r) => {
+        if (cancelled) return;
+        setLines(r.lines);
+        setNextBefore(r.nextBefore);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
     return () => {
       cancelled = true;
     };
   }, [clientId, load]);
 
+  useEffect(() => loadNewest(), [loadNewest]);
+
+  // Opening the card jumps to the latest message.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [open]);
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (el && anchorRef.current !== null) {
+      el.scrollTop = el.scrollHeight - anchorRef.current;
+      anchorRef.current = null;
+    }
+  }, [lines]);
+
+  const loadEarlier = async () => {
+    if (!nextBefore || earlierBusy) return;
+    setEarlierBusy(true);
+    setEarlierError(false);
+    try {
+      const r = await load({ data: { clientId, before: nextBefore } });
+      const el = scrollRef.current;
+      if (el) anchorRef.current = el.scrollHeight - el.scrollTop;
+      setLines((prev) => [...r.lines, ...(prev ?? [])]);
+      setNextBefore(r.nextBefore);
+    } catch {
+      setEarlierError(true);
+    } finally {
+      setEarlierBusy(false);
+    }
+  };
+
+  if (failed) {
+    return (
+      <div style={card} role="alert">
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <MessageCircle size={17} color="var(--blue-accent)" aria-hidden />
+          <span style={eyebrow}>WhatsApp conversation</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+          <span style={{ ...sub, margin: 0, flex: 1 }}>Couldn't load the conversation.</span>
+          <button type="button" onClick={() => loadNewest()} style={retryBtn}>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
   if (!lines || lines.length === 0) return null;
   const last = lines[lines.length - 1];
 
@@ -42,6 +107,7 @@ export function WhatsAppConversationCard({ clientId }: { clientId: string }) {
       </button>
       {open && (
         <div
+          ref={scrollRef}
           style={{
             display: "flex",
             flexDirection: "column",
@@ -51,9 +117,28 @@ export function WhatsAppConversationCard({ clientId }: { clientId: string }) {
             overflowY: "auto",
           }}
         >
+          {nextBefore && (
+            <button
+              type="button"
+              onClick={() => void loadEarlier()}
+              disabled={earlierBusy}
+              style={{
+                ...retryBtn,
+                alignSelf: "center",
+                opacity: earlierBusy ? 0.6 : 1,
+                cursor: earlierBusy ? "wait" : "pointer",
+              }}
+            >
+              {earlierBusy
+                ? "Loading…"
+                : earlierError
+                  ? "Couldn't load. Tap to retry"
+                  : "Load earlier"}
+            </button>
+          )}
           {lines.map((l, i) => (
             <div
-              key={i}
+              key={`${l.at}-${l.from}-${i}`}
               style={{
                 alignSelf: l.from === "patient" ? "flex-end" : "flex-start",
                 maxWidth: "85%",
@@ -86,6 +171,19 @@ export function WhatsAppConversationCard({ clientId }: { clientId: string }) {
   );
 }
 
+const retryBtn: CSSProperties = {
+  minHeight: 36,
+  padding: "0 14px",
+  background: "transparent",
+  color: "var(--blue-accent)",
+  border: "1px solid var(--navy-border)",
+  borderRadius: 999,
+  fontFamily: "var(--font-ui)",
+  fontSize: 12.5,
+  fontWeight: 600,
+  cursor: "pointer",
+  flexShrink: 0,
+};
 const card: CSSProperties = {
   background: "var(--navy-card)",
   border: "1px solid var(--navy-border)",

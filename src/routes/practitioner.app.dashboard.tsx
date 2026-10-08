@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
-import { Users, Sparkles, AlertTriangle, Watch } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Users, Sparkles, AlertTriangle, Watch, Search } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import type { Profile, Client, CheckIn } from "@/lib/types";
+import type { Profile, Client } from "@/lib/types";
+import { windowCompliance, type CheckInSummary } from "@/lib/roster-summary";
 import { CircularRing, ringColor } from "@/components/CircularRing";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 import { log } from "@/lib/log";
@@ -26,7 +27,7 @@ export const Route = createFileRoute("/practitioner/app/dashboard")({
 
 type ClientRow = Client & {
   _lastCheckIn: string | null;
-  _compliance: number;
+  _compliance: number | null;
   _activeToday: boolean;
   _wearables: string[];
 };
@@ -61,12 +62,16 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
     setError(null);
     try {
       const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return;
+      if (!u.user) {
+        setError("You're signed out. Please sign in again.");
+        return;
+      }
       void registerPushToken();
 
       const [{ data: prof }, roster, wc, wmap] = await Promise.all([
@@ -87,39 +92,15 @@ function Dashboard() {
         return;
       }
 
-      const checkIns = (roster.checkIns as CheckIn[]) ?? [];
-
+      const summary = (roster.checkInSummary ?? {}) as Record<string, CheckInSummary>;
       const today = new Date();
-      const byClient = new Map<string, CheckIn[]>();
-      ((checkIns as CheckIn[]) ?? []).forEach((ci) => {
-        const arr = byClient.get(ci.client_id) ?? [];
-        arr.push(ci);
-        byClient.set(ci.client_id, arr);
-      });
-
       const enriched: ClientRow[] = list.map((c) => {
-        const ci = byClient.get(c.id) ?? [];
-        const last = ci[0]?.created_at ?? null;
-        const weeks = c.tracking_duration_weeks ?? 8;
-        const start = new Date(c.created_at).getTime();
-        const elapsed = Math.max(1, Math.ceil((Date.now() - start) / (1000 * 60 * 60 * 24)));
-        const expectedSoFar =
-          c.check_in_frequency === "daily"
-            ? Math.min(elapsed, weeks * 7)
-            : c.check_in_frequency === "weekly"
-              ? Math.min(Math.ceil(elapsed / 7), weeks)
-              : Math.min(
-                  Math.ceil(elapsed / (c.check_in_frequency === "every_3_days" ? 3 : 2)),
-                  weeks * 4,
-                );
-        const compliance = Math.min(
-          100,
-          Math.round((ci.length / Math.max(1, expectedSoFar)) * 100),
-        );
+        const s = summary[c.id];
+        const last = s?.last ?? null;
         return {
           ...c,
           _lastCheckIn: last,
-          _compliance: compliance,
+          _compliance: windowCompliance(c, s?.windowCount ?? 0),
           _activeToday: !!last && isSameDay(last, today),
           _wearables: (wmap as Record<string, string[]>)[c.id] ?? [],
         };
@@ -142,6 +123,12 @@ function Dashboard() {
     await load();
     setRefreshing(false);
   };
+
+  const visibleRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => (r.full_name ?? "").toLowerCase().includes(q));
+  }, [rows, query]);
 
   const firstName = (profile?.full_name ?? "").split(" ")[0] || "there";
   const today = new Date().toLocaleDateString(undefined, {
@@ -225,6 +212,42 @@ function Dashboard() {
         </button>
       </div>
 
+      {!loading && !error && rows.length > 0 && (
+        <label
+          style={{
+            marginTop: 12,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: "var(--navy-card)",
+            border: "1px solid var(--navy-border)",
+            borderRadius: 10,
+            padding: "0 12px",
+            minHeight: 44,
+          }}
+        >
+          <Search size={16} color="var(--white-muted)" aria-hidden />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search clients by name"
+            aria-label="Search clients by name"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              color: "var(--white)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 16,
+              minHeight: 42,
+            }}
+          />
+        </label>
+      )}
+
       {loading ? (
         <div style={{ marginTop: 16 }}>
           <SkeletonList count={3} height={84} />
@@ -241,9 +264,13 @@ function Dashboard() {
             subtitle="Add your first client to get started."
           />
         </div>
+      ) : visibleRows.length === 0 ? (
+        <p style={{ marginTop: 16, color: "var(--white-muted)", fontSize: 13 }}>
+          No clients match "{query.trim()}".
+        </p>
       ) : (
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-          {rows.map((r) => (
+          {visibleRows.map((r) => (
             <button
               key={r.id}
               type="button"
@@ -324,8 +351,8 @@ function Dashboard() {
               <CircularRing
                 size={40}
                 stroke={5}
-                pct={r._compliance}
-                color={ringColor(r._compliance)}
+                pct={r._compliance ?? 0}
+                color={ringColor(r._compliance ?? 0)}
               >
                 <span
                   style={{
@@ -335,7 +362,7 @@ function Dashboard() {
                     color: "var(--white)",
                   }}
                 >
-                  {r._compliance}%
+                  {r._compliance === null ? "—" : `${r._compliance}%`}
                 </span>
               </CircularRing>
             </button>

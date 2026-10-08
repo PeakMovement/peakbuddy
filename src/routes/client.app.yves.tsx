@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { UserCheck, AlertTriangle, X, ThumbsUp, ThumbsDown, ChevronDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -128,14 +128,22 @@ function YvesScreen() {
 
   const debounceRef = useRef<number | null>(null);
 
-  // Initial load — client, practitioner name, history
-  useEffect(() => {
+  // Initial load: client, practitioner name, history. A failed load shows a
+  // retry prompt rather than looking like Yves was switched off.
+  const [loadError, setLoadError] = useState(false);
+  const [reloading, setReloading] = useState(false);
+  const loadInitial = useCallback(async () => {
     const id = getClientId();
     if (!id) return;
-    (async () => {
-      const { data: c } = await supabase.from("clients").select("*").eq("id", id).maybeSingle();
+    setLoadError(false);
+    try {
+      const { data: c, error: cErr } = await supabase
+        .from("clients")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+      if (cErr) throw cErr;
       const cl = c as Client | null;
-      setClient(cl);
 
       const [{ data: q }, profRes, accessRes] = await Promise.all([
         supabase
@@ -153,12 +161,9 @@ function YvesScreen() {
               .maybeSingle()
               .then((r) => r)
           : Promise.resolve({ data: null as { full_name: string } | null }),
-        getClientYvesAccess({ data: { clientId: id } }).catch(() => ({
-          practiceYvesEnabled: false,
-          clientYvesEnabled: false,
-          practitionerId: null as string | null,
-        })),
+        getClientYvesAccess({ data: { clientId: id } }),
       ]);
+      setClient(cl);
       setHistory(((q as SymptomQuery[] | null) ?? []) as SymptomQuery[]);
       setPractitionerName((profRes.data as { full_name: string } | null)?.full_name ?? null);
       setPracticeYvesEnabled(accessRes.practiceYvesEnabled);
@@ -173,8 +178,21 @@ function YvesScreen() {
       ) {
         setShowConsentModal(true);
       }
-    })();
+    } catch (e) {
+      log.error("[Yves] initial load failed:", e);
+      setLoadError(true);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadInitial();
+  }, [loadInitial]);
+
+  const retryLoad = async () => {
+    setReloading(true);
+    await loadInitial();
+    setReloading(false);
+  };
 
   // Rotate example prompts every 4s with 0.3s fade
   useEffect(() => {
@@ -423,11 +441,7 @@ function YvesScreen() {
             symptomDescription: result?.rationale ?? resultText ?? text.trim(),
             symptomScore: result?.severity ?? 0,
             urgency: (result?.urgency ?? "urgent") as
-              | "emergency"
-              | "urgent"
-              | "soon"
-              | "monitor"
-              | "routine",
+              "emergency" | "urgent" | "soon" | "monitor" | "routine",
           },
         });
       }
@@ -451,11 +465,7 @@ function YvesScreen() {
             symptomDescription: text.trim(),
             symptomScore: realTime?.severity ?? 0,
             urgency: (realTime?.urgency ?? "urgent") as
-              | "emergency"
-              | "urgent"
-              | "soon"
-              | "monitor"
-              | "routine",
+              "emergency" | "urgent" | "soon" | "monitor" | "routine",
           },
         });
       }
@@ -877,7 +887,7 @@ function YvesScreen() {
               <UserCheck size={14} />
               Your practitioner: {practitionerName ?? "—"}
             </span>
-          ) : (
+          ) : !client ? null : (
             <span
               style={{
                 display: "inline-flex",
@@ -898,7 +908,31 @@ function YvesScreen() {
           )}
         </div>
 
-        {accessBlockReason ? (
+        {loadError ? (
+          <button
+            type="button"
+            onClick={() => void retryLoad()}
+            disabled={reloading}
+            role="alert"
+            style={{
+              marginTop: 20,
+              width: "100%",
+              minHeight: 56,
+              padding: 16,
+              background: "var(--navy-card)",
+              border: "1px solid var(--navy-border)",
+              borderRadius: 10,
+              color: "var(--white)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 14,
+              textAlign: "center",
+              cursor: reloading ? "wait" : "pointer",
+              opacity: reloading ? 0.6 : 1,
+            }}
+          >
+            {reloading ? "Loading…" : "Couldn't load, tap to retry"}
+          </button>
+        ) : accessBlockReason ? (
           <div
             style={{
               marginTop: 20,

@@ -645,18 +645,39 @@ function CheckInScreen() {
       </Section>
 
       {/* Sleep */}
-      <Section label="Sleep Quality">
-        <NumberRow value={sleep} onChange={setSleep} />
+      <Section label="Sleep Quality" id="ci-sleep-label">
+        <NumberRow
+          value={sleep}
+          onChange={setSleep}
+          labelledBy="ci-sleep-label"
+          name="Sleep"
+          low="very poorly"
+          high="very well"
+        />
       </Section>
 
       {/* Stress */}
-      <Section label="Stress Level">
-        <NumberRow value={stress} onChange={setStress} />
+      <Section label="Stress Level" id="ci-stress-label">
+        <NumberRow
+          value={stress}
+          onChange={setStress}
+          labelledBy="ci-stress-label"
+          name="Stress"
+          low="low"
+          high="high"
+        />
       </Section>
 
       {/* Energy */}
-      <Section label="Energy Level">
-        <NumberRow value={energy} onChange={setEnergy} />
+      <Section label="Energy Level" id="ci-energy-label">
+        <NumberRow
+          value={energy}
+          onChange={setEnergy}
+          labelledBy="ci-energy-label"
+          name="Energy"
+          low="very low"
+          high="very high"
+        />
       </Section>
 
       {/* Mood */}
@@ -787,10 +808,19 @@ function CheckInScreen() {
   );
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+function Section({
+  label,
+  children,
+  id,
+}: {
+  label: string;
+  children: React.ReactNode;
+  id?: string;
+}) {
   return (
     <div style={{ marginTop: 24 }}>
       <label
+        id={id}
         style={{
           display: "block",
           fontFamily: "var(--font-ui)",
@@ -809,31 +839,74 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-function NumberRow({ value, onChange }: { value: number | null; onChange: (n: number) => void }) {
+/**
+ * A 1 to 5 picker with end labels that match the WhatsApp wording, exposed to
+ * assistive tech as a labelled radio group.
+ */
+function NumberRow({
+  value,
+  onChange,
+  labelledBy,
+  name,
+  low,
+  high,
+}: {
+  value: number | null;
+  onChange: (n: number) => void;
+  labelledBy: string;
+  name: string;
+  low: string;
+  high: string;
+}) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
-      {[1, 2, 3, 4, 5].map((n) => {
-        const active = value === n;
-        return (
-          <button
-            key={n}
-            type="button"
-            onClick={() => onChange(n)}
-            style={{
-              minHeight: 48,
-              borderRadius: 8,
-              border: `1px solid ${active ? "var(--blue-cold)" : "var(--navy-border)"}`,
-              background: active ? "var(--blue-cold)" : "var(--navy-card)",
-              color: active ? "var(--navy)" : "var(--white)",
-              fontFamily: "var(--font-data)",
-              fontWeight: 700,
-              fontSize: 18,
-            }}
-          >
-            {n}
-          </button>
-        );
-      })}
+    <div>
+      <div
+        role="radiogroup"
+        aria-labelledby={labelledBy}
+        style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}
+      >
+        {[1, 2, 3, 4, 5].map((n) => {
+          const active = value === n;
+          const hint = n === 1 ? `, ${low}` : n === 5 ? `, ${high}` : "";
+          return (
+            <button
+              key={n}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              aria-label={`${name} ${n}${hint}`}
+              onClick={() => onChange(n)}
+              style={{
+                minHeight: 48,
+                borderRadius: 8,
+                border: `1px solid ${active ? "var(--blue-cold)" : "var(--navy-border)"}`,
+                background: active ? "var(--blue-cold)" : "var(--navy-card)",
+                color: active ? "var(--navy)" : "var(--white)",
+                fontFamily: "var(--font-data)",
+                fontWeight: 700,
+                fontSize: 18,
+              }}
+            >
+              {n}
+            </button>
+          );
+        })}
+      </div>
+      <div
+        aria-hidden
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          marginTop: 6,
+          fontFamily: "var(--font-ui)",
+          fontSize: 12,
+          color: "var(--white-muted)",
+        }}
+      >
+        <span>1 {low}</span>
+        <span style={{ textAlign: "right" }}>5 {high}</span>
+      </div>
     </div>
   );
 }

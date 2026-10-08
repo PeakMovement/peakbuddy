@@ -57,6 +57,8 @@ function fmtDate(iso: string) {
   });
 }
 
+const TIMELINE_PAGE = 60;
+
 function ClientProfile() {
   const navigate = useNavigate();
   const [client, setClient] = useState<Client | null>(null);
@@ -81,6 +83,9 @@ function ClientProfile() {
   }, []);
   const [timelineItems, setTimelineItems] = useState<CheckIn[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineHasMore, setTimelineHasMore] = useState(false);
+  const [timelineMoreBusy, setTimelineMoreBusy] = useState(false);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
   const [openCheckInId, setOpenCheckInId] = useState<string | null>(null);
   const [rewardsOn, setRewardsOn] = useState(false);
   const [consentSaving, setConsentSaving] = useState(false);
@@ -168,20 +173,54 @@ function ClientProfile() {
     if (!id) return;
     let cancelled = false;
     setTimelineLoading(true);
+    setTimelineError(null);
+    // Newest page only; "Show more" walks back from the oldest one shown.
     supabase
       .from("check_ins")
       .select("*")
       .eq("client_id", id)
       .order("created_at", { ascending: false })
-      .then(({ data }) => {
+      .limit(TIMELINE_PAGE + 1)
+      .then(({ data, error }) => {
         if (cancelled) return;
-        setTimelineItems((data as CheckIn[]) ?? []);
+        if (error) setTimelineError("Couldn't load your timeline. Tap Show more to try again.");
+        const rows = (data as CheckIn[]) ?? [];
+        setTimelineItems(rows.slice(0, TIMELINE_PAGE));
+        setTimelineHasMore(rows.length > TIMELINE_PAGE);
         setTimelineLoading(false);
       });
     return () => {
       cancelled = true;
     };
   }, [timelineOpen]);
+
+  const loadMoreTimeline = async () => {
+    const id = getClientId();
+    if (!id || timelineMoreBusy) return;
+    const oldest = timelineItems[timelineItems.length - 1];
+    setTimelineMoreBusy(true);
+    setTimelineError(null);
+    let q = supabase
+      .from("check_ins")
+      .select("*")
+      .eq("client_id", id)
+      .order("created_at", { ascending: false })
+      .limit(TIMELINE_PAGE + 1);
+    if (oldest) q = q.lt("created_at", oldest.created_at);
+    const { data, error } = await q;
+    setTimelineMoreBusy(false);
+    if (error) {
+      setTimelineError("Couldn't load more. Tap Show more to try again.");
+      setTimelineHasMore(true);
+      return;
+    }
+    const rows = (data as CheckIn[]) ?? [];
+    setTimelineItems((prev) => {
+      const seen = new Set(prev.map((p) => p.id));
+      return [...prev, ...rows.slice(0, TIMELINE_PAGE).filter((r) => !seen.has(r.id))];
+    });
+    setTimelineHasMore(rows.length > TIMELINE_PAGE);
+  };
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -543,7 +582,7 @@ function ClientProfile() {
           <div style={{ marginTop: 12 }}>
             {timelineLoading ? (
               <p style={{ color: "var(--white-muted)", fontSize: 13 }}>Loading…</p>
-            ) : timelineItems.length === 0 ? (
+            ) : timelineItems.length === 0 && !timelineError ? (
               <p style={{ color: "var(--white-muted)", fontSize: 13 }}>
                 No check-ins yet. Complete your first check-in to get started.
               </p>
@@ -665,6 +704,32 @@ function ClientProfile() {
                     </button>
                   );
                 })}
+                {timelineError && (
+                  <p role="alert" style={{ color: "var(--red)", fontSize: 13 }}>
+                    {timelineError}
+                  </p>
+                )}
+                {(timelineHasMore || timelineError) && (
+                  <button
+                    type="button"
+                    onClick={() => void loadMoreTimeline()}
+                    disabled={timelineMoreBusy}
+                    style={{
+                      minHeight: 44,
+                      background: "transparent",
+                      color: "var(--blue-accent)",
+                      border: "1px solid var(--navy-border)",
+                      borderRadius: 12,
+                      fontFamily: "var(--font-ui)",
+                      fontWeight: 600,
+                      fontSize: 14,
+                      cursor: timelineMoreBusy ? "wait" : "pointer",
+                      opacity: timelineMoreBusy ? 0.6 : 1,
+                    }}
+                  >
+                    {timelineMoreBusy ? "Loading…" : "Show more"}
+                  </button>
+                )}
               </div>
             )}
           </div>
