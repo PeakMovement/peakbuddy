@@ -52,7 +52,7 @@ type Load =
   | { status: "ready"; firstName: string; connected: Provider[] };
 
 function ConnectWatchPage() {
-  const { t, wearable, status } = Route.useSearch();
+  const { t, wearable, status } = Route.useSearch() as Search;
   const details = useServerFn(getWatchLinkDetails);
   const start = useServerFn(startWatchLinkConnect);
   const syncAfter = useServerFn(syncAfterWatchConnect);
@@ -134,7 +134,7 @@ function ConnectWatchPage() {
           <>
             {wearable && status === "connected" && (
               <Panel tone="good">
-                <strong style={{ color: "var(--white)" }}>{NAME[wearable]} connected.</strong> Your
+                <strong style={{ color: "var(--white)" }}>{NAME[wearable as Provider]} connected.</strong> Your
                 data will start showing for your physiotherapist shortly. You can head back to
                 WhatsApp now.
                 <div className="mt-3">
@@ -150,12 +150,12 @@ function ConnectWatchPage() {
             )}
             {wearable && status === "consent" && (
               <Panel>
-                {NAME[wearable]} needs data sharing switched on. In the {NAME[wearable]} app, allow
-                sharing with Buddy, then tap {NAME[wearable]} below again.
+                {NAME[wearable as Provider]} needs data sharing switched on. In the {NAME[wearable as Provider]} app, allow
+                sharing with Buddy, then tap {NAME[wearable as Provider]} below again.
               </Panel>
             )}
             {wearable && status === "error" && (
-              <Panel>That didn't go through. Please try {NAME[wearable]} again below.</Panel>
+              <Panel>That didn't go through. Please try {NAME[wearable as Provider]} again below.</Panel>
             )}
 
             <p className="mt-4 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
