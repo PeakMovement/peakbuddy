@@ -903,8 +903,8 @@ export const Route = createFileRoute("/api/public/triage-query")({
 
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
-          const userEmail = userData?.user?.email?.toLowerCase();
-          if (userErr || !userEmail) return json({ error: "Invalid or expired session" }, 401);
+          const authUserId = userData?.user?.id ?? null;
+          if (userErr || !authUserId) return json({ error: "Invalid or expired session" }, 401);
 
           const body = (await request.json().catch(() => null)) as {
             query_text?: unknown;
@@ -924,7 +924,7 @@ export const Route = createFileRoute("/api/public/triage-query")({
 
           const { data: c, error: cErr } = await supabaseAdmin
             .from("clients")
-            .select("practitioner_id, yves_enabled, yves_ai_consent, email")
+            .select("practitioner_id, yves_enabled, yves_ai_consent, auth_user_id")
             .eq("id", client_id)
             .maybeSingle();
 
@@ -933,7 +933,9 @@ export const Route = createFileRoute("/api/public/triage-query")({
             return json({ error: "Access check unavailable, try again", retryable: true }, 503);
           }
           if (!c) return json({ error: "Client not found" }, 403);
-          if (!c.email || c.email.toLowerCase() !== userEmail)
+          // Identity is the auth user id link, never the email address: an email
+          // can be changed or reused, the auth_user_id link cannot be spoofed.
+          if (!c.auth_user_id || c.auth_user_id !== authUserId)
             return json({ error: "Not authorized for this client" }, 403);
           if (!c.practitioner_id)
             return json({ error: "Yves access disabled: no practitioner" }, 403);

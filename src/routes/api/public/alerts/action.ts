@@ -16,7 +16,7 @@ export const Route = createFileRoute("/api/public/alerts/action")({
         const token = url.searchParams.get("token");
         if (!token) return renderPage("Missing token", "This link is invalid.");
 
-        const { verifyAlertActionToken, consumeAlertActionToken } =
+        const { verifyAlertActionToken, claimAlertActionToken } =
           await import("@/lib/alert-actions.server");
         const verified = await verifyAlertActionToken(token);
         if (!verified.ok) {
@@ -31,6 +31,40 @@ export const Route = createFileRoute("/api/public/alerts/action")({
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { alertId, practitionerId, action, tokenRowId } = verified.token;
+        if (action !== "reviewed" && action !== "checkin") {
+          return renderPage("Unknown action", "This link is invalid.");
+        }
+
+        // Consume the token FIRST, atomically. Only the request that flips
+        // used_at from empty acts; a double click or replay gets nothing.
+        const claimed = await claimAlertActionToken(tokenRowId);
+        if (!claimed) {
+          return renderPage("Link not valid", "This action has already been completed.");
+        }
+
+        // Re-check that the practitioner the link was minted for can still
+        // access this patient (they may have been transferred or removed since
+        // the email went out).
+        const { data: alert } = await supabaseAdmin
+          .from("alerts")
+          .select("client_id, practitioner_id")
+          .eq("id", alertId)
+          .maybeSingle();
+        if (!alert || !alert.client_id) {
+          return renderPage("Link not valid", "This link is invalid.");
+        }
+        const { canAccessClient } = await import("@/lib/practice-members.functions");
+        const access = await canAccessClient(
+          supabaseAdmin,
+          practitionerId,
+          alert.client_id as string,
+        );
+        if (!access.allowed) {
+          return renderPage(
+            "Link not valid",
+            "You no longer have access to this patient. Open Buddy to review your alerts.",
+          );
+        }
 
         if (action === "reviewed") {
           await supabaseAdmin
@@ -41,56 +75,40 @@ export const Route = createFileRoute("/api/public/alerts/action")({
               is_read: true,
             })
             .eq("id", alertId);
-          await consumeAlertActionToken(tokenRowId);
           return renderPage(
             "Marked reviewed",
             "This alert is now marked as reviewed. You can close this tab.",
           );
         }
 
-        if (action === "checkin") {
-          // Look up the client on the alert, then fire the same push as
-          // sendCheckInNudge without needing a Supabase session.
-          const { data: alert } = await supabaseAdmin
-            .from("alerts")
-            .select("client_id, practitioner_id")
-            .eq("id", alertId)
-            .maybeSingle();
-          if (!alert || alert.practitioner_id !== practitionerId) {
-            return renderPage("Link not valid", "This link is invalid.");
-          }
+        // action === "checkin": fire the same push as sendCheckInNudge without
+        // needing a Supabase session.
+        const { data: client } = await supabaseAdmin
+          .from("clients")
+          .select("auth_user_id, full_name")
+          .eq("id", alert.client_id)
+          .maybeSingle();
 
-          const { data: client } = await supabaseAdmin
-            .from("clients")
-            .select("auth_user_id, full_name")
-            .eq("id", alert.client_id)
-            .maybeSingle();
-
-          if (!client?.auth_user_id) {
-            await consumeAlertActionToken(tokenRowId);
-            return renderPage(
-              "Cannot notify patient",
-              "This patient has not signed in yet, so they can't be notified. Please contact them directly.",
-            );
-          }
-
-          const { sendPushCore } = await import("@/lib/push.functions");
-          await sendPushCore(supabaseAdmin, {
-            userId: client.auth_user_id,
-            title: "Buddy check-in",
-            body: "Your practitioner is checking in. Tap to log how you're doing.",
-            data: { type: "checkin_request" },
-            sentBy: practitionerId,
-          });
-          await consumeAlertActionToken(tokenRowId);
-          const first = (client.full_name || "your patient").trim().split(/\s+/)[0];
+        if (!client?.auth_user_id) {
           return renderPage(
-            "Check-in requested",
-            `We sent ${first} a push notification asking them to check in.`,
+            "Cannot notify patient",
+            "This patient has not signed in yet, so they can't be notified. Please contact them directly.",
           );
         }
 
-        return renderPage("Unknown action", "This link is invalid.");
+        const { sendPushCore } = await import("@/lib/push.functions");
+        await sendPushCore(supabaseAdmin, {
+          userId: client.auth_user_id,
+          title: "Buddy check-in",
+          body: "Your practitioner is checking in. Tap to log how you're doing.",
+          data: { type: "checkin_request" },
+          sentBy: practitionerId,
+        });
+        const first = (client.full_name || "your patient").trim().split(/\s+/)[0];
+        return renderPage(
+          "Check-in requested",
+          `We sent ${first} a push notification asking them to check in.`,
+        );
       },
     },
   },
@@ -102,7 +120,7 @@ function renderPage(title: string, body: string) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtml(title)} — Buddy</title>
+    <title>${escapeHtml(title)} | Buddy</title>
     <style>
       body {
         margin: 0;

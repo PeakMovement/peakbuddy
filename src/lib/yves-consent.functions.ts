@@ -33,6 +33,16 @@ export const setYvesAiConsent = createServerFn({ method: "POST" })
     }
     if (!allowed) return { ok: false as const, error: "Forbidden." };
 
+    // Consent to AI processing is the patient's own decision. Staff (their
+    // practitioner or a super admin) may withdraw it on the patient's behalf,
+    // but only the patient can give it.
+    if (data.consent && c.auth_user_id !== context.userId) {
+      return {
+        ok: false as const,
+        error: "Only the patient can give AI consent, from their own Buddy app.",
+      };
+    }
+
     const { error } = await supabaseAdmin
       .from("clients")
       .update({

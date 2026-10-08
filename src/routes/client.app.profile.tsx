@@ -24,6 +24,7 @@ import {
 } from "@/lib/client-program.functions";
 import { deleteMyAccount } from "@/lib/account-delete.functions";
 import { updateClientPhone, updateMyEmail } from "@/lib/client-profile.functions";
+import { EMAIL_CHANGE_SENT_NOTICE, startVerifiedEmailChange } from "@/lib/email-change";
 import { setYvesAiConsent } from "@/lib/yves-consent.functions";
 import { MyRewards } from "@/components/MyRewards";
 import { getRewardsStatus } from "@/lib/rewards.functions";
@@ -86,6 +87,7 @@ function ClientProfile() {
   const [consentSaving, setConsentSaving] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
   const saveConsent = useServerFn(setYvesAiConsent);
+  const syncEmail = useServerFn(updateMyEmail);
   useEffect(() => {
     getRewardsStatus()
       .then((r) => setRewardsOn(r.enabled))
@@ -102,11 +104,29 @@ function ClientProfile() {
       const { data } = await supabase.from("clients").select("*").eq("id", id).maybeSingle();
       setClient(data as Client | null);
       setLoading(false);
+      // After a confirmed email change, copy the new login email onto the
+      // patient record. The server only does this for a confirmed address.
+      try {
+        const { data: u } = await supabase.auth.getUser();
+        const authEmail = u.user?.email?.toLowerCase() ?? null;
+        const row = data as Client | null;
+        if (
+          row &&
+          authEmail &&
+          u.user?.email_confirmed_at &&
+          row.email?.toLowerCase() !== authEmail
+        ) {
+          const res = await syncEmail({ data: { email: authEmail } });
+          if (!res.pending) setClient({ ...row, email: res.email });
+        }
+      } catch {
+        /* best effort */
+      }
     })();
     loadProgram()
       .then((res) => setProgramState(res))
       .catch(() => {});
-  }, [navigate, loadProgram]);
+  }, [navigate, loadProgram, syncEmail]);
 
   const handleAccept = async () => {
     if (busy) return;
@@ -205,6 +225,7 @@ function ClientProfile() {
   const [emailValue, setEmailValue] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailNotice, setEmailNotice] = useState<string | null>(null);
 
   const handleDeleteAccount = async () => {
     if (deleting) return;
@@ -261,6 +282,7 @@ function ClientProfile() {
           value={emailValue}
           busy={emailBusy}
           error={emailError}
+          notice={emailNotice}
           onStartEdit={() => {
             setEmailValue(client?.email || "");
             setEmailEdit(true);
@@ -279,7 +301,22 @@ function ClientProfile() {
             setEmailError(null);
             try {
               const res = await saveEmail({ data: { email: next } });
-              setClient({ ...client, email: res.email });
+              if (res.pending) {
+                const { applied } = await startVerifiedEmailChange(
+                  res.email,
+                  "/client/app/profile",
+                );
+                if (applied) {
+                  await saveEmail({ data: { email: res.email } });
+                  setClient({ ...client, email: res.email });
+                  setEmailNotice(null);
+                } else {
+                  setEmailNotice(EMAIL_CHANGE_SENT_NOTICE);
+                }
+              } else {
+                setClient({ ...client, email: res.email });
+                setEmailNotice(null);
+              }
               setEmailEdit(false);
             } catch (e: any) {
               setEmailError(e?.message || "Could not save email.");
@@ -1104,6 +1141,7 @@ export function EditableTextField({
   value,
   busy,
   error,
+  notice,
   onStartEdit,
   onCancel,
   onChange,
@@ -1119,6 +1157,7 @@ export function EditableTextField({
   value: string;
   busy: boolean;
   error: string | null;
+  notice?: string | null;
   onStartEdit: () => void;
   onCancel: () => void;
   onChange: (v: string) => void;
@@ -1166,6 +1205,18 @@ export function EditableTextField({
         >
           {currentValue || emptyText}
         </div>
+        {notice && (
+          <div
+            style={{
+              marginTop: 6,
+              color: "var(--white-muted)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 13,
+            }}
+          >
+            {notice}
+          </div>
+        )}
       </button>
     );
   }

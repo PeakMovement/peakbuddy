@@ -16,10 +16,6 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const userId = context.userId;
-    const email =
-      typeof (context.claims as { email?: unknown }).email === "string"
-        ? (context.claims as { email: string }).email.toLowerCase()
-        : null;
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -32,15 +28,8 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
     if (cByIdErr) {
       return { ok: false as const, error: cByIdErr.message };
     }
-    if (email) {
-      const { error: cByEmailErr } = await supabaseAdmin
-        .from("clients")
-        .delete()
-        .eq("email", email);
-      if (cByEmailErr) {
-        return { ok: false as const, error: cByEmailErr.message };
-      }
-    }
+    // Deliberately NOT deleting by email as well: an email address is not proof
+    // of identity, and matching on it could remove another patient's record.
 
     // Delete the auth user. For practitioners this cascades to practices,
     // profiles, clients, check_ins and alerts.

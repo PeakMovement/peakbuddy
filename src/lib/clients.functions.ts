@@ -21,16 +21,20 @@ export const createClientAccount = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
 
-    // Authz: only the practitioner adding to their own roster (or a super admin).
-    if (context.userId !== data.practitionerId) {
-      const { data: prof } = await admin
-        .from("profiles")
-        .select("role")
-        .eq("id", context.userId)
-        .maybeSingle();
-      if (prof?.role !== "super_admin") {
-        return { ok: false as const, error: "Forbidden." };
-      }
+    // Authz: the caller must be staff (a practitioner or super admin), and only
+    // a super admin may add a client to someone else's roster. Without the role
+    // check any signed-in patient could create accounts.
+    const { data: callerProf } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", context.userId)
+      .maybeSingle();
+    const callerRole = (callerProf as { role?: string } | null)?.role ?? null;
+    if (callerRole !== "practitioner" && callerRole !== "super_admin") {
+      return { ok: false as const, error: "Forbidden." };
+    }
+    if (context.userId !== data.practitionerId && callerRole !== "super_admin") {
+      return { ok: false as const, error: "Forbidden." };
     }
     const { isProgramsFeatureEnabled } = await import("@/lib/client-program.functions");
     const programsEnabled = await isProgramsFeatureEnabled();
@@ -52,6 +56,7 @@ export const createClientAccount = createServerFn({ method: "POST" })
 
     // Create or find auth user
     let userId: string | null = null;
+    let reusedExistingLogin = false;
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
       email: data.email,
       password: data.password,
@@ -60,30 +65,42 @@ export const createClientAccount = createServerFn({ method: "POST" })
     if (createErr) {
       const msg = createErr.message.toLowerCase();
       if (msg.includes("already") || msg.includes("registered") || msg.includes("exists")) {
-        const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
-        const existing = list?.users.find(
-          (u) => u.email?.toLowerCase() === data.email.toLowerCase(),
-        );
-        if (!existing) {
+        const { findAuthUserIdByEmail } = await import("@/lib/find-auth-user");
+        const existingId = await findAuthUserIdByEmail(admin, data.email);
+        if (!existingId) {
           return { ok: false as const, error: "Email already in use but user not found." };
         }
-        // Never take over an existing STAFF account. Adding a client re-uses an
-        // existing auth user (e.g. re-adding a previously removed client whose
-        // login lingered), but if the email belongs to a practitioner or
-        // super-admin, resetting its password here would be an account takeover.
+        // An existing login is only re-used when it is a plain patient login
+        // with no patient record attached (e.g. a previously removed client
+        // whose login lingered). Its password is NEVER changed here: setting a
+        // password on someone else's existing login is an account takeover.
+        // The welcome email below carries a set-password link instead.
         const { data: existingProf } = await admin
           .from("profiles")
           .select("role")
-          .eq("id", existing.id)
+          .eq("id", existingId)
           .maybeSingle();
-        if (existingProf?.role === "super_admin" || existingProf?.role === "practitioner") {
+        const existingRole = (existingProf as { role?: string } | null)?.role ?? null;
+        if (existingRole && existingRole !== "client") {
           return {
             ok: false as const,
             error: "This email already belongs to a staff account and can't be used for a client.",
           };
         }
-        await admin.auth.admin.updateUserById(existing.id, { password: data.password });
-        userId = existing.id;
+        const { data: linkedRow } = await admin
+          .from("clients")
+          .select("id")
+          .eq("auth_user_id", existingId)
+          .limit(1);
+        if (Array.isArray(linkedRow) && linkedRow.length > 0) {
+          return {
+            ok: false as const,
+            error:
+              "This email already has a Buddy account linked to a client record. Open their record instead of adding a new one.",
+          };
+        }
+        userId = existingId;
+        reusedExistingLogin = true;
       } else {
         return { ok: false as const, error: createErr.message };
       }
@@ -171,5 +188,5 @@ export const createClientAccount = createServerFn({ method: "POST" })
       log.error("client welcome email failed", e);
     }
 
-    return { ok: true as const, clientId: inserted.id };
+    return { ok: true as const, clientId: inserted.id, existingLogin: reusedExistingLogin };
   });

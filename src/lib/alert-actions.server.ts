@@ -128,6 +128,23 @@ export async function verifyAlertActionToken(rawToken: string): Promise<VerifyRe
   };
 }
 
+/**
+ * Atomically claim a token: marks it used only if it was still unused, and
+ * returns true only for the one request that won. Two clicks (or a replayed
+ * link) racing each other can never both act.
+ */
+export async function claimAlertActionToken(tokenRowId: string): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("alert_action_tokens")
+    .update({ used_at: new Date().toISOString() })
+    .eq("id", tokenRowId)
+    .is("used_at", null)
+    .select("id");
+  if (error) return false;
+  return Array.isArray(data) && data.length > 0;
+}
+
 /** Mark a token used. Idempotent. */
 export async function consumeAlertActionToken(tokenRowId: string): Promise<void> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
