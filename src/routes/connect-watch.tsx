@@ -52,7 +52,7 @@ type Load =
   | { status: "ready"; firstName: string; connected: Provider[] };
 
 function ConnectWatchPage() {
-  const { t, wearable, status } = Route.useSearch();
+  const { t, wearable, status } = Route.useSearch() as Search;
   const details = useServerFn(getWatchLinkDetails);
   const start = useServerFn(startWatchLinkConnect);
   const syncAfter = useServerFn(syncAfterWatchConnect);
