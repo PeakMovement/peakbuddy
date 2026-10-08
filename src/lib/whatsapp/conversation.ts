@@ -59,6 +59,8 @@ export type ConversationState =
   | "unmatched";
 
 export interface CheckinDraft {
+  /** An app-login email waiting for the patient's YES before anything is created. */
+  pendingEmail?: string;
   pain?: number;
   sleep?: number;
   energy?: number;
@@ -236,6 +238,11 @@ export const MSG = {
     "How is your pain right now? Reply with a number from 0 (no pain) to 10 (worst pain imaginable).",
   askPainRetry:
     "Sorry, I didn't catch that. Please reply with just a number from 0 to 10 for your pain right now.",
+  askPainRetry2:
+    "Just a single number please, from 0 (no pain) to 10 (worst pain imaginable). For example: 4",
+  painGiveUp:
+    "No problem, let's leave it for now. I've passed on what you wrote to your physiotherapist. Reply CHECK IN whenever you're ready to try again.",
+  skipQuestion: "No problem, let's skip that one.",
   askSleep: "How did you sleep last night?",
   askSleepRetry:
     "Please pick one from the list, or reply with a number from 1 (very poorly) to 5 (very well).",
@@ -317,10 +324,46 @@ const NOT_PAIN_UNIT =
  * number ("about a 5, stiff after sitting") is read as the answer. Two numbers,
  * or a number with a unit ("slept 7 hours"), is not guessed at.
  */
+const PAIN_WORDS: Record<string, number> = {
+  zero: 0,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  nul: 0,
+  een: 1,
+  twee: 2,
+  drie: 3,
+  vier: 4,
+  vyf: 5,
+  ses: 6,
+  sewe: 7,
+  agt: 8,
+  nege: 9,
+  tien: 10,
+};
+const PAIN_WORD_RE = new RegExp(`\\b(${Object.keys(PAIN_WORDS).join("|")})\\b`, "g");
+
 export function readPain(msg: InboundForDecision): number | null {
   const r = extractDeterministic({ text: msg.text, replyId: msg.replyId, expecting: "painScore" });
   if (r.painScore !== null) return r.painScore;
   const text = msg.text ?? "";
+  // "3 out of 10", "about 4 of 10"
+  const outOf = text.match(/(?<!\d)(\d{1,2})\s*(?:out of|of)\s*10\b/i);
+  if (outOf) return Number(outOf[1]) <= 10 ? Number(outOf[1]) : null;
+  // "six", "about a seven" (words only, when no digits were typed)
+  // Short answers only, so "one more thing, my knee..." is not read as a 1.
+  if (!/\d/.test(text) && text.trim().split(/\s+/).length <= 5) {
+    const words = text.toLowerCase().match(PAIN_WORD_RE) ?? [];
+    const uniq = [...new Set(words)];
+    if (uniq.length === 1) return PAIN_WORDS[uniq[0]];
+  }
   const found: number[] = [];
   const re = /(?<![\d/]|\d[.,])(\d{1,2})(?!\d|[.,]\d)/g;
   let m: RegExpExecArray | null;
@@ -482,10 +525,26 @@ function withSafety(decision: Decision, ctx: DecisionContext): Decision {
   if (ctx.redFlags.urgency === "emergency") {
     // An emergency ends the check-in. The only thing that matters now is the
     // safety message, and a pain question after "call an ambulance" is wrong.
+    // Keep what they already told us: a pain score given before the emergency
+    // is saved (flagged) rather than lost. Offers are never left half-made.
+    const d = { ...ctx.conversation.draft, ...decision.next.draft };
+    const partial =
+      !decision.saveCheckin && typeof d.pain === "number"
+        ? {
+            pain: d.pain,
+            sleep: d.sleep ?? null,
+            energy: d.energy ?? null,
+            notes: [...(d.notes ?? []), ctx.message.text ?? ""].filter(Boolean).join("\n"),
+            flagged: true,
+          }
+        : undefined;
     return {
       ...decision,
       replies: [text(safety)],
-      next: decision.saveCheckin ? decision.next : IDLE(),
+      next: IDLE(),
+      saveCheckin: decision.saveCheckin ?? partial,
+      markWearableOffered: undefined,
+      markAppOffered: undefined,
     };
   }
   return { ...decision, replies: [text(safety), ...decision.replies] };
@@ -795,7 +854,18 @@ export function decide(ctx: DecisionContext): Decision {
   // Asking for a check-in time works from anywhere in the conversation, and
   // does not disturb a check-in in progress.
   // Not while writing their notes, where "my scan is at 3" is a note.
-  const reminder = conv.state === "awaiting_notes" ? null : readReminderTime(raw);
+  // While a pain, sleep or energy question is open, only an explicit request
+  // counts ("remind me at 7", "change my check-in time to 6pm"), so "knee at 5
+  // today" is not read as a new reminder time.
+  const midQuestion =
+    conv.state === "awaiting_pain" ||
+    conv.state === "awaiting_sleep" ||
+    conv.state === "awaiting_energy";
+  const reminder =
+    conv.state === "awaiting_notes" ||
+    (midQuestion && !/\b(remind|reminder|change|move|set|every day|daily)\b/i.test(raw))
+      ? null
+      : readReminderTime(raw);
   if (reminder) {
     return withSafety(
       { replies: [text(MSG.reminderSet(reminder))], next: conv, setReminderTime: reminder },
@@ -830,10 +900,23 @@ export function decide(ctx: DecisionContext): Decision {
         const notes = raw ? [...(draft.notes ?? []), raw] : draft.notes;
         const human = interjectMidCheckin(ctx, state, draft, keep({ notes }, "awaiting_pain"), raw);
         if (human) return withSafety(human, ctx);
+        const misses = (draft.misses ?? 0) + 1;
+        if (misses >= 3) {
+          // Don't loop. Pause, pass on what they wrote, and let them come back.
+          const said = (notes ?? []).join(" | ").slice(0, 1000);
+          return withSafety(
+            {
+              replies: [text(MSG.painGiveUp)],
+              next: IDLE(),
+              noteForPractitioner: said || undefined,
+            },
+            ctx,
+          );
+        }
         return withSafety(
           {
-            replies: [text(MSG.askPainRetry)],
-            next: keep({ notes, misses: (draft.misses ?? 0) + 1 }, "awaiting_pain"),
+            replies: [text(misses >= 2 ? MSG.askPainRetry2 : MSG.askPainRetry)],
+            next: keep({ notes, misses }, "awaiting_pain"),
           },
           ctx,
         );
@@ -877,6 +960,16 @@ export function decide(ctx: DecisionContext): Decision {
           raw,
         );
         if (human) return withSafety(human, ctx);
+        if ((draft.misses ?? 0) >= 1) {
+          // Second miss: skip this one rather than ask a third time.
+          return withSafety(
+            {
+              replies: [text(MSG.skipQuestion), askEnergy()],
+              next: keep({ notes, sleep: undefined, misses: 0 }, "awaiting_energy"),
+            },
+            ctx,
+          );
+        }
         return withSafety(
           {
             replies: [askSleep(MSG.askSleepRetry)],
@@ -903,6 +996,16 @@ export function decide(ctx: DecisionContext): Decision {
           raw,
         );
         if (human) return withSafety(human, ctx);
+        if ((draft.misses ?? 0) >= 1) {
+          // Second miss: skip this one rather than ask a third time.
+          return withSafety(
+            {
+              replies: [text(MSG.skipQuestion), askNotes()],
+              next: keep({ notes, energy: undefined, misses: 0 }, "awaiting_notes"),
+            },
+            ctx,
+          );
+        }
         return withSafety(
           {
             replies: [askEnergy(MSG.askEnergyRetry)],
@@ -966,7 +1069,22 @@ export function decide(ctx: DecisionContext): Decision {
 
     case "awaiting_email": {
       const email = looksLikeEmail(raw);
-      if (email) return withSafety({ replies: [], next: IDLE(), accountEmail: email }, ctx);
+      if (email) {
+        // Read it back first: a typo would send their login link to a stranger.
+        return withSafety(
+          {
+            replies: [text(ONBOARD_MSG.appConfirm(email))],
+            next: { ...conv, draft: { ...conv.draft, pendingEmail: email } },
+          },
+          ctx,
+        );
+      }
+      if (conv.draft.pendingEmail && (YES.test(raw) || msg.replyId === "app_email_yes")) {
+        return withSafety(
+          { replies: [], next: IDLE(), accountEmail: conv.draft.pendingEmail },
+          ctx,
+        );
+      }
       if (NO.test(raw) || /^(no thanks|not now|maybe later|later)[.!]*$/i.test(raw)) {
         return withSafety({ replies: [text(ONBOARD_MSG.appDeclined)], next: IDLE() }, ctx);
       }

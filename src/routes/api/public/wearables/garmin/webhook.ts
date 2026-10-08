@@ -85,10 +85,15 @@ export const Route = createFileRoute("/api/public/wearables/garmin/webhook")({
         if (!secret) return unauthorized("Webhook not configured");
 
         const rawBody = await request.text();
+        // Garmin's Health API pushes are not always signed. A signature, when
+        // present, must verify. Without one, an item is only accepted when its
+        // userAccessToken matches a token we stored at connect time (a secret
+        // only Garmin and we hold), and no self-healing of user ids happens.
         const signature = garminWebhookSignatureFrom(request.headers);
-        if (!signature) return unauthorized("Signature required");
-        const signed = await verifyGarminWebhookSignature({ secret, rawBody, signature });
-        if (!signed) return unauthorized("Invalid signature");
+        const signed = signature
+          ? await verifyGarminWebhookSignature({ secret, rawBody, signature })
+          : false;
+        if (signature && !signed) return unauthorized("Invalid signature");
 
         try {
           const payload = JSON.parse(rawBody) as Record<string, Item[] | undefined>;
@@ -107,9 +112,9 @@ export const Route = createFileRoute("/api/public/wearables/garmin/webhook")({
             for (const item of items ?? []) {
               const clientId = await resolveClientId(
                 supabaseAdmin,
-                item.userId,
+                signed ? item.userId : undefined,
                 item.userAccessToken,
-                true,
+                signed,
               );
               if (!clientId) continue;
               const mapped = map(item);
@@ -124,9 +129,9 @@ export const Route = createFileRoute("/api/public/wearables/garmin/webhook")({
           for (const item of acts) {
             const clientId = await resolveClientId(
               supabaseAdmin,
-              item.userId,
+              signed ? item.userId : undefined,
               item.userAccessToken,
-              true,
+              signed,
             );
             if (!clientId) continue;
             const deviceName = (item.deviceName as string | undefined)?.trim();
@@ -167,7 +172,7 @@ export const Route = createFileRoute("/api/public/wearables/garmin/webhook")({
           for (const item of payload.deregistrations ?? []) {
             const clientId = await resolveClientId(
               supabaseAdmin,
-              item.userId,
+              signed ? item.userId : undefined,
               item.userAccessToken,
               false,
             );

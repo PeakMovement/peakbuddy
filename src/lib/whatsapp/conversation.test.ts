@@ -438,3 +438,20 @@ describe("AI fallback and voice notes", () => {
     expect(bodies(d)).toEqual([MSG.voiceUnreadable]);
   });
 });
+
+describe("pain answers in everyday words", () => {
+  it.each([
+    ["3 out of 10", 3],
+    ["about 4 out of 10", 4],
+    ["six", 6],
+    ["about a seven today", 7],
+    ["ses", 6],
+  ])("%s", async (text, n) => {
+    const { readPain } = await import("./conversation");
+    expect(readPain({ text, kind: "text" })).toBe(n);
+  });
+  it("does not guess when two numbers are given", async () => {
+    const { readPain } = await import("./conversation");
+    expect(readPain({ text: "one or two", kind: "text" })).toBeNull();
+  });
+});

@@ -131,12 +131,16 @@ export const ONBOARD_MSG = {
     "Sorry, that join code isn't working. It may have expired. Please ask the practice for a new link.",
   consentLink: (firstName: string, url: string) =>
     `Before we start, ${firstName}, please read and sign your consent form. It takes about a minute:\n\n${url}\n\nCome back here once you've signed and we'll do your first check-in.`,
+  consentUpdated: (firstName: string, url: string) =>
+    `Hi ${firstName}, we've updated our consent form. Please have a quick read and sign it so we can carry on with your check-ins:\n\n${url}`,
   consentReminder: (url: string) =>
     `I just need your signed consent before we can carry on. Here's your link again:\n\n${url}`,
   consentDone: (firstName: string) =>
     `Thank you ${firstName}, your consent is signed and saved to your profile. Let's do your first check-in.`,
   appOffer:
     "By the way, there's also a Buddy app with your progress charts, exercises and smartwatch syncing. Want me to set it up for you? Reply with your email address, or NO THANKS.",
+  appConfirm: (email: string) =>
+    `Just to check, set up your Buddy app login for ${email}? Reply YES, or send the correct email address.`,
   appAskAgain: "That doesn't look like an email address. Reply with your email, or NO THANKS.",
   appSetUp: (email: string) =>
     `Done. I've sent an email to ${email} so you can set your password and log in. WhatsApp check-ins carry on as normal.`,

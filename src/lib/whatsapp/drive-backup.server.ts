@@ -235,6 +235,7 @@ export async function runWeeklyDriveBackup(
 
   let uploaded = 0;
   let skipped = 0;
+  let failed = 0;
   for (const [clientId, lines] of byClient) {
     if (!covered.has(clientId)) {
       skipped++;
@@ -250,11 +251,19 @@ export async function runWeeklyDriveBackup(
       await uploadText(env, fileName, weekFolder, renderTranscript(name, week.label, lines));
       uploaded++;
     } catch (e) {
+      failed++;
       log.warn("whatsapp drive backup: upload failed", {
         client: clientId.slice(0, 8),
         error: e instanceof Error ? e.message : "unknown",
       });
     }
   }
-  return { ok: true, week: week.label, patients: byClient.size, uploaded, skipped };
+  return {
+    ok: failed === 0,
+    ...(failed ? { reason: `${failed} upload(s) failed` } : {}),
+    week: week.label,
+    patients: byClient.size,
+    uploaded,
+    skipped,
+  };
 }

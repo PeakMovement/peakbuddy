@@ -114,3 +114,15 @@ describe("intent never gates safety", () => {
     expect(intentOf("stop messaging me, my calf is swollen and agony")).toBe("opt_out");
   });
 });
+
+describe("ordinary answers are not an opt-out", () => {
+  it.each([
+    "No more",
+    "End",
+    "please stop the swelling",
+    "Ek wil nie meer pyn he nie",
+    "moenie meer so seer wees nie",
+  ])("%s", (text) => {
+    expect(classifyIntent({ text }).intent).not.toBe("opt_out");
+  });
+});

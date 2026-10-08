@@ -40,14 +40,13 @@ const BARE_STOP_WORDS = new Set([
   "unsubscribe",
   "cancel",
   "quit",
-  "end",
   "opt out",
   "optout",
   "opt-out",
-  "no more",
   "remove me",
   "hou op", // Afrikaans: stop
   "stop asseblief",
+  "please stop",
 ]);
 
 /** Phrases that mean opt-out wherever they appear in a message. */
@@ -75,16 +74,19 @@ const OPT_OUT_PHRASES = [
   "i don't want these",
   "i dont want to receive",
   "i don't want to receive",
-  "please stop",
-  "moenie meer", // Afrikaans: no more
+  "please stop messaging",
+  "please stop sending",
+  "please stop the check",
+  "moenie meer boodskappe", // Afrikaans: no more messages
   "cancel the check",
   "cancel my check",
   "cancel check",
   "pause the check",
   "pause my check",
   "pause check",
-  "hou op met", // stop with
-  "ek wil nie meer", // I don't want any more
+  "hou op met die boodskappe", // stop with the messages
+  "ek wil nie meer boodskappe", // I don't want any more messages
+  "nie meer die boodskappe", // (want) no more of the messages
 ];
 
 /** Phrases that mean "I want to reach my practitioner". */

@@ -316,6 +316,9 @@ export const metaProvider: WhatsAppProvider = {
                 mimeType: String(payload?.mime_type ?? ""),
               },
             });
+          } else if (m.type === "reaction") {
+            // A thumbs-up on one of Buddy's messages needs no reply.
+            continue;
           } else {
             messages.push({ ...base, kind: "unsupported", text: "" });
           }

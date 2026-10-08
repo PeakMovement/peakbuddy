@@ -197,7 +197,7 @@ describe("a genuine request is accepted", () => {
 });
 
 describe("a genuine request is never lost", () => {
-  it("returns 200 when our own storage fails, so the provider does not retry the batch", async () => {
+  it("returns 500 when our own storage fails, so the provider redelivers it", async () => {
     const { store } = makeStore("throw");
     const body = metaBody("hello");
     const sig = await hmacHex(APP_SECRET, body);
@@ -205,7 +205,7 @@ describe("a genuine request is never lost", () => {
       { rawBody: body, headers: { "x-hub-signature-256": `sha256=${sig}` }, url: "u" },
       { provider: "meta", secrets: metaSecrets, store },
     );
-    expect(out.status).toBe(200);
+    expect(out.status).toBe(500);
     expect(out.summary.failed).toBe(1);
     expect(out.summary.accepted).toBe(0);
   });

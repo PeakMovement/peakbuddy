@@ -173,7 +173,21 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
   }
 
   const nowMs = (env.now?.() ?? new Date()).getTime();
+  // One message per patient at a time: if another run (the webhook or the
+  // minute job) is already handling this patient, leave theirs for later, so
+  // two quick answers never overwrite each other's place in the check-in.
+  // Within this run rows are handled one by one, oldest first.
   for (const row of (rows ?? []) as InboundRow[]) {
+    const { data: busy } = await admin
+      .from("whatsapp_inbound")
+      .select("id")
+      .eq("from_phone", row.from_phone)
+      .eq("status", "processing")
+      .limit(1);
+    if (busy && busy.length > 0) {
+      result.skipped++;
+      continue;
+    }
     if (
       nowMs - new Date(row.received_at).getTime() > STALE_INBOUND_MS &&
       !runRedFlagRules({ text: row.body ?? "" }).triggered
@@ -521,8 +535,18 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
       ? readPain(message) === null
       : readScale(message, state === "awaiting_sleep" ? "wsleep_" : "wenergy_") === null);
   const unplacedIdle = route?.intent === "other" && !readReminderTime(typed);
-  if (client && consent && aiAllowed && typed && (unplacedMid || unplacedIdle)) {
-    const history = await recentTurns(admin, row.from_phone, phone, row.id);
+  // A red flag gets only the fixed safety wording: no chatty model reply next
+  // to it that could read as reassurance.
+  const flaggedText = runRedFlagRules({ text: typed }).triggered;
+  if (
+    client &&
+    consent &&
+    aiAllowed &&
+    typed &&
+    !flaggedText &&
+    (unplacedMid || unplacedIdle)
+  ) {
+    const history = await recentTurns(admin, row.from_phone, phone, row.id, now);
     if (!progressText && unplacedIdle) progressText = await progressFor(admin, client.id);
     converse =
       (await converseWithAi({
@@ -649,7 +673,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     : decision.optIn
       ? null
       : conv.opted_out_at;
-  await admin
+  const { error: saveError } = await admin
     .from("whatsapp_conversations")
     .update({
       client_id: client?.id ?? null,
@@ -662,6 +686,9 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
       updated_at: now.toISOString(),
     })
     .eq("id", conv.id);
+  // If where we are wasn't saved, don't reply: the next answer would be read
+  // against the wrong question. The message is marked failed instead.
+  if (saveError) throw new Error(`conversation save failed: ${saveError.code ?? "unknown"}`);
 
   if (decision.markAppOffered) {
     // Separate write: the column arrives with migration 0016.
@@ -784,8 +811,9 @@ async function recentTurns(
   fromPhone: string,
   phone: string,
   currentId: string,
+  now: Date = new Date(),
 ): Promise<ConverseTurn[]> {
-  const since = new Date(Date.now() - 2 * DAY_MS).toISOString();
+  const since = new Date(now.getTime() - 2 * DAY_MS).toISOString();
   const [inbound, outbound] = await Promise.all([
     admin
       .from("whatsapp_inbound")
@@ -971,18 +999,25 @@ async function raiseRedFlagAlert(
   client: ClientRow,
   flags: RuleLayerResult,
 ): Promise<void> {
-  // 24 hour dedup, except emergencies, which always alert. Same rule as the app.
+  // 24 hour dedup, except emergencies, which always alert. Only the same kind
+  // of problem at the same or higher urgency counts as a repeat: an unread
+  // wound alert must never swallow a new calf-swelling one.
   if (flags.urgency !== "emergency") {
+    const rank = (u: string | null | undefined) =>
+      (({ emergency: 5, urgent: 4, soon: 3, monitor: 2, routine: 1 }) as Record<string, number>)[u ?? ""] ?? 0;
     const since = new Date(Date.now() - DAY_MS).toISOString();
     const { data: existing } = await admin
       .from("alerts")
-      .select("id")
+      .select("urgency, red_flag_category")
       .eq("client_id", client.id)
       .eq("alert_type", "red_flag")
       .eq("is_read", false)
       .gte("created_at", since)
-      .limit(1);
-    if (existing && existing.length > 0) return;
+      .limit(20);
+    const repeat = ((existing ?? []) as Array<{ urgency: string | null; red_flag_category: string | null }>).some(
+      (a) => a.red_flag_category === flags.category && rank(a.urgency) >= rank(flags.urgency),
+    );
+    if (repeat) return;
   }
 
   const detail = flags.hits.map((h) => h.detail).join("; ");
@@ -1312,15 +1347,26 @@ export async function sendWhatsAppReminder(
     ? now.getTime() - new Date(conv.checkin_started_at).getTime()
     : Number.POSITIVE_INFINITY;
   if (conv.state !== "idle" && ageMs < 30 * 60 * 1000) return "busy";
+  // A question left open for more than 12 hours belongs to an old check-in:
+  // start today's fresh instead of asking yesterday's question again.
   const openQuestion =
-    conv.state === "awaiting_notes" ? MSG.askNotes : pendingQuestionText(conv.state);
+    ageMs < 12 * 60 * 60 * 1000
+      ? conv.state === "awaiting_notes"
+        ? MSG.askNotes
+        : pendingQuestionText(conv.state)
+      : null;
 
   const { data: client } = await admin
     .from("clients")
-    .select("full_name")
+    .select("full_name, practitioner_id, auth_user_id")
     .eq("id", clientId)
     .maybeSingle();
-  const firstName = firstNameOf((client as { full_name: string | null } | null)?.full_name ?? null);
+  const clientRow = client as {
+    full_name: string | null;
+    practitioner_id: string | null;
+    auth_user_id: string | null;
+  } | null;
+  const firstName = firstNameOf(clientRow?.full_name ?? null);
 
   const { data: last } = await admin
     .from("whatsapp_inbound")
@@ -1349,6 +1395,29 @@ export async function sendWhatsAppReminder(
         () => undefined,
         () => undefined,
       );
+
+  // Consent wording changed since they signed: no check-in until they sign
+  // the current version. Send their personal link instead.
+  if (windowOpen) {
+    const signed = await currentConsentTypes(admin, clientId).catch(() => null);
+    if (signed && !(signed.has("popia_core") && signed.has("whatsapp_checkins"))) {
+      const url = await mintConsentLink(admin, clientId, conv.phone).catch(() => null);
+      if (!url) return "failed";
+      const body = ONBOARD_MSG.consentUpdated(firstName, url);
+      let id: string | null = null;
+      let ok = false;
+      try {
+        id =
+          (await cfg.provider.send({ kind: "text", to: conv.phone, body }, cfg.secrets))
+            .providerMessageId || null;
+        ok = true;
+      } catch {
+        /* logged below */
+      }
+      await log1("text", body, id, ok);
+      return ok ? "sent" : "failed";
+    }
+  }
 
   if (windowOpen && openQuestion) {
     // Finish the open check-in rather than start a second one.
@@ -1403,5 +1472,32 @@ export async function sendWhatsAppReminder(
   log.info("whatsapp reminder skipped: outside the 24h window", {
     to: maskPhone(conv.phone),
   });
+  // Buddy can't reach a patient who hasn't written in for a day and has no
+  // app login either. Tell the practitioner, at most once every 3 days.
+  if (clientRow && !clientRow.auth_user_id && clientRow.practitioner_id) {
+    const since = new Date(now.getTime() - 3 * 86_400_000).toISOString();
+    const { data: recent } = await admin
+      .from("alerts")
+      .select("id")
+      .eq("client_id", clientId)
+      .eq("alert_type", "whatsapp_unreachable")
+      .gte("created_at", since)
+      .limit(1);
+    if (!(recent ?? []).length) {
+      await admin
+        .from("alerts")
+        .insert({
+          practitioner_id: clientRow.practitioner_id,
+          client_id: clientId,
+          alert_type: "whatsapp_unreachable",
+          message: `${firstName} hasn't messaged Buddy in over 24 hours, so WhatsApp check-ins are paused until they write in. A quick message from you may restart them.`,
+          urgency: "routine",
+        })
+        .then(
+          () => undefined,
+          () => undefined,
+        );
+    }
+  }
   return "window_closed";
 }

@@ -65,7 +65,7 @@ const OUR_URLS = [
  * just means the patient gets the hand-off to Justin instead of a chatty line.
  */
 const ADVICE =
-  /\b(ibuprofen|paracetamol|panado|nurofen|voltaren|myprodol|anti-?inflammator\w*|painkillers?|ice (it|the|your)|apply (ice|heat)|use (ice|heat)|heat pack|you should (rest|stretch|ice|avoid|take|try|keep|stop|start)|i('?d| would)? (recommend|suggest|advise)|try (stretching|resting|icing)|it'?s (probably|likely|just) (a |an )?(strain|sprain|tear|nothing|normal|fine)|sounds like (a |an )?(strain|sprain|tear|tendon|muscle))\b/i;
+  /\b(ibuprofen|paracetamol|panado|nurofen|voltaren|myprodol|anti-?inflammator\w*|painkillers?|ice (it|the|your)|apply (ice|heat)|use (ice|heat)|heat pack|you should (rest|stretch|ice|avoid|take|try|keep|stop|start)|i('?d| would)? (recommend|suggest|advise)|try (stretching|resting|icing)|it'?s (probably|likely|just) (a |an )?(strain|sprain|tear|nothing|normal|fine)|sounds like (a |an )?(strain|sprain|tear|tendon|muscle)|(that'?s|it'?s|this is|that is|totally|perfectly|quite) (completely |totally |perfectly |very )?normal|nothing to worry|common after|should (settle|ease|improve|go away|get better)|will (settle|ease|go away|get better))\b/i;
 
 export function looksLikeAdvice(text: string): boolean {
   return ADVICE.test(text);

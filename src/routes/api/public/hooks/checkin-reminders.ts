@@ -96,7 +96,19 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
             }
 
             // Skip if a check-in already exists today (local date).
-            const dayStart = new Date(`${localDate}T00:00:00`).toISOString();
+            // Local midnight in the reminder's own timezone, as a UTC instant.
+            const localNowMs = Date.UTC(
+              Number(get("year")),
+              Number(get("month")) - 1,
+              Number(get("day")),
+              hour % 24,
+              minute,
+            );
+            const offsetMs = Math.round((localNowMs - now.getTime()) / 60_000) * 60_000;
+            const dayStart = new Date(
+              Date.UTC(Number(get("year")), Number(get("month")) - 1, Number(get("day"))) -
+                offsetMs,
+            ).toISOString();
             const { count } = await supabaseAdmin
               .from("check_ins")
               .select("id", { count: "exact", head: true })

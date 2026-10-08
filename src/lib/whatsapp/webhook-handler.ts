@@ -110,6 +110,7 @@ export async function handleWebhook(
   let duplicates = 0;
   let statuses = 0;
   let failed = 0;
+  let storeFailed = 0;
 
   for (const message of payload.messages) {
     if (!message.providerMessageId || !message.from) {
@@ -121,10 +122,11 @@ export async function handleWebhook(
       if (result === "duplicate") duplicates++;
       else accepted++;
     } catch {
-      // Swallowed on purpose. See the note at the top: a 500 here would make
-      // the provider redeliver the whole batch, including the messages that
-      // did store, and WhatsApp's backoff is aggressive.
+      // A message we could not store must not be lost: answer 500 so Meta
+      // redelivers. Messages in the batch that did store come back as
+      // duplicates (unique provider_message_id) and are skipped.
       failed++;
+      storeFailed++;
     }
   }
 
@@ -138,7 +140,7 @@ export async function handleWebhook(
   }
 
   return {
-    status: 200,
+    status: storeFailed > 0 ? 500 : 200,
     body: "",
     summary: { accepted, duplicates, statuses, failed },
   };
