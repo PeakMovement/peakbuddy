@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { fetchAllPages } from "@/lib/paged-select";
 
 export type InsightsPayload = {
   kpis: {
@@ -44,30 +45,55 @@ export const getPracticeInsights = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { listAccessibleClientIds } = await import("@/lib/practice-members.functions");
     const clientIds = await listAccessibleClientIds(supabaseAdmin, userId);
-    const empty = { data: [] as never[] };
-    const [{ data: clients }, { data: checkIns }, { data: alerts }] = await Promise.all([
+    type CheckInRow = {
+      client_id: string;
+      pain_level: number | null;
+      notes: string | null;
+      created_at: string;
+    };
+    type AlertRow = {
+      id: string;
+      outcome: string | null;
+      outcome_at: string | null;
+      created_at: string;
+    };
+    const none = { rows: [] as never[], truncated: false, error: null };
+    // Both reads are windowed, newest first, and paged so PostgREST's silent
+    // 1000-row cap can't drop part of the 6-week window.
+    const [{ data: clients }, checkIns, alerts] = await Promise.all([
       clientIds.length
         ? supabaseAdmin.from("clients").select("id, full_name, created_at").in("id", clientIds)
         : Promise.resolve({ data: [] }),
       clientIds.length
-        ? supabaseAdmin
-            .from("check_ins")
-            .select("client_id, pain_level, notes, created_at")
-            .in("client_id", clientIds)
-            .gte("created_at", since6w)
-        : Promise.resolve(empty),
+        ? fetchAllPages<CheckInRow>((from, to) =>
+            supabaseAdmin
+              .from("check_ins")
+              .select("client_id, pain_level, notes, created_at")
+              .in("client_id", clientIds)
+              .gte("created_at", since6w)
+              .order("created_at", { ascending: false })
+              .order("id", { ascending: false })
+              .range(from, to),
+          )
+        : Promise.resolve(none),
       clientIds.length
-        ? supabaseAdmin
-            .from("alerts")
-            .select("id, outcome, outcome_at, created_at")
-            .in("client_id", clientIds)
-            .gte("created_at", since14d)
-        : Promise.resolve(empty),
+        ? fetchAllPages<AlertRow>((from, to) =>
+            supabaseAdmin
+              .from("alerts")
+              .select("id, outcome, outcome_at, created_at")
+              .in("client_id", clientIds)
+              .gte("created_at", since14d)
+              .order("created_at", { ascending: false })
+              .order("id", { ascending: false })
+              .range(from, to),
+          )
+        : Promise.resolve(none),
     ]);
+    if (checkIns.error || alerts.error) throw new Error("Could not load insights");
 
     const clientList = clients ?? [];
-    const checkInList = checkIns ?? [];
-    const alertList = alerts ?? [];
+    const checkInList = checkIns.rows;
+    const alertList = alerts.rows;
 
     // KPI: active clients = any check-in in 14d
     const activeClientIds = new Set(

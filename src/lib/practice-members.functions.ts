@@ -59,9 +59,17 @@ export async function listAccessibleClients(admin: Admin, userId: string): Promi
       ...new Set([userId, ...(members ?? []).map((m) => m.user_id as string).filter(Boolean)]),
     ];
     const [{ data: byPractice }, { data: byMember }] = await Promise.all([
-      admin.from("clients").select("*").eq("practice_id", scope.practiceId),
+      admin
+        .from("clients")
+        .select("*")
+        .eq("practice_id", scope.practiceId)
+        .order("full_name", { ascending: true }),
       memberIds.length
-        ? admin.from("clients").select("*").in("practitioner_id", memberIds)
+        ? admin
+            .from("clients")
+            .select("*")
+            .in("practitioner_id", memberIds)
+            .order("full_name", { ascending: true })
         : Promise.resolve({ data: [] as Client[] }),
     ]);
     const map = new Map<string, Client>();
@@ -69,14 +77,22 @@ export async function listAccessibleClients(admin: Admin, userId: string): Promi
       const c = row as unknown as Client;
       if (c.id) map.set(c.id, c);
     }
-    return [...map.values()];
+    return sortByName([...map.values()]);
   }
 
   const { data } = await admin
     .from("clients")
     .select("*")
-    .eq("practitioner_id", scope.practitionerId);
-  return ((data ?? []) as unknown as Client[]).filter((c) => !!c.id);
+    .eq("practitioner_id", scope.practitionerId)
+    .order("full_name", { ascending: true });
+  return sortByName(((data ?? []) as unknown as Client[]).filter((c) => !!c.id));
+}
+
+/** Alphabetical by name (case-insensitive), so lists merged from two queries stay ordered. */
+function sortByName(rows: Client[]): Client[] {
+  return rows.sort((a, b) =>
+    (a.full_name ?? "").localeCompare(b.full_name ?? "", undefined, { sensitivity: "base" }),
+  );
 }
 
 export async function listAccessibleClientIds(admin: Admin, userId: string): Promise<string[]> {
@@ -388,6 +404,12 @@ export async function callerMayAccessClient(
   return allowed;
 }
 
+const CLIENT_DETAIL_CHECKIN_PAGE = 60;
+const isoTimestamp = z
+  .string()
+  .max(64)
+  .refine((v) => !Number.isNaN(Date.parse(v)), "Invalid timestamp");
+
 /**
  * Full client-detail bundle for a practitioner, access-checked (own client OR
  * practice admin OR super admin). Lets a practice admin open a member's client
@@ -402,34 +424,77 @@ export const getPractitionerClientBundle = createServerFn({ method: "POST" })
     const access = await canAccessClient(supabaseAdmin, context.userId, data.clientId);
     if (!access.allowed) return { ok: false as const, error: "Not authorized for this client." };
 
-    const [{ data: client }, { data: checkIns }, { data: sessions }, { data: patterns }] =
-      await Promise.all([
-        supabaseAdmin.from("clients").select("*").eq("id", data.clientId).maybeSingle(),
-        supabaseAdmin
-          .from("check_ins")
-          .select("*")
-          .eq("client_id", data.clientId)
-          .order("created_at", { ascending: false }),
-        supabaseAdmin
-          .from("wearable_sessions")
-          .select("date, source, sleep_score, readiness_score, resting_hr, hrv_avg, total_steps")
-          .eq("client_id", data.clientId)
-          .order("date", { ascending: false })
-          .limit(30),
-        supabaseAdmin
-          .from("client_patterns")
-          .select("pattern_type, day_of_week, metric, avg_value, confidence, sample_size")
-          .eq("client_id", data.clientId)
-          .eq("active", true)
-          .order("confidence", { ascending: false })
-          .limit(4),
-      ]);
+    const [
+      { data: client, error: clientErr },
+      { data: checkIns, error: checkErr },
+      { count: checkInTotal },
+      { data: sessions },
+      { data: patterns },
+    ] = await Promise.all([
+      supabaseAdmin.from("clients").select("*").eq("id", data.clientId).maybeSingle(),
+      // Newest page only; older ones come from getPractitionerClientCheckIns.
+      supabaseAdmin
+        .from("check_ins")
+        .select("*")
+        .eq("client_id", data.clientId)
+        .order("created_at", { ascending: false })
+        .limit(CLIENT_DETAIL_CHECKIN_PAGE + 1),
+      supabaseAdmin
+        .from("check_ins")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", data.clientId),
+      supabaseAdmin
+        .from("wearable_sessions")
+        .select("date, source, sleep_score, readiness_score, resting_hr, hrv_avg, total_steps")
+        .eq("client_id", data.clientId)
+        .order("date", { ascending: false })
+        .limit(30),
+      supabaseAdmin
+        .from("client_patterns")
+        .select("pattern_type, day_of_week, metric, avg_value, confidence, sample_size")
+        .eq("client_id", data.clientId)
+        .eq("active", true)
+        .order("confidence", { ascending: false })
+        .limit(4),
+    ]);
+    // A thrown error reaches the page as "couldn't load, retry" rather than
+    // being mistaken for "client not found".
+    if (clientErr || checkErr) throw new Error("Could not load this client");
 
+    const rows = checkIns ?? [];
     return {
       ok: true as const,
       client: client ?? null,
-      checkIns: checkIns ?? [],
+      checkIns: rows.slice(0, CLIENT_DETAIL_CHECKIN_PAGE),
+      hasMoreCheckIns: rows.length > CLIENT_DETAIL_CHECKIN_PAGE,
+      checkInTotal: checkInTotal ?? rows.length,
       wearableSessions: sessions ?? [],
       patterns: patterns ?? [],
+    };
+  });
+
+/** Older check-ins for the client-detail "Show more" control, access-checked. */
+export const getPractitionerClientCheckIns = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ clientId: z.string().uuid(), before: isoTimestamp }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const access = await canAccessClient(supabaseAdmin, context.userId, data.clientId);
+    if (!access.allowed) return { ok: false as const, error: "Not authorized for this client." };
+    const { data: rows, error } = await supabaseAdmin
+      .from("check_ins")
+      .select("*")
+      .eq("client_id", data.clientId)
+      .lt("created_at", data.before)
+      .order("created_at", { ascending: false })
+      .limit(CLIENT_DETAIL_CHECKIN_PAGE + 1);
+    if (error) throw new Error("Could not load check-ins");
+    const list = rows ?? [];
+    return {
+      ok: true as const,
+      checkIns: list.slice(0, CLIENT_DETAIL_CHECKIN_PAGE),
+      hasMore: list.length > CLIENT_DETAIL_CHECKIN_PAGE,
     };
   });

@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { BellOff } from "lucide-react";
+import { BellOff, ChevronRight } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/lib/supabase";
 import type { Alert, Client } from "@/lib/types";
@@ -275,15 +275,35 @@ function Alerts() {
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontFamily: "var(--font-ui)",
-                        fontWeight: 700,
-                        color: "var(--white)",
-                      }}
-                    >
-                      {client?.full_name ?? "Unknown client"}
-                    </div>
+                    {client ? (
+                      <Link
+                        to="/practitioner/app/client-detail/$clientId"
+                        params={{ clientId: a.client_id }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          minHeight: 32,
+                          fontFamily: "var(--font-ui)",
+                          fontWeight: 700,
+                          color: "var(--white)",
+                          textDecoration: "none",
+                        }}
+                      >
+                        {client.full_name || "Client"}
+                        <ChevronRight size={16} color="var(--white-muted)" aria-hidden />
+                      </Link>
+                    ) : (
+                      <div
+                        style={{
+                          fontFamily: "var(--font-ui)",
+                          fontWeight: 700,
+                          color: "var(--white)",
+                        }}
+                      >
+                        Unknown client
+                      </div>
+                    )}
                     <div style={{ marginTop: 4, color: "var(--white-muted)", fontSize: 13 }}>
                       {a.message}
                     </div>
