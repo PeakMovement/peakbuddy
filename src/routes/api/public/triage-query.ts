@@ -835,6 +835,30 @@ async function fireServerRedFlagAlert(
           body: `${firstName} reported symptoms that may need review`,
           data: { clientId: args.clientId, kind: "yves" },
         });
+        // Practitioner and practice owner on WhatsApp, via the alert template.
+        const { data: cliPractice } = await admin
+          .from("clients")
+          .select("practice_id")
+          .eq("id", args.clientId)
+          .maybeSingle();
+        let owner: string | null = null;
+        const practiceId = (cliPractice as { practice_id?: string | null } | null)?.practice_id;
+        if (practiceId) {
+          const { data: pr } = await admin
+            .from("practices")
+            .select("practitioner_id")
+            .eq("id", practiceId)
+            .maybeSingle();
+          owner = (pr as { practitioner_id?: string } | null)?.practitioner_id ?? null;
+        }
+        const { sendPractitionerWhatsAppAlert } = await import(
+          "@/lib/whatsapp/practitioner-alert.server"
+        );
+        await sendPractitionerWhatsAppAlert(
+          admin,
+          [args.practitionerId, owner].filter(Boolean) as string[],
+          args.urgency,
+        );
       }
     } catch (e) {
       log.warn("[triage-query] server-side push failed:", e);

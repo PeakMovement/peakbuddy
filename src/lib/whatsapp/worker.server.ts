@@ -1060,6 +1060,13 @@ async function raiseRedFlagAlert(
       if (owner && owner !== client.practitioner_id) {
         await sendPushCore(supabaseAdmin, { userId: owner, ...push });
       }
+      // And to their own WhatsApp, via the approved alert template.
+      const { sendPractitionerWhatsAppAlert } = await import("./practitioner-alert.server");
+      await sendPractitionerWhatsAppAlert(
+        supabaseAdmin,
+        [client.practitioner_id, owner].filter(Boolean) as string[],
+        flags.urgency,
+      );
     }
   } catch (e) {
     log.warn("whatsapp worker: push failed", { error: e instanceof Error ? e.message : "unknown" });
