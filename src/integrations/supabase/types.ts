@@ -2553,6 +2553,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      caller_can_access_client: { Args: { p_client: string }; Returns: boolean }
+      caller_is_staff_for_client: {
+        Args: { p_client: string }
+        Returns: boolean
+      }
+      caller_may_write_for_client: {
+        Args: { p_client: string; p_practitioner: string }
+        Returns: boolean
+      }
       claim_quick_login_attempt: {
         Args: { p_user_id: string }
         Returns: {
