@@ -23,6 +23,7 @@ export const listMyDrafts = createServerFn({ method: "GET" })
       .select(
         "id, client_id, kind, draft_title, draft_body, suggested_action, status, created_at, clients(full_name), risk_scores(risk_score)",
       )
+      .eq("practitioner_id", context.userId)
       .eq("status", "new")
       .order("created_at", { ascending: false })
       .limit(50);
@@ -59,6 +60,7 @@ export const countMyDrafts = createServerFn({ method: "GET" })
     const { count } = await context.supabase
       .from("practitioner_drafts")
       .select("*", { count: "exact", head: true })
+      .eq("practitioner_id", context.userId)
       .eq("status", "new");
     return count ?? 0;
   });
@@ -87,7 +89,8 @@ export const updateDraftStatus = createServerFn({ method: "POST" })
     const { error } = await context.supabase
       .from("practitioner_drafts")
       .update(patch)
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .eq("practitioner_id", context.userId);
     if (error) throw error;
     return { ok: true };
   });

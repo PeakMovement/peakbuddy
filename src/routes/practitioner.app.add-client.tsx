@@ -37,7 +37,11 @@ function AddClient() {
   >("daily");
   const [password, setPassword] = useState(() => generatePassword());
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState<{ email: string; password: string } | null>(null);
+  const [success, setSuccess] = useState<{
+    email: string;
+    password: string;
+    existingLogin?: boolean;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [programs, setPrograms] = useState<{ id: string; name: string }[]>([]);
@@ -93,7 +97,7 @@ function AddClient() {
       setSubmitting(false);
       return;
     }
-    setSuccess({ email: email.trim(), password });
+    setSuccess({ email: email.trim(), password, existingLogin: result.existingLogin === true });
     setFullName("");
     setEmail("");
     setComplaint("");
@@ -160,30 +164,40 @@ function AddClient() {
           }}
         >
           <div style={{ fontWeight: 600, marginBottom: 8 }}>Client account created.</div>
-          <div style={{ fontFamily: "var(--font-data)", fontSize: 13, lineHeight: 1.6 }}>
-            <div>Email: {success.email}</div>
-            <div>Password: {success.password}</div>
-          </div>
-          <button
-            type="button"
-            onClick={copyCreds}
-            style={{
-              marginTop: 10,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              background: "transparent",
-              border: "1px solid var(--green)",
-              borderRadius: 6,
-              padding: "6px 10px",
-              color: "var(--white)",
-              fontSize: 12,
-              cursor: "pointer",
-            }}
-          >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-            {copied ? "Copied" : "Copy credentials"}
-          </button>
+          {success.existingLogin ? (
+            <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+              {success.email} already had a Buddy login, so its password was not changed. They can
+              sign in with their existing password, or use the set-password link in their welcome
+              email.
+            </div>
+          ) : (
+            <div style={{ fontFamily: "var(--font-data)", fontSize: 13, lineHeight: 1.6 }}>
+              <div>Email: {success.email}</div>
+              <div>Password: {success.password}</div>
+            </div>
+          )}
+          {!success.existingLogin && (
+            <button
+              type="button"
+              onClick={copyCreds}
+              style={{
+                marginTop: 10,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                background: "transparent",
+                border: "1px solid var(--green)",
+                borderRadius: 6,
+                padding: "6px 10px",
+                color: "var(--white)",
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+              {copied ? "Copied" : "Copy credentials"}
+            </button>
+          )}
         </div>
       )}
 

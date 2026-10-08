@@ -89,7 +89,8 @@ export const getPracticeJoinInfo = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const practice = await practiceByToken(admin, data.token);
-    if (!practice) {
+    // A link the practice has switched off behaves exactly like an unknown one.
+    if (!practice || practice.join_enabled !== true) {
       return { ok: false as const, error: "This sign-up link isn't valid." };
     }
     const practitioners = await practicePractitioners(admin, practice.id);
@@ -116,7 +117,8 @@ export const selfSignUpClient = createServerFn({ method: "POST" })
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
 
     const practice = await practiceByToken(admin, data.token);
-    if (!practice) {
+    // A link the practice has switched off behaves exactly like an unknown one.
+    if (!practice || practice.join_enabled !== true) {
       return { ok: false as const, error: "This sign-up link isn't valid." };
     }
 
@@ -237,7 +239,10 @@ export const getPracticeJoinLink = createServerFn({ method: "GET" })
     // Self-heal: older practices created before this feature may have no token.
     if (!token && ctx.isOwner) {
       token = newToken();
-      await admin.from("practices").update({ join_token: token }).eq("id", ctx.practiceId);
+      await admin
+        .from("practices")
+        .update({ join_token: token, join_enabled: true })
+        .eq("id", ctx.practiceId);
     }
     return {
       ok: true as const,
@@ -258,7 +263,7 @@ export const regeneratePracticeJoinToken = createServerFn({ method: "POST" })
     const token = newToken();
     const { error } = await admin
       .from("practices")
-      .update({ join_token: token })
+      .update({ join_token: token, join_enabled: true })
       .eq("id", ctx.practiceId);
     if (error) return { ok: false as const, error: error.message };
     return { ok: true as const, url: `${SITE_ORIGIN}/join/${token}` };

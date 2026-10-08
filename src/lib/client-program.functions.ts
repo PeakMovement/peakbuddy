@@ -94,20 +94,18 @@ type ClientRow = {
   program_reminder_snoozed_until: string | null;
 };
 
-async function loadClientByAuth(email: string | null): Promise<ClientRow | null> {
-  if (!email) return null;
+async function loadClientByAuth(userId: string | null): Promise<ClientRow | null> {
+  if (!userId) return null;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  // Defensive: if multiple rows somehow exist for an email, prefer the most recent one
-  // with an assigned program, then fall back to the most recent row overall.
+  // Resolve the caller's client row by the auth_user_id link only. Matching by
+  // email let anyone who could put a patient's address on their account read
+  // and act on that patient's programme.
   const { data } = await supabaseAdmin
     .from("clients")
-    .select(CLIENT_COLS + ", created_at")
-    .ilike("email", email)
-    .order("suggested_program_id", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false })
-    .limit(1);
-  const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
-  return (row as ClientRow | null) ?? null;
+    .select(CLIENT_COLS)
+    .eq("auth_user_id", userId)
+    .maybeSingle();
+  return (data as ClientRow | null) ?? null;
 }
 
 async function loadClientPractitionerId(clientId: string): Promise<string | null> {
@@ -175,8 +173,7 @@ function buildState(
 export const getClientBootstrap = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const email = (context.claims?.email as string | undefined) ?? null;
-    const client = await loadClientByAuth(email);
+    const client = await loadClientByAuth(context.userId);
     if (!client) return buildState(null, null, false);
 
     const wasFirstLogin = client.first_login_at === null;
@@ -201,8 +198,7 @@ export const getClientBootstrap = createServerFn({ method: "POST" })
 export const getMyProgram = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const email = (context.claims?.email as string | undefined) ?? null;
-    const client = await loadClientByAuth(email);
+    const client = await loadClientByAuth(context.userId);
     if (!client) return buildState(null, null, false);
     if (!(await isProgramsFeatureEnabled())) return buildState(client, null, false);
     const practitionerId = await loadClientPractitionerId(client.id);
@@ -223,8 +219,7 @@ export const respondToSuggestedProgram = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => RespondSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const email = (context.claims?.email as string | undefined) ?? null;
-    const client = await loadClientByAuth(email);
+    const client = await loadClientByAuth(context.userId);
     if (!client || !client.suggested_program_id) {
       return { ok: false as const, error: "No suggested program." };
     }

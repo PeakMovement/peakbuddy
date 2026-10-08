@@ -6,6 +6,23 @@ import {
   googleRedirectUri,
 } from "@/lib/google-calendar/oauth";
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Only same-site relative paths; anything else falls back to the profile. */
+function safeRedirectPath(p: string | null): string {
+  if (!p || !p.startsWith("/") || p.startsWith("//") || p.startsWith("/\\")) {
+    return "/client/app/profile";
+  }
+  return p;
+}
+
 function html(body: string, status = 200) {
   return new Response(
     `<!doctype html><meta charset="utf-8"><title>Google Calendar</title><body style="font-family:system-ui;padding:24px;max-width:520px;margin:0 auto;color:#111">${body}</body>`,
@@ -21,7 +38,12 @@ export const Route = createFileRoute("/api/public/google-calendar/callback")({
         const code = url.searchParams.get("code");
         const state = url.searchParams.get("state");
         const err = url.searchParams.get("error");
-        if (err) return html(`<h2>Google Calendar</h2><p>Cancelled: ${err}</p>`, 400);
+        // Never echo query-string text back into the page.
+        if (err)
+          return html(
+            "<h2>Google Calendar</h2><p>The connection was cancelled. You can close this tab and try again.</p>",
+            400,
+          );
         if (!code || !state) return html("<h2>Missing code/state</h2>", 400);
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -51,9 +73,11 @@ export const Route = createFileRoute("/api/public/google-calendar/callback")({
             clientSecret,
             redirectUri: googleRedirectUri(),
           });
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          return html(`<h2>Google token exchange failed</h2><pre>${msg}</pre>`, 500);
+        } catch {
+          return html(
+            "<h2>Google Calendar</h2><p>We could not finish connecting your calendar. Please try again.</p>",
+            500,
+          );
         }
 
         const email = await fetchGoogleUserEmail(token.access_token);
@@ -72,15 +96,21 @@ export const Route = createFileRoute("/api/public/google-calendar/callback")({
           },
           { onConflict: "user_id" },
         );
-        if (upErr) return html(`<h2>Failed to save token</h2><pre>${upErr.message}</pre>`, 500);
+        if (upErr)
+          return html(
+            "<h2>Google Calendar</h2><p>We could not save the connection. Please try again.</p>",
+            500,
+          );
 
         await supabaseAdmin.from("google_calendar_oauth_state").delete().eq("state", state);
 
-        const redirectTo = row.redirect_after ?? "/client/app/profile";
+        const redirectTo = safeRedirectPath(row.redirect_after);
+        // JSON.stringify alone does not stop "</script>" breaking out of the tag.
+        const redirectJs = JSON.stringify(redirectTo).replace(/</g, "\\u003c");
         return html(
-          `<h2>Google Calendar connected${email ? ` as ${email}` : ""}</h2>
+          `<h2>Google Calendar connected${email ? ` as ${escapeHtml(email)}` : ""}</h2>
           <p>You can close this tab.</p>
-          <script>setTimeout(function(){ location.replace(${JSON.stringify(redirectTo)}); }, 1200);</script>`,
+          <script>setTimeout(function(){ location.replace(${redirectJs}); }, 1200);</script>`,
         );
       },
     },

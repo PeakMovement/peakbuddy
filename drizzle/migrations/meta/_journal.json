@@ -148,6 +148,13 @@
       "when": 1791380000000,
       "tag": "0022_schedule_drive_backup",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791390000000,
+      "tag": "0023_security_hardening",
+      "breakpoints": true
     }
   ]
 }

@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 import { deleteMyAccount } from "@/lib/account-delete.functions";
 import { NotificationSubscribeButton } from "@/components/NotificationSubscribeButton";
 import { updateMyEmail, updatePractitionerPhone } from "@/lib/client-profile.functions";
+import { EMAIL_CHANGE_SENT_NOTICE, startVerifiedEmailChange } from "@/lib/email-change";
 import { EditableTextField } from "@/routes/client.app.profile";
 import {
   countPendingProgramSuggestions,
@@ -80,6 +81,7 @@ function PractitionerProfile() {
   const [emailValue, setEmailValue] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailNotice, setEmailNotice] = useState<string | null>(null);
 
   const savePhone = useServerFn(updatePractitionerPhone);
   const [phoneEdit, setPhoneEdit] = useState(false);
@@ -146,6 +148,7 @@ function PractitionerProfile() {
           value={emailValue}
           busy={emailBusy}
           error={emailError}
+          notice={emailNotice}
           onStartEdit={() => {
             setEmailValue(email || "");
             setEmailEdit(true);
@@ -163,7 +166,21 @@ function PractitionerProfile() {
             setEmailError(null);
             try {
               const res = await saveEmail({ data: { email: next } });
-              setEmail(res.email);
+              if (res.pending) {
+                const { applied } = await startVerifiedEmailChange(
+                  res.email,
+                  "/practitioner/app/profile",
+                );
+                if (applied) {
+                  setEmail(res.email);
+                  setEmailNotice(null);
+                } else {
+                  setEmailNotice(EMAIL_CHANGE_SENT_NOTICE);
+                }
+              } else {
+                setEmail(res.email);
+                setEmailNotice(null);
+              }
               setEmailEdit(false);
             } catch (e: any) {
               setEmailError(e?.message || "Could not save email.");

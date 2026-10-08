@@ -193,6 +193,22 @@ export const invitePracticeMember = createServerFn({ method: "POST" })
       const existingId = await findAuthUserIdByEmail(supabaseAdmin, data.email);
       if (!existingId)
         return { ok: false as const, error: invErr?.message ?? "Could not invite this email." };
+      // Never turn an existing patient login into a practice member: that would
+      // give a patient practitioner access to the practice's clients.
+      const [{ data: existingProf }, { data: existingClientRows }] = await Promise.all([
+        supabaseAdmin.from("profiles").select("role").eq("id", existingId).maybeSingle(),
+        supabaseAdmin.from("clients").select("id").eq("auth_user_id", existingId).limit(1),
+      ]);
+      if (
+        (existingProf as { role?: string } | null)?.role === "client" ||
+        (Array.isArray(existingClientRows) && existingClientRows.length > 0)
+      ) {
+        return {
+          ok: false as const,
+          error:
+            "That email belongs to a patient account, so it can't be added as a practitioner. Use a different email.",
+        };
+      }
       userId = existingId;
     } else {
       userId = invited.user.id;
