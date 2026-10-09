@@ -169,6 +169,34 @@
       "when": 1791484341132,
       "tag": "0025_security_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791533995432,
+      "tag": "0026_apply_job_health",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1791534015700,
+      "tag": "0027_apply_quick_code_must_change",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1791534030171,
+      "tag": "0028_apply_patient_memory",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791534044124,
+      "tag": "0029_apply_practitioner_intake",
+      "breakpoints": true
     }
   ]
 }

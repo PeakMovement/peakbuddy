@@ -872,6 +872,71 @@ export type Database = {
         }
         Relationships: []
       }
+      job_runs: {
+        Row: {
+          detail: string | null
+          duration_ms: number | null
+          id: number
+          job: string
+          ok: boolean
+          ran_at: string
+          status: number | null
+        }
+        Insert: {
+          detail?: string | null
+          duration_ms?: number | null
+          id?: never
+          job: string
+          ok: boolean
+          ran_at?: string
+          status?: number | null
+        }
+        Update: {
+          detail?: string | null
+          duration_ms?: number | null
+          id?: never
+          job?: string
+          ok?: boolean
+          ran_at?: string
+          status?: number | null
+        }
+        Relationships: []
+      }
+      patient_memory: {
+        Row: {
+          archived_at: string | null
+          client_id: string
+          created_at: string
+          fact: string
+          id: string
+          source: string
+        }
+        Insert: {
+          archived_at?: string | null
+          client_id: string
+          created_at?: string
+          fact: string
+          id?: string
+          source?: string
+        }
+        Update: {
+          archived_at?: string | null
+          client_id?: string
+          created_at?: string
+          fact?: string
+          id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_memory_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_settings: {
         Row: {
           central_webhook_enabled: boolean
@@ -1107,6 +1172,50 @@ export type Database = {
             columns: ["risk_score_id"]
             isOneToOne: false
             referencedRelation: "risk_scores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practitioner_intakes: {
+        Row: {
+          client_id: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_message_at: string | null
+          opened_at: string | null
+          phone: string | null
+          practitioner_id: string
+          status: string
+        }
+        Insert: {
+          client_id: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          opened_at?: string | null
+          phone?: string | null
+          practitioner_id: string
+          status: string
+        }
+        Update: {
+          client_id?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          opened_at?: string | null
+          phone?: string | null
+          practitioner_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practitioner_intakes_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
@@ -1355,6 +1464,7 @@ export type Database = {
           last_failed_at: string | null
           last_used_at: string | null
           locked_at: string | null
+          must_change: boolean
           updated_at: string
           user_id: string
         }
@@ -1366,6 +1476,7 @@ export type Database = {
           last_failed_at?: string | null
           last_used_at?: string | null
           locked_at?: string | null
+          must_change?: boolean
           updated_at?: string
           user_id: string
         }
@@ -1377,6 +1488,7 @@ export type Database = {
           last_failed_at?: string | null
           last_used_at?: string | null
           locked_at?: string | null
+          must_change?: boolean
           updated_at?: string
           user_id?: string
         }
