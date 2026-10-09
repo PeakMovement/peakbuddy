@@ -469,6 +469,81 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     expect(sent).toHaveLength(1);
   });
 
+  it("a retried message that was already applied re-asks the question instead of re-reading it (9 Oct gap)", async () => {
+    const msg: Row = { ...inbound("8"), status: "pending" };
+    const db = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [msg],
+      whatsapp_conversations: [
+        {
+          id: "c1",
+          phone: "27820000001",
+          client_id: "client-1",
+          // The first run saved the pain answer and moved on, then was cut off.
+          state: "awaiting_sleep",
+          draft: { pain: 8, notes: [], appliedInboundId: msg.id },
+          checkin_started_at: NOW().toISOString(),
+        },
+      ],
+      consent_records: CONSENTED(),
+      check_ins: [],
+      alerts: [],
+    });
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(sent).toHaveLength(1);
+    expect((sent[0] as { body: string }).body).toMatch(/sleep/i);
+    expect(db.tables.whatsapp_conversations[0].state).toBe("awaiting_sleep");
+    expect(db.tables.whatsapp_conversations[0].draft.pain).toBe(8);
+    expect(db.tables.alerts).toHaveLength(0);
+  });
+
+  it("a red flag pain score gets its replies before the practitioner notifications run", async () => {
+    const db = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [inbound("9")],
+      whatsapp_conversations: [
+        {
+          id: "c1",
+          phone: "27820000001",
+          client_id: "client-1",
+          state: "awaiting_pain",
+          draft: { notes: [] },
+          checkin_started_at: NOW().toISOString(),
+        },
+      ],
+      consent_records: CONSENTED(),
+      check_ins: [],
+      alerts: [],
+    });
+    // The real column defaults to false; the fake has no defaults.
+    const realFrom = db.admin.from;
+    db.admin.from = (t: string) => {
+      const b = realFrom(t);
+      if (t === "alerts") {
+        const ins = b.insert;
+        b.insert = (r: any) => ins({ push_fired: false, ...r });
+      }
+      return b;
+    };
+    const order: string[] = [];
+    const { sendPushCore } = await import("@/lib/push.functions");
+    (sendPushCore as any).mockImplementation(async () => {
+      order.push("push");
+      return {};
+    });
+    const { provider, sent } = fakeProvider();
+    const realSend = provider.send;
+    provider.send = async (m) => {
+      order.push("reply");
+      return realSend(m, SECRETS as never);
+    };
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(sent.length).toBeGreaterThanOrEqual(2);
+    expect(order.indexOf("push")).toBeGreaterThan(order.lastIndexOf("reply"));
+    expect(db.tables.alerts.find((a) => a.alert_type === "red_flag")?.push_fired).toBe(true);
+  });
+
   it("saves a requested check-in time to the same reminder row the app uses", async () => {
     const db = fakeDb({
       clients: [CLIENT],

@@ -113,7 +113,7 @@ export interface WorkerEnv {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** A message claimed longer ago than this, and still processing, was abandoned. */
-export const STUCK_CLAIM_MS = 3 * 60 * 1000;
+export const STUCK_CLAIM_MS = 60 * 1000;
 
 /**
  * A message still unanswered after this long is not answered at all: a reply
@@ -158,6 +158,26 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
     .update({ status: "pending", processed_at: null })
     .eq("status", "processing")
     .lt("processed_at", stuckBefore);
+
+  // Red-flag notifications a cut-off run never sent (push never claimed).
+  try {
+    const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const settled = new Date(Date.now() - 45 * 1000).toISOString();
+    const { data: unsent } = await admin
+      .from("alerts")
+      .select("id")
+      .eq("alert_type", "red_flag")
+      .eq("push_fired", false)
+      .like("message", "WhatsApp check-in:%")
+      .gte("created_at", since)
+      .lt("created_at", settled)
+      .limit(5);
+    for (const a of (unsent ?? []) as Array<{ id: string }>) {
+      await notifyRedFlagAlert(admin, a.id).catch(() => undefined);
+    }
+  } catch {
+    /* never blocks the inbound queue */
+  }
 
   const { data: rows, error } = await admin
     .from("whatsapp_inbound")
@@ -402,6 +422,40 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   }
 
   const conv = await loadConversation(admin, phone);
+
+  // Already applied: a previous run saved this message's step and was cut off
+  // while replying. Re-ask where we are instead of deciding again.
+  if ((conv.draft as { appliedInboundId?: string } | null)?.appliedInboundId === row.id) {
+    const q = conv.state === "awaiting_notes" ? MSG.askNotes : pendingQuestionText(conv.state);
+    if (q) {
+      let id: string | null = null;
+      let ok = false;
+      try {
+        id =
+          (await env.provider.send({ kind: "text", to: phone, body: q }, env.secrets))
+            .providerMessageId || null;
+        ok = true;
+      } catch {
+        /* recorded below */
+      }
+      await admin
+        .from("whatsapp_outbound")
+        .insert({
+          phone,
+          client_id: conv.client_id,
+          provider: env.provider.id,
+          provider_message_id: id,
+          kind: "text",
+          body: q,
+          sent_ok: ok,
+        })
+        .then(
+          () => undefined,
+          () => undefined,
+        );
+    }
+    return conv.client_id;
+  }
 
   // A "Chat to Buddy" link carries a join code in its pre-typed message.
   const code = parseJoinCode(row.body ?? "");
@@ -671,7 +725,9 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     }
   }
 
-  if (client) await applyEffects(env, decision, client, row, redFlags, now);
+  const redFlagAlertId = client
+    ? await applyEffects(env, decision, client, row, redFlags, now)
+    : null;
 
   // Self sign-up finished: create the profile, tell the practitioner, and send
   // the consent link so nothing is collected before it is signed.
@@ -732,7 +788,10 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     .update({
       client_id: client?.id ?? null,
       state: decision.next.state,
-      draft: decision.next.draft,
+      // appliedInboundId marks this message as applied, so a retry of a run
+      // that was cut off mid-reply never reads it again against the next
+      // question (9 Oct: "8" for pain was re-read as a sleep answer).
+      draft: { ...(decision.next.draft ?? {}), appliedInboundId: row.id },
       checkin_started_at: decision.next.checkinStartedAt?.toISOString() ?? null,
       opted_out_at: optedOutAt,
       unmatched_notice_at: unmatchedNoticeAt,
@@ -803,6 +862,16 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
       .update({ last_outbound_at: new Date().toISOString() })
       .eq("id", conv.id);
   }
+  // The patient has their answer; now tell the practitioner. If this run is
+  // cut off here, the minute job sends any notification left unsent.
+  if (redFlagAlertId) {
+    await notifyRedFlagAlert(admin, redFlagAlertId).catch((e) =>
+      log.warn("whatsapp worker: red flag notify failed", {
+        error: e instanceof Error ? e.message : "unknown",
+      }),
+    );
+  }
+
   if (replies.length > 0 && sent === 0) throw new Error("all replies failed to send");
 
   return client?.id ?? null;
@@ -949,8 +1018,9 @@ async function applyEffects(
   row: InboundRow,
   redFlags: RuleLayerResult,
   now: Date,
-): Promise<void> {
+): Promise<string | null> {
   const { admin } = env;
+  let redFlagAlertId: string | null = null;
 
   if (decision.recordConsent) {
     const v = currentConsent("whatsapp_checkins");
@@ -1008,11 +1078,14 @@ async function applyEffects(
       redFlags.urgency === "urgent" ||
       redFlags.urgency === "soon")
   ) {
-    await raiseRedFlagAlert(admin, client, redFlags).catch((e) =>
+    // Only the alert row here (fast). The notifications go out after the
+    // patient's replies; see notifyRedFlagAlert.
+    redFlagAlertId = await raiseRedFlagAlert(admin, client, redFlags).catch((e) => {
       log.warn("whatsapp worker: red flag alert failed", {
         error: e instanceof Error ? e.message : "unknown",
-      }),
-    );
+      });
+      return null;
+    });
   }
 
   if (decision.setReminderTime) {
@@ -1059,6 +1132,7 @@ async function applyEffects(
       "routine",
     ).catch(() => {});
   }
+  return redFlagAlertId;
 }
 
 /** Same chain as the app's check-in and the triage safety net: alert row, push, email, webhook. */
@@ -1066,7 +1140,7 @@ async function raiseRedFlagAlert(
   admin: Admin,
   client: ClientRow,
   flags: RuleLayerResult,
-): Promise<void> {
+): Promise<string | null> {
   // 24 hour dedup, except emergencies, which always alert. Only the same kind
   // of problem at the same or higher urgency counts as a repeat: an unread
   // wound alert must never swallow a new calf-swelling one.
@@ -1085,7 +1159,7 @@ async function raiseRedFlagAlert(
     const repeat = ((existing ?? []) as Array<{ urgency: string | null; red_flag_category: string | null }>).some(
       (a) => a.red_flag_category === flags.category && rank(a.urgency) >= rank(flags.urgency),
     );
-    if (repeat) return;
+    if (repeat) return null;
   }
 
   const detail = flags.hits.map((h) => h.detail).join("; ");
@@ -1102,7 +1176,38 @@ async function raiseRedFlagAlert(
     .select("id")
     .single();
   const alertId = (alertRow as { id?: string } | null)?.id;
-  if (!alertId) return;
+  return alertId ?? null;
+}
+
+/**
+ * Push, WhatsApp, email and webhook for a red-flag alert already saved. Runs
+ * after the patient has had their replies (so a slow notification never holds
+ * up the conversation), and again from the minute job for any alert whose
+ * push was never claimed (so a cut-off run never loses a notification).
+ */
+export async function notifyRedFlagAlert(admin: Admin, alertId: string): Promise<void> {
+  const { data: alert } = await admin
+    .from("alerts")
+    .select("id, client_id, message, urgency, push_fired")
+    .eq("id", alertId)
+    .maybeSingle();
+  const a = alert as {
+    id: string;
+    client_id: string;
+    message: string | null;
+    urgency: string | null;
+    push_fired: boolean | null;
+  } | null;
+  if (!a) return;
+  const { data: c } = await admin
+    .from("clients")
+    .select("id, full_name, practitioner_id, practice_id, yves_ai_consent, auth_user_id, phone")
+    .eq("id", a.client_id)
+    .maybeSingle();
+  const client = c as ClientRow | null;
+  if (!client) return;
+  const detail = String(a.message ?? "").replace(/^WhatsApp check-in:\s*/, "");
+  const flags = { urgency: (a.urgency ?? "urgent") as RuleLayerResult["urgency"] };
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const firstName = firstNameOf(client.full_name);
