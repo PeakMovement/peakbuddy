@@ -176,6 +176,13 @@
       "when": 1791533995432,
       "tag": "0026_apply_job_health",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1791534015700,
+      "tag": "0027_apply_quick_code_must_change",
+      "breakpoints": true
     }
   ]
 }

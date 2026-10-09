@@ -1385,6 +1385,7 @@ export type Database = {
           last_failed_at: string | null
           last_used_at: string | null
           locked_at: string | null
+          must_change: boolean
           updated_at: string
           user_id: string
         }
@@ -1396,6 +1397,7 @@ export type Database = {
           last_failed_at?: string | null
           last_used_at?: string | null
           locked_at?: string | null
+          must_change?: boolean
           updated_at?: string
           user_id: string
         }
@@ -1407,6 +1409,7 @@ export type Database = {
           last_failed_at?: string | null
           last_used_at?: string | null
           locked_at?: string | null
+          must_change?: boolean
           updated_at?: string
           user_id?: string
         }
