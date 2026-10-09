@@ -468,6 +468,59 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
 
   const conv = await loadConversation(admin, phone);
 
+  // A practitioner's registered mobile. Practitioner mode unless this number
+  // is also someone's patient profile and the message isn't a practitioner
+  // command (so a practitioner can still test Buddy as a patient).
+  {
+    const { practitionerByPhone, handlePractitionerMessage, PROGRAMME_SENT } =
+      await import("./practitioner-mode.server");
+    const prac = await practitionerByPhone(admin, phone).catch(() => null);
+    if (prac) {
+      const text = row.body || row.reply_title || "";
+      const isCommand = PROGRAMME_SENT.test(text) || /^prog_/i.test(row.reply_id ?? "");
+      if (!conv.client_id || isCommand) {
+        const handled = await handlePractitionerMessage(
+          admin,
+          prac,
+          { text, replyId: row.reply_id },
+          {
+            provider: env.provider,
+            secrets: env.secrets,
+            now,
+            reply: async (m) => {
+              let id: string | null = null;
+              let ok = false;
+              try {
+                id =
+                  (await env.provider.send({ ...m, to: phone } as never, env.secrets))
+                    .providerMessageId || null;
+                ok = true;
+              } catch {
+                /* recorded below */
+              }
+              await admin
+                .from("whatsapp_outbound")
+                .insert({
+                  phone,
+                  client_id: null,
+                  provider: env.provider.id,
+                  provider_message_id: id,
+                  kind: m.kind,
+                  body: flattenReply(m as never),
+                  sent_ok: ok,
+                })
+                .then(
+                  () => undefined,
+                  () => undefined,
+                );
+            },
+          },
+        );
+        if (handled) return null;
+      }
+    }
+  }
+
   // Already applied: a previous run saved this message's step and was cut off
   // while replying. Re-ask where we are instead of deciding again.
   if ((conv.draft as { appliedInboundId?: string } | null)?.appliedInboundId === row.id) {
@@ -751,6 +804,9 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
 
   // Unknown numbers are told once a day, not on every message.
   let replies = decision.replies;
+  // A message a practitioner asked Buddy to pass on while the window was shut.
+  const pendingNotice = (conv.draft as { pendingNotice?: string } | null)?.pendingNotice;
+  if (client && pendingNotice) replies = [{ kind: "text", body: pendingNotice }, ...replies];
   let unmatchedNoticeAt = conv.unmatched_notice_at;
   if (!client) {
     const recently =
@@ -829,7 +885,12 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
       // appliedInboundId marks this message as applied, so a retry of a run
       // that was cut off mid-reply never reads it again against the next
       // question (9 Oct: "8" for pain was re-read as a sleep answer).
-      draft: { ...(decision.next.draft ?? {}), appliedInboundId: row.id },
+      draft: {
+        ...Object.fromEntries(
+          Object.entries(decision.next.draft ?? {}).filter(([k]) => k !== "pendingNotice"),
+        ),
+        appliedInboundId: row.id,
+      },
       checkin_started_at: decision.next.checkinStartedAt?.toISOString() ?? null,
       opted_out_at: optedOutAt,
       unmatched_notice_at: unmatchedNoticeAt,
