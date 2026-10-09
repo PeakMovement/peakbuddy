@@ -29,7 +29,10 @@ function PractitionerLogin() {
   const [resetBusy, setResetBusy] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [resetCooldown, setResetCooldown] = useState(0);
-  const [mode, setMode] = useState<"password" | "quick">("password");
+  // PIN first. The email is remembered on this device after the first
+  // sign-in, so from then on it's just the 4 digits.
+  const [mode, setMode] = useState<"password" | "quick">("quick");
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -37,6 +40,7 @@ function PractitionerLogin() {
     if (stored === "false") setRemember(false);
     const savedEmail = window.localStorage.getItem(EMAIL_KEY);
     if (savedEmail) setEmail(savedEmail);
+    setLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -200,11 +204,14 @@ function PractitionerLogin() {
           Practitioner Login
         </h1>
 
-        {mode === "quick" ? (
+        {mode === "quick" && !loaded ? null : mode === "quick" ? (
           <QuickCodeSignIn
             initialEmail={email}
             onCancel={() => setMode("password")}
-            onSignedIn={async () => {
+            onSignedIn={async (signedInEmail) => {
+              if (typeof window !== "undefined" && remember) {
+                window.localStorage.setItem(EMAIL_KEY, signedInEmail);
+              }
               const problem = await routePractitioner();
               if (problem) setError(problem);
             }}

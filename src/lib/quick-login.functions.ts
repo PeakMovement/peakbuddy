@@ -51,6 +51,13 @@ const WEAK_CODES = new Set([
   "3210",
 ]);
 
+/**
+ * The code every practitioner starts with (Justin, 9 Oct 2026). It only works
+ * until they have a code of their own, and the first sign-in with it forces
+ * them to choose one.
+ */
+const PRACTITIONER_STARTING_CODE = "1234";
+
 const codeSchema = z
   .string()
   .trim()
@@ -148,13 +155,19 @@ export const getQuickCodeStatus = createServerFn({ method: "GET" })
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data } = await admin
       .from("quick_login_codes")
-      .select("locked_at, last_used_at, created_at")
+      .select("*")
       .eq("user_id", context.userId)
       .maybeSingle();
+    const row = data as {
+      locked_at?: string | null;
+      last_used_at?: string | null;
+      must_change?: boolean | null;
+    } | null;
     return {
-      enabled: Boolean(data),
-      locked: Boolean(data?.locked_at),
-      lastUsedAt: data?.last_used_at ?? null,
+      enabled: Boolean(row),
+      locked: Boolean(row?.locked_at),
+      lastUsedAt: row?.last_used_at ?? null,
+      mustChange: Boolean(row?.must_change),
     };
   });
 
@@ -269,11 +282,34 @@ export const signInWithQuickCode = createServerFn({ method: "POST" })
       return { ok: false as const, error: GENERIC_ERROR };
     }
 
-    const { data: row } = await admin
+    let { data: row } = await admin
       .from("quick_login_codes")
       .select("code_hash, code_salt")
       .eq("user_id", userId)
       .maybeSingle();
+    if (!row && prof?.role === "practitioner" && data.code === PRACTITIONER_STARTING_CODE) {
+      // First PIN sign-in for a practitioner who never set a code: create
+      // their row from the starting code, flagged so the app makes them
+      // choose their own before going any further. Fails closed: if the
+      // flag can't be stored (migration 0027 missing), no sign-in.
+      const salt = newSalt();
+      const { error: seedErr } = await admin.from("quick_login_codes").insert({
+        user_id: userId,
+        code_hash: await hashCode(PRACTITIONER_STARTING_CODE, salt),
+        code_salt: salt,
+        failed_attempts: 0,
+        locked_at: null,
+        last_failed_at: null,
+        must_change: true,
+      } as never);
+      if (!seedErr) {
+        ({ data: row } = await admin
+          .from("quick_login_codes")
+          .select("code_hash, code_salt")
+          .eq("user_id", userId)
+          .maybeSingle());
+      }
+    }
     if (!row) {
       await dummyHash(data.code);
       return { ok: false as const, error: GENERIC_ERROR };

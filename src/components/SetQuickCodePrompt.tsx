@@ -22,6 +22,8 @@ export function SetQuickCodePrompt() {
   const [second, setSecond] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Signed in with the starting code 1234: choosing their own is not optional.
+  const [forced, setForced] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -34,6 +36,13 @@ export function SetQuickCodePrompt() {
         const status = await fetchStatus();
         // A full password login clears any lockout.
         if (status.locked && !isQuickCodeSession()) await unlock({});
+        if (status.mustChange) {
+          if (alive) {
+            setForced(true);
+            setOpen(true);
+          }
+          return;
+        }
         if (status.enabled) return;
         if (hasBeenPrompted(uid)) return;
         if (alive) setOpen(true);
@@ -47,6 +56,7 @@ export function SetQuickCodePrompt() {
   }, [fetchStatus, unlock]);
 
   const dismiss = () => {
+    if (forced) return;
     if (userId) markPrompted(userId);
     setOpen(false);
   };
@@ -79,7 +89,9 @@ export function SetQuickCodePrompt() {
         setSecond("");
         return;
       }
-      dismiss();
+      setForced(false);
+      if (userId) markPrompted(userId);
+      setOpen(false);
     } catch {
       setError("Couldn't save your code. Please try again.");
       setStep("enter");
@@ -124,27 +136,29 @@ export function SetQuickCodePrompt() {
           position: "relative",
         }}
       >
-        <button
-          type="button"
-          onClick={dismiss}
-          aria-label="Close"
-          style={{
-            position: "absolute",
-            top: 10,
-            right: 10,
-            width: 32,
-            height: 32,
-            borderRadius: 8,
-            background: "transparent",
-            border: "none",
-            color: "var(--white-muted)",
-            fontSize: 18,
-            lineHeight: 1,
-            cursor: "pointer",
-          }}
-        >
-          ✕
-        </button>
+        {!forced && (
+          <button
+            type="button"
+            onClick={dismiss}
+            aria-label="Close"
+            style={{
+              position: "absolute",
+              top: 10,
+              right: 10,
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: "transparent",
+              border: "none",
+              color: "var(--white-muted)",
+              fontSize: 18,
+              lineHeight: 1,
+              cursor: "pointer",
+            }}
+          >
+            ✕
+          </button>
+        )}
         <h2
           style={{
             fontFamily: "var(--font-hero)",
@@ -154,7 +168,7 @@ export function SetQuickCodePrompt() {
             textAlign: "center",
           }}
         >
-          Set a 4-digit quick code?
+          {forced ? "Choose your own 4-digit code" : "Set a 4-digit quick code?"}
         </h2>
         <p
           style={{
@@ -165,7 +179,9 @@ export function SetQuickCodePrompt() {
             margin: "8px 0 18px",
           }}
         >
-          Next time you can sign in with your email and 4 digits instead of your password.
+          {forced
+            ? "You signed in with the starting code. Pick your own 4 digits now; 1234 will stop working for you."
+            : "Next time you can sign in with your email and 4 digits instead of your password."}
         </p>
 
         <QuickCodeKeypad
@@ -186,23 +202,25 @@ export function SetQuickCodePrompt() {
           </p>
         )}
 
-        <button
-          type="button"
-          onClick={dismiss}
-          style={{
-            marginTop: 18,
-            width: "100%",
-            minHeight: 44,
-            borderRadius: 8,
-            background: "transparent",
-            border: "1px solid var(--navy-border)",
-            color: "var(--white-muted)",
-            fontFamily: "var(--font-ui)",
-            fontSize: 14,
-          }}
-        >
-          Not now
-        </button>
+        {!forced && (
+          <button
+            type="button"
+            onClick={dismiss}
+            style={{
+              marginTop: 18,
+              width: "100%",
+              minHeight: 44,
+              borderRadius: 8,
+              background: "transparent",
+              border: "1px solid var(--navy-border)",
+              color: "var(--white-muted)",
+              fontFamily: "var(--font-ui)",
+              fontSize: 14,
+            }}
+          >
+            Not now
+          </button>
+        )}
       </div>
     </div>
   );
