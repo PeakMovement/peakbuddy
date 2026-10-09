@@ -640,19 +640,11 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   // A red flag gets only the fixed safety wording: no chatty model reply next
   // to it that could read as reassurance.
   const flaggedText = runRedFlagRules({ text: typed }).triggered;
-  if (
-    client &&
-    consent &&
-    aiAllowed &&
-    typed &&
-    !flaggedText &&
-    (unplacedMid || unplacedIdle)
-  ) {
+  if (client && consent && aiAllowed && typed && !flaggedText && (unplacedMid || unplacedIdle)) {
     const history = await recentTurns(admin, row.from_phone, phone, row.id, now);
     if (!progressText && unplacedIdle) progressText = await progressFor(admin, client.id);
-    const { loadPatientContext, renderPatientContext, rememberFact } = await import(
-      "./patient-context.server"
-    );
+    const { loadPatientContext, renderPatientContext, rememberFact } =
+      await import("./patient-context.server");
     const ctx = await loadPatientContext(admin, client.id, now).catch(() => null);
     converse =
       (await converseWithAi({
@@ -1088,17 +1080,32 @@ async function applyEffects(
     });
   }
 
-  if (decision.setReminderTime) {
+  if (decision.setReminderTime || decision.setSchedule) {
     // Same row the app's reminder screen writes, so the two never disagree.
+    // A time change keeps the days they chose; a frequency change keeps the time.
+    const { data: existing } = await admin
+      .from("checkin_reminders")
+      .select("days_of_week, frequency, time_of_day")
+      .eq("client_id", client.id)
+      .maybeSingle();
+    const row = existing as {
+      days_of_week: number[] | null;
+      frequency: string | null;
+      time_of_day: string | null;
+    } | null;
     await admin
       .from("checkin_reminders")
       .upsert(
         {
           client_id: client.id,
           enabled: true,
-          frequency: "daily",
-          time_of_day: decision.setReminderTime,
-          days_of_week: [0, 1, 2, 3, 4, 5, 6],
+          frequency: decision.setSchedule?.frequency ?? row?.frequency ?? "daily",
+          time_of_day:
+            decision.setSchedule?.time ??
+            decision.setReminderTime ??
+            row?.time_of_day ??
+            DEFAULT_REMINDER_TIME,
+          days_of_week: decision.setSchedule?.days ?? row?.days_of_week ?? [0, 1, 2, 3, 4, 5, 6],
           timezone: "Africa/Johannesburg",
         },
         { onConflict: "client_id" },
@@ -1146,7 +1153,9 @@ async function raiseRedFlagAlert(
   // wound alert must never swallow a new calf-swelling one.
   if (flags.urgency !== "emergency") {
     const rank = (u: string | null | undefined) =>
-      (({ emergency: 5, urgent: 4, soon: 3, monitor: 2, routine: 1 }) as Record<string, number>)[u ?? ""] ?? 0;
+      (({ emergency: 5, urgent: 4, soon: 3, monitor: 2, routine: 1 }) as Record<string, number>)[
+        u ?? ""
+      ] ?? 0;
     const since = new Date(Date.now() - DAY_MS).toISOString();
     const { data: existing } = await admin
       .from("alerts")
@@ -1156,9 +1165,9 @@ async function raiseRedFlagAlert(
       .eq("is_read", false)
       .gte("created_at", since)
       .limit(20);
-    const repeat = ((existing ?? []) as Array<{ urgency: string | null; red_flag_category: string | null }>).some(
-      (a) => a.red_flag_category === flags.category && rank(a.urgency) >= rank(flags.urgency),
-    );
+    const repeat = (
+      (existing ?? []) as Array<{ urgency: string | null; red_flag_category: string | null }>
+    ).some((a) => a.red_flag_category === flags.category && rank(a.urgency) >= rank(flags.urgency));
     if (repeat) return null;
   }
 
@@ -1367,7 +1376,14 @@ export async function continueAfterConsent(
   phone: string,
   firstName: string,
 ): Promise<void> {
-  // Signed up for WhatsApp check-ins: daily by default.
+  // A brand-new patient (no reminder yet) chooses how often and when; anyone
+  // re-signing keeps their schedule. Daily at 18:00 is the default meanwhile.
+  const { data: had } = await admin
+    .from("checkin_reminders")
+    .select("client_id")
+    .eq("client_id", clientId)
+    .maybeSingle();
+  const isNew = !had;
   await ensureDailyReminder(admin, clientId, true);
   const cfg = whatsappConfigFromEnv();
   if (!cfg) return;
@@ -1380,6 +1396,47 @@ export async function continueAfterConsent(
   if (!conv || !["awaiting_consent", "new", "idle"].includes(conv.state)) return;
 
   const now = new Date();
+  if (isNew) {
+    const { frequencyList } = await import("./conversation");
+    const { SCHEDULE_MSG } = await import("./schedule");
+    await admin
+      .from("whatsapp_conversations")
+      .update({
+        client_id: clientId,
+        state: "awaiting_schedule",
+        draft: { scheduleStep: "frequency" },
+        checkin_started_at: now.toISOString(),
+        updated_at: now.toISOString(),
+      })
+      .eq("id", conv.id);
+    const reply = frequencyList(SCHEDULE_MSG.askFrequency(firstName));
+    let id: string | null = null;
+    let ok = false;
+    try {
+      id =
+        (await cfg.provider.send({ ...reply, to: phone } as never, cfg.secrets))
+          .providerMessageId || null;
+      ok = true;
+    } catch {
+      /* logged as not delivered below */
+    }
+    await admin
+      .from("whatsapp_outbound")
+      .insert({
+        phone,
+        client_id: clientId,
+        provider: cfg.provider.id,
+        provider_message_id: id,
+        kind: "list",
+        body: flattenReply(reply as never),
+        sent_ok: ok,
+      })
+      .then(
+        () => undefined,
+        () => undefined,
+      );
+    return;
+  }
   const done = await checkedInToday(admin, clientId, now);
   const replies: Array<{ kind: "text"; body: string }> = done
     ? [
@@ -1647,6 +1704,67 @@ export async function sendWhatsAppReminder(
       })
       .eq("id", conv.id);
     return "sent";
+  }
+
+  // Outside the 24 hour window: the approved reminder template, when it is
+  // switched on (WHATSAPP_REMINDER_TEMPLATE). One tap on "Start check-in"
+  // reopens the conversation and starts today's check-in.
+  const reminderTemplate = process.env.WHATSAPP_REMINDER_TEMPLATE?.trim();
+  if (reminderTemplate) {
+    let id: string | null = null;
+    let ok = false;
+    try {
+      id =
+        (
+          await cfg.provider.send(
+            {
+              kind: "template",
+              to: conv.phone,
+              templateName: reminderTemplate,
+              languageCode: process.env.WHATSAPP_REMINDER_TEMPLATE_LANG?.trim() || "en",
+              variables: [firstName],
+              buttonPayloads: ["start_checkin"],
+            },
+            cfg.secrets,
+          )
+        ).providerMessageId || null;
+      ok = true;
+    } catch (e) {
+      log.warn("whatsapp reminder template failed", {
+        to: maskPhone(conv.phone),
+        error: e instanceof Error ? e.message : "unknown",
+      });
+    }
+    await admin
+      .from("whatsapp_outbound")
+      .insert({
+        phone: conv.phone,
+        client_id: clientId,
+        provider: cfg.provider.id,
+        provider_message_id: id,
+        kind: "template",
+        body: `[check-in reminder template ${reminderTemplate}]`,
+        sent_ok: ok,
+      })
+      .then(
+        () => undefined,
+        () => undefined,
+      );
+    if (ok) {
+      // A fresh start when they tap: drop any half-finished step.
+      if (conv.state !== "idle") {
+        await admin
+          .from("whatsapp_conversations")
+          .update({
+            state: "idle",
+            draft: {},
+            checkin_started_at: null,
+            updated_at: now.toISOString(),
+          })
+          .eq("id", conv.id);
+      }
+      return "sent";
+    }
   }
 
   log.info("whatsapp reminder skipped: outside the 24h window", {

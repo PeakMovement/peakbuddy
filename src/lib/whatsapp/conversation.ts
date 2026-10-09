@@ -12,6 +12,14 @@ import {
 } from "./onboarding";
 import { currentConsent } from "@/lib/consent/wording";
 import {
+  DEFAULT_TIME,
+  FREQUENCIES,
+  readFrequency,
+  SCHEDULE_MSG,
+  TIMES,
+  type ScheduleChoice,
+} from "./schedule";
+import {
   ASSIST_MSG,
   CHECKIN_REQUEST,
   MENU,
@@ -55,6 +63,7 @@ export type ConversationState =
   | "awaiting_name"
   | "awaiting_practitioner"
   | "awaiting_email"
+  | "awaiting_schedule"
   | "opted_out"
   | "unmatched";
 
@@ -74,6 +83,9 @@ export interface CheckinDraft {
   awaitingQuestion?: boolean;
   /** They tapped "Change check-in time": the next message is the time. */
   awaitingTime?: boolean;
+  /** Onboarding schedule: which question is open, and the frequency picked. */
+  scheduleStep?: "frequency" | "time";
+  scheduleId?: string;
   /** Self sign-up from a practice link: which practice, and the name they gave. */
   signupPracticeId?: string;
   signupName?: string;
@@ -189,6 +201,8 @@ export interface Decision {
   setReminderTime?: string;
   /** A clinical question Buddy will not answer. Justin is alerted with it. */
   clinicalQuestion?: string;
+  /** How often and when to check in (onboarding, or "only weekdays"). Time absent = keep it. */
+  setSchedule?: { days: number[]; frequency: "daily" | "custom"; time?: string };
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -508,6 +522,42 @@ const IDLE = (s: ConversationSnapshot["state"] = "idle"): ConversationSnapshot =
   draft: {},
   checkinStartedAt: null,
 });
+
+/* ------------------------------------------------------------------ */
+/* Onboarding: how often and when                                      */
+/* ------------------------------------------------------------------ */
+
+export const frequencyList = (body: string): Reply => ({
+  kind: "list",
+  body,
+  buttonLabel: "Choose",
+  rows: FREQUENCIES.map((f) => ({ id: f.id, title: f.title })),
+});
+
+const timeList = (body: string): Reply => ({
+  kind: "list",
+  body,
+  buttonLabel: "Choose",
+  rows: TIMES.map((t) => ({ id: t.id, title: t.title })),
+});
+
+function scheduleDone(
+  ctx: DecisionContext,
+  choice: ScheduleChoice,
+  time: string,
+  fallback = false,
+): Decision {
+  const said = text(
+    fallback
+      ? SCHEDULE_MSG.fallback(choice.phrase, time)
+      : SCHEDULE_MSG.confirmed(choice.phrase, time),
+  );
+  const first = startCheckin(ctx, [said]);
+  return {
+    ...first,
+    setSchedule: { days: choice.days, frequency: choice.frequency, time },
+  };
+}
 
 function startCheckin(ctx: DecisionContext, lead: Reply[], seedNotes: string[] = []): Decision {
   if (ctx.checkedInToday) {
@@ -1095,6 +1145,48 @@ export function decide(ctx: DecisionContext): Decision {
       return decide({ ...ctx, conversation: IDLE() });
     }
 
+    case "awaiting_schedule": {
+      const d = conv.draft;
+      const misses = d.misses ?? 0;
+      if ((d.scheduleStep ?? "frequency") === "frequency") {
+        const f = readFrequency(msg.replyId, raw);
+        if (f) {
+          return withSafety(
+            {
+              replies: [timeList(SCHEDULE_MSG.askTime)],
+              next: {
+                state: "awaiting_schedule",
+                draft: { scheduleStep: "time", scheduleId: f.id },
+                checkinStartedAt: ctx.now,
+              },
+            },
+            ctx,
+          );
+        }
+        if (misses >= 1)
+          return withSafety(scheduleDone(ctx, FREQUENCIES[0], DEFAULT_TIME, true), ctx);
+        return withSafety(
+          {
+            replies: [frequencyList(SCHEDULE_MSG.frequencyRetry)],
+            next: { ...conv, draft: { ...d, misses: misses + 1 } },
+          },
+          ctx,
+        );
+      }
+      const choice = FREQUENCIES.find((f) => f.id === d.scheduleId) ?? FREQUENCIES[0];
+      const picked =
+        TIMES.find((t) => t.id === msg.replyId)?.time ?? readBareTime(raw) ?? readReminderTime(raw);
+      if (picked) return withSafety(scheduleDone(ctx, choice, picked), ctx);
+      if (misses >= 1) return withSafety(scheduleDone(ctx, choice, DEFAULT_TIME, true), ctx);
+      return withSafety(
+        {
+          replies: [timeList(SCHEDULE_MSG.timeRetry)],
+          next: { ...conv, draft: { ...d, misses: misses + 1 } },
+        },
+        ctx,
+      );
+    }
+
     case "awaiting_wearable": {
       if (msg.replyId === IDS.wearableYes || YES.test(raw) || WEARABLE_REQUEST.test(raw)) {
         return withSafety({ replies: [wearableLinkReply(ctx)], next: IDLE() }, ctx);
@@ -1114,6 +1206,27 @@ export function decide(ctx: DecisionContext): Decision {
         );
       }
       if (CHECKIN_REQUEST.test(raw)) return withSafety(startCheckin(ctx, []), ctx);
+      {
+        const asksSchedule = /\b(check[\s-]?ins?|remind\w*|message me)\b|^only\b/i.test(raw);
+        const f = asksSchedule ? readFrequency(undefined, raw) : null;
+        if (f) {
+          const t = readReminderTime(raw) ?? readBareTime(raw);
+          return withSafety(
+            {
+              replies: [
+                text(
+                  t
+                    ? SCHEDULE_MSG.confirmed(f.phrase, t).split("\n\n")[0]
+                    : `Done, I'll check in ${f.phrase} from now on, at your usual time.`,
+                ),
+              ],
+              next: IDLE(),
+              setSchedule: { days: f.days, frequency: f.frequency, ...(t ? { time: t } : {}) },
+            },
+            ctx,
+          );
+        }
+      }
       if (/^(app|the app|buddy app|get the app)[.!?]*$/i.test(raw)) {
         return withSafety(
           ctx.hasAppAccount

@@ -793,6 +793,27 @@ describe("daily WhatsApp reminders", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("outside the window, sends the approved reminder template when it is switched on", async () => {
+    process.env.WHATSAPP_REMINDER_TEMPLATE = "buddy_checkin_reminder";
+    try {
+      const db = seed();
+      const { provider, sent } = fakeProvider();
+      const r = await sendWhatsAppReminder(db.admin, "client-1", NOW(), {
+        provider,
+        secrets: SECRETS,
+      });
+      expect(r).toBe("sent");
+      expect(sent[0]).toMatchObject({
+        kind: "template",
+        templateName: "buddy_checkin_reminder",
+        variables: ["Test"],
+        buttonPayloads: ["start_checkin"],
+      });
+    } finally {
+      delete process.env.WHATSAPP_REMINDER_TEMPLATE;
+    }
+  });
+
   it("still reaches someone who replied to yesterday's reminder within a few minutes", async () => {
     const db = seed({
       whatsapp_inbound: [
