@@ -197,6 +197,13 @@
       "when": 1791534044124,
       "tag": "0029_apply_practitioner_intake",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1791538315375,
+      "tag": "0030_0030_checkin_schedule_onboarding",
+      "breakpoints": true
     }
   ]
 }
