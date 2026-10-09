@@ -12,6 +12,15 @@ import {
 } from "./onboarding";
 import { currentConsent } from "@/lib/consent/wording";
 import {
+  afterEnergy,
+  afterPain,
+  afterSleep,
+  opener,
+  painQuestion,
+  saved as savedLine,
+  type VoiceContext,
+} from "./voice";
+import {
   DEFAULT_TIME,
   FREQUENCIES,
   readFrequency,
@@ -160,6 +169,8 @@ export interface DecisionContext {
   watchUrl?: string;
   /** Eligible for the one-time app offer (no app login, not offered before). */
   appOfferDue?: boolean;
+  /** History for Buddy's voice (voice.ts). Absent: the plain fixed wording. */
+  voice?: Omit<VoiceContext, "firstName" | "now">;
   assist?: AiAssist;
   /** What a non-answer message is for, from the AI router. Keywords when absent. */
   route?: AssistRoute;
@@ -507,9 +518,9 @@ const practitionerList = (body: string, s: NonNullable<DecisionContext["signup"]
   ],
 });
 
-const askNotes = (): Reply => ({
+const askNotes = (body: string = MSG.askNotes): Reply => ({
   kind: "buttons",
-  body: MSG.askNotes,
+  body,
   buttons: [{ id: IDS.notesNone, title: "Nothing to add" }],
 });
 
@@ -559,12 +570,22 @@ function scheduleDone(
   };
 }
 
+const vc = (ctx: DecisionContext): VoiceContext => ({
+  firstName: ctx.client?.firstName ?? "there",
+  now: ctx.now,
+  ...ctx.voice,
+});
+
 function startCheckin(ctx: DecisionContext, lead: Reply[], seedNotes: string[] = []): Decision {
   if (ctx.checkedInToday) {
     return { replies: [...lead, text(MSG.alreadyToday)], next: IDLE() };
   }
   return {
-    replies: [...lead, text(MSG.checkinOpener(ctx.client!.firstName)), text(MSG.askPain)],
+    replies: [
+      ...lead,
+      text(ctx.voice ? opener(vc(ctx)) : MSG.checkinOpener(ctx.client!.firstName)),
+      text(ctx.voice ? painQuestion(vc(ctx)) : MSG.askPain),
+    ],
     next: { state: "awaiting_pain", draft: { notes: seedNotes }, checkinStartedAt: ctx.now },
   };
 }
@@ -988,7 +1009,7 @@ export function decide(ctx: DecisionContext): Decision {
       }
       return withSafety(
         {
-          replies: [askSleep()],
+          replies: [ctx.voice ? askSleep(afterPain(vc(ctx), pain)) : askSleep()],
           next: keep(
             { pain, notes: [...(draft.notes ?? []), ...extra], misses: 0 },
             "awaiting_sleep",
@@ -1029,7 +1050,10 @@ export function decide(ctx: DecisionContext): Decision {
         );
       }
       return withSafety(
-        { replies: [askEnergy()], next: keep({ sleep, misses: 0 }, "awaiting_energy") },
+        {
+          replies: [ctx.voice ? askEnergy(afterSleep(vc(ctx))) : askEnergy()],
+          next: keep({ sleep, misses: 0 }, "awaiting_energy"),
+        },
         ctx,
       );
     }
@@ -1065,7 +1089,10 @@ export function decide(ctx: DecisionContext): Decision {
         );
       }
       return withSafety(
-        { replies: [askNotes()], next: keep({ energy, misses: 0 }, "awaiting_notes") },
+        {
+          replies: [ctx.voice ? askNotes(afterEnergy(vc(ctx))) : askNotes()],
+          next: keep({ energy, misses: 0 }, "awaiting_notes"),
+        },
         ctx,
       );
     }
@@ -1093,12 +1120,20 @@ export function decide(ctx: DecisionContext): Decision {
       const offer = !ctx.hasWearable && !ctx.wearableOffered;
       // One offer per check-in: the watch first, the app on a later one.
       const appOffer = !offer && Boolean(ctx.appOfferDue);
+      const savedMsg = text(
+        ctx.voice
+          ? savedLine({
+              ...vc(ctx),
+              streak: (ctx.voice.streak ?? 0) + (ctx.checkedInToday ? 0 : 1),
+            })
+          : MSG.saved,
+      );
       const decision: Decision = {
         replies: offer
-          ? [text(MSG.saved), wearableOffer()]
+          ? [savedMsg, wearableOffer()]
           : appOffer
-            ? [text(MSG.saved), text(ONBOARD_MSG.appOffer)]
-            : [text(MSG.saved)],
+            ? [savedMsg, text(ONBOARD_MSG.appOffer)]
+            : [savedMsg],
         next: offer
           ? { state: "awaiting_wearable", draft: {}, checkinStartedAt: ctx.now }
           : appOffer

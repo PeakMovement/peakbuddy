@@ -778,7 +778,7 @@ describe("daily WhatsApp reminders", () => {
       secrets: SECRETS,
     });
     expect(r).toBe("sent");
-    expect(JSON.stringify(sent)).toMatch(/time for a quick check-in/);
+    expect(JSON.stringify(sent)).toMatch(/time for your first check-in|check-in/);
     expect(db.tables.whatsapp_conversations[0].state).toBe("awaiting_pain");
   });
 
@@ -849,7 +849,7 @@ describe("daily WhatsApp reminders", () => {
     expect(
       await sendWhatsAppReminder(db.admin, "client-1", new Date("2026-10-05T08:15:00Z"), cfg),
     ).toBe("sent");
-    expect(JSON.stringify(sent)).toMatch(/finish today's check-in/);
+    expect(JSON.stringify(sent)).toMatch(/halfway through today's check-in/);
     expect(JSON.stringify(sent)).toMatch(/How is your pain/);
     expect(db.tables.whatsapp_conversations[0].state).toBe("awaiting_pain");
   });

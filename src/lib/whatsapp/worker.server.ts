@@ -353,6 +353,51 @@ async function checkedInToday(admin: Admin, clientId: string, now: Date): Promis
   return (count ?? 0) > 0;
 }
 
+/** What Buddy's voice needs: how many check-ins, last pain, streak, practitioner's first name. */
+async function voiceStats(
+  admin: Admin,
+  client: ClientRow,
+  now: Date,
+): Promise<{
+  checkinsDone: number;
+  lastPain: number | null;
+  streak: number;
+  practitionerFirstName: string | null;
+}> {
+  const [{ data: rows, count }, { data: prof }] = await Promise.all([
+    admin
+      .from("check_ins")
+      .select("created_at, pain_level", { count: "exact" })
+      .eq("client_id", client.id)
+      .order("created_at", { ascending: false })
+      .limit(60),
+    admin.from("profiles").select("full_name").eq("id", client.practitioner_id).maybeSingle(),
+  ]);
+  const list = (rows ?? []) as Array<{ created_at: string; pain_level: number | null }>;
+  const { checkInStreak } = await import("./patient-context.server");
+  const streak = checkInStreak(
+    list.map((r) => ({
+      at: r.created_at,
+      pain: null,
+      sleep: null,
+      energy: null,
+      note: null,
+      source: null,
+    })),
+    now,
+  );
+  const lastPain = list.find((r) => typeof r.pain_level === "number")?.pain_level ?? null;
+  const name = String((prof as { full_name?: string } | null)?.full_name ?? "")
+    .trim()
+    .split(/\s+/)[0];
+  return {
+    checkinsDone: count ?? list.length,
+    lastPain,
+    streak,
+    practitionerFirstName: name || null,
+  };
+}
+
 async function previousPain(admin: Admin, clientId: string): Promise<number | null> {
   const { data } = await admin
     .from("check_ins")
@@ -701,6 +746,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     hasAppAccount: Boolean(client?.auth_user_id),
     watchUrl,
     appOfferDue: Boolean(client && !client.auth_user_id && !conv.app_offer_at),
+    voice: client ? await voiceStats(admin, client, now).catch(() => undefined) : undefined,
   });
 
   // Unknown numbers are told once a day, not on every message.
@@ -1658,7 +1704,7 @@ export async function sendWhatsAppReminder(
 
   if (windowOpen && openQuestion) {
     // Finish the open check-in rather than start a second one.
-    const nudge = `Hi ${firstName}, just a reminder to finish today's check-in.`;
+    const nudge = `Hi ${firstName}, we were halfway through today's check-in. Here's where we left off:`;
     for (const body of [nudge, openQuestion]) {
       let id: string | null = null;
       let ok = false;
@@ -1677,7 +1723,15 @@ export async function sendWhatsAppReminder(
   }
 
   if (windowOpen) {
-    const bodies = [MSG.checkinOpener(firstName), MSG.askPain];
+    // Same voice as a check-in they start themselves (voice.ts).
+    const { opener, painQuestion } = await import("./voice");
+    const stats = clientRow
+      ? await voiceStats(admin, { id: clientId, ...clientRow } as ClientRow, now).catch(() => null)
+      : null;
+    const v = { firstName, now, ...(stats ?? {}) };
+    const bodies = stats
+      ? [opener(v), painQuestion(v)]
+      : [MSG.checkinOpener(firstName), MSG.askPain];
     let allOk = true;
     for (const body of bodies) {
       let id: string | null = null;
