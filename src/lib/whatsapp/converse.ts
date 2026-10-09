@@ -46,6 +46,8 @@ export interface ConverseResult {
   action: ConverseAction;
   /** "HH:MM" for set_checkin_time. */
   time?: string | null;
+  /** An everyday fact about their life worth remembering, already filtered. */
+  remember?: string | null;
 }
 
 export interface ConverseTurn {
@@ -89,12 +91,31 @@ export function sanitizeReply(text: string): string {
  * dropped, and words that read like advice turn the action into the clinical
  * hand-off whatever the model chose.
  */
+/*
+ * What Buddy may remember: everyday life (goals, events, work, hobbies,
+ * family, preferences). Never health, medication, money, identity numbers,
+ * contact details, or anything from the blocked list below. A fact that
+ * trips any filter is simply not saved; the conversation carries on.
+ */
+const MEMORY_BLOCK =
+  /\b(diagnos\w*|condition|disease|illness|cancer|diabet\w*|hiv|aids|depress\w*|anxiety|bipolar|adhd|pregnan\w*|miscarr\w*|medicat\w*|pills?|tablets?|dose|mg|surgery|operation|pain|injur\w*|symptom\w*|therap\w*|counsel\w*|rehab|addict\w*|alcohol\w*|drugs?|suicid\w*|self[- ]?harm|abuse\w*|police|arrest\w*|court|religio\w*|church|mosque|political|vote|salary|income|debt|loan|bank|account|password|pin|id number|passport|immigra\w*|visa|sex\w*|gay|lesbian|transgender)\b/i;
+
+export function validMemory(input: unknown): string | null {
+  if (typeof input !== "string") return null;
+  const fact = input.replace(/\s+/g, " ").trim().replace(/[.]+$/, "");
+  if (fact.length < 3 || fact.length > 160) return null;
+  if (/https?:|www\.|@|\d{6,}|\d[\d\s-]{8,}\d|\d\s*(mg|ml|mcg)\b/i.test(fact)) return null;
+  if (MEMORY_BLOCK.test(fact) || looksLikeAdvice(fact)) return null;
+  return fact.replace(/[–—]/g, ",");
+}
+
 export function validConverse(
   input:
     | {
         reply?: unknown;
         action?: unknown;
         time?: unknown;
+        remember?: unknown;
       }
     | undefined,
 ): ConverseResult | null {
@@ -115,7 +136,7 @@ export function validConverse(
   // A reply is needed for every action except the clinical hand-off, whose
   // words are fixed, and the menu, which has its own intro.
   if (!reply && action !== "clinical_question" && action !== "menu") return null;
-  return { reply, action: action as ConverseAction, time };
+  return { reply, action: action as ConverseAction, time, remember: validMemory(input.remember) };
 }
 
 /** Last few turns, oldest first, trimmed, as the model sees them. */

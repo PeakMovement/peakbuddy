@@ -548,6 +548,10 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   ) {
     const history = await recentTurns(admin, row.from_phone, phone, row.id, now);
     if (!progressText && unplacedIdle) progressText = await progressFor(admin, client.id);
+    const { loadPatientContext, renderPatientContext, rememberFact } = await import(
+      "./patient-context.server"
+    );
+    const ctx = await loadPatientContext(admin, client.id, now).catch(() => null);
     converse =
       (await converseWithAi({
         firstName: firstNameOf(client.full_name),
@@ -556,7 +560,9 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
         pendingQuestion: midCheckin ? pendingQuestionText(state) : null,
         checkedInToday: today,
         hasWearable: clientHasWearable,
+        context: ctx ? renderPatientContext(ctx, now) : null,
       })) ?? undefined;
+    if (converse?.remember) await rememberFact(admin, client.id, converse.remember);
   }
 
   const painNow =

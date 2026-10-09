@@ -282,6 +282,8 @@ export interface ConverseInput {
   pendingQuestion: string | null;
   checkedInToday: boolean;
   hasWearable: boolean;
+  /** What Buddy knows about them (patient-context.server.ts), or null. */
+  context?: string | null;
 }
 
 const CONVERSE_TOOL = {
@@ -300,8 +302,13 @@ const CONVERSE_TOOL = {
         type: ["string", "null"],
         description: "Only for set_checkin_time: the time they asked for as HH:MM, 24 hour.",
       },
+      remember: {
+        type: ["string", "null"],
+        description:
+          "Only when this message tells you something NEW and lasting about their everyday life worth remembering for later chats (a goal, an upcoming event, their work pattern, a hobby, family, a preference), as one short third-person line, e.g. 'Training for the Two Oceans half marathon in April'. Never health, symptoms, injuries, medication, money, religion, politics, relationships' intimate details or any numbers that identify them. Otherwise null.",
+      },
     },
-    required: ["reply", "action", "time"],
+    required: ["reply", "action", "time", "remember"],
   },
 } as const;
 
@@ -312,9 +319,22 @@ function converseSystem(input: ConverseInput): string {
       ? "No check-in is in progress. The patient has already done today's check-in."
       : "No check-in is in progress. The patient has NOT done today's check-in yet; gently steer towards it when it fits (action start_checkin when they seem ready, or mention they can reply CHECK IN).";
 
+  const known = input.context?.trim()
+    ? `
+
+WHAT YOU KNOW ABOUT ${input.firstName.toUpperCase()} (from their Buddy record):
+${input.context.trim()}
+
+How to use this:
+- Use it the way a friendly receptionist who knows them would: their practitioner's first name, their streak, that pain has been lower this week, the race they're training for, their watch run yesterday. Weave in at most one or two details, only when they fit. Never recite the list.
+- Facts only. Never explain, interpret or predict anything clinical from it (no "that's because", no "you're healing well", no "that's a good sign"). Saying a number went down is fine; saying what it means is not.
+- Never contradict what they say about themselves now; today's message wins over the record.
+- Do not mention what the practice recorded they are being seen for unless they bring it up first.`
+    : "";
+
   return `You are Buddy, the WhatsApp assistant of Peak Movement, a physiotherapy practice in Cape Town. You are talking to ${input.firstName}, a patient.
 
-${situation}
+${situation}${known}
 
 Your job: understand what they mean, even if it is vague, misspelt, slang, Afrikaans or off topic. Reply like a warm, sensible person would, in 1 to 3 short sentences. Then bring the conversation back to centre by choosing the ONE action that moves it forward. Be interpretative and conversational, not robotic. Never lecture.
 
@@ -379,7 +399,7 @@ export async function converseWithAi(input: ConverseInput): Promise<ConverseResu
     const json = (await res.json()) as {
       content?: Array<{
         type: string;
-        input?: { reply?: unknown; action?: unknown; time?: unknown };
+        input?: { reply?: unknown; action?: unknown; time?: unknown; remember?: unknown };
       }>;
     };
     return validConverse(json.content?.find((c) => c.type === "tool_use")?.input);
