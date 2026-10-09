@@ -1119,6 +1119,41 @@ export type Database = {
         }
         Relationships: []
       }
+      practitioner_checkin_requests: {
+        Row: {
+          client_id: string
+          completed_at: string | null
+          id: string
+          notified_at: string | null
+          practitioner_id: string
+          requested_at: string
+        }
+        Insert: {
+          client_id: string
+          completed_at?: string | null
+          id?: string
+          notified_at?: string | null
+          practitioner_id: string
+          requested_at?: string
+        }
+        Update: {
+          client_id?: string
+          completed_at?: string | null
+          id?: string
+          notified_at?: string | null
+          practitioner_id?: string
+          requested_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practitioner_checkin_requests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       practitioner_drafts: {
         Row: {
           acted_at: string | null
@@ -1219,6 +1254,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      practitioner_update_prefs: {
+        Row: {
+          frequency: string
+          last_sent_at: string | null
+          practitioner_id: string
+          send_time: string
+          updated_at: string
+          weekday: number
+        }
+        Insert: {
+          frequency: string
+          last_sent_at?: string | null
+          practitioner_id: string
+          send_time?: string
+          updated_at?: string
+          weekday?: number
+        }
+        Update: {
+          frequency?: string
+          last_sent_at?: string | null
+          practitioner_id?: string
+          send_time?: string
+          updated_at?: string
+          weekday?: number
+        }
+        Relationships: []
       }
       predictive_nudges: {
         Row: {
