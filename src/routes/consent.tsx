@@ -234,9 +234,9 @@ function SignPanel({ token }: { token: string }) {
 function ConsentPage() {
   const { t } = Route.useSearch();
   return (
-    <div className="min-h-screen" style={{ background: "var(--navy)" }}>
+    <div className="tw-scope min-h-screen" style={{ background: "var(--navy)" }}>
       <header className="border-b" style={{ borderColor: "var(--navy-border)" }}>
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-5 py-4">
+        <div className="mx-auto flex max-w-2xl items-center justify-between px-5 py-4 sm:px-8">
           <Link
             to="/"
             className="text-lg font-semibold tracking-tight"
@@ -253,7 +253,7 @@ function ConsentPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-5 py-8">
+      <main className="mx-auto w-full max-w-2xl px-5 pb-16 pt-8 sm:px-8">
         <h1
           className="text-2xl font-semibold tracking-tight sm:text-3xl"
           style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
@@ -288,23 +288,30 @@ function ConsentPage() {
           nearest emergency unit. Please do not wait for a reply from us.
         </div>
 
-        {POPIA_CORE.sections.map((section) => (
-          <section className="mt-7" key={section.heading ?? section.body.slice(0, 20)}>
-            {section.heading && (
-              <h2
-                className="text-base font-semibold"
-                style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
-              >
-                {section.heading}
-              </h2>
-            )}
-            <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>
-              {section.body}
-            </p>
-          </section>
-        ))}
+        {/* The emergency notice is already the highlighted box above. */}
+        {POPIA_CORE.sections
+          .filter((section) => !/emergency/i.test(section.heading ?? ""))
+          .map((section) => (
+            <section
+              className="mt-6 border-t pt-6"
+              style={{ borderColor: "var(--navy-border)" }}
+              key={section.heading ?? section.body.slice(0, 20)}
+            >
+              {section.heading && (
+                <h2
+                  className="text-xl font-semibold"
+                  style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
+                >
+                  {section.heading}
+                </h2>
+              )}
+              <p className="mt-2 text-[15px] leading-7" style={{ color: "var(--white-muted)" }}>
+                {section.body}
+              </p>
+            </section>
+          ))}
 
-        <section className="mt-9">
+        <section className="mt-6 border-t pt-6" style={{ borderColor: "var(--navy-border)" }}>
           <h2
             className="text-base font-semibold"
             style={{ color: "var(--white)", fontFamily: "var(--font-hero)" }}
