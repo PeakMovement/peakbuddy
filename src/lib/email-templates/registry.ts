@@ -3,6 +3,7 @@ import { template as clientWelcomeTemplate } from "./client-welcome";
 import { template as practitionerContactTemplate } from "./practitioner-contact";
 import { template as practitionerCheckinTemplate } from "./practitioner-checkin";
 import { template as practitionerAlertTemplate } from "./practitioner-alert";
+import { template as jobHealthTemplate } from "./job-health";
 
 export interface TemplateEntry {
   component: ComponentType<any>;
@@ -18,4 +19,5 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   "practitioner-contact": practitionerContactTemplate,
   "practitioner-checkin": practitionerCheckinTemplate,
   "practitioner-alert": practitionerAlertTemplate,
+  "job-health": jobHealthTemplate,
 };

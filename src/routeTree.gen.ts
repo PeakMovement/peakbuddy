@@ -63,6 +63,7 @@ import { Route as ApiPublicAlertsActionRouteImport } from './routes/api/public/a
 import { Route as ApiPublicCalendarTokenRouteImport } from './routes/api/public/calendar/$token'
 import { Route as ApiPublicGoogleCalendarCallbackRouteImport } from './routes/api/public/google-calendar/callback'
 import { Route as ApiPublicHooksCheckinRemindersRouteImport } from './routes/api/public/hooks/checkin-reminders'
+import { Route as ApiPublicHooksJobHealthCheckRouteImport } from './routes/api/public/hooks/job-health-check'
 import { Route as ApiPublicHooksNightlyPatternDetectionRouteImport } from './routes/api/public/hooks/nightly-pattern-detection'
 import { Route as ApiPublicHooksNightlyRiskAnalysisRouteImport } from './routes/api/public/hooks/nightly-risk-analysis'
 import { Route as ApiPublicHooksOnboardingLibraryNudgeRouteImport } from './routes/api/public/hooks/onboarding-library-nudge'
@@ -358,6 +359,12 @@ const ApiPublicHooksCheckinRemindersRoute =
     path: '/api/public/hooks/checkin-reminders',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksJobHealthCheckRoute =
+  ApiPublicHooksJobHealthCheckRouteImport.update({
+    id: '/api/public/hooks/job-health-check',
+    path: '/api/public/hooks/job-health-check',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksNightlyPatternDetectionRoute =
   ApiPublicHooksNightlyPatternDetectionRouteImport.update({
     id: '/api/public/hooks/nightly-pattern-detection',
@@ -514,6 +521,7 @@ export interface FileRoutesByFullPath {
   '/api/public/calendar/$token': typeof ApiPublicCalendarTokenRoute
   '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
+  '/api/public/hooks/job-health-check': typeof ApiPublicHooksJobHealthCheckRoute
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
   '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
@@ -586,6 +594,7 @@ export interface FileRoutesByTo {
   '/api/public/calendar/$token': typeof ApiPublicCalendarTokenRoute
   '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
+  '/api/public/hooks/job-health-check': typeof ApiPublicHooksJobHealthCheckRoute
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
   '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
@@ -660,6 +669,7 @@ export interface FileRoutesById {
   '/api/public/calendar/$token': typeof ApiPublicCalendarTokenRoute
   '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
+  '/api/public/hooks/job-health-check': typeof ApiPublicHooksJobHealthCheckRoute
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
   '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
@@ -735,6 +745,7 @@ export interface FileRouteTypes {
     | '/api/public/calendar/$token'
     | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
+    | '/api/public/hooks/job-health-check'
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
     | '/api/public/hooks/onboarding-library-nudge'
@@ -807,6 +818,7 @@ export interface FileRouteTypes {
     | '/api/public/calendar/$token'
     | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
+    | '/api/public/hooks/job-health-check'
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
     | '/api/public/hooks/onboarding-library-nudge'
@@ -880,6 +892,7 @@ export interface FileRouteTypes {
     | '/api/public/calendar/$token'
     | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
+    | '/api/public/hooks/job-health-check'
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
     | '/api/public/hooks/onboarding-library-nudge'
@@ -928,6 +941,7 @@ export interface RootRouteChildren {
   ApiPublicCalendarTokenRoute: typeof ApiPublicCalendarTokenRoute
   ApiPublicGoogleCalendarCallbackRoute: typeof ApiPublicGoogleCalendarCallbackRoute
   ApiPublicHooksCheckinRemindersRoute: typeof ApiPublicHooksCheckinRemindersRoute
+  ApiPublicHooksJobHealthCheckRoute: typeof ApiPublicHooksJobHealthCheckRoute
   ApiPublicHooksNightlyPatternDetectionRoute: typeof ApiPublicHooksNightlyPatternDetectionRoute
   ApiPublicHooksNightlyRiskAnalysisRoute: typeof ApiPublicHooksNightlyRiskAnalysisRoute
   ApiPublicHooksOnboardingLibraryNudgeRoute: typeof ApiPublicHooksOnboardingLibraryNudgeRoute
@@ -1326,6 +1340,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksCheckinRemindersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/job-health-check': {
+      id: '/api/public/hooks/job-health-check'
+      path: '/api/public/hooks/job-health-check'
+      fullPath: '/api/public/hooks/job-health-check'
+      preLoaderRoute: typeof ApiPublicHooksJobHealthCheckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/nightly-pattern-detection': {
       id: '/api/public/hooks/nightly-pattern-detection'
       path: '/api/public/hooks/nightly-pattern-detection'
@@ -1563,6 +1584,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicCalendarTokenRoute: ApiPublicCalendarTokenRoute,
   ApiPublicGoogleCalendarCallbackRoute: ApiPublicGoogleCalendarCallbackRoute,
   ApiPublicHooksCheckinRemindersRoute: ApiPublicHooksCheckinRemindersRoute,
+  ApiPublicHooksJobHealthCheckRoute: ApiPublicHooksJobHealthCheckRoute,
   ApiPublicHooksNightlyPatternDetectionRoute:
     ApiPublicHooksNightlyPatternDetectionRoute,
   ApiPublicHooksNightlyRiskAnalysisRoute:
@@ -1588,3 +1610,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

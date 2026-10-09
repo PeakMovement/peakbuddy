@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { trackedJob } from "@/lib/job-runs.server";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 
 /**
@@ -9,7 +10,7 @@ import { authorizeCronRequest } from "@/lib/cron-auth";
 export const Route = createFileRoute("/api/public/hooks/whatsapp-drive-backup")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
+      POST: trackedJob("whatsapp-drive-backup-weekly", async ({ request }: { request: Request }) => {
         const denied = await authorizeCronRequest(request);
         if (denied) return denied;
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -19,7 +20,7 @@ export const Route = createFileRoute("/api/public/hooks/whatsapp-drive-backup")(
           status: result.ok ? 200 : 503,
           headers: { "Content-Type": "application/json" },
         });
-      },
+      }),
     },
   },
 });

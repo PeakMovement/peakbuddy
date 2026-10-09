@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { trackedJob } from "@/lib/job-runs.server";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import { log } from "@/lib/log";
 import { syncOuraForClient, syncPolarForClient } from "@/lib/wearables/sync.functions";
@@ -12,7 +13,7 @@ const BATCH = 80;
 export const Route = createFileRoute("/api/public/hooks/wearables-sync")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
+      POST: trackedJob("wearables-sync-daily", async ({ request }: { request: Request }) => {
         const denied = await authorizeCronRequest(request);
         if (denied) return denied;
 
@@ -48,7 +49,7 @@ export const Route = createFileRoute("/api/public/hooks/wearables-sync")({
         }
 
         return Response.json({ ok: true, ...stats, scanned: tokens?.length ?? 0 });
-      },
+      }),
     },
   },
 });

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { trackedJob } from "@/lib/job-runs.server";
 import { log } from "@/lib/log";
 import { hasAiConsent } from "@/lib/ai-consent";
 import { authorizeCronRequest } from "@/lib/cron-auth";
@@ -424,7 +425,7 @@ async function processClient(
 export const Route = createFileRoute("/api/public/hooks/nightly-risk-analysis")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
+      POST: trackedJob("nightly-risk-analysis", async ({ request }: { request: Request }) => {
         const denied = await authorizeCronRequest(request);
         if (denied) return denied;
 
@@ -506,7 +507,7 @@ export const Route = createFileRoute("/api/public/hooks/nightly-risk-analysis")(
         }
 
         return Response.json({ ok: true, forDate, ...stats });
-      },
+      }),
     },
   },
 });

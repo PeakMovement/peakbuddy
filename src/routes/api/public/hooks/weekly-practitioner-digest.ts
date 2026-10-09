@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { trackedJob } from "@/lib/job-runs.server";
 import { log } from "@/lib/log";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import { appBaseUrl } from "@/lib/app-url";
@@ -224,7 +225,7 @@ async function buildAndSend(
 export const Route = createFileRoute("/api/public/hooks/weekly-practitioner-digest")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
+      POST: trackedJob("weekly-practitioner-digest", async ({ request }: { request: Request }) => {
         const denied = await authorizeCronRequest(request);
         if (denied) return denied;
 
@@ -327,7 +328,7 @@ export const Route = createFileRoute("/api/public/hooks/weekly-practitioner-dige
         }
 
         return Response.json({ ok: true, ...stats });
-      },
+      }),
     },
   },
 });

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { trackedJob } from "@/lib/job-runs.server";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import { log } from "@/lib/log";
 
@@ -11,7 +12,7 @@ import { log } from "@/lib/log";
 export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
+      POST: trackedJob("checkin-reminders-tick", async ({ request }: { request: Request }) => {
         const denied = await authorizeCronRequest(request);
         if (denied) return denied;
 
@@ -167,7 +168,7 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
         return new Response(JSON.stringify({ ok: true, sent, skipped }), {
           headers: { "Content-Type": "application/json" },
         });
-      },
+      }),
     },
   },
 });

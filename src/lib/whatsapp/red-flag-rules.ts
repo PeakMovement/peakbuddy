@@ -197,10 +197,116 @@ function findTerms(haystack: string, terms: string[]): string[] {
   return found;
 }
 
+/*
+ * Negation. "No chest pain", "my calf isn't swollen", "geen swelsel nie" are
+ * patients telling us they are fine, and used to raise the same alert as the
+ * symptom itself. A term is treated as negated only when ALL of these hold:
+ *   - a negation word appears up to 6 words before it, in the same clause
+ *     (a comma, full stop, "but", "and", "maar", "en" ... starts a new clause,
+ *     so "no pain but my calf is swollen" still alerts);
+ *   - the term itself carries no negation word ("can't breathe",
+ *     "kan nie asemhaal nie", "don't want to live" are the symptom);
+ *   - the negation is not uncertainty ("not sure", "don't know", "nie seker");
+ *   - it is not self-harm language, which is never suppressed.
+ * Every occurrence must be negated: "no swelling yesterday. Calf swollen now"
+ * still alerts.
+ */
+const NEGATION_CUE =
+  /\b(no|not|never|without|none|nor|dont|don't|doesnt|doesn't|didnt|didn't|isnt|isn't|wasnt|wasn't|arent|aren't|havent|haven't|hasnt|hasn't|hadnt|hadn't|wont|won't|geen|nie|nooit|sonder)\b/i;
+const NEGATION_CUE_G = new RegExp(NEGATION_CUE.source, "gi");
+const CLAUSE_BREAK =
+  /[.;:!?\n,]|\b(but|though|although|however|except|and|yet|now|maar|en|nou)\b/gi;
+const UNCERTAIN_AFTER = /^\s*(sure|certain|know|seker|weet)\b/i;
+
+function negatedAt(lower: string, index: number): boolean {
+  let prefix = lower.slice(0, index);
+  let lastBreak = -1;
+  for (const m of prefix.matchAll(CLAUSE_BREAK)) lastBreak = (m.index ?? 0) + m[0].length;
+  if (lastBreak >= 0) prefix = prefix.slice(lastBreak);
+  const words = prefix.trim().split(/\s+/).filter(Boolean);
+  const windowText = words.slice(-6).join(" ");
+  let cue: RegExpMatchArray | null = null;
+  for (const m of windowText.matchAll(NEGATION_CUE_G)) cue = m;
+  if (!cue) return false;
+  const after = windowText.slice((cue.index ?? 0) + cue[0].length);
+  return !UNCERTAIN_AFTER.test(after);
+}
+
+function occurrences(lower: string, term: string): number[] {
+  const escaped = term.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`(^|[^\\p{L}])(${escaped})(?=[^\\p{L}]|$)`, "giu");
+  const out: number[] = [];
+  for (const m of lower.matchAll(re)) out.push((m.index ?? 0) + m[1].length);
+  // Fallback for terms the other engine matches as plain substrings.
+  if (out.length === 0) {
+    let i = lower.indexOf(term.toLowerCase());
+    while (i !== -1) {
+      out.push(i);
+      i = lower.indexOf(term.toLowerCase(), i + 1);
+    }
+  }
+  return out;
+}
+
+/** True when every mention of `term` in `text` is negated. */
+export function isNegatedTerm(text: string, term: string): boolean {
+  if (NEGATION_CUE.test(term)) return false;
+  // Phones type curly apostrophes ("don’t"); same length, so indexes hold.
+  const lower = text.toLowerCase().replace(/[\u2018\u2019]/g, "'");
+  const at = occurrences(lower, term);
+  return at.length > 0 && at.every((i) => negatedAt(lower, i));
+}
+
+function maskTerms(text: string, terms: string[]): string {
+  let out = text;
+  for (const term of terms) {
+    const lower = out.toLowerCase();
+    for (const i of occurrences(lower, term)) {
+      out = out.slice(0, i) + " ".repeat(term.length) + out.slice(i + term.length);
+    }
+  }
+  return out;
+}
+
+/**
+ * The existing engine with negated mentions taken out. Self-harm results are
+ * returned untouched.
+ */
+function realtimeIgnoringNegation(text: string): ReturnType<typeof analyzeRealTime> {
+  let t = text;
+  let result = analyzeRealTime(t);
+  for (let i = 0; i < 6 && result.detected; i++) {
+    if (result.category === "mental_health") break;
+    const negated = result.matchedTerms.filter((term) => isNegatedTerm(t, term));
+    if (negated.length === 0) break;
+    t = maskTerms(t, negated);
+    result = analyzeRealTime(t);
+  }
+  return result;
+}
+
+/** Body parts that alert on their own, unless the symptoms named with them were all denied. */
+const ANCHOR_TERMS = new Set([
+  "calf", "calves", "kuit", "kuite",
+  "wound", "wond", "snywond", "incision", "insnyding",
+  "stitches", "sutures", "staples", "steke", "hegtings",
+]);
+
 function clinicalGroupHits(text: string): RuleHit[] {
   const hits: RuleHit[] = [];
   for (const group of CLINICAL_GROUPS) {
-    const matched = findTerms(text, group.terms);
+    const found = findTerms(text, group.terms);
+    let matched = found;
+    if (group.category !== "mental_health") {
+      const negated = found.filter((term) => isNegatedTerm(text, term));
+      matched = found.filter((term) => !negated.includes(term));
+      // "My calf isn't swollen", "wound is fine, no pus": the body part on its
+      // own still alerts ("my calf is sore"), but not when every symptom named
+      // alongside it was denied.
+      if (negated.length > 0 && matched.every((term) => ANCHOR_TERMS.has(term))) {
+        matched = [];
+      }
+    }
     if (matched.length > 0) {
       hits.push({
         rule: "keyword_post_surgical",
@@ -255,7 +361,7 @@ export function runRedFlagRules(input: RuleInput): RuleLayerResult {
 
   // 3. The existing engine's hard overrides and keyword floor.
   if (text.trim()) {
-    const realtime = analyzeRealTime(text);
+    const realtime = realtimeIgnoringNegation(text);
     if (realtime.detected) {
       hits.push({
         rule: "keyword_existing",

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { trackedJob } from "@/lib/job-runs.server";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 
 /**
@@ -11,7 +12,7 @@ import { authorizeCronRequest } from "@/lib/cron-auth";
 export const Route = createFileRoute("/api/public/hooks/onboarding-library-nudge")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
+      POST: trackedJob("onboarding-library-nudge", async ({ request }: { request: Request }) => {
         const denied = await authorizeCronRequest(request);
         if (denied) return denied;
 
@@ -66,7 +67,7 @@ export const Route = createFileRoute("/api/public/hooks/onboarding-library-nudge
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
-      },
+      }),
     },
   },
 });

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { trackedJob } from "@/lib/job-runs.server";
 import { log } from "@/lib/log";
 import { detectWeekdayPatterns, type CheckInInput } from "@/lib/client-patterns";
 import { authorizeCronRequest } from "@/lib/cron-auth";
@@ -61,7 +62,7 @@ async function detectForClient(supabaseAdmin: AdminClient, clientId: string): Pr
 export const Route = createFileRoute("/api/public/hooks/nightly-pattern-detection")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
+      POST: trackedJob("nightly-pattern-detection", async ({ request }: { request: Request }) => {
         const denied = await authorizeCronRequest(request);
         if (denied) return denied;
 
@@ -109,7 +110,7 @@ export const Route = createFileRoute("/api/public/hooks/nightly-pattern-detectio
         }
 
         return Response.json({ ok: true, ...stats });
-      },
+      }),
     },
   },
 });

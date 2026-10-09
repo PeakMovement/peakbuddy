@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { trackedJob } from "@/lib/job-runs.server";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import { log } from "@/lib/log";
 
@@ -12,7 +13,7 @@ import { log } from "@/lib/log";
 export const Route = createFileRoute("/api/public/hooks/whatsapp-worker")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
+      POST: trackedJob("whatsapp-worker-tick", async ({ request }: { request: Request }) => {
         const denied = await authorizeCronRequest(request);
         if (denied) return denied;
 
@@ -32,7 +33,7 @@ export const Route = createFileRoute("/api/public/hooks/whatsapp-worker")({
         return new Response(JSON.stringify({ ok: true, ...result }), {
           headers: { "Content-Type": "application/json" },
         });
-      },
+      }),
     },
   },
 });
