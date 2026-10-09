@@ -135,7 +135,12 @@ const firstOf = (n: string | null | undefined) =>
 
 export const PRAC_MSG = {
   help: (name: string) =>
-    `Hi ${name}, you're messaging Buddy as a practitioner. When you've sent a patient their exercise programme, tell me here, for example "I've sent Sam Kruger his programme", and I'll let them know.`,
+    `Hi ${name}, you're messaging Buddy as a practitioner. Here's what I can do:\n\n` +
+    `• "How are my clients doing?" for a quick status of all your clients\n` +
+    `• "How is Sam Kruger doing?" for one client\n` +
+    `• "Check in with Sam Kruger" and I'll ask them for a check-in, then send you their answers\n` +
+    `• "Update me daily at 7am" (or weekdays, every Monday, stop updates)\n` +
+    `• "I've sent Sam Kruger his programme" and I'll let them know`,
   notFound: (name: string) =>
     `I couldn't find a patient matching that on your list, ${name}. Try their first and last name, for example "I've sent Sam Kruger his programme".`,
   which: "I found more than one patient with that name. Which one did you mean?",
@@ -146,6 +151,18 @@ export const PRAC_MSG = {
     `Sorry, ${patient} isn't registered on Buddy yet, so I can't let them know. If you'd like them to join, forward them this link:\n\n${JOIN_LINK}`,
   cantReachYet: (patient: string) =>
     `${patient} is on Buddy, but hasn't messaged in the last day, so WhatsApp won't let me message them first right now. I'll pass it on as soon as they next check in.`,
+  checkinAsked: (patient: string) =>
+    `Done, I've asked ${patient} to check in. I'll send you their answers when they reply.`,
+  checkinBusy: (patient: string) =>
+    `${patient} is in the middle of a check-in with me right now. I'll send you their answers when they finish.`,
+  checkinApp: (patient: string) =>
+    `${patient} uses the Buddy app, so I've sent them a notification to check in. I'll send you their answers when they do.`,
+  checkinUnreachable: (patient: string) =>
+    `${patient} hasn't messaged me in over a day, so WhatsApp won't let me message them first. A quick message from you may get them going again.`,
+  notRegisteredCheckin: (patient: string) =>
+    `${patient} isn't on Buddy yet, so I can't ask them to check in. If you'd like them to join, forward them this link:\n\n${JOIN_LINK}`,
+  notFoundAny: (name: string) =>
+    `I couldn't find a client matching that on your list, ${name}. Try their first and last name, for example "how is Sam Kruger doing".`,
   failed: (patient: string) =>
     `Sorry, something went wrong sending that to ${patient}. Please try again in a minute.`,
   patient: (patient: string, practitioner: string) =>
@@ -158,6 +175,10 @@ export interface PractitionerDeps {
   /** Reply to the practitioner. */
   reply: (message: Outgoing) => Promise<void>;
   now: Date;
+  /** Start a check-in for a patient (the worker's reminder path). */
+  requestCheckin?: (
+    clientId: string,
+  ) => Promise<"sent" | "not_whatsapp" | "busy" | "window_closed" | "failed">;
 }
 
 async function practitionerPatients(admin: Db, userId: string): Promise<PatientRow[]> {
@@ -200,8 +221,23 @@ export async function handlePractitionerMessage(
 ): Promise<boolean> {
   const admin = adminIn as unknown as Db;
   const picked = msg.replyId?.match(/^prog_([0-9a-f-]{36})$/i)?.[1] ?? null;
+  if (!picked) {
+    const { practitionerIntent } = await import("./practitioner-status.server");
+    const intent = practitionerIntent(msg.text, msg.replyId);
+    if (intent.kind !== "other") {
+      await handleStatusIntent(adminIn, prac, msg.text, intent, deps);
+      return true;
+    }
+  }
   if (!picked && !PROGRAMME_SENT.test(msg.text)) {
-    await deps.reply({ kind: "text", body: PRAC_MSG.help(prac.firstName) });
+    await deps.reply({
+      kind: "buttons",
+      body: PRAC_MSG.help(prac.firstName),
+      buttons: [
+        { id: "prac_status", title: "How are my clients" },
+        { id: "prac_updates", title: "Regular updates" },
+      ],
+    });
     return true;
   }
 
@@ -217,12 +253,10 @@ export async function handlePractitionerMessage(
         kind: "list",
         body: PRAC_MSG.which,
         buttonLabel: "Choose",
-        rows: hits
-          .slice(0, 10)
-          .map((p) => ({
-            id: `prog_${p.id}`,
-            title: String(p.full_name ?? "Patient").slice(0, 24),
-          })),
+        rows: hits.slice(0, 10).map((p) => ({
+          id: `prog_${p.id}`,
+          title: String(p.full_name ?? "Patient").slice(0, 24),
+        })),
       });
       return true;
     }
@@ -363,4 +397,132 @@ async function tellPatient(
     }
   }
   return "not_registered";
+}
+
+/** Status, updates and check-in requests (practitioner-status.server.ts). */
+async function handleStatusIntent(
+  adminIn: Admin,
+  prac: Practitioner,
+  text: string,
+  intent: import("./practitioner-status.server").PracIntent,
+  deps: PractitionerDeps,
+): Promise<void> {
+  const st = await import("./practitioner-status.server");
+  const admin = adminIn as unknown as Db;
+  const text1 = (body: string) => deps.reply({ kind: "text", body });
+
+  if (intent.kind === "updates_menu") {
+    await deps.reply({
+      kind: "buttons",
+      body: st.UPDATE_MSG.menu,
+      buttons: [
+        { id: "prac_upd_daily", title: "Daily, 7:30am" },
+        { id: "prac_upd_weekly", title: "Mondays, 7:30am" },
+        { id: "prac_upd_off", title: "No updates" },
+      ],
+    });
+    return;
+  }
+  if (intent.kind === "updates") {
+    const ok = await st.saveUpdatePrefs(adminIn, prac.userId, intent, deps.now);
+    await text1(
+      ok
+        ? st.UPDATE_MSG.saved(intent.frequency, intent.weekday, intent.time)
+        : st.UPDATE_MSG.failed,
+    );
+    return;
+  }
+  if (intent.kind === "status_all") {
+    const list = await st.loadClientList(adminIn, prac.userId, intent.practice);
+    const statuses = await st.loadStatuses(adminIn, list, deps.now);
+    await text1(st.formatStatusAll(prac.firstName, statuses, deps.now, intent.practice));
+    return;
+  }
+  if (intent.kind === "other") return;
+
+  // One client: by button id, or by the name in the message.
+  const patients = await practitionerPatients(admin, prac.userId);
+  let target: PatientRow | null = null;
+  if (intent.clientId) target = patients.find((p) => p.id === intent.clientId) ?? null;
+  else {
+    const hits = matchPatients(text, patients);
+    if (hits.length === 1) target = hits[0];
+    else if (hits.length > 1) {
+      const prefix = intent.kind === "checkin" ? "prac_ci_" : "prac_one_";
+      await deps.reply({
+        kind: "list",
+        body: PRAC_MSG.which,
+        buttonLabel: "Choose",
+        rows: hits.slice(0, 10).map((p) => ({
+          id: `${prefix}${p.id}`,
+          title: String(p.full_name ?? "Patient").slice(0, 24),
+        })),
+      });
+      return;
+    }
+  }
+  if (!target) {
+    await text1(PRAC_MSG.notFoundAny(prac.firstName));
+    return;
+  }
+
+  if (intent.kind === "status_one") {
+    const { data: row } = await admin
+      .from("clients")
+      .select("id, full_name, created_at, auth_user_id")
+      .eq("id", target.id)
+      .maybeSingle();
+    const [s] = await st.loadStatuses(adminIn, row ? [row] : [], deps.now);
+    if (!s) {
+      await text1(PRAC_MSG.notFoundAny(prac.firstName));
+      return;
+    }
+    await deps.reply({
+      kind: "buttons",
+      body: st.formatStatusOne(s, deps.now),
+      buttons: [{ id: `prac_ci_${target.id}`, title: "Ask for a check-in" }],
+    });
+    return;
+  }
+
+  // Check-in request.
+  const name = firstOf(target.full_name);
+  const result = deps.requestCheckin ? await deps.requestCheckin(target.id) : "failed";
+  if (result === "sent" || result === "busy") {
+    await st.recordCheckinRequest(adminIn, target.id, prac.userId, deps.now);
+    await text1(result === "sent" ? PRAC_MSG.checkinAsked(name) : PRAC_MSG.checkinBusy(name));
+    return;
+  }
+  if (result === "failed") {
+    await text1(PRAC_MSG.failed(name));
+    return;
+  }
+  // Not reachable on WhatsApp: the app, if they have it.
+  const { data: client } = await admin
+    .from("clients")
+    .select("auth_user_id")
+    .eq("id", target.id)
+    .maybeSingle();
+  if (client?.auth_user_id) {
+    try {
+      const { sendPushCore } = await import("@/lib/push.functions");
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await sendPushCore(supabaseAdmin, {
+        userId: client.auth_user_id,
+        title: "Buddy check-in",
+        body: `${prac.firstName} is checking in. Tap to log how you're doing.`,
+        data: { type: "checkin_request" },
+      });
+      await st.recordCheckinRequest(adminIn, target.id, prac.userId, deps.now);
+      await text1(PRAC_MSG.checkinApp(name));
+    } catch {
+      await text1(PRAC_MSG.failed(name));
+    }
+    return;
+  }
+  await text1(
+    result === "window_closed"
+      ? PRAC_MSG.checkinUnreachable(name)
+      : PRAC_MSG.notRegisteredCheckin(name),
+  );
 }

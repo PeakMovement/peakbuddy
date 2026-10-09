@@ -477,7 +477,11 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     const prac = await practitionerByPhone(admin, phone).catch(() => null);
     if (prac) {
       const text = row.body || row.reply_title || "";
-      const isCommand = PROGRAMME_SENT.test(text) || /^prog_/i.test(row.reply_id ?? "");
+      const { practitionerIntent } = await import("./practitioner-status.server");
+      const isCommand =
+        PROGRAMME_SENT.test(text) ||
+        /^(prog|prac)_/i.test(row.reply_id ?? "") ||
+        practitionerIntent(text, row.reply_id).kind !== "other";
       if (!conv.client_id || isCommand) {
         const handled = await handlePractitionerMessage(
           admin,
@@ -487,6 +491,11 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
             provider: env.provider,
             secrets: env.secrets,
             now,
+            requestCheckin: (clientId) =>
+              sendWhatsAppReminder(admin, clientId, now, {
+                provider: env.provider,
+                secrets: env.secrets,
+              }),
             reply: async (m) => {
               let id: string | null = null;
               let ok = false;

@@ -30,6 +30,16 @@ export const Route = createFileRoute("/api/public/hooks/whatsapp-worker")({
         const result = await processPendingInbound({ admin: supabaseAdmin as never, ...cfg }, 25);
         if (result.failed > 0) log.warn("whatsapp worker hook", result);
 
+        // Practitioner client updates and requested check-in answers.
+        try {
+          const { runPractitionerJobs } = await import("@/lib/whatsapp/practitioner-status.server");
+          await runPractitionerJobs(supabaseAdmin as never, cfg);
+        } catch (e) {
+          log.warn("practitioner jobs failed", {
+            error: e instanceof Error ? e.message : "unknown",
+          });
+        }
+
         return new Response(JSON.stringify({ ok: true, ...result }), {
           headers: { "Content-Type": "application/json" },
         });
