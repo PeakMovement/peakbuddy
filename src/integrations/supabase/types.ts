@@ -1176,6 +1176,50 @@ export type Database = {
           },
         ]
       }
+      practitioner_intakes: {
+        Row: {
+          client_id: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_message_at: string | null
+          opened_at: string | null
+          phone: string | null
+          practitioner_id: string
+          status: string
+        }
+        Insert: {
+          client_id: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          opened_at?: string | null
+          phone?: string | null
+          practitioner_id: string
+          status: string
+        }
+        Update: {
+          client_id?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          opened_at?: string | null
+          phone?: string | null
+          practitioner_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practitioner_intakes_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       predictive_nudges: {
         Row: {
           client_id: string
