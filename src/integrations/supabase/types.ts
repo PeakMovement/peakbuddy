@@ -902,6 +902,41 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_memory: {
+        Row: {
+          archived_at: string | null
+          client_id: string
+          created_at: string
+          fact: string
+          id: string
+          source: string
+        }
+        Insert: {
+          archived_at?: string | null
+          client_id: string
+          created_at?: string
+          fact: string
+          id?: string
+          source?: string
+        }
+        Update: {
+          archived_at?: string | null
+          client_id?: string
+          created_at?: string
+          fact?: string
+          id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_memory_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_settings: {
         Row: {
           central_webhook_enabled: boolean
