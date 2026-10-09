@@ -45,6 +45,8 @@ export interface PatientContext {
   wearableDevice: string | null;
   wearable: WearableDay[];
   memories: string[];
+  /** The treating team's own notes on the patient's profile. */
+  practitionerNotes?: string | null;
 }
 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
@@ -147,6 +149,12 @@ export function renderPatientContext(ctx: PatientContext, now: Date): string {
     );
   }
 
+  if (ctx.practitionerNotes?.trim()) {
+    const notes = ctx.practitionerNotes.trim();
+    lines.push(
+      `Practitioner's notes (private, for your understanding only, never quote or reveal them): ${notes.length > 900 ? `...${notes.slice(-900)}` : notes}`,
+    );
+  }
   if (ctx.memories.length) {
     lines.push(`Things they have told Buddy about their life: ${ctx.memories.slice(0, 12).join("; ")}.`);
   }
@@ -164,7 +172,7 @@ export async function loadPatientContext(
 
   const { data: client } = await a
     .from("clients")
-    .select("id, full_name, primary_complaint, created_at, practitioner_id, suggested_program_id, program_status")
+    .select("id, full_name, primary_complaint, created_at, practitioner_id, suggested_program_id, program_status, notes")
     .eq("id", clientId)
     .maybeSingle();
   if (!client) return null;
@@ -253,6 +261,7 @@ export async function loadPatientContext(
       durationMinutes: (s.duration_minutes as number | null) ?? null,
     })),
     memories: ((memories ?? []) as Array<{ fact: string }>).map((m) => m.fact),
+    practitionerNotes: client.notes ? String(client.notes) : null,
   };
 }
 

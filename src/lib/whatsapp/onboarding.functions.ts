@@ -62,6 +62,21 @@ export const signConsentLink = createServerFn({ method: "POST" })
         /* the patient's next message carries on */
       }
     }
+    // A patient who signed themselves up on WhatsApp: tell the practitioner
+    // they picked. (Patients a practitioner added are already known to them.)
+    try {
+      const { data: c } = await admin
+        .from("clients")
+        .select("onboarding_source")
+        .eq("id", r.info.clientId)
+        .maybeSingle();
+      if ((c as { onboarding_source?: string } | null)?.onboarding_source === "whatsapp_self") {
+        const { notifyPractitionerOfNewPatient } = await import("./practitioner-intake.server");
+        await notifyPractitionerOfNewPatient(supabaseAdmin, r.info.clientId);
+      }
+    } catch {
+      /* best effort */
+    }
     return { ok: true as const, firstName: r.info.firstName };
   });
 

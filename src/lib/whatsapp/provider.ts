@@ -77,6 +77,8 @@ export type OutboundMessage =
       languageCode: string;
       /** Positional body variables, in order. */
       variables: string[];
+      /** Payloads for the template's quick-reply buttons, in button order. */
+      buttonPayloads?: string[];
     };
 
 export interface SendResult {
@@ -398,14 +400,22 @@ export const metaProvider: WhatsAppProvider = {
         template: {
           name: message.templateName,
           language: { code: message.languageCode },
-          components: message.variables.length
-            ? [
-                {
-                  type: "body",
-                  parameters: message.variables.map((v) => ({ type: "text", text: v })),
-                },
-              ]
-            : [],
+          components: [
+            ...(message.variables.length
+              ? [
+                  {
+                    type: "body",
+                    parameters: message.variables.map((v) => ({ type: "text", text: v })),
+                  },
+                ]
+              : []),
+            ...(message.buttonPayloads ?? []).map((payload, i) => ({
+              type: "button",
+              sub_type: "quick_reply",
+              index: String(i),
+              parameters: [{ type: "payload", payload }],
+            })),
+          ],
         },
       };
     }

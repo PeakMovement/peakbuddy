@@ -216,6 +216,16 @@ export const selfSignUpClient = createServerFn({ method: "POST" })
       /* ignore email failures */
     }
 
+    // Tell the practitioner they picked, and offer to take a short brief.
+    try {
+      const { notifyPractitionerOfNewPatient } = await import(
+        "@/lib/whatsapp/practitioner-intake.server"
+      );
+      await notifyPractitionerOfNewPatient(admin, inserted.id as string);
+    } catch {
+      /* best effort, never blocks sign-up */
+    }
+
     return { ok: true as const, clientId: inserted.id as string };
   });
 

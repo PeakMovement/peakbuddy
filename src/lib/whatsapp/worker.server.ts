@@ -353,6 +353,54 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   const phone = toE164Digits(row.from_phone);
   if (!phone) throw new Error("unusable sender number");
 
+  // A practitioner answering Buddy about a new patient (button, or the brief
+  // that follows). Never attached to any patient's history.
+  {
+    const isAudioMsg = row.kind === "media" && (row.media_mime_type ?? "").startsWith("audio/");
+    const looksLikeIntake =
+      /^intake_(add|skip):/i.test(row.reply_id ?? "") || (await hasCollectingIntake(admin, phone));
+    if (looksLikeIntake) {
+      const { handlePractitionerReply } = await import("./practitioner-intake.server");
+      const handled = await handlePractitionerReply(
+        admin,
+        { phone, text: row.body ?? "", replyId: row.reply_id, isAudio: isAudioMsg },
+        {
+          now,
+          transcribe: async () =>
+            isAudioMsg && row.media_id ? await transcribe(env, row.media_id) : null,
+          send: async (body) => {
+            let id: string | null = null;
+            let ok = false;
+            try {
+              id =
+                (await env.provider.send({ kind: "text", to: phone, body }, env.secrets))
+                  .providerMessageId || null;
+              ok = true;
+            } catch {
+              /* recorded below */
+            }
+            await admin
+              .from("whatsapp_outbound")
+              .insert({
+                phone,
+                client_id: null,
+                provider: env.provider.id,
+                provider_message_id: id,
+                kind: "text",
+                body,
+                sent_ok: ok,
+              })
+              .then(
+                () => undefined,
+                () => undefined,
+              );
+          },
+        },
+      );
+      if (handled) return null;
+    }
+  }
+
   const conv = await loadConversation(admin, phone);
 
   // A "Chat to Buddy" link carries a join code in its pre-typed message.
@@ -860,6 +908,20 @@ async function recentTurns(
     .sort((a, b) => a.at.localeCompare(b.at))
     .slice(-8)
     .map(({ from, text }) => ({ from, text }));
+}
+
+async function hasCollectingIntake(admin: Admin, phone: string): Promise<boolean> {
+  try {
+    const { data } = await (admin as unknown as { from: (t: string) => any })
+      .from("practitioner_intakes")
+      .select("id")
+      .eq("phone", phone)
+      .eq("status", "collecting")
+      .limit(1);
+    return Array.isArray(data) && data.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 async function hasWearable(admin: Admin, clientId: string): Promise<boolean> {
