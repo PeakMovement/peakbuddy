@@ -12,7 +12,8 @@
  * 3. Buddy's patient context card reads those notes, so check-ins and chat
  *    are informed by them. Buddy never repeats them to the patient.
  *
- * Off until WHATSAPP_INTAKE_TEMPLATE is set (after Meta approves it).
+ * WhatsApp is off until WHATSAPP_INTAKE_TEMPLATE is set (after Meta approves
+ * it); until then, and whenever WhatsApp can't reach them, they get an email.
  * Practitioner messages are never attached to a patient's WhatsApp history.
  */
 import { log } from "@/lib/log";
@@ -51,13 +52,17 @@ export function appendNote(existing: string | null | undefined, text: string, no
   return (prev ? `${prev}\n\n${entry}` : entry).slice(-8000);
 }
 
+/**
+ * Tell the practitioner a patient has picked them. WhatsApp first (template,
+ * with Add details / Not now). If that can't go out (template not switched
+ * on, no mobile on their profile, or the send fails), an email instead, with
+ * a link to the patient's profile where they can add notes. Once per patient.
+ */
 export async function notifyPractitionerOfNewPatient(
   adminIn: Admin,
   clientId: string,
-): Promise<"sent" | "exists" | "off" | "no_phone" | "failed"> {
+): Promise<"sent" | "emailed" | "exists" | "unreachable" | "failed"> {
   const admin = adminIn as unknown as Db;
-  const templateName = process.env.WHATSAPP_INTAKE_TEMPLATE?.trim();
-  if (!templateName) return "off";
   try {
     const { data: existing } = await admin
       .from("practitioner_intakes")
@@ -75,6 +80,12 @@ export async function notifyPractitionerOfNewPatient(
 
     const { data: user } = await adminIn.auth.admin.getUserById(client.practitioner_id);
     const phone = toE164Digits(user?.user?.phone ?? null);
+    const email = user?.user?.email ?? null;
+
+    const templateName = process.env.WHATSAPP_INTAKE_TEMPLATE?.trim() || null;
+    let cfg: Awaited<ReturnType<typeof loadCfg>> = null;
+    if (templateName && phone) cfg = await loadCfg();
+    const viaWhatsApp = Boolean(templateName && phone && cfg);
 
     const { data: intake, error } = await admin
       .from("practitioner_intakes")
@@ -82,42 +93,73 @@ export async function notifyPractitionerOfNewPatient(
         client_id: clientId,
         practitioner_id: client.practitioner_id,
         phone,
-        status: phone ? "sent" : "no_phone",
+        status: viaWhatsApp ? "sent" : email ? "emailed" : "no_phone",
       })
       .select("id")
       .single();
     // A unique clash means another path got there first.
     if (error || !intake) return "exists";
-    if (!phone) return "no_phone";
 
-    const { whatsappConfigFromEnv } = await import("./worker.server");
-    const cfg = whatsappConfigFromEnv();
-    if (!cfg) return "off";
-    try {
-      await cfg.provider.send(
-        {
-          kind: "template",
-          to: phone,
-          templateName,
-          languageCode: process.env.WHATSAPP_INTAKE_TEMPLATE_LANG?.trim() || "en",
-          variables: [shortName(client.full_name)],
-          buttonPayloads: [`intake_add:${intake.id}`, `intake_skip:${intake.id}`],
-        },
-        cfg.secrets,
-      );
-      return "sent";
-    } catch (e) {
-      await admin.from("practitioner_intakes").update({ status: "failed" }).eq("id", intake.id);
-      log.warn("practitioner intake template failed", {
-        to: maskPhone(phone),
-        error: e instanceof Error ? e.message : "unknown",
-      });
-      return "failed";
+    const patient = shortName(client.full_name);
+
+    if (viaWhatsApp && cfg && templateName && phone) {
+      try {
+        await cfg.provider.send(
+          {
+            kind: "template",
+            to: phone,
+            templateName,
+            languageCode: process.env.WHATSAPP_INTAKE_TEMPLATE_LANG?.trim() || "en",
+            variables: [patient],
+            buttonPayloads: [`intake_add:${intake.id}`, `intake_skip:${intake.id}`],
+          },
+          cfg.secrets,
+        );
+        return "sent";
+      } catch (e) {
+        log.warn("practitioner intake template failed, emailing instead", {
+          to: maskPhone(phone),
+          error: e instanceof Error ? e.message : "unknown",
+        });
+        await admin
+          .from("practitioner_intakes")
+          .update({ status: email ? "emailed" : "failed" })
+          .eq("id", intake.id);
+      }
     }
+
+    if (!email) return "unreachable";
+    const { sendTransactionalEmailServer } = await import("@/lib/email/send-server");
+    const { appBaseUrl } = await import("@/lib/app-url");
+    const sent = await sendTransactionalEmailServer({
+      templateName: "practitioner-new-patient",
+      recipientEmail: email,
+      idempotencyKey: `new-patient-${clientId}`,
+      templateData: {
+        practitionerName: await practitionerFirstName(admin, client.practitioner_id),
+        patientName: patient,
+        profileUrl: `${appBaseUrl()}/practitioner/app/client-detail/${clientId}`,
+      },
+    });
+    return sent.ok ? "emailed" : "failed";
   } catch (e) {
     log.warn("practitioner intake failed", { error: e instanceof Error ? e.message : "unknown" });
     return "failed";
   }
+}
+
+async function practitionerFirstName(admin: Db, id: string): Promise<string> {
+  try {
+    const { data } = await admin.from("profiles").select("full_name").eq("id", id).maybeSingle();
+    return String(data?.full_name ?? "").trim().split(/\s+/)[0] ?? "";
+  } catch {
+    return "";
+  }
+}
+
+async function loadCfg() {
+  const { whatsappConfigFromEnv } = await import("./worker.server");
+  return whatsappConfigFromEnv();
 }
 
 export interface PractitionerInbound {

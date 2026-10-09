@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { appendNote, handlePractitionerReply, shortName } from "./practitioner-intake.server";
 
 const ID = "11111111-2222-3333-4444-555555555555";
@@ -141,5 +141,63 @@ describe("practitioner intake", () => {
 
   it("dates notes in SA time", () => {
     expect(appendNote("", "x", new Date("2026-10-09T23:30:00Z"))).toBe("[2026-10-10, via WhatsApp] x");
+  });
+});
+
+describe("telling the practitioner about a new patient", () => {
+  function db(practitioner: { phone: string | null; email: string | null }) {
+    const intakes: Record<string, unknown>[] = [];
+    const from = (t: string) => {
+      const api: any = {
+        select: () => api,
+        eq: () => api,
+        maybeSingle: () =>
+          Promise.resolve({
+            data:
+              t === "clients"
+                ? { id: "c1", full_name: "Sam Kruger", practitioner_id: "p1" }
+                : t === "profiles"
+                  ? { full_name: "Tristan Titus" }
+                  : intakes[0] ?? null,
+          }),
+        insert: (row: Record<string, unknown>) => {
+          intakes.push({ id: "11111111-2222-3333-4444-555555555555", ...row });
+          return { select: () => ({ single: () => Promise.resolve({ data: intakes.at(-1), error: null }) }) };
+        },
+        update: (u: Record<string, unknown>) => ({ eq: () => (Object.assign(intakes[0], u), Promise.resolve({})) }),
+      };
+      return api;
+    };
+    const admin = {
+      from,
+      auth: { admin: { getUserById: async () => ({ data: { user: practitioner } }) } },
+    };
+    return { admin: admin as never, intakes };
+  }
+
+  it("emails when there is no mobile on their profile", async () => {
+    vi.resetModules();
+    const sendEmail = vi.fn(async () => ({ ok: true, queued: true }));
+    vi.doMock("@/lib/email/send-server", () => ({ sendTransactionalEmailServer: sendEmail }));
+    const { notifyPractitionerOfNewPatient } = await import("./practitioner-intake.server");
+    const { admin, intakes } = db({ phone: null, email: "tristan@example.com" });
+    expect(await notifyPractitionerOfNewPatient(admin, "c1")).toBe("emailed");
+    expect(intakes[0].status).toBe("emailed");
+    const call = (sendEmail.mock.calls[0] as unknown[])[0] as Record<string, any>;
+    expect(call).toMatchObject({ templateName: "practitioner-new-patient", recipientEmail: "tristan@example.com" });
+    expect(call.templateData.patientName).toBe("Sam K.");
+    expect(call.templateData.practitionerName).toBe("Tristan");
+    expect(call.templateData.profileUrl).toContain("/practitioner/app/client-detail/c1");
+  });
+
+  it("emails while the WhatsApp template is not switched on, even with a mobile", async () => {
+    vi.resetModules();
+    delete process.env.WHATSAPP_INTAKE_TEMPLATE;
+    const sendEmail = vi.fn(async () => ({ ok: true, queued: true }));
+    vi.doMock("@/lib/email/send-server", () => ({ sendTransactionalEmailServer: sendEmail }));
+    const { notifyPractitionerOfNewPatient } = await import("./practitioner-intake.server");
+    const { admin } = db({ phone: "0821234567", email: "tristan@example.com" });
+    expect(await notifyPractitionerOfNewPatient(admin, "c1")).toBe("emailed");
+    expect(sendEmail).toHaveBeenCalledTimes(1);
   });
 });

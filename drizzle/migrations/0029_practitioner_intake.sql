@@ -2,7 +2,8 @@
 --
 -- When a patient joins Buddy and picks a practitioner, Buddy WhatsApps that
 -- practitioner (approved template buddy_new_patient) and offers to take a
--- short brief about the patient. One row per patient tracks that exchange.
+-- short brief about the patient (or, when WhatsApp can't reach them, emails
+-- them a link to the patient's profile). One row per patient.
 -- The brief itself is appended to the patient's existing practitioner notes
 -- (clients.notes), so it shows on their profile like any other note.
 --
@@ -14,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.practitioner_intakes (
   client_id uuid NOT NULL UNIQUE REFERENCES public.clients(id) ON DELETE CASCADE,
   practitioner_id uuid NOT NULL,
   phone text,
-  status text NOT NULL CHECK (status IN ('sent', 'collecting', 'done', 'declined', 'failed', 'no_phone')),
+  status text NOT NULL CHECK (status IN ('sent', 'emailed', 'collecting', 'done', 'declined', 'failed', 'no_phone')),
   created_at timestamptz NOT NULL DEFAULT now(),
   opened_at timestamptz,
   last_message_at timestamptz,
