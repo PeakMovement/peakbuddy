@@ -872,6 +872,36 @@ export type Database = {
         }
         Relationships: []
       }
+      job_runs: {
+        Row: {
+          detail: string | null
+          duration_ms: number | null
+          id: number
+          job: string
+          ok: boolean
+          ran_at: string
+          status: number | null
+        }
+        Insert: {
+          detail?: string | null
+          duration_ms?: number | null
+          id?: never
+          job: string
+          ok: boolean
+          ran_at?: string
+          status?: number | null
+        }
+        Update: {
+          detail?: string | null
+          duration_ms?: number | null
+          id?: never
+          job?: string
+          ok?: boolean
+          ran_at?: string
+          status?: number | null
+        }
+        Relationships: []
+      }
       platform_settings: {
         Row: {
           central_webhook_enabled: boolean

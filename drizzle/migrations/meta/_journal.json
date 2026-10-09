@@ -169,6 +169,13 @@
       "when": 1791484341132,
       "tag": "0025_security_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791533995432,
+      "tag": "0026_apply_job_health",
+      "breakpoints": true
     }
   ]
 }
