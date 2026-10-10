@@ -329,11 +329,15 @@ export const notifyAlertPush = createServerFn({ method: "POST" })
       .maybeSingle();
     if (aErr || !alert) return { ok: false as const, reason: "alert_not_found" as const };
     if (alert.push_fired) return { ok: true as const, skipped: "already_fired" as const };
+    // A WhatsApp number with no profile is notified from the worker, not from
+    // this patient-authenticated path.
+    if (!alert.client_id) return { ok: false as const, reason: "forbidden" as const };
+    const clientId = alert.client_id;
 
     const { data: client } = await supabaseAdmin
       .from("clients")
       .select("id, full_name, auth_user_id")
-      .eq("id", alert.client_id)
+      .eq("id", clientId)
       .maybeSingle();
     if (!client || client.auth_user_id !== context.userId) {
       return { ok: false as const, reason: "forbidden" as const };
@@ -358,7 +362,7 @@ export const notifyAlertPush = createServerFn({ method: "POST" })
       await import("@/lib/alert-recipients");
     const fanout = await resolveAlertRecipients(createRecipientLookup(supabaseAdmin as never), {
       practitioner_id: alert.practitioner_id,
-      client_id: alert.client_id,
+      client_id: clientId,
       alert_type: (alert as { alert_type?: string | null }).alert_type ?? null,
     });
 
@@ -370,7 +374,7 @@ export const notifyAlertPush = createServerFn({ method: "POST" })
           userId: recipient,
           title,
           body,
-          data: { alertId: alert.id, clientId: alert.client_id },
+          data: { alertId: alert.id, clientId },
           sentBy: context.userId,
         });
       } catch {

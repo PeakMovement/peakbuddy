@@ -148,13 +148,14 @@ export async function sendAlertEmailCore(
   // failed provider call leaves the row retryable. A second caller that races
   // the update below may send twice; that is preferred to a stuck "sent" flag.
 
-  const unmatched = !alert.client_id;
+  const clientId = alert.client_id;
+  const unmatched = !clientId;
   const { data: client } = unmatched
     ? { data: null }
     : await supabaseAdmin
         .from("clients")
         .select("id, full_name, phone, practice_id")
-        .eq("id", alert.client_id)
+        .eq("id", clientId)
         .maybeSingle();
   if (!unmatched && !client) return { ok: false as const, reason: "client_not_found" as const };
 
