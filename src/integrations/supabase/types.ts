@@ -1556,6 +1556,42 @@ export type Database = {
         }
         Relationships: []
       }
+      reception_requests: {
+        Row: {
+          created_at: string
+          done_at: string | null
+          id: string
+          last_reply: string | null
+          practitioner_id: string
+          replied_at: string | null
+          request_text: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          done_at?: string | null
+          id?: string
+          last_reply?: string | null
+          practitioner_id: string
+          replied_at?: string | null
+          request_text: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          done_at?: string | null
+          id?: string
+          last_reply?: string | null
+          practitioner_id?: string
+          replied_at?: string | null
+          request_text?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       restaurant_partners: {
         Row: {
           active: boolean
