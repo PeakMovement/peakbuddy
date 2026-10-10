@@ -316,3 +316,51 @@ describe("reception errands", () => {
     expect(e.replies[0].body).toContain("Open with reception (1):");
   });
 });
+
+describe("every name for reception (10 Oct)", () => {
+  it.each([
+    ["Please ask secretary to contact Susan", "Contact Susan"],
+    ["Ask the secretary to book Sam Kruger for Friday", "Book Sam Kruger for Friday"],
+    ["ask our secretary to send Lee an invoice", "Send Lee an invoice"],
+    ["Ask Mishqah to call Ann back", "Call Ann back"],
+    ["tell mishka to move Sam to 3pm", "Move Sam to 3pm"],
+    ["ask the secratary to call Ann", "Call Ann"],
+    ["Ask sec to confirm Thursday with Sam", "Confirm Thursday with Sam"],
+    ["ask admin to send Lee a statement", "Send Lee a statement"],
+    ["tell the office that Sam will be late", "Sam will be late"],
+    ["Ask the front desk to rebook Ann", "Rebook Ann"],
+    ["ask front office to call Sam", "Call Sam"],
+    ["Secretary: call Susan about her invoice", "Call Susan about her invoice"],
+    ["Mishqah, book Lee for Monday", "Book Lee for Monday"],
+  ])("%s", (text, task) => {
+    expect(practitionerIntent(text, null)).toEqual({ kind: "reception", task });
+  });
+
+  it("bare names ask what to pass on", () => {
+    expect(practitionerIntent("contact the secretary", null).kind).toBe("reception_ask");
+    expect(practitionerIntent("message Mishqah", null).kind).toBe("reception_ask");
+    expect(practitionerIntent("text the office", null).kind).toBe("reception_ask");
+  });
+
+  it("what's open works with the other names", () => {
+    expect(practitionerIntent("what's still open with the secretary?", null).kind).toBe(
+      "reception_open",
+    );
+    expect(practitionerIntent("anything pending with Mishqah", null).kind).toBe("reception_open");
+  });
+
+  it("office, admin and sec in ordinary sentences are not errands", () => {
+    expect(practitionerIntent("Sam is in the office today", null).kind).not.toBe("reception");
+    expect(practitionerIntent("how is Sam doing", null).kind).toBe("status_one");
+    expect(practitionerIntent("give me a sec", null).kind).not.toBe("reception");
+  });
+
+  it("the errand reaches reception for the new names", async () => {
+    const db = world();
+    const e = env();
+    await practitionerSays(db, e, "Please ask secretary to contact Susan");
+    expect(e.sent[0]).toMatchObject({ kind: "buttons", to: RECEPTION });
+    expect(e.sent[0].body).toContain("Contact Susan");
+    expect(e.replies[0].body).toBe(RECEPTION_MSG.toPractitioner("sent"));
+  });
+});

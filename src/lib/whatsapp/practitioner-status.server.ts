@@ -20,6 +20,21 @@ import { log } from "@/lib/log";
 import { toSast } from "./clinic-hours";
 import { maskPhone, toE164Digits } from "./phone";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
+import {
+  bareReception,
+  blocksOutbound,
+  fixPractitionerTypos,
+  isFillerTask,
+  directCheckin,
+  looseCheckin,
+  looseReceptionTask,
+  looseStatusName,
+  normalizePractitionerText,
+  RECEPTION_NAMES_STRONG,
+  RECEPTION_NAMES_WEAK,
+  RECEPTION_OWNER,
+  statusOneJunk,
+} from "./practitioner-understand";
 
 type Admin = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 type Db = { from: (t: string) => any; auth: Admin["auth"] };
@@ -44,11 +59,11 @@ const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"
 export const STOP_UPDATES =
   /\b(stop|pause|cancel|turn off|switch off|no more|unsubscribe)\b[\s\S]{0,40}\b(updates?|reports?|summar(?:y|ies)|digests?)\b/i;
 export const WANT_UPDATES =
-  /\b(update|send|message|tell|brief)\s+me\b[\s\S]{0,60}\b(daily|every\s*day|each\s*day|every\s*morning|weekly|every\s*week|each\s*week|weekdays?|every\s*(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b|\b(daily|weekly)\s+(updates?|reports?|summar(?:y|ies)|digests?)\b/i;
+  /\b(update|send|message|tell|brief)\s+me\b[\s\S]{0,60}\b(daily|every\s*day|each\s*day|every\s*morning|each\s*morning|mornings|weekly|every\s*week|each\s*week|weekdays?|every\s*(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b|\b(daily|weekly|morning)\s+(updates?|reports?|summar(?:y|ies)|digests?)\b|\b(send|give)\s+(?:me\s+)?(?:an?\s+)?(?:client\s+)?updates?\b[\s\S]{0,40}\b(every\s*morning|each\s*morning|daily|every\s*day|weekly|every\s*week|weekdays?|every\s*(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/i;
 export const CHECKIN_REQUEST =
   /\bcheck[\s-]?in\s+(with|on)\b|\bask\s+[\s\S]{1,40}?\s+to\s+(check[\s-]?in|do\s+(a|their|his|her)\s+check[\s-]?in)\b|\bsend\s+[\s\S]{1,40}?\s+a\s+check[\s-]?in\b|\bnudge\s+\S+/i;
 export const STATUS_ALL =
-  /\bhow\s*(?:'s|’s|\s+is|\s+are)\s+(?:all\s+)?(?:my|our|the)\s+(?:clients|patients|people|caseload)\b|\b(?:client|patient)s?\s+(?:update|status|summary|report|overview)\b|^\s*(?:status|update|summary|overview)\s*[?.!]*\s*$|\bhow\s+is\s+(?:everyone|everybody)\b|\bhow\s+(?:are\s+)?(?:things|my clients)\b/i;
+  /\bhow\s*(?:'s|’s|\s+is|\s+are)\s+(?:all\s+)?(?:my|our|the)\s+(?:clients?|patients?|people|caseload)\b|\b(?:client|patient)s?\s+(?:update|status|summary|report|overview)\b|^\s*(?:status|update|summary|overview)\s*[?.!]*\s*$|\bhow\s+is\s+(?:everyone|everybody)\b|\bhow\s+(?:are\s+)?(?:things|my clients)\b|\bstatus\s+of\s+(?:my|our|the)\s+(?:clients?|patients?)\b/i;
 export const STATUS_ONE =
   /\bhow\s*(?:'s|’s|\s+is|\s+are)\s+([\s\S]{2,60}?)\s+(?:doing|going|getting\s+on|progressing|coming\s+along)\b|\b(?:update|status|news)\s+on\s+([\s\S]{2,60})/i;
 
@@ -60,11 +75,15 @@ export type PracIntent =
       weekday: number;
       time: string;
     }
-  | { kind: "checkin"; clientId: string | null }
+  | { kind: "checkin"; clientId: string | null; confidence?: "medium" }
   | { kind: "status_all"; practice: boolean }
   | { kind: "status_one"; clientId: string | null }
   | { kind: "admin"; topic: "overview" | "redflags" | "quiet" | "usage" }
   | { kind: "reception"; task: string }
+  /** Phrasing names reception and a task, but not clearly enough to send. */
+  | { kind: "reception_confirm"; task: string }
+  /** "contact reception" with no errand: ask, then take the next message. */
+  | { kind: "reception_ask" }
   | { kind: "reception_open" }
   | { kind: "other" };
 
@@ -96,19 +115,22 @@ export function readUpdates(text: string): PracIntent | null {
 }
 
 /** "Ask reception to ...", "tell the front desk that ...", "reception: ..." */
-const RECEPTION_WHO = String.raw`(?:the\s+)?(?:reception(?:ist)?|front\s+desk|front\s+office|admin\s+desk)`;
+const RECEPTION_WHO =
+  RECEPTION_OWNER + String.raw`(?:${RECEPTION_NAMES_STRONG}|${RECEPTION_NAMES_WEAK})\b`;
 const RECEPTION_ASK = new RegExp(
-  String.raw`^\s*(?:(?:please|pls|plz|can\s+you|could\s+you|would\s+you|buddy)[\s,]+)*(?:ask|tell|get|message|remind|let)\s+` +
+  String.raw`^\s*(?:(?:please|pls|plz|can\s+you|could\s+you|would\s+you|buddy|hey)[\s,]+)*(?:ask|tell|get|message|remind|let|contact|text|ping|phone|whatsapp)\s+` +
     RECEPTION_WHO +
-    String.raw`\s*(?:to\s+|that\s+|know\s+(?:that\s+)?|[:,]\s*)?([\s\S]+)$`,
+    String.raw`\s*(?:to\s+|that\s+|know\s+(?:that\s+)?|about\s+|[:,]\s*)?([\s\S]+)$`,
   "i",
 );
 const RECEPTION_COLON = new RegExp(
   String.raw`^\s*` + RECEPTION_WHO + String.raw`\s*[:,]\s*([\s\S]+)$`,
   "i",
 );
-export const RECEPTION_OPEN =
-  /\b(what'?s|whats|what\s+is|anything|any|which)\b[\s\S]{0,25}\b(open|outstanding|pending|waiting|still)\b[\s\S]{0,25}\b(reception|front\s+desk)\b|\b(reception|front\s+desk)\s+(tasks|requests|errands|list)\b/i;
+export const RECEPTION_OPEN = new RegExp(
+  String.raw`\b(what'?s|whats|what\s+is|anything|any|which)\b[\s\S]{0,25}\b(open|outstanding|pending|waiting|still)\b[\s\S]{0,25}\b(?:${RECEPTION_NAMES_STRONG})\b|\b(?:${RECEPTION_NAMES_STRONG})\s+(tasks|requests|errands|list)\b`,
+  "i",
+);
 
 export function readReceptionTask(text: string): string | null {
   const t = String(text ?? "").trim();
@@ -136,7 +158,7 @@ function adminTopicOf(text: string): "overview" | "redflags" | "quiet" | "usage"
   )
     return "redflags";
   if (
-    /\b(gone|went|going)\s+quiet\b|\bquiet\s+(clients|patients|ones)\b|\b(stopped|not|haven'?t|havent)\s+(been\s+)?check(ing|ed)?[\s-]?in\b|\binactive\s+(clients|patients)\b/i.test(
+    /\b(gone|went|going)\s+quiet\b|\bquiet\s+(clients?|patients?|ones|people)\b|\b(stopped|not|haven'?t|havent|hasn'?t)\s+(been\s+)?check(ing|ed)?[\s-]?in\b|\binactive\s+(clients?|patients?)\b|\bwho(?:'?s|se|s| is| has| have)?\s+(?:all\s+)?(?:gone\s+|going\s+|went\s+)?quiet\b|\bany(?:one|body)\s+(?:gone\s+|going\s+|went\s+)?quiet\b/i.test(
       text,
     )
   )
@@ -170,25 +192,44 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
       return { kind: "admin", topic };
   }
 
+  // Typos corrected, then the same patterns. Original text is tried first
+  // so "Send Lee an invoice" keeps Lee's capital letter.
+  const fixed = fixPractitionerTypos(text);
+  const normalized = normalizePractitionerText(text);
+  const blocked = blocksOutbound(text) || blocksOutbound(fixed);
+
   // Errands for reception come first: "ask reception to remind Sam to
   // check in" is for reception, not a check-in request.
-  const task = readReceptionTask(text);
-  if (task) return { kind: "reception", task };
-  if (RECEPTION_OPEN.test(text)) return { kind: "reception_open" };
+  if (!blocked) {
+    const task = readReceptionTask(text) ?? (fixed === text ? null : readReceptionTask(fixed));
+    if (task && !isFillerTask(task)) return { kind: "reception", task };
+    if ((task && isFillerTask(task)) || bareReception(text)) return { kind: "reception_ask" };
+  }
+  if (RECEPTION_OPEN.test(text) || RECEPTION_OPEN.test(normalized))
+    return { kind: "reception_open" };
+  if (!blocked) {
+    const loose = looseReceptionTask(text);
+    if (loose) return { kind: "reception_confirm", task: loose };
+  }
 
-  const upd = readUpdates(text);
-  if (upd) return upd;
-  if (CHECKIN_REQUEST.test(text)) return { kind: "checkin", clientId: null };
-  const topic = adminTopicOf(text);
+  const upd = readUpdates(text) ?? (fixed === text ? null : readUpdates(fixed));
+  // "don't update me daily" is not a request to start updates.
+  if (upd && !(upd.kind === "updates" && upd.frequency !== "off" && blocked)) return upd;
+  if (
+    !blocked &&
+    (CHECKIN_REQUEST.test(text) || CHECKIN_REQUEST.test(normalized) || directCheckin(text))
+  )
+    return { kind: "checkin", clientId: null };
+  if (!blocked && looseCheckin(text))
+    return { kind: "checkin", clientId: null, confidence: "medium" };
+  const topic = adminTopicOf(text) ?? adminTopicOf(normalized);
   if (topic) return { kind: "admin", topic };
-  if (STATUS_ALL.test(text))
-    return {
-      kind: "status_all",
-      practice: /\b(practice|everyone|everybody|whole team|all (the )?(clients|patients))\b/i.test(
-        text,
-      ),
-    };
-  if (STATUS_ONE.test(text)) return { kind: "status_one", clientId: null };
+  const practice = /\b(practice|everyone|everybody|whole team|all (the )?(clients|patients))\b/i;
+  if (STATUS_ALL.test(text) || STATUS_ALL.test(normalized))
+    return { kind: "status_all", practice: practice.test(text) || practice.test(normalized) };
+  if ((STATUS_ONE.test(text) || STATUS_ONE.test(normalized)) && !statusOneJunk(text))
+    return { kind: "status_one", clientId: null };
+  if (looseStatusName(text)) return { kind: "status_one", clientId: null };
   return { kind: "other" };
 }
 

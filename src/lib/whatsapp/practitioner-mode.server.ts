@@ -17,10 +17,27 @@
  * the app for app users; otherwise Buddy says honestly it can't reach them.
  */
 import { log } from "@/lib/log";
-import { HEIDI_MSG, readHeidiCommand } from "./heidi";
+import { HEIDI_MSG } from "./heidi";
 import { handleHeidiTurn, heidiConfig } from "./heidi.server";
 import { maskPhone, toE164Digits } from "./phone";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
+import {
+  bareReception,
+  expireMemory,
+  fixPractitionerTypos,
+  isCancel,
+  isYes,
+  normalizePractitionerText,
+  prettyTask,
+  programmeConfidence,
+  PROGRAMME_SENT,
+  rankPatients,
+  readPractitionerHeidi,
+  tidyErrand,
+  type PracMemory,
+} from "./practitioner-understand";
+
+export { PROGRAMME_SENT };
 
 type Admin = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 type Db = { from: (t: string) => any; auth: Admin["auth"] };
@@ -33,10 +50,6 @@ type Outgoing = OutboundMessage extends infer T
 const WINDOW_MS = 24 * 60 * 60 * 1000 - 2 * 60 * 1000;
 const CACHE_MS = 10 * 60 * 1000;
 export const JOIN_LINK = "https://wa.me/27675724314?text=JOIN-PEAK";
-
-/** "sent", "emailed", "shared"... plus "programme", "program", "exercises", "rehab plan". */
-export const PROGRAMME_SENT =
-  /\b(sent|send|emailed|shared|uploaded|given|gave|done|finished|ready)\b[\s\S]{0,80}\b(programme|program|exercises?|rehab|plan|hep)\b|\b(programme|program|exercises?|rehab|plan|hep)\b[\s\S]{0,40}\b(sent|emailed|shared|uploaded|done|ready)\b/i;
 
 export interface Practitioner {
   userId: string;
@@ -156,7 +169,7 @@ export function smallTalk(text: string): SmallTalk {
   )
     return "greeting";
   if (
-    /^(ok(ay)?|k|great|cool|perfect|nice|awesome|sure|got it|noted|sounds good|good|lovely|brilliant|alright|all good|will do|thumbs up|\u{1F44D}|\u{1F44C}|\u{1F64F})[\s.!\u{1F44D}\u{1F64F}]*$/iu.test(
+    /^(?:ok(?:ay)?|k|great|cool|perfect|nice|awesome|sure|got it|noted|sounds good|good|lovely|brilliant|alright|all good|will do|thumbs up|\u{1F44D}|\u{1F44C}|\u{1F64F})(?:\s+(?:great|cool|perfect|nice|awesome|lovely|brilliant|buddy))?[\s.!\u{1F44D}\u{1F44C}\u{1F64F}]*$/iu.test(
       t,
     )
   )
@@ -174,15 +187,21 @@ export const PRAC_MSG = {
   thanks: (name: string, now: Date) =>
     THANKS_REPLIES[now.getUTCMinutes() % THANKS_REPLIES.length](name),
   ack: "\u{1F44D}",
-  notSure: (name: string) =>
-    `Sorry ${name}, I didn't catch that. Try "how are my clients doing?" or tap below to see everything I can do.`,
+  notSure: (_name: string) =>
+    `Sorry, I didn't quite get that.\nTry "how are my clients doing?", "check in with a client", or "ask reception to…".`,
+  confirm: (line: string) => `Did you mean: ${line}?`,
+  confirmNo: "Okay, I won't.",
+  receptionAsk: "What should I pass on to reception?",
+  receptionCancelled: "Okay, I won't pass anything to reception.",
   help: (name: string) =>
     `Hi ${name}, you're messaging Buddy as a practitioner. Here's what I can do:\n\n` +
     `• "How are my clients doing?" for a quick status of all your clients\n` +
     `• "How is Sam Kruger doing?" for one client\n` +
     `• "Check in with Sam Kruger" and I'll ask them for a check-in, then send you their answers\n` +
-    `• "Update me daily at 7am" (or weekdays, every Monday, stop updates)\n` +
-    `• "I've sent Sam Kruger his programme" and I'll let them know\n\n` +
+    `• "Update me daily at 7am" (or weekdays, every Monday, every morning, stop updates)\n` +
+    `• "I've sent Sam Kruger his programme" and I'll let them know\n` +
+    `• "Ask reception to book Sam for Thursday" and I'll pass it to reception\n` +
+    `• "What's open with reception?" to see what's still waiting. Just "reception" and I'll ask what to pass on\n\n` +
     `Practice owners can also ask "practice overview", "any red flags?", "who's gone quiet?" or "how many clients are using Buddy?"`,
   notFound: (name: string) =>
     `I couldn't find a patient matching that on your list, ${name}. Try their first and last name, for example "I've sent Sam Kruger his programme".`,
@@ -255,31 +274,218 @@ async function practitionerPatients(admin: Db, userId: string): Promise<PatientR
   return [...all.values()];
 }
 
+const CONFIRM_BUTTONS = [
+  { id: "prac_cfm_yes", title: "Yes" },
+  { id: "prac_cfm_no", title: "No" },
+];
+const HELP_BUTTONS = [
+  { id: "prac_status", title: "How are my clients" },
+  { id: "prac_updates", title: "Regular updates" },
+];
+const NOT_SURE_BUTTONS = [
+  { id: "prac_status", title: "How are my clients" },
+  { id: "prac_help", title: "What can you do" },
+];
+
+function interruptsErrand(text: string): boolean {
+  if (smallTalk(text) || smallTalk(normalizePractitionerText(text))) return true;
+  if (programmeConfidence(text) === "high") return true;
+  return false;
+}
+
+type NameKind = "checkin" | "status_one" | "programme";
+
+function confirmLine(kind: NameKind, fullName: string): string {
+  if (kind === "checkin") return `check in with ${fullName}`;
+  if (kind === "programme") return `tell ${fullName} their programme is ready`;
+  return `how is ${fullName} doing`;
+}
+
+/**
+ * One confident name: use them. A fuzzy name, or a loose outbound phrasing:
+ * ask first. Several names: ask which. Nothing is sent until they pick.
+ */
+async function resolveNamed(
+  mem: PracMemory,
+  deps: PractitionerDeps,
+  kind: NameKind,
+  text: string,
+  patients: PatientRow[],
+  forceMedium: boolean,
+): Promise<{ target: PatientRow | null; asked: boolean }> {
+  const hits = rankPatients(text, patients);
+  if (hits.length > 1) {
+    const prefix = kind === "checkin" ? "prac_ci_" : kind === "programme" ? "prog_" : "prac_one_";
+    await deps.reply({
+      kind: "list",
+      body: PRAC_MSG.which,
+      buttonLabel: "Choose",
+      rows: hits.slice(0, 10).map((h) => ({
+        id: `${prefix}${h.patient.id}`,
+        title: String(h.patient.full_name ?? "Patient").slice(0, 24),
+      })),
+    });
+    return { target: null, asked: true };
+  }
+  if (hits.length === 1) {
+    const hit = hits[0];
+    const medium = forceMedium || hit.confidence === "medium";
+    const outbound = kind === "checkin" || kind === "programme";
+    if (medium && (outbound || hit.confidence === "medium")) {
+      const full = String(hit.patient.full_name ?? "").trim() || "them";
+      const line = confirmLine(kind, full);
+      mem.confirm = { kind, clientId: hit.patient.id, line };
+      mem.confirmAt = deps.now.getTime();
+      mem.awaitingReception = false;
+      await deps.reply({ kind: "buttons", body: PRAC_MSG.confirm(line), buttons: CONFIRM_BUTTONS });
+      return { target: null, asked: true };
+    }
+    return { target: hit.patient, asked: false };
+  }
+  return { target: null, asked: false };
+}
+
 /** Returns false when the message isn't something for practitioner mode. */
 export async function handlePractitionerMessage(
   adminIn: Admin,
   prac: Practitioner,
   msg: { text: string; replyId: string | null },
   deps: PractitionerDeps,
+  memory?: PracMemory,
 ): Promise<boolean> {
+  const mem: PracMemory = memory ?? {};
+  expireMemory(mem, deps.now.getTime());
   const admin = adminIn as unknown as Db;
-  const heidiCmd = readHeidiCommand(msg.text, msg.replyId);
-  if (heidiCmd && heidiConfig()) {
+
+  const passErrand = async (task: string) => {
+    const rc = await import("./reception.server");
+    const result = await rc.sendToReception(
+      adminIn,
+      { provider: deps.provider, secrets: deps.secrets },
+      {
+        practitionerId: prac.userId,
+        practitionerName: prac.firstName,
+        task,
+        now: deps.now,
+      },
+    );
+    await deps.reply({ kind: "text", body: rc.RECEPTION_MSG.toPractitioner(result) });
+  };
+
+  const accepting =
+    msg.replyId === "prac_cfm_yes" || Boolean(mem.confirm && !msg.replyId && isYes(msg.text));
+  if (accepting) {
+    const c = mem.confirm;
+    mem.confirm = null;
+    mem.awaitingReception = false;
+    if (!c) {
+      await deps.reply({
+        kind: "buttons",
+        body: PRAC_MSG.notSure(prac.firstName),
+        buttons: NOT_SURE_BUTTONS,
+      });
+      return true;
+    }
+    if (c.kind === "reception") {
+      await passErrand(c.task);
+      return true;
+    }
+    const replyId =
+      c.kind === "checkin"
+        ? `prac_ci_${c.clientId}`
+        : c.kind === "programme"
+          ? `prog_${c.clientId}`
+          : `prac_one_${c.clientId}`;
+    return handlePractitionerMessage(adminIn, prac, { text: "", replyId }, deps, mem);
+  }
+  if (msg.replyId === "prac_cfm_no" || Boolean(mem.confirm && !msg.replyId && isCancel(msg.text))) {
+    mem.confirm = null;
+    mem.awaitingReception = false;
+    await deps.reply({ kind: "text", body: PRAC_MSG.confirmNo });
+    return true;
+  }
+  if (mem.confirm && !msg.replyId) mem.confirm = null;
+
+  // Heidi is a read of a client's notes. Same feature flag as before:
+  // nothing here runs until the three Heidi secrets are set. A messy
+  // phrase still has to match a Heidi command; a fuzzy name is not enough.
+  const heidiCmd = heidiConfig() ? readPractitionerHeidi(msg.text, msg.replyId) : null;
+  if (heidiCmd) {
+    mem.confirm = null;
+    mem.awaitingReception = false;
     const patients = await practitionerPatients(admin, prac.userId);
     await handleHeidiTurn(adminIn, prac, heidiCmd, patients, deps);
     return true;
   }
+
+  // They were asked what to tell reception. The next line is the errand,
+  // unless it is clearly a different command or small talk.
+  if (mem.awaitingReception && !msg.replyId) {
+    const { practitionerIntent } = await import("./practitioner-status.server");
+    const pendingIntent = practitionerIntent(msg.text, null);
+    const otherCommand =
+      interruptsErrand(msg.text) ||
+      (pendingIntent.kind !== "other" &&
+        pendingIntent.kind !== "reception" &&
+        pendingIntent.kind !== "reception_ask" &&
+        pendingIntent.kind !== "reception_confirm");
+    if (otherCommand) mem.awaitingReception = false;
+    else if (isCancel(msg.text)) {
+      mem.awaitingReception = false;
+      await deps.reply({ kind: "text", body: PRAC_MSG.receptionCancelled });
+      return true;
+    } else if (bareReception(msg.text) || isYes(msg.text)) {
+      mem.awaitingReception = true;
+      mem.awaitingReceptionAt = deps.now.getTime();
+      await deps.reply({ kind: "text", body: PRAC_MSG.receptionAsk });
+      return true;
+    } else {
+      const task =
+        pendingIntent.kind === "reception"
+          ? pendingIntent.task
+          : tidyErrand(fixPractitionerTypos(msg.text));
+      mem.awaitingReception = false;
+      if (!task) {
+        mem.awaitingReception = true;
+        mem.awaitingReceptionAt = deps.now.getTime();
+        await deps.reply({ kind: "text", body: PRAC_MSG.receptionAsk });
+        return true;
+      }
+      await passErrand(task);
+      return true;
+    }
+  }
+
   const picked = msg.replyId?.match(/^prog_([0-9a-f-]{36})$/i)?.[1] ?? null;
   if (!picked) {
     const { practitionerIntent } = await import("./practitioner-status.server");
     const intent = practitionerIntent(msg.text, msg.replyId);
+    if (intent.kind === "reception_ask") {
+      mem.confirm = null;
+      mem.awaitingReception = true;
+      mem.awaitingReceptionAt = deps.now.getTime();
+      await deps.reply({ kind: "text", body: PRAC_MSG.receptionAsk });
+      return true;
+    }
+    if (intent.kind === "reception_confirm") {
+      mem.awaitingReception = false;
+      const line = `ask reception to ${prettyTask(intent.task)}`;
+      mem.confirm = { kind: "reception", task: intent.task, line };
+      mem.confirmAt = deps.now.getTime();
+      await deps.reply({ kind: "buttons", body: PRAC_MSG.confirm(line), buttons: CONFIRM_BUTTONS });
+      return true;
+    }
     if (intent.kind !== "other") {
-      await handleStatusIntent(adminIn, prac, msg.text, intent, deps);
+      await handleStatusIntent(adminIn, prac, msg.text, intent, deps, mem);
       return true;
     }
   }
-  if (!picked && !PROGRAMME_SENT.test(msg.text)) {
-    const talk = msg.replyId === "prac_help" ? "help" : smallTalk(msg.text);
+  const prog = picked ? "high" : programmeConfidence(msg.text);
+  if (!picked && prog == null) {
+    const talk =
+      msg.replyId === "prac_help"
+        ? "help"
+        : (smallTalk(msg.text) ?? smallTalk(normalizePractitionerText(msg.text)));
     if (talk === "thanks") {
       await deps.reply({ kind: "text", body: PRAC_MSG.thanks(prac.firstName, deps.now) });
     } else if (talk === "ack") {
@@ -288,19 +494,13 @@ export async function handlePractitionerMessage(
       await deps.reply({
         kind: "buttons",
         body: PRAC_MSG.help(prac.firstName) + (heidiConfig() ? `\n${HEIDI_MSG.helpLine}` : ""),
-        buttons: [
-          { id: "prac_status", title: "How are my clients" },
-          { id: "prac_updates", title: "Regular updates" },
-        ],
+        buttons: HELP_BUTTONS,
       });
     } else {
       await deps.reply({
         kind: "buttons",
         body: PRAC_MSG.notSure(prac.firstName),
-        buttons: [
-          { id: "prac_status", title: "How are my clients" },
-          { id: "prac_help", title: "What can you do" },
-        ],
+        buttons: NOT_SURE_BUTTONS,
       });
     }
     return true;
@@ -311,20 +511,16 @@ export async function handlePractitionerMessage(
   if (picked) {
     target = patients.find((p) => p.id === picked) ?? null;
   } else {
-    const hits = matchPatients(msg.text, patients);
-    if (hits.length === 1) target = hits[0];
-    else if (hits.length > 1) {
-      await deps.reply({
-        kind: "list",
-        body: PRAC_MSG.which,
-        buttonLabel: "Choose",
-        rows: hits.slice(0, 10).map((p) => ({
-          id: `prog_${p.id}`,
-          title: String(p.full_name ?? "Patient").slice(0, 24),
-        })),
-      });
-      return true;
-    }
+    const resolved = await resolveNamed(
+      mem,
+      deps,
+      "programme",
+      msg.text,
+      patients,
+      prog === "medium",
+    );
+    if (resolved.asked) return true;
+    target = resolved.target;
   }
   if (!target) {
     await deps.reply({ kind: "text", body: PRAC_MSG.notFound(prac.firstName) });
@@ -471,6 +667,7 @@ async function handleStatusIntent(
   text: string,
   intent: import("./practitioner-status.server").PracIntent,
   deps: PractitionerDeps,
+  mem: PracMemory,
 ): Promise<void> {
   const st = await import("./practitioner-status.server");
   const admin = adminIn as unknown as Db;
@@ -542,23 +739,19 @@ async function handleStatusIntent(
   // One client: by button id, or by the name in the message.
   const patients = await practitionerPatients(admin, prac.userId);
   let target: PatientRow | null = null;
+  if (intent.kind !== "checkin" && intent.kind !== "status_one") return;
   if (intent.clientId) target = patients.find((p) => p.id === intent.clientId) ?? null;
   else {
-    const hits = matchPatients(text, patients);
-    if (hits.length === 1) target = hits[0];
-    else if (hits.length > 1) {
-      const prefix = intent.kind === "checkin" ? "prac_ci_" : "prac_one_";
-      await deps.reply({
-        kind: "list",
-        body: PRAC_MSG.which,
-        buttonLabel: "Choose",
-        rows: hits.slice(0, 10).map((p) => ({
-          id: `${prefix}${p.id}`,
-          title: String(p.full_name ?? "Patient").slice(0, 24),
-        })),
-      });
-      return;
-    }
+    const resolved = await resolveNamed(
+      mem,
+      deps,
+      intent.kind,
+      text,
+      patients,
+      intent.kind === "checkin" && intent.confidence === "medium",
+    );
+    if (resolved.asked) return;
+    target = resolved.target;
   }
   if (!target) {
     await text1(PRAC_MSG.notFoundAny(prac.firstName));
