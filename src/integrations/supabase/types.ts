@@ -58,7 +58,7 @@ export type Database = {
       alerts: {
         Row: {
           alert_type: string
-          client_id: string
+          client_id: string | null
           created_at: string
           email_fired: boolean
           escalation_fired: boolean
@@ -77,10 +77,11 @@ export type Database = {
           reviewed_by: string | null
           urgency: string
           webhook_fired: boolean
+          whatsapp_fired: boolean
         }
         Insert: {
           alert_type: string
-          client_id: string
+          client_id?: string | null
           created_at?: string
           email_fired?: boolean
           escalation_fired?: boolean
@@ -99,10 +100,11 @@ export type Database = {
           reviewed_by?: string | null
           urgency: string
           webhook_fired?: boolean
+          whatsapp_fired?: boolean
         }
         Update: {
           alert_type?: string
-          client_id?: string
+          client_id?: string | null
           created_at?: string
           email_fired?: boolean
           escalation_fired?: boolean
@@ -121,6 +123,7 @@ export type Database = {
           reviewed_by?: string | null
           urgency?: string
           webhook_fired?: boolean
+          whatsapp_fired?: boolean
         }
         Relationships: [
           {
