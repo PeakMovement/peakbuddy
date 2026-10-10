@@ -113,6 +113,8 @@ export interface InboundForDecision {
   kind: "text" | "interactive" | "media" | "unsupported";
   /** Set for media. A voice note we could not transcribe gets its own reply. */
   mediaType?: "audio" | "other";
+  /** A voice note left untranscribed because the patient has AI features off. */
+  voiceAiOff?: boolean;
 }
 
 /**
@@ -284,6 +286,8 @@ export const MSG = {
     "Sorry, I can only read typed messages, voice notes and button replies at the moment.",
   voiceUnreadable:
     "Sorry, I couldn't make out that voice note. Could you type your answer instead?",
+  voiceAiOff:
+    "Sorry, I can't listen to voice notes for you at the moment. Could you type that for me instead?",
   wearableOffer:
     "One more thing. Do you wear a smartwatch or ring, like a Garmin, Oura or Polar? If you connect it, your physiotherapist can see your sleep, heart rate and activity alongside your check-ins, without you having to type anything.",
   wearableLink:
@@ -937,7 +941,12 @@ export function decide(ctx: DecisionContext): Decision {
 
   if (msg.kind === "media" || msg.kind === "unsupported") {
     if (!raw) {
-      const reply = msg.mediaType === "audio" ? MSG.voiceUnreadable : MSG.unsupported;
+      const reply =
+        msg.mediaType === "audio"
+          ? msg.voiceAiOff
+            ? MSG.voiceAiOff
+            : MSG.voiceUnreadable
+          : MSG.unsupported;
       return withSafety({ replies: [text(reply)], next: conv }, ctx);
     }
   }

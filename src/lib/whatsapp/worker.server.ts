@@ -732,11 +732,36 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     mediaType: row.kind === "media" ? (isAudio ? "audio" : "other") : undefined,
   };
 
-  // Voice notes become text before the safety rules, even when the patient
-  // has not turned on the chat assistant. The transcript is what the red-flag
-  // rules read. The transcript is kept on the inbound row so the practitioner
-  // can read what was said. Chat replies stay behind AI consent below.
-  if (isAudio && row.media_id && env.provider.fetchMedia) {
+  // Voice notes become text, then go down exactly the same path as typing,
+  // red flags included. Only with AI consent: transcription sends the audio
+  // to an AI service (Justin, 10 Oct). Without it the patient is asked to
+  // type, and the practitioner is told a voice note came in unread, once a
+  // day at most, so nothing urgent sits unseen.
+  const voiceAiOff = isAudio && Boolean(client) && !aiAllowed;
+  if (voiceAiOff && client) {
+    message.voiceAiOff = true;
+    const since = new Date(now.getTime() - DAY_MS).toISOString();
+    const { data: recent } = await admin
+      .from("alerts")
+      .select("message")
+      .eq("client_id", client.id)
+      .eq("alert_type", "client_contact_request")
+      .eq("is_read", false)
+      .gte("created_at", since)
+      .limit(20);
+    const already = ((recent ?? []) as Array<{ message: string | null }>).some((a) =>
+      String(a.message ?? "").startsWith(VOICE_UNREAD_ALERT),
+    );
+    if (!already) {
+      await raiseContactAlert(
+        admin,
+        client,
+        `${VOICE_UNREAD_ALERT} AI features are off for this client, so Buddy did not listen to it and asked them to type it instead. Call them if it may be urgent.`,
+        "soon",
+      ).catch(() => {});
+    }
+  }
+  if (isAudio && aiAllowed && row.media_id && env.provider.fetchMedia) {
     const transcript = await transcribe(env, row.media_id).catch(() => null);
     if (transcript) {
       message.text = transcript;
@@ -932,11 +957,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   // the consent link so nothing is collected before it is signed.
   if (!client && decision.createClient) {
     const id = await createSelfSignupClient(admin, { ...decision.createClient, phone });
-    const { data } = await admin
-      .from("clients")
-      .select(CLIENT_COLS)
-      .eq("id", id)
-      .maybeSingle();
+    const { data } = await admin.from("clients").select(CLIENT_COLS).eq("id", id).maybeSingle();
     client = (data as ClientRow | null) ?? null;
     if (client) {
       await raiseContactAlert(
@@ -1608,7 +1629,11 @@ export async function notifyRedFlagAlert(admin: Admin, alertId: string): Promise
 
   let client: ClientRow | null = null;
   if (a.client_id) {
-    const { data: c } = await admin.from("clients").select(CLIENT_COLS).eq("id", a.client_id).maybeSingle();
+    const { data: c } = await admin
+      .from("clients")
+      .select(CLIENT_COLS)
+      .eq("id", a.client_id)
+      .maybeSingle();
     client = (c as ClientRow | null) ?? null;
     if (!client) return;
   }
@@ -1641,7 +1666,11 @@ export async function notifyRedFlagAlert(admin: Admin, alertId: string): Promise
       if (owner && owner !== practitionerId) {
         await sendPushCore(supabaseAdmin, { userId: owner, ...push }).catch(() => undefined);
       }
-      await admin.from("alerts").update({ push_fired: true }).eq("id", alertId).eq("push_fired", false);
+      await admin
+        .from("alerts")
+        .update({ push_fired: true })
+        .eq("id", alertId)
+        .eq("push_fired", false);
       pushOk = true;
     } catch (e) {
       log.warn("whatsapp worker: push failed", {
@@ -1662,9 +1691,8 @@ export async function notifyRedFlagAlert(admin: Admin, alertId: string): Promise
     }
   }
 
-  const { alertTemplateGap, sendPractitionerWhatsAppAlert } = await import(
-    "./practitioner-alert.server"
-  );
+  const { alertTemplateGap, sendPractitionerWhatsAppAlert } =
+    await import("./practitioner-alert.server");
   const gap = await alertTemplateGap();
   if (gap) {
     await noteRedFlagDeliveryProblem(gap);
@@ -1773,6 +1801,9 @@ async function practiceOwnerId(admin: Admin, client: ClientRow): Promise<string 
     .maybeSingle();
   return (data as { practitioner_id?: string } | null)?.practitioner_id ?? null;
 }
+
+/** Start of the alert text for a voice note Buddy did not listen to. */
+export const VOICE_UNREAD_ALERT = "Voice note on WhatsApp that Buddy did not read.";
 
 async function raiseContactAlert(
   admin: Admin,
@@ -2057,11 +2088,7 @@ export async function sendWhatsAppReminder(
       },
       now,
     ).catch(() => null);
-    if (
-      missed &&
-      missed.consecutiveMissedCheckins >= 3 &&
-      missed.isPostOperative
-    ) {
+    if (missed && missed.consecutiveMissedCheckins >= 3 && missed.isPostOperative) {
       const flags = runRedFlagRules({
         text: "",
         isPostOperative: true,

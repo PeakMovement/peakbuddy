@@ -12,7 +12,30 @@ vi.mock("@/lib/webhooks.functions", () => ({
   fireAlertWebhookCore: vi.fn(async () => ({ fired: false })),
 }));
 
-import { processPendingInbound, sendWhatsAppReminder } from "./worker.server";
+import { processPendingInbound, sendWhatsAppReminder, VOICE_UNREAD_ALERT } from "./worker.server";
+
+// These tests describe behaviour with no live secrets. Lovable's sandbox has
+// the real ones (templates, provider keys), which changed what Buddy sent and
+// made two tests fail there only. Each test starts with them cleared; a test
+// that needs one sets it itself.
+const SEALED_ENV = Object.keys(process.env).filter((k) =>
+  /^(WHATSAPP_|META_|TWILIO_|LOVABLE_API_KEY$|ANTHROPIC_API_KEY$|RESEND_API_KEY$|HEIDI_|BUDDY_EMAIL_FROM$)/.test(
+    k,
+  ),
+);
+const savedEnv: Record<string, string | undefined> = {};
+beforeEach(() => {
+  for (const k of SEALED_ENV) {
+    savedEnv[k] = process.env[k];
+    delete process.env[k];
+  }
+});
+afterEach(() => {
+  for (const k of SEALED_ENV) {
+    if (savedEnv[k] === undefined) delete process.env[k];
+    else process.env[k] = savedEnv[k];
+  }
+});
 import type { OutboundMessage, WhatsAppProvider } from "./provider";
 import { IDS } from "./conversation";
 import { acceptConsentLink } from "./onboarding.server";
@@ -119,7 +142,9 @@ function fakeDb(seed: Record<string, Row[]>) {
         return api;
       },
       like(c: string, v: any) {
-        const pattern = String(v).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*");
+        const pattern = String(v)
+          .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+          .replace(/%/g, ".*");
         const re = new RegExp(`^${pattern}$`);
         filters.push((r) => re.test(String(r[c] ?? "")));
         return api;
@@ -898,15 +923,50 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     expect(db.tables.whatsapp_inbound[0].status).not.toBe("ignored");
   });
 
-  it("runs safety rules on a voice note even without AI consent", async () => {
+  it("never sends a voice note to the AI without AI consent: asks them to type, tells the practitioner once", async () => {
+    const voice = () => ({
+      ...inbound(""),
+      kind: "media",
+      media_id: "media-1",
+      media_mime_type: "audio/ogg",
+      body: "",
+    });
+    const db = fakeDb({
+      clients: [{ ...CLIENT, yves_ai_consent: false }],
+      whatsapp_inbound: [voice()],
+      whatsapp_conversations: [
+        { id: "c1", phone: "27820000001", client_id: "client-1", state: "idle", draft: {} },
+      ],
+      consent_records: CONSENTED(),
+      alerts: [],
+    });
+    const { provider, sent } = fakeProvider();
+    let fetched = 0;
+    provider.fetchMedia = async () => {
+      fetched++;
+      return { bytes: new Uint8Array([1, 2, 3]), mimeType: "audio/ogg" };
+    };
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(fetched).toBe(0);
+    expect((sent[0] as { body: string }).body).toMatch(/Could you type that for me instead/);
+    const notes = () =>
+      db.tables.alerts.filter((a) => String(a.message).startsWith(VOICE_UNREAD_ALERT));
+    expect(notes()).toHaveLength(1);
+    expect(notes()[0]).toMatchObject({ client_id: "client-1", urgency: "soon", is_read: false });
+    for (const n of notes()) n.created_at ??= NOW().toISOString();
+    db.tables.whatsapp_inbound.push(voice());
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(notes()).toHaveLength(1);
+  });
+
+  it("with AI consent a voice note is transcribed and runs the safety rules", async () => {
     const prev = process.env.LOVABLE_API_KEY;
     process.env.LOVABLE_API_KEY = "test-key";
     const realFetch = globalThis.fetch;
     globalThis.fetch = (async () =>
-      new Response(
-        JSON.stringify({ choices: [{ message: { content: "I cannot breathe" } }] }),
-        { status: 200 },
-      )) as typeof fetch;
+      new Response(JSON.stringify({ choices: [{ message: { content: "I cannot breathe" } }] }), {
+        status: 200,
+      })) as typeof fetch;
     try {
       const voice = {
         ...inbound(""),
@@ -916,7 +976,7 @@ describe("WhatsApp worker, end to end against a fake database", () => {
         body: "",
       };
       const db = fakeDb({
-        clients: [{ ...CLIENT, yves_ai_consent: false }],
+        clients: [{ ...CLIENT, yves_ai_consent: true }],
         whatsapp_inbound: [voice],
         whatsapp_conversations: [
           { id: "c1", phone: "27820000001", client_id: "client-1", state: "idle", draft: {} },
@@ -925,7 +985,10 @@ describe("WhatsApp worker, end to end against a fake database", () => {
         alerts: [],
       });
       const { provider, sent } = fakeProvider();
-      provider.fetchMedia = async () => ({ bytes: new Uint8Array([1, 2, 3]), mimeType: "audio/ogg" });
+      provider.fetchMedia = async () => ({
+        bytes: new Uint8Array([1, 2, 3]),
+        mimeType: "audio/ogg",
+      });
       await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
       expect(db.tables.whatsapp_inbound[0].body).toMatch(/^\[voice note\] I cannot breathe/);
       expect(db.tables.alerts.find((a) => a.alert_type === "red_flag")).toBeTruthy();
