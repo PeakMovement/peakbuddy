@@ -112,6 +112,10 @@ const RECIPIENTS_V3 =
   "Google Drive, where Peak Movement keeps a private weekly backup of your WhatsApp conversations with Buddy; " +
   "and, if you use the WhatsApp check-ins, Meta, who operate WhatsApp.";
 
+/** Shared by consent v3, the deletion page, and the retention job. Do not reword one of them alone. */
+export const CLINICAL_RECORD_RETENTION =
+  "Your check-ins and your WhatsApp conversations with Buddy, including the weekly backup copy, stay with your clinical record for as long as we are required to keep clinical records, and are then deleted.";
+
 export const POPIA_CORE_V3: ConsentVersion = {
   type: "popia_core",
   version: "2026-10-07.1",
@@ -131,7 +135,7 @@ export const POPIA_CORE_V3: ConsentVersion = {
     POPIA_CORE_V2.sections[4],
     {
       heading: "How long we keep it",
-      body: "Your check-ins and your WhatsApp conversations with Buddy, including the weekly backup copy, stay with your clinical record for as long as we are required to keep clinical records, and are then deleted.",
+      body: CLINICAL_RECORD_RETENTION,
     },
     POPIA_CORE_V2.sections[6],
   ],

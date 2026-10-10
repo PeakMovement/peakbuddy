@@ -56,6 +56,16 @@ export function alertReason(reason: string | null | undefined): string {
   return flat.length > 200 ? `${flat.slice(0, 197).trimEnd()}...` : flat;
 }
 
+/** Why a WhatsApp alert cannot be sent, or null when the template is configured. */
+export async function alertTemplateGap(): Promise<string | null> {
+  const namedTemplate = process.env.WHATSAPP_ALERT_TEMPLATE_NAMED?.trim();
+  const templateName = namedTemplate || process.env.WHATSAPP_ALERT_TEMPLATE?.trim();
+  if (!templateName) return "WhatsApp alert template is not configured";
+  const { whatsappConfigFromEnv } = await import("./worker.server");
+  if (!whatsappConfigFromEnv()) return "WhatsApp provider is not configured";
+  return null;
+}
+
 export async function alertTemplateConfigFromEnv(): Promise<AlertTemplateConfig | null> {
   const namedTemplate = process.env.WHATSAPP_ALERT_TEMPLATE_NAMED?.trim();
   const templateName = namedTemplate || process.env.WHATSAPP_ALERT_TEMPLATE?.trim();

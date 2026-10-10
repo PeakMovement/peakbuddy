@@ -144,24 +144,20 @@ export async function sendAlertEmailCore(
   if (!alert) return { ok: false as const, reason: "not_found" as const };
   if (alert.email_fired) return { ok: true as const, skipped: "already_sent" as const };
 
-  // Atomically claim the email so two near-simultaneous callers (client wrapper
-  // + server-side red-flag net) can't double-send. Only the caller that flips
-  // email_fired false->true proceeds; on send failure we reset it below.
-  const { data: claimed } = await supabaseAdmin
-    .from("alerts")
-    .update({ email_fired: true })
-    .eq("id", alert.id)
-    .eq("email_fired", false)
-    .select("id")
-    .maybeSingle();
-  if (!claimed) return { ok: true as const, skipped: "already_sent" as const };
+  // email_fired is set only after a successful send, so a missing address or a
+  // failed provider call leaves the row retryable. A second caller that races
+  // the update below may send twice; that is preferred to a stuck "sent" flag.
 
-  const { data: client } = await supabaseAdmin
-    .from("clients")
-    .select("id, full_name, phone")
-    .eq("id", alert.client_id)
-    .maybeSingle();
-  if (!client) return { ok: false as const, reason: "client_not_found" as const };
+  const clientId = alert.client_id;
+  const unmatched = !clientId;
+  const { data: client } = unmatched
+    ? { data: null }
+    : await supabaseAdmin
+        .from("clients")
+        .select("id, full_name, phone, practice_id")
+        .eq("id", clientId)
+        .maybeSingle();
+  if (!unmatched && !client) return { ok: false as const, reason: "client_not_found" as const };
 
   const [{ data: prof }, { data: userRes }] = await Promise.all([
     supabaseAdmin
@@ -176,16 +172,17 @@ export async function sendAlertEmailCore(
   // contact inbox, not the individual practitioner's personal email. Falls back
   // to the practitioner's auth email if a practice contact isn't set.
   let practiceContactEmail: string | null = null;
-  let practiceId: string | null = null;
-  try {
-    const { data: _cp } = await supabaseAdmin
-      .from("clients")
-      .select("practice_id")
-      .eq("id", client.id)
+  let practiceId: string | null = unmatched
+    ? null
+    : ((client as { practice_id?: string | null } | null)?.practice_id ?? null);
+  if (unmatched) {
+    const { data: owned } = await supabaseAdmin
+      .from("practices")
+      .select("id")
+      .eq("practitioner_id", alert.practitioner_id)
+      .limit(1)
       .maybeSingle();
-    practiceId = (_cp as { practice_id?: string | null } | null)?.practice_id ?? null;
-  } catch {
-    practiceId = null;
+    practiceId = (owned as { id?: string } | null)?.id ?? null;
   }
   if (practiceId) {
     const { data: prac } = await supabaseAdmin
@@ -215,12 +212,17 @@ export async function sendAlertEmailCore(
     }),
   ]);
 
-  const firstName = (client.full_name || "Your client").trim().split(/\s+/)[0];
-  const viewUrl = `${APP_BASE_URL}/practitioner/app/client-detail/${client.id}`;
+  const clientName = unmatched ? "Someone on WhatsApp (not on a profile yet)" : client!.full_name;
+  const firstName = unmatched
+    ? "Someone"
+    : (client!.full_name || "Your client").trim().split(/\s+/)[0];
+  const viewUrl = unmatched
+    ? `${APP_BASE_URL}/practitioner/app/alerts`
+    : `${APP_BASE_URL}/practitioner/app/client-detail/${client!.id}`;
   const checkinUrl = `${APP_BASE_URL}/api/public/alerts/action?token=${encodeURIComponent(checkinToken)}`;
   const reviewedUrl = `${APP_BASE_URL}/api/public/alerts/action?token=${encodeURIComponent(reviewedToken)}`;
 
-  const phoneDigits = (client.phone || "").replace(/\D/g, "");
+  const phoneDigits = unmatched ? "" : (client!.phone || "").replace(/\D/g, "");
   const whatsappUrl = phoneDigits
     ? `https://wa.me/${phoneDigits}?text=${encodeURIComponent(
         `Hi ${firstName}, this is ${practitionerName} following up on your recent Buddy check-in.`,
@@ -239,7 +241,7 @@ export async function sendAlertEmailCore(
     recipientEmail,
     idempotencyKey: `alert-${alert.id}`,
     templateData: {
-      clientName: client.full_name,
+      clientName,
       clientFirstName: firstName,
       practitionerName,
       alertMessage: alert.message,
@@ -254,11 +256,13 @@ export async function sendAlertEmailCore(
 
   if (!send.ok) {
     log.error("[notifyAlertEmail] send failed", send.error);
-    // Release the claim so a subsequent trigger can retry.
-    await supabaseAdmin.from("alerts").update({ email_fired: false }).eq("id", alert.id);
     return { ok: false as const, reason: "send_failed" as const };
   }
-  // email_fired already claimed above; nothing more to set.
+  await supabaseAdmin
+    .from("alerts")
+    .update({ email_fired: true })
+    .eq("id", alert.id)
+    .eq("email_fired", false);
   return { ok: true as const };
 }
 
@@ -282,6 +286,7 @@ export const notifyAlertEmail = createServerFn({ method: "POST" })
       .eq("id", data.alertId)
       .maybeSingle();
     if (!alert) return { ok: false as const, reason: "not_found" as const };
+    if (!alert.client_id) return { ok: false as const, reason: "client_not_found" as const };
     const { data: client } = await supabaseAdmin
       .from("clients")
       .select("auth_user_id")

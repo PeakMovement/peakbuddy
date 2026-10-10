@@ -225,6 +225,13 @@
       "when": 1791636671078,
       "tag": "0033_0033_heidi_records",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791710000000,
+      "tag": "0034_safety_privacy",
+      "breakpoints": true
     }
   ]
 }

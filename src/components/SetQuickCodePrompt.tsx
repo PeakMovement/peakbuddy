@@ -22,7 +22,7 @@ export function SetQuickCodePrompt() {
   const [second, setSecond] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Signed in with the starting code 1234: choosing their own is not optional.
+  // A code flagged must_change (an old shared starting PIN): choosing their own is not optional.
   const [forced, setForced] = useState(false);
 
   useEffect(() => {
@@ -180,7 +180,7 @@ export function SetQuickCodePrompt() {
           }}
         >
           {forced
-            ? "You signed in with the starting code. Pick your own 4 digits now; 1234 will stop working for you."
+            ? "Pick your own 4 digits now. The old shared starting code no longer signs anyone in."
             : "Next time you can sign in with your email and 4 digits instead of your password."}
         </p>
 

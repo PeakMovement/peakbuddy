@@ -18,16 +18,22 @@ export const getPractitionerRoster = createServerFn({ method: "GET" })
     const clients = await listAccessibleClients(supabaseAdmin, context.userId);
     const ids = clients.map((c) => c.id);
     if (ids.length === 0) {
+      const { count } = await supabaseAdmin
+        .from("alerts")
+        .select("*", { count: "exact", head: true })
+        .is("client_id", null)
+        .eq("practitioner_id", context.userId)
+        .eq("is_read", false);
       return {
         clients: [],
         checkInSummary: {} as Record<string, CheckInSummary>,
         windowDays: ROSTER_WINDOW_DAYS,
-        unreadAlerts: 0,
+        unreadAlerts: count ?? 0,
       };
     }
     // Recent window only, paged past PostgREST's silent 1000-row cap.
     const since = new Date(Date.now() - ROSTER_WINDOW_DAYS * 86_400_000).toISOString();
-    const [recent, { count }] = await Promise.all([
+    const [recent, { count }, { count: unmatchedUnread }] = await Promise.all([
       fetchAllPages<{ client_id: string; created_at: string }>((from, to) =>
         supabaseAdmin
           .from("check_ins")
@@ -42,6 +48,12 @@ export const getPractitionerRoster = createServerFn({ method: "GET" })
         .from("alerts")
         .select("*", { count: "exact", head: true })
         .in("client_id", ids)
+        .eq("is_read", false),
+      supabaseAdmin
+        .from("alerts")
+        .select("*", { count: "exact", head: true })
+        .is("client_id", null)
+        .eq("practitioner_id", context.userId)
         .eq("is_read", false),
     ]);
     if (recent.error) throw new Error("Could not load check-ins");
@@ -73,7 +85,7 @@ export const getPractitionerRoster = createServerFn({ method: "GET" })
       clients,
       checkInSummary,
       windowDays: ROSTER_WINDOW_DAYS,
-      unreadAlerts: count ?? 0,
+      unreadAlerts: (count ?? 0) + (unmatchedUnread ?? 0),
     };
   });
 
@@ -82,13 +94,22 @@ export const getUnreadPracticeAlertCount = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const ids = await listAccessibleClientIds(supabaseAdmin, context.userId);
-    if (ids.length === 0) return { count: 0 };
-    const { count } = await supabaseAdmin
-      .from("alerts")
-      .select("*", { count: "exact", head: true })
-      .in("client_id", ids)
-      .eq("is_read", false);
-    return { count: count ?? 0 };
+    const [{ count }, { count: unmatched }] = await Promise.all([
+      ids.length === 0
+        ? Promise.resolve({ count: 0 })
+        : supabaseAdmin
+            .from("alerts")
+            .select("*", { count: "exact", head: true })
+            .in("client_id", ids)
+            .eq("is_read", false),
+      supabaseAdmin
+        .from("alerts")
+        .select("*", { count: "exact", head: true })
+        .is("client_id", null)
+        .eq("practitioner_id", context.userId)
+        .eq("is_read", false),
+    ]);
+    return { count: (count ?? 0) + (unmatched ?? 0) };
   });
 
 export const getPractitionerAlertFeed = createServerFn({ method: "GET" })
@@ -97,10 +118,21 @@ export const getPractitionerAlertFeed = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const clients = await listAccessibleClients(supabaseAdmin, context.userId);
     const ids = clients.map((c) => c.id);
-    if (ids.length === 0) return { alerts: [], clients: [] };
+    const unmatchedQuery = supabaseAdmin
+      .from("alerts")
+      .select("*")
+      .is("client_id", null)
+      .eq("practitioner_id", context.userId)
+      .order("created_at", { ascending: false })
+      .limit(ALERT_FEED_LIMIT);
+    if (ids.length === 0) {
+      const { data: unmatched } = await unmatchedQuery;
+      return { alerts: unmatched ?? [], clients: [] };
+    }
     // Newest 200, plus every unread alert (capped) so an old unresolved one
     // never drops off the feed. Previously unbounded and silently cut at 1000.
-    const [{ data: newest }, { data: unread }] = await Promise.all([
+    // Alerts with no client are a WhatsApp number that is not on a profile yet.
+    const [{ data: newest }, { data: unread }, { data: unmatched }] = await Promise.all([
       supabaseAdmin
         .from("alerts")
         .select("*")
@@ -114,9 +146,11 @@ export const getPractitionerAlertFeed = createServerFn({ method: "GET" })
         .eq("is_read", false)
         .order("created_at", { ascending: false })
         .limit(500),
+      unmatchedQuery,
     ]);
     const byId = new Map<string, NonNullable<typeof newest>[number]>();
-    for (const a of [...(unread ?? []), ...(newest ?? [])]) byId.set(a.id as string, a);
+    for (const a of [...(unmatched ?? []), ...(unread ?? []), ...(newest ?? [])])
+      byId.set(a.id as string, a);
     const alerts = [...byId.values()].sort((a, b) =>
       String(b.created_at).localeCompare(String(a.created_at)),
     );
@@ -140,12 +174,25 @@ export const patchPractitionerAlert = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: alert } = await supabaseAdmin
       .from("alerts")
-      .select("id, client_id")
+      .select("id, client_id, practitioner_id")
       .eq("id", data.alertId)
       .maybeSingle();
-    if (!alert?.client_id) return { ok: false as const, error: "Alert not found" };
-    const access = await canAccessClient(supabaseAdmin, context.userId, alert.client_id as string);
-    if (!access.allowed) return { ok: false as const, error: "Not authorized" };
+    if (!alert) return { ok: false as const, error: "Alert not found" };
+    if (!alert.client_id) {
+      let allowed = alert.practitioner_id === context.userId;
+      if (!allowed) {
+        const { data: prof } = await supabaseAdmin
+          .from("profiles")
+          .select("role")
+          .eq("id", context.userId)
+          .maybeSingle();
+        allowed = prof?.role === "super_admin";
+      }
+      if (!allowed) return { ok: false as const, error: "Not authorized" };
+    } else {
+      const access = await canAccessClient(supabaseAdmin, context.userId, alert.client_id);
+      if (!access.allowed) return { ok: false as const, error: "Not authorized" };
+    }
     const patch: {
       is_read?: boolean;
       practitioner_assessment?: "correct" | "over" | "under" | null;
