@@ -872,6 +872,47 @@ export type Database = {
         }
         Relationships: []
       }
+      heidi_records: {
+        Row: {
+          client_id: string
+          fetched_at: string
+          heidi_patient_profile_id: string | null
+          id: string
+          newest_note_at: string | null
+          practitioner_id: string
+          session_ids: string[]
+          summary: string
+        }
+        Insert: {
+          client_id: string
+          fetched_at?: string
+          heidi_patient_profile_id?: string | null
+          id?: string
+          newest_note_at?: string | null
+          practitioner_id: string
+          session_ids?: string[]
+          summary?: string
+        }
+        Update: {
+          client_id?: string
+          fetched_at?: string
+          heidi_patient_profile_id?: string | null
+          id?: string
+          newest_note_at?: string | null
+          practitioner_id?: string
+          session_ids?: string[]
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "heidi_records_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_runs: {
         Row: {
           detail: string | null
