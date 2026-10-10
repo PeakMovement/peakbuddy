@@ -520,7 +520,13 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
         PROGRAMME_SENT.test(text) ||
         /^(prog|prac)_/i.test(row.reply_id ?? "") ||
         practitionerIntent(text, row.reply_id).kind !== "other";
-      if (!conv.client_id || isCommand) {
+      let heidiCommand = false;
+      if (process.env.HEIDI_API_KEY && process.env.HEIDI_REGION && process.env.HEIDI_EHR_PROVIDER) {
+        const { heidiConfig } = await import("./heidi.server");
+        const { readHeidiCommand } = await import("./heidi");
+        heidiCommand = Boolean(heidiConfig() && readHeidiCommand(text, row.reply_id));
+      }
+      if (!conv.client_id || isCommand || heidiCommand) {
         const handled = await handlePractitionerMessage(
           admin,
           prac,

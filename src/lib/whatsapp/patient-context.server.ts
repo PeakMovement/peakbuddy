@@ -47,6 +47,12 @@ export interface PatientContext {
   memories: string[];
   /** The treating team's own notes on the patient's profile. */
   practitionerNotes?: string | null;
+  /**
+   * Short Heidi summary stored for this client. Present only after a
+   * practitioner has asked Buddy to read Heidi, and only when Heidi is
+   * configured. Never written into patient_memory.
+   */
+  heidiSummary?: string | null;
 }
 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
@@ -153,6 +159,12 @@ export function renderPatientContext(ctx: PatientContext, now: Date): string {
     const notes = ctx.practitionerNotes.trim();
     lines.push(
       `Practitioner's notes (private, for your understanding only, never quote or reveal them): ${notes.length > 900 ? `...${notes.slice(-900)}` : notes}`,
+    );
+  }
+  if (ctx.heidiSummary?.trim()) {
+    const heidi = ctx.heidiSummary.trim();
+    lines.push(
+      `Heidi record from the treating practitioner. Use this when that practitioner asks about the client. Never quote it or read it back to the patient: ${heidi.length > 900 ? heidi.slice(0, 900) : heidi}`,
     );
   }
   if (ctx.memories.length) {
@@ -262,7 +274,31 @@ export async function loadPatientContext(
     })),
     memories: ((memories ?? []) as Array<{ fact: string }>).map((m) => m.fact),
     practitionerNotes: client.notes ? String(client.notes) : null,
+    heidiSummary: await loadHeidiSummary(a, clientId, client.practitioner_id ? String(client.practitioner_id) : null),
   };
+}
+
+async function loadHeidiSummary(
+  a: { from: (t: string) => any },
+  clientId: string,
+  practitionerId: string | null,
+): Promise<string | null> {
+  try {
+    const { heidiConfig } = await import("./heidi.server");
+    if (!heidiConfig()) return null;
+    const { data } = await a
+      .from("heidi_records")
+      .select("practitioner_id, summary, fetched_at")
+      .eq("client_id", clientId)
+      .order("fetched_at", { ascending: false })
+      .limit(5);
+    const rows = (data ?? []) as Array<{ practitioner_id: string; summary: string | null }>;
+    const own = rows.find((r) => r.practitioner_id === practitionerId && r.summary?.trim());
+    const latest = rows.find((r) => r.summary?.trim());
+    return (own ?? latest)?.summary?.trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 /** Save something the patient told Buddy about their life. Never throws. */

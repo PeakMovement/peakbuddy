@@ -56,6 +56,16 @@ describe("patient context card", () => {
   it("counts a streak from yesterday when today is not done", () => {
     expect(checkInStreak(base.checkIns.slice(1), now)).toBe(2);
   });
+  it("includes a Heidi summary only when one is stored, and says never to quote it", () => {
+    expect(text).not.toContain("Heidi record");
+    const withHeidi = renderPatientContext(
+      { ...base, heidiSummary: "Review from 1 Oct. Plan unchanged." },
+      now,
+    );
+    expect(withHeidi).toContain("Heidi record from the treating practitioner");
+    expect(withHeidi).toContain("Never quote it or read it back to the patient");
+    expect(withHeidi).toContain("Plan unchanged");
+  });
 });
 
 describe("what Buddy may remember", () => {
