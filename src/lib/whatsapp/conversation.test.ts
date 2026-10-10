@@ -4,6 +4,8 @@ import {
   decide,
   IDS,
   MSG,
+  safetyReply,
+  withSafetyClaim,
   STALE_CHECKIN_MS,
   type ConversationSnapshot,
   type DecisionContext,
@@ -258,6 +260,29 @@ describe("opt out and contact", () => {
     expect(d.contactRequest).toBe(true);
     expect(d.next).toEqual(conv);
     expect(bodies(d)).toEqual([CONTACT_ACKNOWLEDGEMENT]);
+  });
+});
+
+describe("safety claim", () => {
+  const emergency = runRedFlagRules({ text: "I cannot breathe" });
+  const soon = runRedFlagRules({ text: "my calf is swollen and hot" });
+
+  it("does not say the physiotherapist was told until an alert exists", () => {
+    expect(safetyReply(emergency, false)).not.toMatch(/I've alerted your physiotherapist/);
+    expect(safetyReply(soon, false)).not.toMatch(/I've flagged this/);
+    expect(safetyReply(emergency, true)).toMatch(/I've alerted your physiotherapist/);
+    expect(safetyReply(soon, true)).toMatch(/I've flagged this to your physiotherapist/);
+  });
+
+  it("swaps only the safety sentence, and only after the alert is saved", () => {
+    const plain = safetyReply(soon, false)!;
+    const replies = [
+      { kind: "text", body: plain },
+      { kind: "text", body: "next question" },
+    ];
+    expect(withSafetyClaim(replies, soon, false)[0].body).toBe(plain);
+    expect(withSafetyClaim(replies, soon, true)[0].body).toMatch(/physiotherapist/);
+    expect(withSafetyClaim(replies, soon, true)[1].body).toBe("next question");
   });
 });
 

@@ -27,7 +27,11 @@ export const EXPECTED_JOBS: Array<{ job: string; label: string; windowMs: number
   { job: "onboarding-library-nudge", label: "Onboarding nudge (daily)", windowMs: 26 * HOUR },
   { job: "weekly-practitioner-digest", label: "Practitioner digest (weekly)", windowMs: 8 * DAY },
   { job: "whatsapp-drive-backup-weekly", label: "WhatsApp Drive backup (weekly)", windowMs: 8 * DAY },
+  { job: "job-health-check", label: "Job health check (daily)", windowMs: 26 * HOUR },
 ];
+
+/** Written when a red-flag alert reaches no channel, or the WhatsApp template is missing. */
+export const RED_FLAG_NOTIFY_JOB = "red-flag-notify";
 
 export async function recordJobRun(
   job: string,
@@ -35,16 +39,33 @@ export async function recordJobRun(
 ): Promise<void> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.from("job_runs" as never).insert({
+    const { error } = await supabaseAdmin.from("job_runs" as never).insert({
       job,
       ok: run.ok,
       status: run.status,
       duration_ms: run.durationMs,
       detail: run.detail?.slice(0, 500) ?? null,
     } as never);
-  } catch {
+    if (error) {
+      log.warn("job heartbeat insert failed", { job, code: error.code });
+    }
+  } catch (e) {
     // A heartbeat must never break the job it describes.
+    log.warn("job heartbeat insert failed", {
+      job,
+      error: e instanceof Error ? e.message : "unknown",
+    });
   }
+}
+
+/** Records a delivery failure the daily health check will email about. */
+export async function noteRedFlagDeliveryProblem(detail: string): Promise<void> {
+  await recordJobRun(RED_FLAG_NOTIFY_JOB, {
+    ok: false,
+    status: 500,
+    durationMs: 0,
+    detail,
+  });
 }
 
 /** Wraps a hook's POST handler so every run leaves a heartbeat. */
@@ -82,6 +103,7 @@ export interface JobRunRow {
   ran_at: string;
   ok: boolean;
   status: number | null;
+  detail?: string | null;
 }
 
 export interface JobProblem {
@@ -127,6 +149,24 @@ export function evaluateJobHealth(
       });
     }
   }
+
+  const recentAlarms = rows
+    .filter(
+      (r) =>
+        r.job === RED_FLAG_NOTIFY_JOB &&
+        !r.ok &&
+        now.getTime() - new Date(r.ran_at).getTime() < 26 * HOUR,
+    )
+    .sort((a, b) => b.ran_at.localeCompare(a.ran_at));
+  if (recentAlarms.length) {
+    const latest = recentAlarms[0];
+    const why = latest.detail?.trim() || "delivery failed";
+    problems.push({
+      job: RED_FLAG_NOTIFY_JOB,
+      label: "Red-flag notifications",
+      problem: `${recentAlarms.length} delivery failure${recentAlarms.length === 1 ? "" : "s"} in the last day. Latest: ${why}`,
+    });
+  }
   return problems;
 }
 
@@ -146,7 +186,7 @@ export async function runJobHealthCheck(
   };
 
   const [{ data: rows, error }, { data: first }] = await Promise.all([
-    table().select("job, ran_at, ok, status").gte("ran_at", since).order("ran_at", { ascending: false }).limit(20000),
+    table().select("job, ran_at, ok, status, detail").gte("ran_at", since).order("ran_at", { ascending: false }).limit(20000),
     table().select("ran_at").order("ran_at", { ascending: true }).limit(1),
   ]);
   if (error) throw new Error(`job_runs read failed: ${error.message}`);

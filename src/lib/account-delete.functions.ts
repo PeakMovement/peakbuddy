@@ -18,6 +18,18 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
     const userId = context.userId;
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { deleteWhatsAppForPatient } = await import("@/lib/retention.server");
+
+    const { data: mine } = await supabaseAdmin
+      .from("clients")
+      .select("id, phone")
+      .eq("auth_user_id", userId);
+    for (const client of mine ?? []) {
+      await deleteWhatsAppForPatient(supabaseAdmin, {
+        id: client.id,
+        phone: client.phone,
+      });
+    }
 
     // Remove any patient (client) record tied to this user first so nothing is
     // left orphaned if the FK does not cascade from the auth user.

@@ -809,65 +809,74 @@ async function fireServerRedFlagAlert(
     // auth-middleware-gated for browser callers; here we are a trusted server
     // that already authenticated the user and detected the red flag).
 
-    // Push — atomically claim push_fired so this can never double-send with the
-    // client path (mirrors notifyAlertPush's claim).
+    // Push is marked fired only after it sends, so a throw can be retried.
+    let pushOk = false;
     try {
-      const { data: claimed } = await admin
-        .from("alerts")
-        .update({ push_fired: true })
-        .eq("id", alertId)
-        .eq("push_fired", false)
-        .select("id")
+      const { data: cli } = await admin
+        .from("clients")
+        .select("full_name")
+        .eq("id", args.clientId)
         .maybeSingle();
-      if (claimed) {
-        const { data: cli } = await admin
-          .from("clients")
-          .select("full_name")
-          .eq("id", args.clientId)
+      const clientName =
+        String((cli?.full_name as string | null) ?? "")
+          .trim()
+          .replace(/\s+/g, " ") || "Your client";
+      const { sendPushCore } = await import("@/lib/push.functions");
+      await sendPushCore(admin, {
+        userId: args.practitionerId,
+        title: "Buddy alert",
+        body: `${clientName} reported symptoms that may need review`,
+        data: { clientId: args.clientId, kind: "yves" },
+      });
+      await admin.from("alerts").update({ push_fired: true }).eq("id", alertId).eq("push_fired", false);
+      pushOk = true;
+
+      const { data: cliPractice } = await admin
+        .from("clients")
+        .select("practice_id")
+        .eq("id", args.clientId)
+        .maybeSingle();
+      let owner: string | null = null;
+      const practiceId = (cliPractice as { practice_id?: string | null } | null)?.practice_id;
+      if (practiceId) {
+        const { data: pr } = await admin
+          .from("practices")
+          .select("practitioner_id")
+          .eq("id", practiceId)
           .maybeSingle();
-        // The client's full name, so the practitioner knows who at a glance.
-        const clientName =
-          String((cli?.full_name as string | null) ?? "")
-            .trim()
-            .replace(/\s+/g, " ") || "Your client";
-        const { sendPushCore } = await import("@/lib/push.functions");
-        await sendPushCore(admin, {
-          userId: args.practitionerId,
-          title: "Buddy alert",
-          body: `${clientName} reported symptoms that may need review`,
-          data: { clientId: args.clientId, kind: "yves" },
-        });
-        // Practitioner and practice owner on WhatsApp, via the alert template.
-        const { data: cliPractice } = await admin
-          .from("clients")
-          .select("practice_id")
-          .eq("id", args.clientId)
-          .maybeSingle();
-        let owner: string | null = null;
-        const practiceId = (cliPractice as { practice_id?: string | null } | null)?.practice_id;
-        if (practiceId) {
-          const { data: pr } = await admin
-            .from("practices")
-            .select("practitioner_id")
-            .eq("id", practiceId)
-            .maybeSingle();
-          owner = (pr as { practitioner_id?: string } | null)?.practitioner_id ?? null;
-        }
-        const { sendPractitionerWhatsAppAlert } =
-          await import("@/lib/whatsapp/practitioner-alert.server");
-        await sendPractitionerWhatsAppAlert(
+        owner = (pr as { practitioner_id?: string } | null)?.practitioner_id ?? null;
+      }
+      const { alertTemplateGap, sendPractitionerWhatsAppAlert } =
+        await import("@/lib/whatsapp/practitioner-alert.server");
+      const { noteRedFlagDeliveryProblem } = await import("@/lib/job-runs.server");
+      const gap = await alertTemplateGap();
+      if (gap) {
+        await noteRedFlagDeliveryProblem(gap);
+      } else {
+        const sent = await sendPractitionerWhatsAppAlert(
           admin,
           [args.practitionerId, owner].filter(Boolean) as string[],
           args.urgency,
           undefined,
           clientName === "Your client" ? null : clientName,
-          // A short summary, never the patient's own words: this text goes
-          // through Meta as a template variable.
           `Symptoms reported in the Buddy app, triage severity ${args.severity} of 10`,
         );
+        if (sent > 0) {
+          await admin
+            .from("alerts")
+            .update({ whatsapp_fired: true })
+            .eq("id", alertId)
+            .eq("whatsapp_fired", false);
+        } else {
+          await noteRedFlagDeliveryProblem("WhatsApp alert reached nobody");
+        }
       }
     } catch (e) {
       log.warn("[triage-query] server-side push failed:", e);
+      if (!pushOk) {
+        const { noteRedFlagDeliveryProblem } = await import("@/lib/job-runs.server");
+        await noteRedFlagDeliveryProblem("Red-flag push failed").catch(() => undefined);
+      }
     }
 
     // Email — idempotent on email_fired inside the core.

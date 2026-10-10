@@ -301,7 +301,7 @@ function Alerts() {
                           color: "var(--white)",
                         }}
                       >
-                        Unknown client
+                        {a.client_id ? "Unknown client" : "WhatsApp, not on a profile yet"}
                       </div>
                     )}
                     <div style={{ marginTop: 4, color: "var(--white-muted)", fontSize: 13 }}>

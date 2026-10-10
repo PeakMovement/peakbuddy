@@ -118,6 +118,12 @@ function fakeDb(seed: Record<string, Row[]>) {
         filters.push((r) => vs.includes(r[c]));
         return api;
       },
+      like(c: string, v: any) {
+        const pattern = String(v).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*");
+        const re = new RegExp(`^${pattern}$`);
+        filters.push((r) => re.test(String(r[c] ?? "")));
+        return api;
+      },
       ilike(c: string, v: any) {
         filters.push((r) => String(r[c] ?? "").toLowerCase() === String(v).toLowerCase());
         return api;
@@ -544,6 +550,31 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     expect(db.tables.alerts.find((a) => a.alert_type === "red_flag")?.push_fired).toBe(true);
   });
 
+  it("leaves the push unclaimed when sending throws, so a later run can retry", async () => {
+    const db = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [inbound("9")],
+      whatsapp_conversations: [
+        {
+          id: "c1",
+          phone: "27820000001",
+          client_id: "client-1",
+          state: "awaiting_pain",
+          draft: { notes: [] },
+          checkin_started_at: NOW().toISOString(),
+        },
+      ],
+      consent_records: CONSENTED(),
+      check_ins: [],
+      alerts: [],
+    });
+    const { sendPushCore } = await import("@/lib/push.functions");
+    (sendPushCore as any).mockRejectedValueOnce(new Error("push down"));
+    const { provider } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.alerts.find((a) => a.alert_type === "red_flag")?.push_fired).toBe(false);
+  });
+
   it("saves a requested check-in time to the same reminder row the app uses", async () => {
     const db = fakeDb({
       clients: [CLIENT],
@@ -751,6 +782,160 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     expect(db.tables.checkin_reminders[0].enabled).toBe(false);
     expect(db.tables.whatsapp_conversations[0].state).toBe("opted_out");
   });
+
+  it("writes a real alert for an unmatched red flag and only then says the physio was told", async () => {
+    const db = fakeDb({
+      clients: [],
+      practices: [{ id: "practice-1", practitioner_id: "owner-1", practice_name: "Peak" }],
+      whatsapp_inbound: [inbound("I cannot breathe", undefined, "27829991111")],
+      whatsapp_conversations: [],
+      alerts: [],
+    });
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    const alert = db.tables.alerts.find((a) => a.alert_type === "red_flag");
+    expect(alert).toMatchObject({
+      client_id: null,
+      practitioner_id: "owner-1",
+      urgency: "emergency",
+    });
+    expect(alert?.message).toContain("1111");
+    expect((sent[0] as { body: string }).body).toMatch(/I've alerted your physiotherapist/);
+  });
+
+  it("does not claim the physio was told when no practice owner can be chosen", async () => {
+    const db = fakeDb({
+      clients: [],
+      practices: [
+        { id: "practice-1", practitioner_id: "owner-1" },
+        { id: "practice-2", practitioner_id: "owner-2" },
+      ],
+      whatsapp_inbound: [inbound("I cannot breathe", undefined, "27829991111")],
+      whatsapp_conversations: [],
+      alerts: [],
+    });
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.alerts ?? []).toHaveLength(0);
+    const body = (sent[0] as { body: string }).body;
+    expect(body).toMatch(/10177/);
+    expect(body).not.toMatch(/I've alerted|I've flagged|I've let your physiotherapist/);
+  });
+
+  it("raises the red flag on the profile created by the same sign-up message", async () => {
+    const db = fakeDb({
+      clients: [],
+      practices: [{ id: "practice-1", practice_name: "Peak", practitioner_id: "prac-1" }],
+      practice_members: [],
+      profiles: [{ id: "prac-1", full_name: "Alex Physio" }],
+      whatsapp_inbound: [inbound("I cannot breathe", "prac_prac-1", "27829992222")],
+      whatsapp_conversations: [
+        {
+          id: "c1",
+          phone: "27829992222",
+          client_id: null,
+          state: "awaiting_practitioner",
+          draft: { signupPracticeId: "practice-1", signupName: "Sam Nkosi" },
+        },
+      ],
+      alerts: [],
+      consent_records: [],
+    });
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    const created = db.tables.clients.find((c) => c.full_name === "Sam Nkosi");
+    expect(created?.practitioner_id).toBe("prac-1");
+    const alert = db.tables.alerts.find((a) => a.alert_type === "red_flag");
+    expect(alert).toMatchObject({ client_id: created?.id, practitioner_id: "prac-1" });
+    expect((sent[0] as { body: string }).body).toMatch(/I've alerted your physiotherapist/);
+  });
+
+  it("escalates fever after surgery to a same-day alert", async () => {
+    const db = fakeDb({
+      clients: [{ ...CLIENT, notes: "6 weeks after knee replacement" }],
+      whatsapp_inbound: [inbound("I have had a fever since last night")],
+      whatsapp_conversations: [
+        {
+          id: "c1",
+          phone: "27820000001",
+          client_id: "client-1",
+          state: "idle",
+          draft: {},
+        },
+      ],
+      consent_records: CONSENTED(),
+      check_ins: [],
+      alerts: [],
+    });
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    const alert = db.tables.alerts.find((a) => a.alert_type === "red_flag");
+    expect(alert?.urgency).toBe("soon");
+    expect(alert?.message).toMatch(/Fever in a post-operative patient/);
+    expect((sent[0] as { body: string }).body).toMatch(/I've flagged this to your physiotherapist/);
+  });
+
+  it("does not drop a late voice note before transcription", async () => {
+    const voice = {
+      ...inbound(""),
+      kind: "media",
+      media_id: "media-1",
+      media_mime_type: "audio/ogg",
+      body: "",
+      received_at: "2026-10-05T02:00:00Z",
+    };
+    const db = fakeDb({
+      clients: [{ ...CLIENT, yves_ai_consent: false }],
+      whatsapp_inbound: [voice],
+      whatsapp_conversations: [
+        { id: "c1", phone: "27820000001", client_id: "client-1", state: "idle", draft: {} },
+      ],
+      consent_records: CONSENTED(),
+      alerts: [],
+    });
+    const { provider } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.whatsapp_inbound[0].status).not.toBe("ignored");
+  });
+
+  it("runs safety rules on a voice note even without AI consent", async () => {
+    const prev = process.env.LOVABLE_API_KEY;
+    process.env.LOVABLE_API_KEY = "test-key";
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: "I cannot breathe" } }] }),
+        { status: 200 },
+      )) as typeof fetch;
+    try {
+      const voice = {
+        ...inbound(""),
+        kind: "media",
+        media_id: "media-1",
+        media_mime_type: "audio/ogg",
+        body: "",
+      };
+      const db = fakeDb({
+        clients: [{ ...CLIENT, yves_ai_consent: false }],
+        whatsapp_inbound: [voice],
+        whatsapp_conversations: [
+          { id: "c1", phone: "27820000001", client_id: "client-1", state: "idle", draft: {} },
+        ],
+        consent_records: CONSENTED(),
+        alerts: [],
+      });
+      const { provider, sent } = fakeProvider();
+      provider.fetchMedia = async () => ({ bytes: new Uint8Array([1, 2, 3]), mimeType: "audio/ogg" });
+      await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+      expect(db.tables.whatsapp_inbound[0].body).toMatch(/^\[voice note\] I cannot breathe/);
+      expect(db.tables.alerts.find((a) => a.alert_type === "red_flag")).toBeTruthy();
+      expect((sent[0] as { body: string }).body).toMatch(/I've alerted your physiotherapist/);
+    } finally {
+      globalThis.fetch = realFetch;
+      if (prev === undefined) delete process.env.LOVABLE_API_KEY;
+      else process.env.LOVABLE_API_KEY = prev;
+    }
+  });
 });
 
 describe("daily WhatsApp reminders", () => {
@@ -765,6 +950,20 @@ describe("daily WhatsApp reminders", () => {
       whatsapp_outbound: [],
       ...extra,
     });
+
+  it("alerts when a post-operative patient has missed three check-ins", async () => {
+    const db = seed({
+      clients: [{ ...CLIENT, notes: "post-op knee replacement" }],
+      check_ins: [],
+      checkin_reminders: [{ client_id: "client-1", days_of_week: [0, 1, 2, 3, 4, 5, 6] }],
+      alerts: [],
+    });
+    const { provider } = fakeProvider();
+    await sendWhatsAppReminder(db.admin, "client-1", NOW(), { provider, secrets: SECRETS });
+    const alert = db.tables.alerts.find((a) => a.alert_type === "red_flag");
+    expect(alert?.urgency).toBe("soon");
+    expect(alert?.message).toMatch(/missed \d+ check-ins/);
+  });
 
   it("starts the check-in straight away inside the 24 hour window", async () => {
     const db = seed({

@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { publicSiteOrigin } from "@/lib/app-url";
+import { CLINICAL_RECORD_RETENTION } from "@/lib/consent/wording";
 
 /**
  * How to delete your data, as instructions rather than as rights.
@@ -16,7 +17,7 @@ import { publicSiteOrigin } from "@/lib/app-url";
  * after they asked.
  */
 
-const LAST_UPDATED = "4 October 2026";
+const LAST_UPDATED = "10 October 2026";
 
 export const Route = createFileRoute("/data-deletion")({
   head: () => {
@@ -50,7 +51,7 @@ const STEPS: Array<{ title: string; body: string[] }> = [
     title: "Stop WhatsApp check-ins",
     body: [
       "Reply STOP to any Buddy WhatsApp message. The check-ins end immediately and permanently.",
-      "Raw WhatsApp messages are deleted 90 days after they are received in any case, whether or not you reply STOP.",
+      `${CLINICAL_RECORD_RETENTION} They are not deleted on a 90 day timer. Deleting your Buddy account removes the WhatsApp messages tied to that account.`,
     ],
   },
   {

@@ -35,6 +35,38 @@ describe("job health", () => {
     expect(p).toEqual([]);
   });
 
+  it("includes the health check in the jobs it watches", () => {
+    expect(EXPECTED_JOBS.map((j) => j.job)).toContain("job-health-check");
+  });
+
+  it("flags a red-flag delivery failure from the last day", () => {
+    const rows = allHealthy();
+    rows.push({
+      job: "red-flag-notify",
+      ran_at: ago(60_000),
+      ok: false,
+      status: 500,
+      detail: "WhatsApp alert template is not configured",
+    });
+    const p = evaluateJobHealth(rows, now, new Date(ago(30 * 24 * H)));
+    const hit = p.find((x) => x.job === "red-flag-notify");
+    expect(hit?.problem).toContain("WhatsApp alert template is not configured");
+  });
+
+  it("ignores a red-flag delivery failure older than a day", () => {
+    const rows = allHealthy();
+    rows.push({
+      job: "red-flag-notify",
+      ran_at: ago(48 * H),
+      ok: false,
+      status: 500,
+      detail: "old",
+    });
+    expect(evaluateJobHealth(rows, now, new Date(ago(30 * 24 * H))).map((x) => x.job)).not.toContain(
+      "red-flag-notify",
+    );
+  });
+
   it("flags a job that never ran once tracking is old enough", () => {
     const rows = allHealthy().filter((r) => r.job !== "nightly-risk-analysis");
     const p = evaluateJobHealth(rows, now, new Date(ago(3 * 24 * H)));

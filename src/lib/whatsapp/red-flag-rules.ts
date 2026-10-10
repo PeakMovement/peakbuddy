@@ -14,6 +14,14 @@ import { analyzeRealTime, type RedFlagCategory, type UrgencyTier } from "@/lib/y
  * patients this channel is aimed at.
  */
 
+/** Notes, complaint, or a program name that marks a post-operative patient. */
+export function looksPostOperative(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return /\b(post[-\s]?op(?:erative)?|postoperative|after (?:the |my )?surgery|surgeries|surgery|operation|knee replacement|hip replacement|acl|tkr|thr)\b/i.test(
+    text,
+  );
+}
+
 export const PAIN_ABSOLUTE_THRESHOLD = 8;
 export const PAIN_RISE_THRESHOLD = 3;
 export const MISSED_CHECKINS_THRESHOLD = 3;
@@ -376,7 +384,44 @@ export function runRedFlagRules(input: RuleInput): RuleLayerResult {
     hits.push(...clinicalGroupHits(text));
   }
 
-  // 5. Missed check-ins, post-operative patients only.
+  // 5. Fever in a post-operative patient is an infection signal, not a
+  //    monitor-only note. "hoë koors" is already urgent and is left as it is.
+  if (input.isPostOperative && text.trim()) {
+    const fever = findTerms(text, ["fever", "koors"]).filter((term) => !isNegatedTerm(text, term));
+    if (fever.length > 0) {
+      const already = hits.some(
+        (h) => h.category === "infection" && URGENCY_RANK[h.urgency] >= URGENCY_RANK.soon,
+      );
+      if (!already) {
+        for (const h of hits) {
+          if (
+            h.category === "infection" &&
+            h.matchedTerms.some((term) => term === "fever" || term === "koors")
+          ) {
+            h.urgency = "soon";
+            h.severity = Math.max(h.severity, 6);
+            h.detail = "Fever in a post-operative patient";
+          }
+        }
+        if (
+          !hits.some(
+            (h) => h.category === "infection" && URGENCY_RANK[h.urgency] >= URGENCY_RANK.soon,
+          )
+        ) {
+          hits.push({
+            rule: "keyword_post_surgical",
+            detail: "Fever in a post-operative patient",
+            severity: 6,
+            urgency: "soon",
+            category: "infection",
+            matchedTerms: fever,
+          });
+        }
+      }
+    }
+  }
+
+  // 6. Missed check-ins, post-operative patients only.
   if (
     input.isPostOperative &&
     (input.consecutiveMissedCheckins ?? 0) >= MISSED_CHECKINS_THRESHOLD

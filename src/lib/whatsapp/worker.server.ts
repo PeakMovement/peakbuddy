@@ -8,6 +8,7 @@ import {
   readPain,
   readReminderTime,
   readScale,
+  withSafetyClaim,
   type AiAssist,
   MSG,
   type CheckinDraft,
@@ -17,7 +18,8 @@ import {
 } from "./conversation";
 import { maskPhone, matchPhone, toE164Digits } from "./phone";
 import { getProvider, type ProviderSecrets, type WhatsAppProvider } from "./provider";
-import { runRedFlagRules, type RuleLayerResult } from "./red-flag-rules";
+import { looksPostOperative, runRedFlagRules, type RuleLayerResult } from "./red-flag-rules";
+import { consecutiveMissedCheckins, sastDayKey } from "./missed-checkins";
 import {
   converseWithAi,
   readAnswerWithAi,
@@ -95,7 +97,12 @@ interface ClientRow {
   yves_ai_consent?: boolean | null;
   auth_user_id?: string | null;
   phone?: string | null;
+  notes?: string | null;
+  primary_complaint?: string | null;
 }
+
+const CLIENT_COLS =
+  "id, full_name, practitioner_id, practice_id, yves_ai_consent, auth_user_id, phone, notes, primary_complaint";
 
 export interface WorkerResult {
   processed: number;
@@ -159,20 +166,31 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
     .eq("status", "processing")
     .lt("processed_at", stuckBefore);
 
-  // Red-flag notifications a cut-off run never sent (push never claimed).
+  // Red-flag notifications a cut-off run never finished. Each channel is
+  // claimed only after it succeeds, so a failed push, email, or WhatsApp
+  // is tried again here.
   try {
     const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     const settled = new Date(Date.now() - 45 * 1000).toISOString();
     const { data: unsent } = await admin
       .from("alerts")
-      .select("id")
+      .select("id, push_fired, email_fired, whatsapp_fired")
       .eq("alert_type", "red_flag")
-      .eq("push_fired", false)
       .like("message", "WhatsApp check-in:%")
       .gte("created_at", since)
       .lt("created_at", settled)
-      .limit(5);
-    for (const a of (unsent ?? []) as Array<{ id: string }>) {
+      .limit(15);
+    const pending = (
+      (unsent ?? []) as Array<{
+        id: string;
+        push_fired?: boolean | null;
+        email_fired?: boolean | null;
+        whatsapp_fired?: boolean | null;
+      }>
+    )
+      .filter((a) => !a.push_fired || !a.email_fired || !a.whatsapp_fired)
+      .slice(0, 5);
+    for (const a of pending) {
       await notifyRedFlagAlert(admin, a.id).catch(() => undefined);
     }
   } catch {
@@ -208,8 +226,13 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
       result.skipped++;
       continue;
     }
+    const voiceStillRaw =
+      row.kind === "media" &&
+      (row.media_mime_type ?? "").startsWith("audio/") &&
+      !String(row.body ?? "").startsWith("[voice note]");
     if (
       nowMs - new Date(row.received_at).getTime() > STALE_INBOUND_MS &&
+      !voiceStillRaw &&
       !runRedFlagRules({ text: row.body ?? "" }).triggered
     ) {
       await admin
@@ -645,7 +668,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   if (clientId) {
     const { data } = await admin
       .from("clients")
-      .select("id, full_name, practitioner_id, practice_id, yves_ai_consent, auth_user_id, phone")
+      .select(CLIENT_COLS)
       .eq("id", clientId)
       .maybeSingle();
     client = (data as ClientRow | null) ?? null;
@@ -666,7 +689,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   if (client) inviteInvalid = false;
 
   // Self sign-up: a practice link, and no profile for this number yet.
-  let signup: Parameters<typeof decide>[0]["signup"];
+  let signup: Parameters<typeof decide>[0]["signup"] = undefined;
   if (!client && signupPracticeId) {
     const roster = await practiceRoster(admin, signupPracticeId).catch(() => null);
     if (roster) signup = { practiceId: signupPracticeId, ...roster };
@@ -690,10 +713,11 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     mediaType: row.kind === "media" ? (isAudio ? "audio" : "other") : undefined,
   };
 
-  // Voice notes become text, then go down exactly the same path as typing,
-  // red flags included. The transcript is kept on the inbound row so the
-  // practitioner can read what was said.
-  if (isAudio && aiAllowed && row.media_id && env.provider.fetchMedia) {
+  // Voice notes become text before the safety rules, even when the patient
+  // has not turned on the chat assistant. The transcript is what the red-flag
+  // rules read. The transcript is kept on the inbound row so the practitioner
+  // can read what was said. Chat replies stay behind AI consent below.
+  if (isAudio && row.media_id && env.provider.fetchMedia) {
     const transcript = await transcribe(env, row.media_id).catch(() => null);
     if (transcript) {
       message.text = transcript;
@@ -790,7 +814,14 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   const unplacedIdle = route?.intent === "other" && !readReminderTime(typed);
   // A red flag gets only the fixed safety wording: no chatty model reply next
   // to it that could read as reassurance.
-  const flaggedText = runRedFlagRules({ text: typed }).triggered;
+  const postOp = client
+    ? await postOpCheckinContext(admin, client, now)
+    : { isPostOperative: false, consecutiveMissedCheckins: 0 };
+  const flaggedText = runRedFlagRules({
+    text: typed,
+    isPostOperative: postOp.isPostOperative,
+    consecutiveMissedCheckins: postOp.consecutiveMissedCheckins,
+  }).triggered;
   if (client && consent && aiAllowed && typed && !flaggedText && (unplacedMid || unplacedIdle)) {
     const history = await recentTurns(admin, row.from_phone, phone, row.id, now);
     if (!progressText && unplacedIdle) progressText = await progressFor(admin, client.id);
@@ -816,6 +847,8 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     text: message.text ?? "",
     painScore: painNow,
     previousPainScore: prevPain,
+    isPostOperative: postOp.isPostOperative,
+    consecutiveMissedCheckins: postOp.consecutiveMissedCheckins,
   });
 
   // No app login means the app's Wearables page is behind a sign-in they
@@ -872,7 +905,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     }
   }
 
-  const redFlagAlertId = client
+  let redFlagAlertId = client
     ? await applyEffects(env, decision, client, row, redFlags, now)
     : null;
 
@@ -882,7 +915,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     const id = await createSelfSignupClient(admin, { ...decision.createClient, phone });
     const { data } = await admin
       .from("clients")
-      .select("id, full_name, practitioner_id, practice_id, yves_ai_consent, auth_user_id, phone")
+      .select(CLIENT_COLS)
       .eq("id", id)
       .maybeSingle();
     client = (data as ClientRow | null) ?? null;
@@ -902,6 +935,33 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
         decision.next = { state: "awaiting_consent", draft: {}, checkinStartedAt: null };
       }
     }
+  }
+
+  // The message that finished sign-up had no profile when effects ran, so the
+  // red flag on it is raised now, against the profile just created.
+  if (client && !redFlagAlertId && redFlagQualifies(redFlags)) {
+    redFlagAlertId = await raiseRedFlagAlert(admin, client, redFlags).catch((e) => {
+      log.warn("whatsapp worker: red flag alert failed", {
+        error: e instanceof Error ? e.message : "unknown",
+      });
+      return null;
+    });
+  }
+
+  // No profile at all: still write an alert for the practice, or say nothing
+  // about the physiotherapist being told.
+  if (!client && !redFlagAlertId && redFlagQualifies(redFlags)) {
+    redFlagAlertId = await raiseUnmatchedRedFlag(
+      admin,
+      phone,
+      redFlags,
+      signup?.practiceId ?? signupPracticeId,
+    ).catch((e) => {
+      log.warn("whatsapp worker: unmatched red flag alert failed", {
+        error: e instanceof Error ? e.message : "unknown",
+      });
+      return null;
+    });
   }
 
   // App login requested by email: the outcome decides the reply.
@@ -970,6 +1030,8 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
       .update({ wearable_offer_at: now.toISOString() })
       .eq("id", conv.id);
   }
+
+  replies = withSafetyClaim(replies, redFlags, Boolean(redFlagAlertId));
 
   let sent = 0;
   for (const reply of replies) {
@@ -1248,12 +1310,7 @@ async function applyEffects(
 
   // Each of these is best effort: the check-in and consent above are the
   // record, and a failed notification must not undo them.
-  if (
-    redFlags.triggered &&
-    (redFlags.urgency === "emergency" ||
-      redFlags.urgency === "urgent" ||
-      redFlags.urgency === "soon")
-  ) {
+  if (redFlagQualifies(redFlags)) {
     // Only the alert row here (fast). The notifications go out after the
     // patient's replies; see notifyRedFlagAlert.
     redFlagAlertId = await raiseRedFlagAlert(admin, client, redFlags).catch((e) => {
@@ -1326,6 +1383,54 @@ async function applyEffects(
   return redFlagAlertId;
 }
 
+function redFlagQualifies(flags: RuleLayerResult): boolean {
+  return (
+    flags.triggered &&
+    (flags.urgency === "emergency" || flags.urgency === "urgent" || flags.urgency === "soon")
+  );
+}
+
+const URGENCY_RANK: Record<string, number> = {
+  emergency: 5,
+  urgent: 4,
+  soon: 3,
+  monitor: 2,
+  routine: 1,
+};
+
+/** Post-operative patients are recognised from the notes already on the profile. */
+async function postOpCheckinContext(
+  admin: Admin,
+  client: { id: string; notes?: string | null; primary_complaint?: string | null },
+  now: Date,
+): Promise<{ isPostOperative: boolean; consecutiveMissedCheckins: number }> {
+  const isPostOperative = looksPostOperative(
+    `${client.notes ?? ""} ${client.primary_complaint ?? ""}`,
+  );
+  if (!isPostOperative) return { isPostOperative: false, consecutiveMissedCheckins: 0 };
+  const { data: rem } = await admin
+    .from("checkin_reminders")
+    .select("days_of_week")
+    .eq("client_id", client.id)
+    .maybeSingle();
+  const stored = (rem as { days_of_week?: number[] | null } | null)?.days_of_week ?? [];
+  const days = stored.length > 0 ? stored : [0, 1, 2, 3, 4, 5, 6];
+  const since = new Date(now.getTime() - 21 * DAY_MS).toISOString();
+  const { data: checks } = await admin
+    .from("check_ins")
+    .select("created_at")
+    .eq("client_id", client.id)
+    .gte("created_at", since)
+    .limit(60);
+  const keys = ((checks ?? []) as Array<{ created_at: string }>).map((c) =>
+    sastDayKey(new Date(c.created_at)),
+  );
+  return {
+    isPostOperative: true,
+    consecutiveMissedCheckins: consecutiveMissedCheckins(days, keys, now),
+  };
+}
+
 /** Same chain as the app's check-in and the triage safety net: alert row, push, email, webhook. */
 async function raiseRedFlagAlert(
   admin: Admin,
@@ -1336,23 +1441,28 @@ async function raiseRedFlagAlert(
   // of problem at the same or higher urgency counts as a repeat: an unread
   // wound alert must never swallow a new calf-swelling one.
   if (flags.urgency !== "emergency") {
-    const rank = (u: string | null | undefined) =>
-      (({ emergency: 5, urgent: 4, soon: 3, monitor: 2, routine: 1 }) as Record<string, number>)[
-        u ?? ""
-      ] ?? 0;
     const since = new Date(Date.now() - DAY_MS).toISOString();
     const { data: existing } = await admin
       .from("alerts")
-      .select("urgency, red_flag_category")
+      .select("id, urgency, red_flag_category")
       .eq("client_id", client.id)
       .eq("alert_type", "red_flag")
       .eq("is_read", false)
       .gte("created_at", since)
       .limit(20);
     const repeat = (
-      (existing ?? []) as Array<{ urgency: string | null; red_flag_category: string | null }>
-    ).some((a) => a.red_flag_category === flags.category && rank(a.urgency) >= rank(flags.urgency));
-    if (repeat) return null;
+      (existing ?? []) as Array<{
+        id?: string;
+        urgency: string | null;
+        red_flag_category: string | null;
+      }>
+    ).find(
+      (a) =>
+        a.red_flag_category === flags.category &&
+        (URGENCY_RANK[a.urgency ?? ""] ?? 0) >= (URGENCY_RANK[flags.urgency] ?? 0),
+    );
+    // Already on the practitioner's list. The patient can still be told that.
+    if (repeat) return repeat.id ?? null;
   }
 
   const detail = flags.hits.map((h) => h.detail).join("; ");
@@ -1365,6 +1475,9 @@ async function raiseRedFlagAlert(
       message: `WhatsApp check-in: ${detail}`.slice(0, 1000),
       urgency: flags.urgency,
       red_flag_category: flags.category,
+      push_fired: false,
+      email_fired: false,
+      whatsapp_fired: false,
     })
     .select("id")
     .single();
@@ -1373,91 +1486,210 @@ async function raiseRedFlagAlert(
 }
 
 /**
+ * A red flag from a number with no Buddy profile. The practice owner is
+ * practitioner_id and client_id stays empty. No owner we can name means no
+ * alert, and the patient is not told their physiotherapist was informed.
+ */
+async function raiseUnmatchedRedFlag(
+  admin: Admin,
+  phone: string,
+  flags: RuleLayerResult,
+  practiceId: string | null,
+): Promise<string | null> {
+  const practitionerId = await unmatchedPractitionerId(admin, practiceId);
+  if (!practitionerId) return null;
+  if (flags.urgency !== "emergency") {
+    const since = new Date(Date.now() - DAY_MS).toISOString();
+    const { data: existing } = await admin
+      .from("alerts")
+      .select("id, urgency, red_flag_category")
+      .is("client_id", null)
+      .eq("practitioner_id", practitionerId)
+      .eq("alert_type", "red_flag")
+      .eq("is_read", false)
+      .gte("created_at", since)
+      .limit(20);
+    const repeat = (
+      (existing ?? []) as Array<{
+        id?: string;
+        urgency: string | null;
+        red_flag_category: string | null;
+      }>
+    ).find(
+      (a) =>
+        a.red_flag_category === flags.category &&
+        (URGENCY_RANK[a.urgency ?? ""] ?? 0) >= (URGENCY_RANK[flags.urgency] ?? 0),
+    );
+    if (repeat) return repeat.id ?? null;
+  }
+  const detail = flags.hits.map((h) => h.detail).join("; ");
+  const { data: alertRow } = await admin
+    .from("alerts")
+    .insert({
+      practitioner_id: practitionerId,
+      client_id: null,
+      alert_type: "red_flag",
+      message: `WhatsApp check-in: number ending ${maskPhone(phone)}. ${detail}`.slice(0, 1000),
+      urgency: flags.urgency,
+      red_flag_category: flags.category,
+      push_fired: false,
+      email_fired: false,
+      whatsapp_fired: false,
+    })
+    .select("id")
+    .single();
+  return (alertRow as { id?: string } | null)?.id ?? null;
+}
+
+/** Practice named on the sign-up link, otherwise the only practice on this install. */
+async function unmatchedPractitionerId(
+  admin: Admin,
+  practiceId: string | null,
+): Promise<string | null> {
+  if (practiceId) {
+    const { data } = await admin
+      .from("practices")
+      .select("practitioner_id")
+      .eq("id", practiceId)
+      .maybeSingle();
+    const id = (data as { practitioner_id?: string | null } | null)?.practitioner_id;
+    if (id) return id;
+  }
+  const { data } = await admin.from("practices").select("practitioner_id").limit(2);
+  const rows = (data ?? []) as Array<{ practitioner_id?: string | null }>;
+  if (rows.length === 1 && rows[0]?.practitioner_id) return rows[0].practitioner_id;
+  return null;
+}
+
+/**
  * Push, WhatsApp, email and webhook for a red-flag alert already saved. Runs
  * after the patient has had their replies (so a slow notification never holds
- * up the conversation), and again from the minute job for any alert whose
- * push was never claimed (so a cut-off run never loses a notification).
+ * up the conversation), and again from the minute job for any channel that
+ * has not succeeded yet. A flag is set only after that channel delivers.
  */
 export async function notifyRedFlagAlert(admin: Admin, alertId: string): Promise<void> {
   const { data: alert } = await admin
     .from("alerts")
-    .select("id, client_id, message, urgency, push_fired")
+    .select(
+      "id, client_id, practitioner_id, message, urgency, push_fired, email_fired, whatsapp_fired",
+    )
     .eq("id", alertId)
     .maybeSingle();
   const a = alert as {
     id: string;
-    client_id: string;
+    client_id: string | null;
+    practitioner_id: string | null;
     message: string | null;
     urgency: string | null;
     push_fired: boolean | null;
+    email_fired: boolean | null;
+    whatsapp_fired: boolean | null;
   } | null;
   if (!a) return;
-  const { data: c } = await admin
-    .from("clients")
-    .select("id, full_name, practitioner_id, practice_id, yves_ai_consent, auth_user_id, phone")
-    .eq("id", a.client_id)
-    .maybeSingle();
-  const client = c as ClientRow | null;
-  if (!client) return;
+
+  let client: ClientRow | null = null;
+  if (a.client_id) {
+    const { data: c } = await admin.from("clients").select(CLIENT_COLS).eq("id", a.client_id).maybeSingle();
+    client = (c as ClientRow | null) ?? null;
+    if (!client) return;
+  }
+  const practitionerId = client?.practitioner_id ?? a.practitioner_id;
+  if (!practitionerId) return;
+
   const detail = String(a.message ?? "").replace(/^WhatsApp check-in:\s*/, "");
-  const flags = { urgency: (a.urgency ?? "urgent") as RuleLayerResult["urgency"] };
+  const urgency = (a.urgency ?? "urgent") as RuleLayerResult["urgency"];
+  const displayName = client
+    ? fullNameOf(client.full_name, firstNameOf(client.full_name))
+    : "Someone on WhatsApp (not on a profile yet)";
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const firstName = firstNameOf(client.full_name);
+  const { noteRedFlagDeliveryProblem } = await import("@/lib/job-runs.server");
 
-  try {
-    const { data: claimed } = await admin
-      .from("alerts")
-      .update({ push_fired: true })
-      .eq("id", alertId)
-      .eq("push_fired", false)
-      .select("id")
-      .maybeSingle();
-    if (claimed) {
+  let pushOk = Boolean(a.push_fired);
+  let emailOk = Boolean(a.email_fired);
+  let waOk = Boolean(a.whatsapp_fired);
+
+  if (!pushOk) {
+    try {
       const { sendPushCore } = await import("@/lib/push.functions");
       const push = {
         title: "Buddy alert",
-        body: `${fullNameOf(client.full_name, firstName)} reported symptoms on WhatsApp that may need review`,
-        data: { clientId: client.id, kind: "whatsapp" },
+        body: `${displayName} reported symptoms on WhatsApp that may need review`,
+        data: { clientId: client?.id ?? "", kind: "whatsapp" },
       };
-      await sendPushCore(supabaseAdmin, { userId: client.practitioner_id, ...push });
-      // Red flags also reach the practice owner, when that is someone else.
-      const owner = await practiceOwnerId(admin, client);
-      if (owner && owner !== client.practitioner_id) {
-        await sendPushCore(supabaseAdmin, { userId: owner, ...push });
+      await sendPushCore(supabaseAdmin, { userId: practitionerId, ...push });
+      const owner = client ? await practiceOwnerId(admin, client) : null;
+      if (owner && owner !== practitionerId) {
+        await sendPushCore(supabaseAdmin, { userId: owner, ...push }).catch(() => undefined);
       }
-      // And to their own WhatsApp, via the approved alert template.
-      const { sendPractitionerWhatsAppAlert } = await import("./practitioner-alert.server");
-      await sendPractitionerWhatsAppAlert(
+      await admin.from("alerts").update({ push_fired: true }).eq("id", alertId).eq("push_fired", false);
+      pushOk = true;
+    } catch (e) {
+      log.warn("whatsapp worker: push failed", {
+        error: e instanceof Error ? e.message : "unknown",
+      });
+    }
+  }
+
+  if (!emailOk) {
+    try {
+      const { sendAlertEmailCore } = await import("@/lib/notify-practitioner.functions");
+      const sent = await sendAlertEmailCore(supabaseAdmin, alertId);
+      emailOk = sent.ok;
+    } catch (e) {
+      log.warn("whatsapp worker: email failed", {
+        error: e instanceof Error ? e.message : "unknown",
+      });
+    }
+  }
+
+  const { alertTemplateGap, sendPractitionerWhatsAppAlert } = await import(
+    "./practitioner-alert.server"
+  );
+  const gap = await alertTemplateGap();
+  if (gap) {
+    await noteRedFlagDeliveryProblem(gap);
+  } else if (!waOk) {
+    try {
+      const recipients = [practitionerId];
+      const owner = client ? await practiceOwnerId(admin, client) : null;
+      if (owner) recipients.push(owner);
+      const sent = await sendPractitionerWhatsAppAlert(
         supabaseAdmin,
-        [client.practitioner_id, owner].filter(Boolean) as string[],
-        flags.urgency,
+        recipients,
+        urgency,
         undefined,
-        client.full_name,
+        client?.full_name ?? displayName,
         detail,
       );
+      if (sent > 0) {
+        await admin
+          .from("alerts")
+          .update({ whatsapp_fired: true })
+          .eq("id", alertId)
+          .eq("whatsapp_fired", false);
+        waOk = true;
+      }
+    } catch (e) {
+      log.warn("whatsapp worker: practitioner WhatsApp failed", {
+        error: e instanceof Error ? e.message : "unknown",
+      });
     }
-  } catch (e) {
-    log.warn("whatsapp worker: push failed", { error: e instanceof Error ? e.message : "unknown" });
   }
 
-  try {
-    const { sendAlertEmailCore } = await import("@/lib/notify-practitioner.functions");
-    await sendAlertEmailCore(supabaseAdmin, alertId);
-  } catch (e) {
-    log.warn("whatsapp worker: email failed", {
-      error: e instanceof Error ? e.message : "unknown",
-    });
+  if (!pushOk && !emailOk && !waOk) {
+    await noteRedFlagDeliveryProblem("Red-flag alert reached no channel");
   }
 
+  if (!client) return;
   try {
     const { fireAlertWebhookCore } = await import("@/lib/webhooks.functions");
     const wh = await fireAlertWebhookCore({
-      practitionerId: client.practitioner_id,
+      practitionerId,
       clientName: client.full_name || "Your client",
       clientId: client.id,
       alertMessage: `Red flag in WhatsApp check-in: ${detail}`.slice(0, 300),
-      urgency: flags.urgency,
+      urgency,
       redFlagDetected: true,
     });
     if (wh.fired) await admin.from("alerts").update({ webhook_fired: true }).eq("id", alertId);
@@ -1782,15 +2014,59 @@ export async function sendWhatsAppReminder(
 
   const { data: client } = await admin
     .from("clients")
-    .select("full_name, practitioner_id, auth_user_id")
+    .select("id, full_name, practitioner_id, practice_id, auth_user_id, notes, primary_complaint")
     .eq("id", clientId)
     .maybeSingle();
   const clientRow = client as {
+    id?: string;
     full_name: string | null;
     practitioner_id: string | null;
+    practice_id?: string | null;
     auth_user_id: string | null;
+    notes?: string | null;
+    primary_complaint?: string | null;
   } | null;
   const firstName = firstNameOf(clientRow?.full_name ?? null);
+
+  if (clientRow?.practitioner_id) {
+    const missed = await postOpCheckinContext(
+      admin,
+      {
+        id: clientId,
+        notes: clientRow.notes,
+        primary_complaint: clientRow.primary_complaint,
+      },
+      now,
+    ).catch(() => null);
+    if (
+      missed &&
+      missed.consecutiveMissedCheckins >= 3 &&
+      missed.isPostOperative
+    ) {
+      const flags = runRedFlagRules({
+        text: "",
+        isPostOperative: true,
+        consecutiveMissedCheckins: missed.consecutiveMissedCheckins,
+      });
+      const alertId = await raiseRedFlagAlert(
+        admin,
+        {
+          id: clientId,
+          full_name: clientRow.full_name,
+          practitioner_id: clientRow.practitioner_id,
+          practice_id: clientRow.practice_id,
+        },
+        flags,
+      ).catch(() => null);
+      if (alertId) {
+        await notifyRedFlagAlert(admin, alertId).catch((e) =>
+          log.warn("whatsapp worker: missed check-in notify failed", {
+            error: e instanceof Error ? e.message : "unknown",
+          }),
+        );
+      }
+    }
+  }
 
   const { data: last } = await admin
     .from("whatsapp_inbound")

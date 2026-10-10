@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runRedFlagRules } from "./red-flag-rules";
+import { looksPostOperative, runRedFlagRules } from "./red-flag-rules";
 
 /**
  * The acceptance suite the build plan requires before any real patient is put on
@@ -97,6 +97,26 @@ describe("layer 1 — pain rules", () => {
   it("does not fire the rise rule without a previous score", () => {
     const r = flag("", { painScore: 6, previousPainScore: null });
     expect(r.hits.some((h) => h.rule === "pain_rise")).toBe(false);
+  });
+});
+
+describe("layer 1 — post-operative fever", () => {
+  it("raises a monitor fever to soon after surgery", () => {
+    const plain = flag("I have had a fever since last night");
+    const postOp = flag("I have had a fever since last night", { isPostOperative: true });
+    expect(plain.urgency).not.toBe("soon");
+    expect(postOp.urgency).toBe("soon");
+    expect(postOp.hits.some((h) => h.detail === "Fever in a post-operative patient")).toBe(true);
+  });
+
+  it("leaves a high fever urgent", () => {
+    const r = flag("ek het hoe koors", { isPostOperative: true });
+    expect(r.urgency === "urgent" || r.urgency === "emergency").toBe(true);
+  });
+
+  it("recognises a surgical note", () => {
+    expect(looksPostOperative("6 weeks after knee replacement")).toBe(true);
+    expect(looksPostOperative("general knee pain")).toBe(false);
   });
 });
 

@@ -13,8 +13,11 @@ async function assertSuperAdmin(supabase: SupabaseClient<Database>, userId: stri
 
 export const getGradingMode = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<{ mode: GradingMode; sample_rate: number }> => {
-    const { data, error } = await context.supabase
+  .handler(async (): Promise<{ mode: GradingMode; sample_rate: number }> => {
+    // Service role: the table is readable only by super admins under RLS, and
+    // the practitioner alerts screen still needs the mode.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
       .from("grading_settings")
       .select("mode, sample_rate")
       .eq("id", 1)
@@ -66,11 +69,15 @@ export const getAdminGradingQueue = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     const rows = alerts ?? [];
     if (rows.length === 0) return [];
-    const clientIds = Array.from(new Set(rows.map((r) => r.client_id)));
+    const clientIds = Array.from(
+      new Set(rows.map((r) => r.client_id).filter((id): id is string => typeof id === "string")),
+    );
     const practIds = Array.from(new Set(rows.map((r) => r.practitioner_id)));
 
     const [{ data: clients }, { data: profs }, { data: practices }] = await Promise.all([
-      supabaseAdmin.from("clients").select("id, full_name").in("id", clientIds),
+      clientIds.length === 0
+        ? Promise.resolve({ data: [] as Array<{ id: string; full_name: string | null }> })
+        : supabaseAdmin.from("clients").select("id, full_name").in("id", clientIds),
       supabaseAdmin.from("profiles").select("id, full_name").in("id", practIds),
       supabaseAdmin
         .from("practices")
@@ -83,7 +90,7 @@ export const getAdminGradingQueue = createServerFn({ method: "GET" })
     const prMap = new Map((practices ?? []).map((p) => [p.practitioner_id, p]));
 
     return rows.map((r) => {
-      const c = cMap.get(r.client_id);
+      const c = r.client_id ? cMap.get(r.client_id) : undefined;
       const firstName = (c?.full_name || "Unknown").trim().split(/\s+/)[0];
       const prof = pMap.get(r.practitioner_id);
       const practice = prMap.get(r.practitioner_id);

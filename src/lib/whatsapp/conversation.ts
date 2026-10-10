@@ -308,27 +308,47 @@ export const MSG = {
  * the ones verified on 2 October: ambulance 10177, cellphone 112, SADAG 0800
  * 567 567.
  */
-export function safetyReply(flags: RuleLayerResult): string | null {
+export function safetyReply(flags: RuleLayerResult, alerted = false): string | null {
   if (!flags.triggered) return null;
   if (flags.category === "mental_health") {
+    const told = alerted ? "I've let your physiotherapist know. " : "";
     return (
-      "Thank you for telling me. I've let your physiotherapist know. You don't have to deal with this alone: " +
+      `Thank you for telling me. ${told}You don't have to deal with this alone: ` +
       "the SADAG Suicide Crisis Helpline is free on 0800 567 567, any time. If you are in danger right now, phone 10177, or 112 from any cellphone."
     );
   }
   if (flags.urgency === "emergency") {
+    const told = alerted
+      ? " I've alerted your physiotherapist, but please don't wait for them to reply."
+      : " Please don't wait for a reply.";
     return (
-      "What you've described could be serious. Please phone 10177 for an ambulance, or 112 from any cellphone, now. " +
-      "I've alerted your physiotherapist, but please don't wait for them to reply."
+      "What you've described could be serious. Please phone 10177 for an ambulance, or 112 from any cellphone, now." +
+      told
     );
   }
   if (flags.urgency === "urgent" || flags.urgency === "soon") {
+    const told = alerted
+      ? "I've flagged this to your physiotherapist so they can follow up with you. "
+      : "";
     return (
-      "Thanks for telling me. I've flagged this to your physiotherapist so they can follow up with you. " +
+      `Thanks for telling me. ${told}` +
       `If it gets worse or you're worried, phone the practice on ${PRACTICE_PHONE}, or 10177 in an emergency.`
     );
   }
   return null;
+}
+
+/** Swap the safety sentence for the one that names the physiotherapist, once the alert row exists. */
+export function withSafetyClaim<T extends { kind: string; body?: string }>(
+  replies: T[],
+  flags: RuleLayerResult,
+  alerted: boolean,
+): T[] {
+  if (!alerted) return replies;
+  const plain = safetyReply(flags, false);
+  const claimed = safetyReply(flags, true);
+  if (!plain || !claimed) return replies;
+  return replies.map((r) => (r.kind === "text" && r.body === plain ? { ...r, body: claimed } : r));
 }
 
 /* ------------------------------------------------------------------ */
