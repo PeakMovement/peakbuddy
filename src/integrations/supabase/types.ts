@@ -872,6 +872,47 @@ export type Database = {
         }
         Relationships: []
       }
+      heidi_records: {
+        Row: {
+          client_id: string
+          fetched_at: string
+          heidi_patient_profile_id: string | null
+          id: string
+          newest_note_at: string | null
+          practitioner_id: string
+          session_ids: string[]
+          summary: string
+        }
+        Insert: {
+          client_id: string
+          fetched_at?: string
+          heidi_patient_profile_id?: string | null
+          id?: string
+          newest_note_at?: string | null
+          practitioner_id: string
+          session_ids?: string[]
+          summary?: string
+        }
+        Update: {
+          client_id?: string
+          fetched_at?: string
+          heidi_patient_profile_id?: string | null
+          id?: string
+          newest_note_at?: string | null
+          practitioner_id?: string
+          session_ids?: string[]
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "heidi_records_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_runs: {
         Row: {
           detail: string | null
@@ -1553,6 +1594,42 @@ export type Database = {
           must_change?: boolean
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      reception_requests: {
+        Row: {
+          created_at: string
+          done_at: string | null
+          id: string
+          last_reply: string | null
+          practitioner_id: string
+          replied_at: string | null
+          request_text: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          done_at?: string | null
+          id?: string
+          last_reply?: string | null
+          practitioner_id: string
+          replied_at?: string | null
+          request_text: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          done_at?: string | null
+          id?: string
+          last_reply?: string | null
+          practitioner_id?: string
+          replied_at?: string | null
+          request_text?: string
+          sent_at?: string | null
+          status?: string
         }
         Relationships: []
       }

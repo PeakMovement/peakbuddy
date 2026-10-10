@@ -16,7 +16,14 @@
  *
  * Client names are not in the typo map. "sma" stays "sma" here and is
  * matched against the practitioner's own list afterwards.
+ *
+ * Heidi phrases ("get Sam's files", "what does Heidi say about Sam") are
+ * recognised here too, including the same typos. The caller still runs them
+ * only when the Heidi secrets are set, and Heidi's own matcher still wants
+ * a first and last name. A fuzzy name does not open a chart.
  */
+import { readHeidiCommand, type HeidiCommand } from "./heidi";
+
 export const PROGRAMME_SENT =
   /\b(sent|send|emailed|shared|uploaded|given|gave|done|finished|ready)\b[\s\S]{0,80}\b(programme|program|exercises?|rehab|plan|hep)\b|\b(programme|program|exercises?|rehab|plan|hep)\b[\s\S]{0,40}\b(sent|emailed|shared|uploaded|done|ready)\b/i;
 
@@ -62,6 +69,11 @@ const KEYWORDS = [
   "thanks",
   "hello",
   "morning",
+  "heidi",
+  "files",
+  "notes",
+  "records",
+  "documents",
 ];
 
 /** Exact token swaps, including the short ones edit-distance must not touch. */
@@ -166,6 +178,14 @@ const WORD_FIX: Record<string, string> = {
   thnks: "thanks",
   wat: "what",
   appt: "appointment",
+  filez: "files",
+  fils: "files",
+  recods: "records",
+  ntoes: "notes",
+  documets: "documents",
+  hiedi: "heidi",
+  heidy: "heidi",
+  heidie: "heidi",
 };
 
 const KEYWORD_SET = new Set(KEYWORDS);
@@ -403,6 +423,59 @@ export function programmeConfidence(text: string): "high" | "medium" | null {
 
 export function looksLikeProgramme(text: string): boolean {
   return programmeConfidence(text) !== null;
+}
+
+const HEIDI_FILE = String.raw`(?:files?|records?|notes?|documents?)`;
+
+function stripPolite(text: string): string {
+  let t = text;
+  for (let i = 0; i < 3; i++) {
+    const next = t.replace(/^(?:please|can you|could you|would you|buddy|hey|hi)\s+/, "");
+    if (next === t) break;
+    t = next;
+  }
+  return t.trim();
+}
+
+/**
+ * A Heidi read, after the same typo cleanup as other practitioner commands.
+ * Button picks stay exact. A negated sentence is not a read. Names are
+ * passed through for Heidi's own first-and-last match; this does not guess
+ * a person.
+ */
+export function readPractitionerHeidi(text: string, replyId: string | null): HeidiCommand | null {
+  const picked = readHeidiCommand("", replyId);
+  if (picked?.kind === "pick") return picked;
+  if (blocksOutbound(text)) return null;
+  const direct = readHeidiCommand(text, null);
+  if (direct) return direct;
+  const fixed = fixPractitionerTypos(text);
+  if (fixed !== text) {
+    const again = readHeidiCommand(fixed, null);
+    if (again) return again;
+  }
+  const n = stripPolite(normalizePractitionerText(text));
+  const cleaned = readHeidiCommand(n, null);
+  if (cleaned) return cleaned;
+  const patterns = [
+    new RegExp(
+      `^(?:get|fetch|pull|show|read)\\s+(?:me\\s+)?(?:the\\s+)?${HEIDI_FILE}\\s+(?:for|on|about)\\s+(.+?)(?:\\s+from\\s+heidi)?$`,
+    ),
+    /^(?:get|fetch|pull|show|read)\s+(?:me\s+)?(.+?)\s+from\s+heidi$/,
+    new RegExp(
+      `^(?:get|fetch|pull|show|read)\\s+(?:me\\s+)?(.+?)(?:'s)?\\s+${HEIDI_FILE}(?:\\s+from\\s+heidi)?$`,
+    ),
+    new RegExp(`^heidi\\s+${HEIDI_FILE}\\s+(?:for|on|about)\\s+(.+)$`),
+    /^what(?:'s| does| did)\s+heidi\s+(?:say|said)\s+about\s+(.+)$/,
+  ];
+  for (const pattern of patterns) {
+    const name = n
+      .match(pattern)?.[1]
+      ?.replace(/^(?:the|a|an)\s+/, "")
+      .trim();
+    if (name && name.length >= 2) return { kind: "ask", name };
+  }
+  return null;
 }
 
 export function tidyErrand(text: string): string {

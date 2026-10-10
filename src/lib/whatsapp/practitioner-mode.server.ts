@@ -17,6 +17,8 @@
  * the app for app users; otherwise Buddy says honestly it can't reach them.
  */
 import { log } from "@/lib/log";
+import { HEIDI_MSG } from "./heidi";
+import { handleHeidiTurn, heidiConfig } from "./heidi.server";
 import { maskPhone, toE164Digits } from "./phone";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
 import {
@@ -30,6 +32,7 @@ import {
   programmeConfidence,
   PROGRAMME_SENT,
   rankPatients,
+  readPractitionerHeidi,
   tidyErrand,
   type PracMemory,
 } from "./practitioner-understand";
@@ -403,6 +406,18 @@ export async function handlePractitionerMessage(
   }
   if (mem.confirm && !msg.replyId) mem.confirm = null;
 
+  // Heidi is a read of a client's notes. Same feature flag as before:
+  // nothing here runs until the three Heidi secrets are set. A messy
+  // phrase still has to match a Heidi command; a fuzzy name is not enough.
+  const heidiCmd = heidiConfig() ? readPractitionerHeidi(msg.text, msg.replyId) : null;
+  if (heidiCmd) {
+    mem.confirm = null;
+    mem.awaitingReception = false;
+    const patients = await practitionerPatients(admin, prac.userId);
+    await handleHeidiTurn(adminIn, prac, heidiCmd, patients, deps);
+    return true;
+  }
+
   // They were asked what to tell reception. The next line is the errand,
   // unless it is clearly a different command or small talk.
   if (mem.awaitingReception && !msg.replyId) {
@@ -478,7 +493,7 @@ export async function handlePractitionerMessage(
     } else if (talk === "help" || talk === "greeting") {
       await deps.reply({
         kind: "buttons",
-        body: PRAC_MSG.help(prac.firstName),
+        body: PRAC_MSG.help(prac.firstName) + (heidiConfig() ? `\n${HEIDI_MSG.helpLine}` : ""),
         buttons: HELP_BUTTONS,
       });
     } else {

@@ -9,6 +9,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
 const push = vi.fn(async () => ({}));
 vi.mock("@/lib/push.functions", () => ({ sendPushCore: push }));
 
+import { HEIDI_MSG } from "./heidi";
 import { handlePractitionerMessage, PRAC_MSG, smallTalk } from "./practitioner-mode.server";
 import { practitionerIntent } from "./practitioner-status.server";
 import { handleReceptionMessage, RECEPTION_MSG } from "./reception.server";
@@ -18,6 +19,7 @@ import {
   programmeConfidence,
   rankPatients,
   readPracMemory,
+  readPractitionerHeidi,
   writePracMemory,
   type PracMemory,
 } from "./practitioner-understand";
@@ -44,6 +46,8 @@ describe("normalising what staff actually type", () => {
     ["hw r my patints", "how are my patients"],
     ["chekin with Kruge", "check in with kruge"],
     ["progarmme for sam", "programme for sam"],
+    ["wat does hiedi say about sam", "what does heidi say about sam"],
+    ["get sam kruger's filez", "get sam kruger's files"],
   ])("%s → %s", (raw, want) => {
     expect(normalizePractitionerText(raw)).toBe(want);
   });
@@ -448,10 +452,55 @@ function harness(db = world()) {
   return { db, sent, replies, requestCheckin, memory, say };
 }
 
+describe("Heidi phrases, still gated on the secrets", () => {
+  it.each([
+    ["get Sam Kruger's files", "sam kruger"],
+    ["get Sam Kruger from Heidi", "sam kruger"],
+    ["what does Heidi say about Sam Kruger", "sam kruger"],
+    ["Get the files for Sam Kruger", "sam kruger"],
+    ["get sam krugers files", "sam kruger"],
+    ["wat does hiedi say about Sam Kruger", "sam kruger"],
+    ["pls get the filez for sam kruger", "sam kruger"],
+    ["can you get sam kruger's notes", "sam kruger"],
+    ["heidi notes for sam kruger", "sam kruger"],
+    ["what's heidi say about sam kruger", "sam kruger"],
+  ])("%s names %s", (text, name) => {
+    const cmd = readPractitionerHeidi(text, null);
+    expect(cmd?.kind).toBe("ask");
+    if (cmd?.kind === "ask") expect(cmd.name.toLowerCase()).toContain(name);
+  });
+
+  it("a Heidi button still picks that client", () => {
+    expect(readPractitionerHeidi("ok", `heidi_${SAM}`)).toEqual({ kind: "pick", clientId: SAM });
+  });
+
+  it.each([
+    "how are my clients doing?",
+    "thanks",
+    "ok",
+    "check in with sam",
+    "contact reception",
+    "don't get sam kruger's files",
+    "haven't sent sam his programme",
+    "the programme is hard",
+    "call thea",
+    "blue elephant",
+    "done 2",
+    "what's open",
+    "how is sam doing",
+  ])("%s is not a Heidi read", (text) => {
+    expect(readPractitionerHeidi(text, null)).toBeNull();
+    expect(practitionerIntent(text, null).kind).not.toBe("reception");
+  });
+});
+
 describe("what Buddy does with a messy message", () => {
   afterEach(() => {
     delete process.env.WHATSAPP_RECEPTION_NUMBER;
     delete process.env.WHATSAPP_PROGRAMME_TEMPLATE;
+    delete process.env.HEIDI_API_KEY;
+    delete process.env.HEIDI_REGION;
+    delete process.env.HEIDI_EHR_PROVIDER;
   });
 
   it("bare contact reception asks, then the next line is the errand", async () => {
@@ -636,6 +685,35 @@ describe("what Buddy does with a messy message", () => {
     expect(
       replies.slice(1).every((r) => String(r.body).includes("Sorry, I didn't quite get that.")),
     ).toBe(true);
+  });
+
+  it("a messy Heidi phrase stays quiet until the secrets are set", async () => {
+    process.env.WHATSAPP_RECEPTION_NUMBER = `+${RECEPTION}`;
+    const { db, say, replies, sent } = harness();
+    await say("get sam krugers files");
+    expect(replies[0].body).toContain("Sorry, I didn't quite get that.");
+    expect(sent).toHaveLength(0);
+
+    process.env.HEIDI_API_KEY = "test-key";
+    process.env.HEIDI_REGION = "eu";
+    process.env.HEIDI_EHR_PROVIDER = "buddy";
+    await say("get sam krugers files");
+    expect(replies[1].body).toBe(HEIDI_MSG.noEmail);
+    await say("wat does hiedi say about sam kruger");
+    expect(replies[2].body).toBe(HEIDI_MSG.noEmail);
+    await say("don't get sam kruger's files");
+    expect(replies[3].body).toContain("Sorry, I didn't quite get that.");
+
+    await say("contact reception");
+    expect(replies[4].body).toBe(PRAC_MSG.receptionAsk);
+    await say("pls get the filez for sam kruger");
+    expect(replies[5].body).toBe(HEIDI_MSG.noEmail);
+    expect(db.t.reception_requests).toHaveLength(0);
+    expect(sent).toHaveLength(0);
+
+    await say("what can you do");
+    expect(replies[6].body).toContain(HEIDI_MSG.helpLine);
+    expect(replies[6].body).toContain("Ask reception to");
   });
 
   it("help mentions reception, and thanks stays short", async () => {

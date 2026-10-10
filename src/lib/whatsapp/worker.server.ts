@@ -516,7 +516,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     if (prac) {
       const text = row.body || row.reply_title || "";
       const { practitionerIntent } = await import("./practitioner-status.server");
-      const { looksLikeProgramme, readPracMemory, writePracMemory } =
+      const { looksLikeProgramme, readPracMemory, readPractitionerHeidi, writePracMemory } =
         await import("./practitioner-understand");
       const memory = readPracMemory(conv.draft, now.getTime());
       const waiting = Boolean(memory.awaitingReception || memory.confirm);
@@ -526,7 +526,12 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
         looksLikeProgramme(text) ||
         /^(prog|prac)_/i.test(row.reply_id ?? "") ||
         practitionerIntent(text, row.reply_id).kind !== "other";
-      if (!conv.client_id || isCommand) {
+      let heidiCommand = false;
+      if (process.env.HEIDI_API_KEY && process.env.HEIDI_REGION && process.env.HEIDI_EHR_PROVIDER) {
+        const { heidiConfig } = await import("./heidi.server");
+        heidiCommand = Boolean(heidiConfig() && readPractitionerHeidi(text, row.reply_id));
+      }
+      if (!conv.client_id || isCommand || heidiCommand) {
         const handled = await handlePractitionerMessage(
           admin,
           prac,
