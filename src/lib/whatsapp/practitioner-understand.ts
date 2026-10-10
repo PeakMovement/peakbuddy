@@ -24,6 +24,17 @@
  */
 import { readHeidiCommand, type HeidiCommand } from "./heidi";
 
+/**
+ * Every way staff name the front desk (10 Oct, Justin: "secretary", "sec",
+ * Mishqah...). Strong names count anywhere a reception name is expected.
+ * Weak ones ("office", "admin", "sec") only count straight after a verb such
+ * as ask or tell, so "Sam is in the office" is never an errand.
+ */
+export const RECEPTION_NAMES_STRONG = String.raw`receptionists?|reception|front\s+desk|front\s+office|admin\s+desk|admin\s+team|secretary|secretaries|mishqah`;
+export const RECEPTION_NAMES_WEAK = String.raw`admin|office|sec`;
+/** "the", "our" or "my" in front of the name. */
+export const RECEPTION_OWNER = String.raw`(?:(?:the|our|my)\s+)?`;
+
 export const PROGRAMME_SENT =
   /\b(sent|send|emailed|shared|uploaded|given|gave|done|finished|ready)\b[\s\S]{0,80}\b(programme|program|exercises?|rehab|plan|hep)\b|\b(programme|program|exercises?|rehab|plan|hep)\b[\s\S]{0,40}\b(sent|emailed|shared|uploaded|done|ready)\b/i;
 
@@ -31,6 +42,7 @@ export const PROGRAMME_SENT =
 const KEYWORDS = [
   "reception",
   "receptionist",
+  "secretary",
   "clients",
   "client",
   "patients",
@@ -168,6 +180,25 @@ const WORD_FIX: Record<string, string> = {
   frnt: "front",
   desck: "desk",
   frontdesk: "front desk",
+  secratary: "secretary",
+  secetary: "secretary",
+  secretery: "secretary",
+  secritary: "secretary",
+  secrtary: "secretary",
+  sectretary: "secretary",
+  secreatry: "secretary",
+  secertary: "secretary",
+  secratery: "secretary",
+  secetery: "secretary",
+  secrotary: "secretary",
+  mishka: "mishqah",
+  mishkah: "mishqah",
+  mishqa: "mishqah",
+  misqah: "mishqah",
+  mishqha: "mishqah",
+  mishquah: "mishqah",
+  mishaqh: "mishqah",
+  mishqaah: "mishqah",
   snt: "sent",
   wit: "with",
   wth: "with",
@@ -299,9 +330,9 @@ export function isFillerTask(task: string): boolean {
 /** "contact reception" / "msg front desk pls" / "reception" with nothing to do yet. */
 export function bareReception(text: string): boolean {
   const n = normalizePractitionerText(text);
-  return /^(?:(?:hi|hey|hello|please|can you|could you|would you|buddy)\s+)*(?:(?:contact|message|text|ping|whatsapp|reach|speak to|talk to|get hold of|ask|tell|call|phone)\s+)?(?:the\s+)?(?:reception|receptionist|front desk|front office|admin desk)(?:\s+please)?$/.test(
-    n,
-  );
+  return new RegExp(
+    String.raw`^(?:(?:hi|hey|hello|please|can you|could you|would you|buddy)\s+)*(?:(?:contact|message|text|ping|whatsapp|reach|speak to|talk to|get hold of|ask|tell|call|phone)\s+${RECEPTION_OWNER}(?:${RECEPTION_NAMES_STRONG}|${RECEPTION_NAMES_WEAK})|${RECEPTION_OWNER}(?:${RECEPTION_NAMES_STRONG}))(?:\s+please)?$`,
+  ).test(n);
 }
 
 /**
@@ -311,7 +342,7 @@ export function bareReception(text: string): boolean {
 export function looseReceptionTask(text: string): string | null {
   const n = normalizePractitionerText(text);
   if (blocksOutbound(n) || bareReception(n)) return null;
-  const m = n.match(/\b(?:reception|receptionist|front desk|front office|admin desk)\b\s+(.+)$/);
+  const m = n.match(new RegExp(String.raw`\b(?:${RECEPTION_NAMES_STRONG})\b\s+(.+)$`));
   if (!m) return null;
   const rest = m[1].replace(/^(?:please|to|can you|could you)\s+/, "").trim();
   if (rest.length < 3 || !TASK_VERB.test(rest) || isFillerTask(rest)) return null;
@@ -319,7 +350,7 @@ export function looseReceptionTask(text: string): string | null {
 }
 
 const PERSON_STOP = new Set(
-  `the a an my our your to for with and or on in at of please buddy can you could would just also now today tomorrow later time check need needs want wants get got him her them his their its about that this from into onto via hey hi hello morning afternoon evening update updates send sent programme program exercises exercise rehab doing going how what when where who why are is was were been being have has had will shall not dont do did me we us i i'm they client clients patient patients someone anyone everybody everyone people caseload status quick thanks thank reception front desk receptionist red flag flags quiet daily weekly every again soon asap very really still open help door notes note website shoes weather pain knee back shoulder hard well nice lovely great bad sore easy fine good difficult painful closed here there yesterday bit little much really`.split(
+  `the a an my our your to for with and or on in at of please buddy can you could would just also now today tomorrow later time check need needs want wants get got him her them his their its about that this from into onto via hey hi hello morning afternoon evening update updates send sent programme program exercises exercise rehab doing going how what when where who why are is was were been being have has had will shall not dont do did me we us i i'm they client clients patient patients someone anyone everybody everyone people caseload status quick thanks thank reception front desk receptionist red flag flags quiet daily weekly every secretary secretaries sec admin office mishqah receptionists again soon asap very really still open help door notes note website shoes weather pain knee back shoulder hard well nice lovely great bad sore easy fine good difficult painful closed here there yesterday bit little much really`.split(
     /\s+/,
   ),
 );
@@ -590,6 +621,10 @@ const NAME_TOKEN_STOP = new Set([
   "reception",
   "front",
   "desk",
+  "secretary",
+  "office",
+  "admin",
+  "mishqah",
 ]);
 
 export interface RankedPatient<T> {

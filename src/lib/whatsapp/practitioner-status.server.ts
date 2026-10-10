@@ -30,6 +30,9 @@ import {
   looseReceptionTask,
   looseStatusName,
   normalizePractitionerText,
+  RECEPTION_NAMES_STRONG,
+  RECEPTION_NAMES_WEAK,
+  RECEPTION_OWNER,
   statusOneJunk,
 } from "./practitioner-understand";
 
@@ -112,7 +115,8 @@ export function readUpdates(text: string): PracIntent | null {
 }
 
 /** "Ask reception to ...", "tell the front desk that ...", "reception: ..." */
-const RECEPTION_WHO = String.raw`(?:the\s+)?(?:receptionist|reception|front\s+desk|front\s+office|admin\s+desk)\b`;
+const RECEPTION_WHO =
+  RECEPTION_OWNER + String.raw`(?:${RECEPTION_NAMES_STRONG}|${RECEPTION_NAMES_WEAK})\b`;
 const RECEPTION_ASK = new RegExp(
   String.raw`^\s*(?:(?:please|pls|plz|can\s+you|could\s+you|would\s+you|buddy|hey)[\s,]+)*(?:ask|tell|get|message|remind|let|contact|text|ping|phone|whatsapp)\s+` +
     RECEPTION_WHO +
@@ -123,8 +127,10 @@ const RECEPTION_COLON = new RegExp(
   String.raw`^\s*` + RECEPTION_WHO + String.raw`\s*[:,]\s*([\s\S]+)$`,
   "i",
 );
-export const RECEPTION_OPEN =
-  /\b(what'?s|whats|what\s+is|anything|any|which)\b[\s\S]{0,25}\b(open|outstanding|pending|waiting|still)\b[\s\S]{0,25}\b(reception|front\s+desk)\b|\b(reception|front\s+desk)\s+(tasks|requests|errands|list)\b/i;
+export const RECEPTION_OPEN = new RegExp(
+  String.raw`\b(what'?s|whats|what\s+is|anything|any|which)\b[\s\S]{0,25}\b(open|outstanding|pending|waiting|still)\b[\s\S]{0,25}\b(?:${RECEPTION_NAMES_STRONG})\b|\b(?:${RECEPTION_NAMES_STRONG})\s+(tasks|requests|errands|list)\b`,
+  "i",
+);
 
 export function readReceptionTask(text: string): string | null {
   const t = String(text ?? "").trim();
