@@ -8,6 +8,7 @@ import {
   handlePractitionerMessage,
   matchPatients,
   PRAC_MSG,
+  smallTalk,
   PROGRAMME_SENT,
   practitionerByPhone,
   resetPractitionerCache,
@@ -220,9 +221,43 @@ describe("practitioner mode", () => {
     });
   });
 
-  it("anything else gets the practitioner help line", async () => {
+  it("a greeting gets the practitioner help line", async () => {
     const { db, deps, replies } = setup();
     await handlePractitionerMessage(db, PRAC, { text: "hi buddy", replyId: null }, deps);
     expect(replies[0].body).toBe(PRAC_MSG.help("Zoe"));
+  });
+
+  it("thanks and ok get a short reply, not the menu", async () => {
+    const { db, deps, replies } = setup();
+    await handlePractitionerMessage(db, PRAC, { text: "Thank you!", replyId: null }, deps);
+    await handlePractitionerMessage(db, PRAC, { text: "ok great", replyId: null }, deps);
+    await handlePractitionerMessage(db, PRAC, { text: "\u{1F44D}", replyId: null }, deps);
+    expect(replies[0]).toMatchObject({ kind: "text" });
+    expect(replies[0].body).toMatch(/Zoe\.$/);
+    expect(replies[0].body).not.toContain("Here's what I can do");
+    expect(replies[2]).toMatchObject({ kind: "text", body: PRAC_MSG.ack });
+  });
+
+  it("something unrecognised gets a short nudge with buttons", async () => {
+    const { db, deps, replies } = setup();
+    await handlePractitionerMessage(db, PRAC, { text: "blue elephant", replyId: null }, deps);
+    expect(replies[0].kind).toBe("buttons");
+    expect(replies[0].body).toBe(PRAC_MSG.notSure("Zoe"));
+    await handlePractitionerMessage(db, PRAC, { text: "", replyId: "prac_help" }, deps);
+    expect(replies[1].body).toBe(PRAC_MSG.help("Zoe"));
+  });
+
+  it.each([
+    ["thanks", "thanks"],
+    ["Thank you so much", "thanks"],
+    ["cheers buddy", "thanks"],
+    ["ok", "ack"],
+    ["Perfect!", "ack"],
+    ["Good morning", "greeting"],
+    ["what can you do?", "help"],
+    ["help", "help"],
+    ["the knee one", null],
+  ])("smallTalk(%s) = %s", (text, want) => {
+    expect(smallTalk(text)).toBe(want);
   });
 });

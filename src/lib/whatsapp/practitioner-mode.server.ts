@@ -134,7 +134,46 @@ const firstOf = (n: string | null | undefined) =>
     .trim()
     .split(/\s+/)[0] || "there";
 
+/** Short replies so "thanks" or "ok" doesn't get the whole menu back. */
+export type SmallTalk = "thanks" | "ack" | "greeting" | "help" | null;
+
+export function smallTalk(text: string): SmallTalk {
+  const t = String(text ?? "").trim();
+  if (!t) return null;
+  if (/\b(help|menu|commands|options)\b|what (else )?can you do|what do you do/i.test(t))
+    return "help";
+  if (
+    t.length <= 60 &&
+    /^(thanks?|thank\s*you|thanx|thx|ty|cheers|ta|much appreciated|appreciate it)\b/i.test(t)
+  )
+    return "thanks";
+  if (
+    /^(hi|hello|hey|hiya|howzit|yo|morning|good (morning|afternoon|evening))\b[\s,!.]*(buddy)?[\s,!.]*$/i.test(
+      t,
+    )
+  )
+    return "greeting";
+  if (
+    /^(ok(ay)?|k|great|cool|perfect|nice|awesome|sure|got it|noted|sounds good|good|lovely|brilliant|alright|all good|will do|thumbs up|\u{1F44D}|\u{1F44C}|\u{1F64F})[\s.!\u{1F44D}\u{1F64F}]*$/iu.test(
+      t,
+    )
+  )
+    return "ack";
+  return null;
+}
+
+const THANKS_REPLIES = [
+  (n: string) => `Any time, ${n}.`,
+  (n: string) => `My pleasure, ${n}.`,
+  (n: string) => `Happy to help, ${n}.`,
+];
+
 export const PRAC_MSG = {
+  thanks: (name: string, now: Date) =>
+    THANKS_REPLIES[now.getUTCMinutes() % THANKS_REPLIES.length](name),
+  ack: "\u{1F44D}",
+  notSure: (name: string) =>
+    `Sorry ${name}, I didn't catch that. Try "how are my clients doing?" or tap below to see everything I can do.`,
   help: (name: string) =>
     `Hi ${name}, you're messaging Buddy as a practitioner. Here's what I can do:\n\n` +
     `• "How are my clients doing?" for a quick status of all your clients\n` +
@@ -232,14 +271,30 @@ export async function handlePractitionerMessage(
     }
   }
   if (!picked && !PROGRAMME_SENT.test(msg.text)) {
-    await deps.reply({
-      kind: "buttons",
-      body: PRAC_MSG.help(prac.firstName),
-      buttons: [
-        { id: "prac_status", title: "How are my clients" },
-        { id: "prac_updates", title: "Regular updates" },
-      ],
-    });
+    const talk = msg.replyId === "prac_help" ? "help" : smallTalk(msg.text);
+    if (talk === "thanks") {
+      await deps.reply({ kind: "text", body: PRAC_MSG.thanks(prac.firstName, deps.now) });
+    } else if (talk === "ack") {
+      await deps.reply({ kind: "text", body: PRAC_MSG.ack });
+    } else if (talk === "help" || talk === "greeting") {
+      await deps.reply({
+        kind: "buttons",
+        body: PRAC_MSG.help(prac.firstName),
+        buttons: [
+          { id: "prac_status", title: "How are my clients" },
+          { id: "prac_updates", title: "Regular updates" },
+        ],
+      });
+    } else {
+      await deps.reply({
+        kind: "buttons",
+        body: PRAC_MSG.notSure(prac.firstName),
+        buttons: [
+          { id: "prac_status", title: "How are my clients" },
+          { id: "prac_help", title: "What can you do" },
+        ],
+      });
+    }
     return true;
   }
 

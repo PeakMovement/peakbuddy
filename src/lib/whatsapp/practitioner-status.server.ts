@@ -174,7 +174,7 @@ export interface ClientStatus {
     energy: number | null;
     notes: string | null;
   }>;
-  openAlerts: Array<{ type: string; urgency: string; at: string }>;
+  openAlerts: Array<{ type: string; urgency: string; at: string; kind?: AlertKind }>;
   channel: "whatsapp" | "app" | "none";
 }
 
@@ -206,18 +206,56 @@ export function ago(at: string, now: Date): string {
   return `${d} days ago`;
 }
 
-const ALERT_WORD: Record<string, string> = {
-  red_flag: "red flag",
-  client_contact_request: "question or call request",
-  pattern: "pattern",
-};
+export type AlertKind = "red_flag" | "question" | "call_request" | "message" | "pattern" | "other";
 
-function alertLine(c: ClientStatus): string {
-  const n = c.openAlerts.length;
-  const kinds = [
-    ...new Set(c.openAlerts.map((a) => ALERT_WORD[a.type] ?? a.type.replace(/_/g, " "))),
-  ];
-  return `${n} alert${n > 1 ? "s" : ""} not reviewed (${kinds.join(", ")})`;
+/** What an alert actually is, so the practitioner isn't told "question or call request". */
+export function alertKind(type: string, message: string | null | undefined): AlertKind {
+  if (type === "red_flag") return "red_flag";
+  if (type === "pattern") return "pattern";
+  if (type === "client_contact_request") {
+    const m = String(message ?? "");
+    if (/^clinical question/i.test(m)) return "question";
+    if (/requested contact/i.test(m)) return "call_request";
+    return "message";
+  }
+  return "other";
+}
+
+const KIND_WORDS: Record<AlertKind, [string, string]> = {
+  red_flag: ["red flag", "red flags"],
+  question: ["question", "questions"],
+  call_request: ["call request", "call requests"],
+  message: ["message for you", "messages for you"],
+  pattern: ["pattern alert", "pattern alerts"],
+  other: ["alert", "alerts"],
+};
+const KIND_ORDER: AlertKind[] = [
+  "red_flag",
+  "call_request",
+  "question",
+  "message",
+  "pattern",
+  "other",
+];
+
+/** "1 red flag and 2 call requests to review" */
+export function alertLine(c: ClientStatus): string {
+  const counts = new Map<AlertKind, number>();
+  for (const a of c.openAlerts) {
+    const k = a.kind ?? alertKind(a.type, null);
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  const parts = KIND_ORDER.filter((k) => counts.has(k)).map((k) => {
+    const n = counts.get(k)!;
+    return `${n} ${KIND_WORDS[k][n === 1 ? 0 : 1]}`;
+  });
+  const list =
+    parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
+  return `${list} to review`;
+}
+
+function andList(xs: string[]): string {
+  return xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : (xs[0] ?? "");
 }
 
 function painLine(c: ClientStatus): string | null {
@@ -249,17 +287,24 @@ export function formatStatusAll(
       ? `No current clients at the practice yet, ${name}. Once patients join Buddy and start checking in, they'll show up here.`
       : `You don't have any current clients on Buddy yet, ${name}. Once your patients join and start checking in, they'll show up here.`;
   }
+  const counts = [
+    by.attention.length
+      ? `${by.attention.length} need${by.attention.length === 1 ? "s" : ""} a look`
+      : null,
+    by.quiet.length ? `${by.quiet.length} gone quiet` : null,
+    by.well.length ? `${by.well.length} doing well` : null,
+  ].filter(Boolean) as string[];
   const lines: string[] = [
     practice
-      ? `Here's how the practice's clients are doing, ${name} (${active} current):`
-      : `Here's how your clients are doing, ${name} (${active} current):`,
+      ? `Here's how the practice's clients are doing, ${name}. ${active} current: ${andList(counts)}.`
+      : `Here's how your clients are doing, ${name}. ${active} current: ${andList(counts)}.`,
   ];
   if (by.attention.length) {
     lines.push("", `*Needs a look (${by.attention.length})*`);
     for (const c of by.attention) {
       const bits = [
         painLine(c),
-        c.checkins[0] ? ago(c.checkins[0].at, now) : null,
+        c.checkins[0] ? `last check-in ${ago(c.checkins[0].at, now)}` : null,
         c.openAlerts.length ? alertLine(c) : null,
       ]
         .filter(Boolean)
@@ -268,18 +313,22 @@ export function formatStatusAll(
     }
   }
   if (by.quiet.length) {
-    lines.push("", `*Gone quiet (${by.quiet.length})*`);
-    for (const c of by.quiet) {
-      const when = c.checkins[0]
-        ? `last check-in ${ago(c.checkins[0].at, now)}`
-        : "no check-in yet";
-      const how = c.channel === "none" ? ", not on WhatsApp or the app" : "";
-      lines.push(`• ${c.name}: ${when}${how}`);
-    }
+    const shown = by.quiet.slice(0, 6).map((c) => {
+      if (!c.checkins[0]) return `${c.name} (no check-in yet)`;
+      const d = ago(c.checkins[0].at, now);
+      return `${c.name} (${d.replace(/ ago$/, "")})`;
+    });
+    const more = by.quiet.length - shown.length;
+    lines.push(
+      "",
+      `*Gone quiet (${by.quiet.length})*, no check-in for 4 days or more:`,
+      `${shown.join(", ")}${more > 0 ? ` and ${more} more` : ""}`,
+    );
   }
   if (by.well.length) {
-    lines.push("", `*Doing well (${by.well.length})*`);
     lines.push(
+      "",
+      `*Doing well (${by.well.length})*`,
       by.well
         .map((c) => {
           const p = c.checkins[0]?.pain;
@@ -288,10 +337,8 @@ export function formatStatusAll(
         .join(", "),
     );
   }
-  lines.push(
-    "",
-    `Ask "how is Sam doing" for one client, "check in with Sam" and I'll ask them for a check-in, or "update me daily" to get this automatically.`,
-  );
+  const example = (by.attention[0] ?? by.quiet[0] ?? by.well[0])?.name.split(/\s+/)[0] ?? "Sam";
+  lines.push("", `Ask "how is ${example} doing?" for more on anyone.`);
   return clip(lines.join("\n"));
 }
 
@@ -322,7 +369,10 @@ export function formatStatusOne(c: ClientStatus, now: Date): string {
     const note = c.checkins.find((x) => x.notes && x.notes.trim())?.notes?.trim();
     if (note) lines.push(`Latest note: "${note.length > 160 ? `${note.slice(0, 157)}...` : note}"`);
   }
-  if (c.openAlerts.length) lines.push(`${alertLine(c)}. Open their profile in Buddy to review.`);
+  if (c.openAlerts.length)
+    lines.push(
+      `${alertLine(c).replace(/ to review$/, "")} not reviewed yet. Open their profile in Buddy to review.`,
+    );
   lines.push(
     c.channel === "whatsapp"
       ? "Checks in on WhatsApp."
@@ -407,7 +457,7 @@ export async function loadStatuses(
       .limit(5000),
     admin
       .from("alerts")
-      .select("client_id, alert_type, urgency, created_at, is_read, reviewed_at")
+      .select("client_id, alert_type, urgency, created_at, is_read, reviewed_at, message")
       .in("client_id", ids)
       .gte("created_at", alertSince)
       .limit(2000),
@@ -449,9 +499,12 @@ export async function loadStatuses(
     if (a.is_read || a.reviewed_at) continue;
     if (!["red_flag", "client_contact_request"].includes(a.alert_type) && a.urgency === "routine")
       continue;
-    out
-      .get(a.client_id)
-      ?.openAlerts.push({ type: a.alert_type, urgency: a.urgency, at: a.created_at });
+    out.get(a.client_id)?.openAlerts.push({
+      type: a.alert_type,
+      urgency: a.urgency,
+      at: a.created_at,
+      kind: alertKind(a.alert_type, a.message),
+    });
   }
   return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));
 }

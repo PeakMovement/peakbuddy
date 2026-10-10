@@ -6,6 +6,8 @@ vi.mock("@/lib/push.functions", () => ({ sendPushCore: push }));
 
 import { handlePractitionerMessage } from "./practitioner-mode.server";
 import {
+  alertKind,
+  alertLine,
   bucketOf,
   formatStatusAll,
   formatStatusOne,
@@ -269,8 +271,9 @@ describe("status", () => {
       ],
     });
     const all = formatStatusAll("Zoe", [sam, mk({ name: "Old", joinedAt: daysAgo(200) })], NOW);
-    expect(all).toContain("(1 current)");
-    expect(all).toContain("Sam Kruger: pain 7, up from 4, yesterday");
+    expect(all).toContain("1 current: 1 needs a look.");
+    expect(all).toContain("Sam Kruger: pain 7, up from 4, last check-in yesterday");
+    expect(all).toContain('Ask "how is Sam doing?"');
     expect(all).not.toContain("Old");
     const one = formatStatusOne(sam, NOW);
     expect(one).toContain("pain 7/10, sleep 2/5, energy 3/5");
@@ -290,11 +293,13 @@ describe("practitioner conversation", () => {
       d,
     );
     const body = replies[0].body as string;
-    expect(body).toContain("Here's how your clients are doing, Zoe (2 current)");
+    expect(body).toContain(
+      "Here's how your clients are doing, Zoe. 2 current: 1 needs a look and 1 gone quiet.",
+    );
     expect(body).toContain("Needs a look (1)");
     expect(body).toContain("Sam Kruger");
     expect(body).toContain("Gone quiet (1)");
-    expect(body).toContain("Lee Adams: last check-in 6 days ago");
+    expect(body).toContain("Lee Adams (6 days)");
     expect(body).not.toContain("Ann Old");
   });
 
@@ -523,5 +528,33 @@ describe("practice owner view", () => {
     );
     expect(replies[0].body).toContain("Buddy usage, your clients");
     expect(replies[0].body).toContain("3 clients on Buddy");
+  });
+});
+
+describe("alert wording", () => {
+  it("names each kind of open alert with counts", () => {
+    expect(alertKind("red_flag", "WhatsApp check-in: x")).toBe("red_flag");
+    expect(alertKind("client_contact_request", "Clinical question on WhatsApp, waiting")).toBe(
+      "question",
+    );
+    expect(alertKind("client_contact_request", "Test Client requested contact: x")).toBe(
+      "call_request",
+    );
+    expect(alertKind("client_contact_request", "Something else")).toBe("message");
+    const c: ClientStatus = {
+      id: "x",
+      name: "Sam Kruger",
+      joinedAt: daysAgo(30),
+      checkins: [{ at: daysAgo(1), pain: 3, sleep: 3, energy: 3, notes: null }],
+      openAlerts: [],
+      channel: "whatsapp",
+    };
+    c.openAlerts = [
+      { type: "red_flag", urgency: "urgent", at: daysAgo(1), kind: "red_flag" },
+      { type: "client_contact_request", urgency: "soon", at: daysAgo(1), kind: "call_request" },
+      { type: "client_contact_request", urgency: "soon", at: daysAgo(1), kind: "call_request" },
+    ];
+    expect(alertLine(c)).toBe("1 red flag and 2 call requests to review");
+    expect(formatStatusOne(c, NOW)).toContain("1 red flag and 2 call requests not reviewed yet");
   });
 });

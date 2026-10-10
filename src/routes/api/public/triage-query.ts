@@ -861,7 +861,9 @@ async function fireServerRedFlagAlert(
           args.urgency,
           undefined,
           clientName === "Your client" ? null : clientName,
-          `in the app they wrote "${args.queryText.slice(0, 140).trim()}"`,
+          // A short summary, never the patient's own words: this text goes
+          // through Meta as a template variable.
+          `Symptoms reported in the Buddy app, triage severity ${args.severity} of 10`,
         );
       }
     } catch (e) {
