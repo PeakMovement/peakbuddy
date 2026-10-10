@@ -516,8 +516,14 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     if (prac) {
       const text = row.body || row.reply_title || "";
       const { practitionerIntent } = await import("./practitioner-status.server");
+      const { looksLikeProgramme, readPracMemory, writePracMemory } =
+        await import("./practitioner-understand");
+      const memory = readPracMemory(conv.draft, now.getTime());
+      const waiting = Boolean(memory.awaitingReception || memory.confirm);
       const isCommand =
+        waiting ||
         PROGRAMME_SENT.test(text) ||
+        looksLikeProgramme(text) ||
         /^(prog|prac)_/i.test(row.reply_id ?? "") ||
         practitionerIntent(text, row.reply_id).kind !== "other";
       if (!conv.client_id || isCommand) {
@@ -562,8 +568,22 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
                 );
             },
           },
+          memory,
         );
-        if (handled) return null;
+        if (handled) {
+          await admin
+            .from("whatsapp_conversations")
+            .update({
+              draft: writePracMemory(conv.draft, memory),
+              updated_at: now.toISOString(),
+            })
+            .eq("id", conv.id)
+            .then(
+              () => undefined,
+              () => undefined,
+            );
+          return null;
+        }
       }
     }
   }
