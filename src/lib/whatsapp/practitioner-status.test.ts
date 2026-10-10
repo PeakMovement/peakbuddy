@@ -426,3 +426,102 @@ describe("practitioner conversation", () => {
     expect(db.t.alerts[0].push_fired).toBe(true);
   });
 });
+
+describe("practice owner view", () => {
+  const JUSTIN = { userId: "justin", firstName: "Justin" };
+  function ownerWorld() {
+    const db = world();
+    db.t.profiles.push({ id: "justin", full_name: "Justin Muller", role: "super_admin" });
+    db.t.practices[0].practice_name = "Peak Movement";
+    db.t.alerts.push(
+      {
+        client_id: SAM,
+        alert_type: "red_flag",
+        urgency: "urgent",
+        created_at: daysAgo(0.5),
+        message: "WhatsApp check-in: Pain rose 3 points since the last check-in (4 to 7)",
+        is_read: false,
+        reviewed_at: null,
+      },
+      {
+        client_id: LEE,
+        alert_type: "red_flag",
+        urgency: "soon",
+        created_at: daysAgo(2),
+        message: "WhatsApp check-in: old",
+        is_read: true,
+        reviewed_at: daysAgo(1),
+      },
+    );
+    return db;
+  }
+
+  it.each([
+    ["How many clients are using Buddy?", "usage"],
+    ["who's gone quiet", "quiet"],
+    ["Any red flags?", "redflags"],
+    ["practice overview", "overview"],
+  ])("%s -> %s", (text, topic) => {
+    expect(practitionerIntent(text, null)).toEqual({ kind: "admin", topic });
+  });
+
+  it("red flags for the whole practice, with practitioner and reason", async () => {
+    const db = ownerWorld();
+    const { replies, d } = deps();
+    await handlePractitionerMessage(db, JUSTIN, { text: "Any red flags?", replyId: null }, d);
+    const body = replies[0].body as string;
+    expect(body).toContain("Open red flags (1)");
+    expect(body).toContain("Sam Kruger (Zoe): urgent");
+    expect(body).toContain("Pain rose 3 points since the last check-in (4 to 7)");
+    expect(body).toContain("1 other this week already reviewed");
+  });
+
+  it("usage and quiet", async () => {
+    const db = ownerWorld();
+    const { replies, d } = deps();
+    await handlePractitionerMessage(
+      db,
+      JUSTIN,
+      { text: "how many clients are using buddy", replyId: null },
+      d,
+    );
+    expect(replies[0].body).toContain("Buddy usage, Peak Movement");
+    expect(replies[0].body).toContain("3 clients on Buddy, 2 current");
+    expect(replies[0].body).toContain("1 on WhatsApp, 1 on the app only, 1 not set up yet");
+    expect(replies[0].body).toContain("Zoe 2");
+    await handlePractitionerMessage(db, JUSTIN, { text: "who has gone quiet?", replyId: null }, d);
+    expect(replies[1].body).toContain("Gone quiet (1)");
+    expect(replies[1].body).toContain("Lee Adams (Zoe): last check-in 6 days ago");
+  });
+
+  it("overview with buttons", async () => {
+    const db = ownerWorld();
+    const { replies, d } = deps();
+    await handlePractitionerMessage(db, JUSTIN, { text: "Practice overview", replyId: null }, d);
+    expect(replies[0].kind).toBe("buttons");
+    expect(replies[0].body).toContain("Open red flags (1)");
+    expect(replies[0].body).toContain("Buddy usage");
+    expect(replies[0].body).toContain("Gone quiet (1)");
+  });
+
+  it("a practitioner who isn't an owner only sees their own clients", async () => {
+    const db = ownerWorld();
+    db.t.clients.push({
+      id: "55555555-5555-5555-5555-555555555555",
+      full_name: "Tim Other",
+      practitioner_id: "tristan",
+      practice_id: "pm",
+      created_at: daysAgo(3),
+      auth_user_id: null,
+    });
+    const { replies, d } = deps();
+    await handlePractitionerMessage(
+      db,
+      PRAC,
+      { text: "how many clients are using buddy", replyId: null },
+      d,
+    );
+    expect(replies[0].body).toContain("Buddy usage, your clients");
+    expect(replies[0].body).toContain("3 clients on Buddy");
+  });
+});

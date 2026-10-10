@@ -63,6 +63,7 @@ export type PracIntent =
   | { kind: "checkin"; clientId: string | null }
   | { kind: "status_all"; practice: boolean }
   | { kind: "status_one"; clientId: string | null }
+  | { kind: "admin"; topic: "overview" | "redflags" | "quiet" | "usage" }
   | { kind: "other" };
 
 /** "at 7", "at 7:30am", "at 18:00", "at 6pm". Default 07:30. */
@@ -93,6 +94,35 @@ export function readUpdates(text: string): PracIntent | null {
 }
 
 /** Practitioner commands this module answers. Button replies carry the ids. */
+/** Practice owner questions, answered by practitioner-admin.server.ts. */
+function adminTopicOf(text: string): "overview" | "redflags" | "quiet" | "usage" | null {
+  if (
+    /\b(practice|admin|owner)\s+(overview|summary|update|report|stats|numbers|dashboard)\b|^\s*(overview|dashboard|practice stats)\s*[?.!]*\s*$/i.test(
+      text,
+    )
+  )
+    return "overview";
+  if (
+    /\bred[\s-]?flags?\b|\b(any|open|unread|outstanding)\s+(alerts?|flags?)\b|\balerts?\s+(open|outstanding|today|this week)\b/i.test(
+      text,
+    )
+  )
+    return "redflags";
+  if (
+    /\b(gone|went|going)\s+quiet\b|\bquiet\s+(clients|patients|ones)\b|\b(stopped|not|haven'?t|havent)\s+(been\s+)?check(ing|ed)?[\s-]?in\b|\binactive\s+(clients|patients)\b/i.test(
+      text,
+    )
+  )
+    return "quiet";
+  if (
+    /\bhow\s+many\b[\s\S]{0,40}\b(clients|patients|people)\b|\b(using|on|joined)\s+buddy\b|\bbuddy\s+(usage|uptake|numbers|stats)\b|\b(usage|uptake)\b/i.test(
+      text,
+    )
+  )
+    return "usage";
+  return null;
+}
+
 export function practitionerIntent(text: string, replyId: string | null): PracIntent {
   const r = replyId ?? "";
   if (r === "prac_status") return { kind: "status_all", practice: false };
@@ -107,9 +137,17 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
   const one = r.match(/^prac_one_([0-9a-f-]{36})$/i);
   if (one) return { kind: "status_one", clientId: one[1] };
 
+  if (r.startsWith("prac_adm_")) {
+    const topic = r.slice("prac_adm_".length);
+    if (topic === "overview" || topic === "redflags" || topic === "quiet" || topic === "usage")
+      return { kind: "admin", topic };
+  }
+
   const upd = readUpdates(text);
   if (upd) return upd;
   if (CHECKIN_REQUEST.test(text)) return { kind: "checkin", clientId: null };
+  const topic = adminTopicOf(text);
+  if (topic) return { kind: "admin", topic };
   if (STATUS_ALL.test(text))
     return {
       kind: "status_all",

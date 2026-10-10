@@ -82,6 +82,6 @@ describe("practitioner whatsapp alert", () => {
       },
       "  Sam   Kruger ",
     );
-    expect((send.mock.calls[0] as any[])[0].variables).toEqual(["Sam Kruger", "same day"]);
+    expect((send.mock.calls[0] as any[])[0].variables).toEqual(["Sam Kruger", "same day", "see Buddy for details"]);
   });
 });

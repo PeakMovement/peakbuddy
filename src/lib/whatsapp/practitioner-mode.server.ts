@@ -56,7 +56,8 @@ export async function practitionerByPhone(
       const { data: profs } = await admin
         .from("profiles")
         .select("id, full_name, role")
-        .eq("role", "practitioner")
+        // Owners and super admins (Justin) are recognised too.
+        .in("role", ["practitioner", "super_admin", "admin"])
         .limit(500);
       const names = new Map(
         ((profs ?? []) as Array<{ id: string; full_name: string | null }>).map((p) => [
@@ -140,7 +141,8 @@ export const PRAC_MSG = {
     `• "How is Sam Kruger doing?" for one client\n` +
     `• "Check in with Sam Kruger" and I'll ask them for a check-in, then send you their answers\n` +
     `• "Update me daily at 7am" (or weekdays, every Monday, stop updates)\n` +
-    `• "I've sent Sam Kruger his programme" and I'll let them know`,
+    `• "I've sent Sam Kruger his programme" and I'll let them know\n\n` +
+    `Practice owners can also ask "practice overview", "any red flags?", "who's gone quiet?" or "how many clients are using Buddy?"`,
   notFound: (name: string) =>
     `I couldn't find a patient matching that on your list, ${name}. Try their first and last name, for example "I've sent Sam Kruger his programme".`,
   which: "I found more than one patient with that name. Which one did you mean?",
@@ -429,6 +431,24 @@ async function handleStatusIntent(
       ok
         ? st.UPDATE_MSG.saved(intent.frequency, intent.weekday, intent.time)
         : st.UPDATE_MSG.failed,
+    );
+    return;
+  }
+  if (intent.kind === "admin") {
+    const { adminAnswer } = await import("./practitioner-admin.server");
+    const body = await adminAnswer(adminIn, prac.userId, intent.topic, deps.now);
+    await deps.reply(
+      intent.topic === "overview"
+        ? {
+            kind: "buttons",
+            body,
+            buttons: [
+              { id: "prac_adm_redflags", title: "All red flags" },
+              { id: "prac_adm_quiet", title: "Who's gone quiet" },
+              { id: "prac_adm_usage", title: "Usage details" },
+            ],
+          }
+        : { kind: "text", body },
     );
     return;
   }
