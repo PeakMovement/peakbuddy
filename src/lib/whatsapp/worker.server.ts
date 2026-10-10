@@ -274,6 +274,15 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
 const BASE_CONV_COLS =
   "id, phone, client_id, state, draft, checkin_started_at, opted_out_at, unmatched_notice_at";
 
+/** A client's full name for practitioner notifications, or the fallback. */
+function fullNameOf(full: string | null | undefined, fallback: string): string {
+  return (
+    String(full ?? "")
+      .trim()
+      .replace(/\s+/g, " ") || fallback
+  );
+}
+
 async function loadConversation(admin: Admin, phone: string): Promise<ConversationRow> {
   // wearable_offer_at arrives with migration 0014. Until it is applied, read
   // without it rather than failing every message.
@@ -1161,6 +1170,30 @@ async function applyEffects(
         () => undefined,
         () => undefined,
       );
+    // Tell the practitioner (10 Oct, Justin). Only the alert row here, so the
+    // reply isn't held up; the minute job sends the push and WhatsApp.
+    const { data: recentStop } = await admin
+      .from("alerts")
+      .select("id")
+      .eq("client_id", client.id)
+      .eq("alert_type", "whatsapp_opt_out")
+      .gte("created_at", new Date(now.getTime() - 86_400_000).toISOString())
+      .limit(1);
+    if (!(recentStop ?? []).length) {
+      await admin
+        .from("alerts")
+        .insert({
+          practitioner_id: client.practitioner_id,
+          client_id: client.id,
+          alert_type: "whatsapp_opt_out",
+          message: `${fullNameOf(client.full_name, "A client")} asked Buddy to stop their WhatsApp check-ins. Buddy won't message them again unless they reply START.`,
+          urgency: "routine",
+        })
+        .then(
+          () => undefined,
+          () => undefined,
+        );
+    }
   }
 
   if (decision.saveCheckin) {
@@ -1349,7 +1382,7 @@ export async function notifyRedFlagAlert(admin: Admin, alertId: string): Promise
       const { sendPushCore } = await import("@/lib/push.functions");
       const push = {
         title: "Buddy alert",
-        body: `${firstName} reported symptoms on WhatsApp that may need review`,
+        body: `${fullNameOf(client.full_name, firstName)} reported symptoms on WhatsApp that may need review`,
         data: { clientId: client.id, kind: "whatsapp" },
       };
       await sendPushCore(supabaseAdmin, { userId: client.practitioner_id, ...push });
@@ -1364,6 +1397,8 @@ export async function notifyRedFlagAlert(admin: Admin, alertId: string): Promise
         supabaseAdmin,
         [client.practitioner_id, owner].filter(Boolean) as string[],
         flags.urgency,
+        undefined,
+        client.full_name,
       );
     }
   } catch (e) {
@@ -1428,7 +1463,7 @@ async function raiseClinicalQuestion(
   const { sendPushCore } = await import("@/lib/push.functions");
   const push = {
     title: "Question for you",
-    body: `${firstName} asked a clinical question on WhatsApp. Buddy said you'd answer shortly.`,
+    body: `${fullNameOf(client.full_name, firstName)} asked a clinical question on WhatsApp. Buddy said you'd answer shortly.`,
     data: { clientId: client.id, kind: "whatsapp_question" },
   };
   const owner = await practiceOwnerId(admin, client);
@@ -1473,7 +1508,7 @@ async function raiseContactAlert(
     await sendPushCore(supabaseAdmin, {
       userId: client.practitioner_id,
       title: "Buddy",
-      body: `${firstNameOf(client.full_name)} sent a WhatsApp message for you`,
+      body: `${fullNameOf(client.full_name, firstNameOf(client.full_name))} sent a WhatsApp message for you`,
       data: { clientId: client.id, kind: "whatsapp_contact" },
     });
   } catch {

@@ -171,15 +171,29 @@ export const runEscalationSweep = createServerFn({ method: "POST" })
     ).filter((a) => (URGENCY_RANK[a.urgency] ?? 0) >= minRank);
     if (list.length === 0) return { ok: true, escalated: 0 };
     const { sendPushCore } = await import("@/lib/push.functions");
+    // Client names, so the reminder says who the alert is about.
+    const { data: named } = await db
+      .from("clients")
+      .select("id, full_name")
+      .in("id", [...new Set(list.map((a) => a.client_id))]);
+    const nameOf = new Map(
+      ((named ?? []) as { id: string; full_name: string | null }[]).map((c) => [
+        c.id,
+        String(c.full_name ?? "")
+          .trim()
+          .replace(/\s+/g, " "),
+      ]),
+    );
     let escalated = 0;
     for (const a of list) {
+      const who = nameOf.get(a.client_id) || "";
       try {
         await sendPushCore(supabaseAdmin, {
           userId: a.practitioner_id,
           title: "⏱ Unacknowledged alert",
           body: a.message
-            ? `Still open: ${a.message}`
-            : "A client alert is still unacknowledged — please review.",
+            ? `Still open${who ? ` for ${who}` : ""}: ${a.message}`
+            : `${who || "A client"}'s alert is still unacknowledged. Please review.`,
           data: { type: "escalation", alertId: a.id, clientId: a.client_id },
         });
         await db.from("alerts").update({ escalation_fired: true }).eq("id", a.id);

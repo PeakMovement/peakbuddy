@@ -825,14 +825,16 @@ async function fireServerRedFlagAlert(
           .select("full_name")
           .eq("id", args.clientId)
           .maybeSingle();
-        const firstName = ((cli?.full_name as string | null) || "Your client")
-          .trim()
-          .split(/\s+/)[0];
+        // The client's full name, so the practitioner knows who at a glance.
+        const clientName =
+          String((cli?.full_name as string | null) ?? "")
+            .trim()
+            .replace(/\s+/g, " ") || "Your client";
         const { sendPushCore } = await import("@/lib/push.functions");
         await sendPushCore(admin, {
           userId: args.practitionerId,
           title: "Buddy alert",
-          body: `${firstName} reported symptoms that may need review`,
+          body: `${clientName} reported symptoms that may need review`,
           data: { clientId: args.clientId, kind: "yves" },
         });
         // Practitioner and practice owner on WhatsApp, via the alert template.
@@ -851,13 +853,14 @@ async function fireServerRedFlagAlert(
             .maybeSingle();
           owner = (pr as { practitioner_id?: string } | null)?.practitioner_id ?? null;
         }
-        const { sendPractitionerWhatsAppAlert } = await import(
-          "@/lib/whatsapp/practitioner-alert.server"
-        );
+        const { sendPractitionerWhatsAppAlert } =
+          await import("@/lib/whatsapp/practitioner-alert.server");
         await sendPractitionerWhatsAppAlert(
           admin,
           [args.practitionerId, owner].filter(Boolean) as string[],
           args.urgency,
+          undefined,
+          clientName === "Your client" ? null : clientName,
         );
       }
     } catch (e) {

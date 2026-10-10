@@ -403,4 +403,26 @@ describe("practitioner conversation", () => {
       "Here's how your clients are doing, Zoe",
     );
   });
+
+  it("tells the practitioner by name when a client stops Buddy", async () => {
+    const db = world();
+    push.mockClear();
+    db.t.alerts.push({
+      id: "al1",
+      practitioner_id: "zoe",
+      client_id: SAM,
+      alert_type: "whatsapp_opt_out",
+      message: "Sam Kruger asked Buddy to stop their WhatsApp check-ins.",
+      push_fired: false,
+      created_at: daysAgo(0.01),
+    });
+    const send = vi.fn(async () => ({ providerMessageId: "w4" }));
+    const env = { provider: { id: "meta", send } as any, secrets: {} as any };
+    await runPractitionerJobs(db, env, NOW);
+    await runPractitionerJobs(db, env, NOW);
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect((send.mock.calls[0] as any[])[0].body).toContain("Sam Kruger asked Buddy to stop");
+    expect(db.t.alerts[0].push_fired).toBe(true);
+  });
 });

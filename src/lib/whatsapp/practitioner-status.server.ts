@@ -599,7 +599,47 @@ export async function runPractitionerJobs(
     /* table may not exist until the migration runs */
   }
 
-  // 2. Check-ins a practitioner asked for: pass the answers on.
+  // 2. A client asked Buddy to stop: tell their practitioner by name.
+  try {
+    const since = new Date(now.getTime() - DAY).toISOString();
+    const { data: stops } = await admin
+      .from("alerts")
+      .select("id, practitioner_id, client_id, message")
+      .eq("alert_type", "whatsapp_opt_out")
+      .eq("push_fired", false)
+      .gte("created_at", since)
+      .limit(20);
+    for (const a of (stops ?? []) as Array<Record<string, any>>) {
+      const { data: claimed } = await admin
+        .from("alerts")
+        .update({ push_fired: true })
+        .eq("id", a.id)
+        .eq("push_fired", false)
+        .select("id");
+      if (!(claimed ?? []).length) continue;
+      const body = String(a.message ?? "A client asked Buddy to stop their WhatsApp check-ins.");
+      try {
+        const { sendPushCore } = await import("@/lib/push.functions");
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        await sendPushCore(supabaseAdmin, {
+          userId: a.practitioner_id,
+          title: "Buddy",
+          body,
+          data: { clientId: a.client_id, kind: "opt_out" },
+        });
+      } catch {
+        /* the alert row still shows in the app */
+      }
+      const contact = await practitionerContact(adminIn, a.practitioner_id);
+      if (contact.phone && (await windowOpen(adminIn, contact.phone, now))) {
+        await sendLogged(adminIn, env, { kind: "text", to: contact.phone, body }, body);
+      }
+    }
+  } catch {
+    /* never blocks the other jobs */
+  }
+
+  // 3. Check-ins a practitioner asked for: pass the answers on.
   try {
     const since = new Date(now.getTime() - REQUEST_TTL_MS).toISOString();
     const { data: reqs } = await admin

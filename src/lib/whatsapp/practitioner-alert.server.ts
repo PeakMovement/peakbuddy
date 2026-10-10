@@ -2,12 +2,15 @@
  * Red flag alert to the practitioner's own WhatsApp.
  *
  * Practitioners rarely have an open 24 hour window with Buddy, so this uses
- * one Meta-approved Utility template. The template carries no patient
- * details: only how soon to look, and a link to Buddy. Who and what stay
- * inside the app.
+ * a Meta-approved template.
  *
- * Off until WHATSAPP_ALERT_TEMPLATE is set (after Meta approves the
- * template). The phone number comes from the practitioner's profile.
+ * WHATSAPP_ALERT_TEMPLATE_NAMED (10 Oct 2026, Justin's request): the
+ * patient's name plus how soon to look, variables [name, urgency]. The
+ * symptom itself still stays inside the app.
+ * WHATSAPP_ALERT_TEMPLATE: the original template, urgency only, used when the
+ * named one isn't set.
+ *
+ * The phone number comes from the practitioner's profile.
  */
 import { log } from "@/lib/log";
 import { maskPhone, toE164Digits } from "./phone";
@@ -20,6 +23,8 @@ export interface AlertTemplateConfig {
   secrets: ProviderSecrets;
   templateName: string;
   languageCode: string;
+  /** True when the template takes the patient's name first. */
+  named?: boolean;
 }
 
 /** How soon to look, in plain words for the template's one variable. */
@@ -36,7 +41,8 @@ export function urgencyWords(urgency: string | null | undefined): string {
 }
 
 export async function alertTemplateConfigFromEnv(): Promise<AlertTemplateConfig | null> {
-  const templateName = process.env.WHATSAPP_ALERT_TEMPLATE?.trim();
+  const namedTemplate = process.env.WHATSAPP_ALERT_TEMPLATE_NAMED?.trim();
+  const templateName = namedTemplate || process.env.WHATSAPP_ALERT_TEMPLATE?.trim();
   if (!templateName) return null;
   const { whatsappConfigFromEnv } = await import("./worker.server");
   const cfg = whatsappConfigFromEnv();
@@ -44,6 +50,7 @@ export async function alertTemplateConfigFromEnv(): Promise<AlertTemplateConfig 
   return {
     ...cfg,
     templateName,
+    named: Boolean(namedTemplate),
     languageCode: process.env.WHATSAPP_ALERT_TEMPLATE_LANG?.trim() || "en",
   };
 }
@@ -66,7 +73,13 @@ export async function sendPractitionerWhatsAppAlert(
   userIds: string[],
   urgency: string | null | undefined,
   cfgIn?: AlertTemplateConfig | null,
+  patientName?: string | null,
 ): Promise<number> {
+  const name =
+    String(patientName ?? "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .slice(0, 60) || "A patient";
   const cfg = cfgIn === undefined ? await alertTemplateConfigFromEnv() : cfgIn;
   if (!cfg) return 0;
   let sent = 0;
@@ -86,7 +99,7 @@ export async function sendPractitionerWhatsAppAlert(
               to,
               templateName: cfg.templateName,
               languageCode: cfg.languageCode,
-              variables: [urgencyWords(urgency)],
+              variables: cfg.named ? [name, urgencyWords(urgency)] : [urgencyWords(urgency)],
             },
             cfg.secrets,
           )
@@ -107,7 +120,7 @@ export async function sendPractitionerWhatsAppAlert(
         provider: cfg.provider.id,
         provider_message_id: id,
         kind: "template",
-        body: `[alert template ${cfg.templateName}: ${urgencyWords(urgency)}]`,
+        body: `[alert template ${cfg.templateName}: ${cfg.named ? "with name, " : ""}${urgencyWords(urgency)}]`,
         sent_ok: ok,
       })
       .then(

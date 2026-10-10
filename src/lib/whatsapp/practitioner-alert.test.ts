@@ -65,4 +65,23 @@ describe("practitioner whatsapp alert", () => {
     });
     expect(n).toBe(0);
   });
+
+  it("names the patient with the named template", async () => {
+    const send = vi.fn().mockResolvedValue({ providerMessageId: "m2" });
+    const { admin } = fakeAdmin({ a: "0821234567" });
+    await sendPractitionerWhatsAppAlert(
+      admin,
+      ["a"],
+      "soon",
+      {
+        provider: { id: "meta", send } as never,
+        secrets: {} as never,
+        templateName: "buddy_patient_alert_named",
+        languageCode: "en",
+        named: true,
+      },
+      "  Sam   Kruger ",
+    );
+    expect((send.mock.calls[0] as any[])[0].variables).toEqual(["Sam Kruger", "same day"]);
+  });
 });

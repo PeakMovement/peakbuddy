@@ -339,7 +339,8 @@ export const notifyAlertPush = createServerFn({ method: "POST" })
       return { ok: false as const, reason: "forbidden" as const };
     }
 
-    const firstName = (client.full_name || "Your client").trim().split(/\s+/)[0];
+    // Full name, so the practitioner knows exactly who.
+    const firstName = (client.full_name || "Your client").trim().replace(/\s+/g, " ");
     const title = data.kind === "morning" ? "Buddy morning insight" : "Buddy alert";
     const body =
       data.kind === "morning"
@@ -364,17 +365,13 @@ export const notifyAlertPush = createServerFn({ method: "POST" })
     // person is hands-on with someone else goes unread, and the escalation job
     // that would have chased it has never run in production. Additive: nobody
     // who was being notified stops being notified.
-    const { resolveAlertRecipients, createRecipientLookup } = await import(
-      "@/lib/alert-recipients"
-    );
-    const fanout = await resolveAlertRecipients(
-      createRecipientLookup(supabaseAdmin as never),
-      {
-        practitioner_id: alert.practitioner_id,
-        client_id: alert.client_id,
-        alert_type: (alert as { alert_type?: string | null }).alert_type ?? null,
-      },
-    );
+    const { resolveAlertRecipients, createRecipientLookup } =
+      await import("@/lib/alert-recipients");
+    const fanout = await resolveAlertRecipients(createRecipientLookup(supabaseAdmin as never), {
+      practitioner_id: alert.practitioner_id,
+      client_id: alert.client_id,
+      alert_type: (alert as { alert_type?: string | null }).alert_type ?? null,
+    });
 
     for (const recipient of fanout.userIds.slice(1)) {
       // Best effort. The treating practitioner's own push below is the one that

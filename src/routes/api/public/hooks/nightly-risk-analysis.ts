@@ -405,10 +405,10 @@ async function processClient(
     status: "new",
   });
 
-  // Push notify the practitioner. First name only, no symptom detail.
+  // Push notify the practitioner. The client's name, no symptom detail.
   try {
     const { sendPushCore } = await import("@/lib/push.functions");
-    const firstName = (client.full_name || "Your client").trim().split(/\s+/)[0];
+    const firstName = (client.full_name || "Your client").trim().replace(/\s+/g, " ");
     await sendPushCore(supabaseAdmin, {
       userId: client.practitioner_id,
       title: "Buddy morning insight",
