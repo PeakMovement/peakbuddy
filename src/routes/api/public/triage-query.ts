@@ -861,6 +861,7 @@ async function fireServerRedFlagAlert(
           args.urgency,
           undefined,
           clientName === "Your client" ? null : clientName,
+          `in the app they wrote "${args.queryText.slice(0, 140).trim()}"`,
         );
       }
     } catch (e) {

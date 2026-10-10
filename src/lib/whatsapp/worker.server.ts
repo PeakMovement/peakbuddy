@@ -1399,6 +1399,7 @@ export async function notifyRedFlagAlert(admin: Admin, alertId: string): Promise
         flags.urgency,
         undefined,
         client.full_name,
+        detail,
       );
     }
   } catch (e) {

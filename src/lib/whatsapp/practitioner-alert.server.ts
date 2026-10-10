@@ -40,6 +40,22 @@ export function urgencyWords(urgency: string | null | undefined): string {
   }
 }
 
+/**
+ * What triggered the alert, made safe for a WhatsApp template variable:
+ * no new lines, tabs or runs of spaces, at most 200 characters, no
+ * trailing full stop (the template adds one).
+ */
+export function alertReason(reason: string | null | undefined): string {
+  const flat = String(reason ?? "")
+    .replace(/^(WhatsApp check-in|Red flag detected):\s*/i, "")
+    .replace(/[\r\n\t]+/g, "; ")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .replace(/[.;\s]+$/, "");
+  if (!flat) return "see Buddy for details";
+  return flat.length > 200 ? `${flat.slice(0, 197).trimEnd()}...` : flat;
+}
+
 export async function alertTemplateConfigFromEnv(): Promise<AlertTemplateConfig | null> {
   const namedTemplate = process.env.WHATSAPP_ALERT_TEMPLATE_NAMED?.trim();
   const templateName = namedTemplate || process.env.WHATSAPP_ALERT_TEMPLATE?.trim();
@@ -74,7 +90,9 @@ export async function sendPractitionerWhatsAppAlert(
   urgency: string | null | undefined,
   cfgIn?: AlertTemplateConfig | null,
   patientName?: string | null,
+  reason?: string | null,
 ): Promise<number> {
+  const why = alertReason(reason);
   const name =
     String(patientName ?? "")
       .trim()
@@ -99,7 +117,7 @@ export async function sendPractitionerWhatsAppAlert(
               to,
               templateName: cfg.templateName,
               languageCode: cfg.languageCode,
-              variables: cfg.named ? [name, urgencyWords(urgency)] : [urgencyWords(urgency)],
+              variables: cfg.named ? [name, urgencyWords(urgency), why] : [urgencyWords(urgency)],
             },
             cfg.secrets,
           )
