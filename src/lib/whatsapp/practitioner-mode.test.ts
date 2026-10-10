@@ -109,6 +109,9 @@ function setup(extra: Record<string, Row[]> = {}) {
 
 afterEach(() => {
   delete process.env.WHATSAPP_PROGRAMME_TEMPLATE;
+  delete process.env.HEIDI_API_KEY;
+  delete process.env.HEIDI_REGION;
+  delete process.env.HEIDI_EHR_PROVIDER;
 });
 
 describe("practitioner mode", () => {
@@ -236,6 +239,20 @@ describe("practitioner mode", () => {
     expect(replies[0].body).toMatch(/Zoe\.$/);
     expect(replies[0].body).not.toContain("Here's what I can do");
     expect(replies[2]).toMatchObject({ kind: "text", body: PRAC_MSG.ack });
+  });
+
+  it("leaves a Heidi files request alone until the Heidi secrets are set", async () => {
+    delete process.env.HEIDI_API_KEY;
+    delete process.env.HEIDI_REGION;
+    delete process.env.HEIDI_EHR_PROVIDER;
+    const { db, deps, replies } = setup();
+    await handlePractitionerMessage(
+      db,
+      PRAC,
+      { text: "get Sam Kruger's files", replyId: null },
+      deps,
+    );
+    expect(replies[0].body).toBe(PRAC_MSG.notSure("Zoe"));
   });
 
   it("something unrecognised gets a short nudge with buttons", async () => {

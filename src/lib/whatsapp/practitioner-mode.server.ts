@@ -17,6 +17,8 @@
  * the app for app users; otherwise Buddy says honestly it can't reach them.
  */
 import { log } from "@/lib/log";
+import { HEIDI_MSG, readHeidiCommand } from "./heidi";
+import { handleHeidiTurn, heidiConfig } from "./heidi.server";
 import { maskPhone, toE164Digits } from "./phone";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
 
@@ -261,6 +263,12 @@ export async function handlePractitionerMessage(
   deps: PractitionerDeps,
 ): Promise<boolean> {
   const admin = adminIn as unknown as Db;
+  const heidiCmd = readHeidiCommand(msg.text, msg.replyId);
+  if (heidiCmd && heidiConfig()) {
+    const patients = await practitionerPatients(admin, prac.userId);
+    await handleHeidiTurn(adminIn, prac, heidiCmd, patients, deps);
+    return true;
+  }
   const picked = msg.replyId?.match(/^prog_([0-9a-f-]{36})$/i)?.[1] ?? null;
   if (!picked) {
     const { practitionerIntent } = await import("./practitioner-status.server");
@@ -279,7 +287,7 @@ export async function handlePractitionerMessage(
     } else if (talk === "help" || talk === "greeting") {
       await deps.reply({
         kind: "buttons",
-        body: PRAC_MSG.help(prac.firstName),
+        body: PRAC_MSG.help(prac.firstName) + (heidiConfig() ? `\n${HEIDI_MSG.helpLine}` : ""),
         buttons: [
           { id: "prac_status", title: "How are my clients" },
           { id: "prac_updates", title: "Regular updates" },
