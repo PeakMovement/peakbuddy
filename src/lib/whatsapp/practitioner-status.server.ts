@@ -64,6 +64,8 @@ export type PracIntent =
   | { kind: "status_all"; practice: boolean }
   | { kind: "status_one"; clientId: string | null }
   | { kind: "admin"; topic: "overview" | "redflags" | "quiet" | "usage" }
+  | { kind: "reception"; task: string }
+  | { kind: "reception_open" }
   | { kind: "other" };
 
 /** "at 7", "at 7:30am", "at 18:00", "at 6pm". Default 07:30. */
@@ -91,6 +93,31 @@ export function readUpdates(text: string): PracIntent | null {
   if (/\bweekly|every\s*week|each\s*week\b/.test(t))
     return { kind: "updates", frequency: "weekly", weekday: 1, time };
   return { kind: "updates", frequency: "daily", weekday: 1, time };
+}
+
+/** "Ask reception to ...", "tell the front desk that ...", "reception: ..." */
+const RECEPTION_WHO = String.raw`(?:the\s+)?(?:reception(?:ist)?|front\s+desk|front\s+office|admin\s+desk)`;
+const RECEPTION_ASK = new RegExp(
+  String.raw`^\s*(?:(?:please|pls|plz|can\s+you|could\s+you|would\s+you|buddy)[\s,]+)*(?:ask|tell|get|message|remind|let)\s+` +
+    RECEPTION_WHO +
+    String.raw`\s*(?:to\s+|that\s+|know\s+(?:that\s+)?|[:,]\s*)?([\s\S]+)$`,
+  "i",
+);
+const RECEPTION_COLON = new RegExp(
+  String.raw`^\s*` + RECEPTION_WHO + String.raw`\s*[:,]\s*([\s\S]+)$`,
+  "i",
+);
+export const RECEPTION_OPEN =
+  /\b(what'?s|whats|what\s+is|anything|any|which)\b[\s\S]{0,25}\b(open|outstanding|pending|waiting|still)\b[\s\S]{0,25}\b(reception|front\s+desk)\b|\b(reception|front\s+desk)\s+(tasks|requests|errands|list)\b/i;
+
+export function readReceptionTask(text: string): string | null {
+  const t = String(text ?? "").trim();
+  const m = t.match(RECEPTION_ASK) ?? t.match(RECEPTION_COLON);
+  if (!m) return null;
+  const task = m[1].trim().replace(/[\s.]+$/, "");
+  if (task.length < 3 || RECEPTION_OPEN.test(t)) return null;
+  const clipped = task.length > 600 ? `${task.slice(0, 597).trimEnd()}...` : task;
+  return clipped.charAt(0).toUpperCase() + clipped.slice(1);
 }
 
 /** Practitioner commands this module answers. Button replies carry the ids. */
@@ -142,6 +169,12 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
     if (topic === "overview" || topic === "redflags" || topic === "quiet" || topic === "usage")
       return { kind: "admin", topic };
   }
+
+  // Errands for reception come first: "ask reception to remind Sam to
+  // check in" is for reception, not a check-in request.
+  const task = readReceptionTask(text);
+  if (task) return { kind: "reception", task };
+  if (RECEPTION_OPEN.test(text)) return { kind: "reception_open" };
 
   const upd = readUpdates(text);
   if (upd) return upd;
@@ -584,7 +617,7 @@ export interface SendEnv {
   secrets: ProviderSecrets;
 }
 
-async function practitionerContact(
+export async function practitionerContact(
   adminIn: Admin,
   userId: string,
 ): Promise<{ phone: string | null; firstName: string }> {
@@ -602,7 +635,7 @@ async function practitionerContact(
   };
 }
 
-async function windowOpen(adminIn: Admin, phone: string, now: Date): Promise<boolean> {
+export async function windowOpen(adminIn: Admin, phone: string, now: Date): Promise<boolean> {
   const admin = adminIn as unknown as Db;
   const { data } = await admin
     .from("whatsapp_inbound")
@@ -614,7 +647,7 @@ async function windowOpen(adminIn: Admin, phone: string, now: Date): Promise<boo
   return Boolean(at && now.getTime() - new Date(at).getTime() < WINDOW_MS);
 }
 
-async function sendLogged(
+export async function sendLogged(
   adminIn: Admin,
   env: SendEnv,
   msg: OutboundMessage,

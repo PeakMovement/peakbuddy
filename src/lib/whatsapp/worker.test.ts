@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- test double for supabase-js */
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The alert notification cores reach for the real service client. Stub them:
 // these tests are about what the worker records and replies, not delivery.
@@ -865,5 +865,31 @@ describe("daily WhatsApp reminders", () => {
     });
     expect(r).toBe("not_whatsapp");
     expect(sent).toHaveLength(0);
+  });
+});
+
+describe("reception number", () => {
+  afterEach(() => {
+    delete process.env.WHATSAPP_RECEPTION_NUMBER;
+  });
+
+  it("never starts patient onboarding for the reception number", async () => {
+    process.env.WHATSAPP_RECEPTION_NUMBER = "+27600000099";
+    const db = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [inbound("Morning", undefined, "27600000099")],
+      whatsapp_conversations: [],
+      consent_records: [],
+      check_ins: [],
+      alerts: [],
+      reception_requests: [],
+      profiles: [],
+    });
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.whatsapp_conversations).toHaveLength(0);
+    expect(db.tables.whatsapp_inbound[0].status).toBe("processed");
+    expect(sent).toHaveLength(1);
+    expect((sent[0] as { body: string }).body).toContain("No open requests");
   });
 });

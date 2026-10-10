@@ -489,6 +489,22 @@ async function handleStatusIntent(
     );
     return;
   }
+  if (intent.kind === "reception" || intent.kind === "reception_open") {
+    const rc = await import("./reception.server");
+    const env = { provider: deps.provider, secrets: deps.secrets };
+    if (intent.kind === "reception_open") {
+      await text1(await rc.practitionerOpenList(adminIn, prac.userId, deps.now));
+      return;
+    }
+    const result = await rc.sendToReception(adminIn, env, {
+      practitionerId: prac.userId,
+      practitionerName: prac.firstName,
+      task: intent.task,
+      now: deps.now,
+    });
+    await text1(rc.RECEPTION_MSG.toPractitioner(result));
+    return;
+  }
   if (intent.kind === "admin") {
     const { adminAnswer } = await import("./practitioner-admin.server");
     const body = await adminAnswer(adminIn, prac.userId, intent.topic, deps.now);

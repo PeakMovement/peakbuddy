@@ -427,6 +427,35 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   const phone = toE164Digits(row.from_phone);
   if (!phone) throw new Error("unusable sender number");
 
+  // The practice reception number: errands from practitioners, never a
+  // patient conversation.
+  {
+    const rc = await import("./reception.server");
+    if (rc.isReceptionPhone(phone)) {
+      const isMedia = row.kind === "media";
+      await rc.handleReceptionMessage(
+        admin,
+        { text: row.body || row.reply_title || "", replyId: row.reply_id, isMedia },
+        {
+          provider: env.provider,
+          secrets: env.secrets,
+          now,
+          phone,
+          reply: async (m) => {
+            const { sendLogged } = await import("./practitioner-status.server");
+            await sendLogged(
+              admin as never,
+              { provider: env.provider, secrets: env.secrets },
+              { ...m, to: phone } as never,
+              "[reception reply]",
+            );
+          },
+        },
+      );
+      return null;
+    }
+  }
+
   // A practitioner answering Buddy about a new patient (button, or the brief
   // that follows). Never attached to any patient's history.
   {
