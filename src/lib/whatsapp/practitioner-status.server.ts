@@ -18,6 +18,7 @@
  */
 import { log } from "@/lib/log";
 import { readPatientQuestion } from "./patient-question-text";
+import { CHECKED_IN, wantsMessages } from "./practitioner-inbox-text";
 import { toSast } from "./clinic-hours";
 import { maskPhone, toE164Digits } from "./phone";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
@@ -90,6 +91,12 @@ export type PracIntent =
   | { kind: "ask_patient"; question: string }
   | { kind: "ask_pick"; questionId: string; clientId: string }
   | { kind: "ask_cancel"; questionId: string }
+  /** Read open messages and alerts: one client's (clientId or a name in the text) or all (11 Oct). */
+  | { kind: "messages"; clientId: string | null }
+  /** Mark reviewed from WhatsApp: one alert, or all of a client's. */
+  | { kind: "review"; alertId: string | null; clientId: string | null }
+  /** "Who checked in this week?" */
+  | { kind: "checked_in"; practice: boolean }
   | { kind: "other" };
 
 /** "at 7", "at 7:30am", "at 18:00", "at 6pm". Default 07:30. */
@@ -196,6 +203,14 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
   const cancel = r.match(/^pq_cancel_([0-9a-f-]{36})$/i);
   if (cancel) return { kind: "ask_cancel", questionId: cancel[1] };
 
+  const msgs = r.match(/^prac_msgs_([0-9a-f-]{36})$/i);
+  if (msgs) return { kind: "messages", clientId: msgs[1] };
+  const rev = r.match(/^prac_rev_([0-9a-f-]{36})$/i);
+  if (rev) return { kind: "review", alertId: rev[1], clientId: null };
+  const revAll = r.match(/^prac_revall_([0-9a-f-]{36})$/i);
+  if (revAll) return { kind: "review", alertId: null, clientId: revAll[1] };
+  if (r === "prac_inbox") return { kind: "messages", clientId: null };
+
   if (r.startsWith("prac_adm_")) {
     const topic = r.slice("prac_adm_".length);
     if (topic === "overview" || topic === "redflags" || topic === "quiet" || topic === "usage")
@@ -228,6 +243,18 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
     const loose = looseReceptionTask(text);
     if (loose) return { kind: "reception_confirm", task: loose };
   }
+
+  // Reading, not sending: "who checked in this week?", "let's see Lauren's message".
+  const practiceWide =
+    /\b(practice|everyone|everybody|whole team|all (the )?(clients|patients))\b/i;
+  if (
+    (CHECKED_IN.test(text) || CHECKED_IN.test(normalized)) &&
+    !/\b(?:not|hasn'?t|hasnt|haven'?t|havent|didn'?t|didnt|never|yet\s+to)\s+(?:been\s+)?check/i.test(
+      text,
+    )
+  )
+    return { kind: "checked_in", practice: practiceWide.test(text) };
+  if (wantsMessages(text) || wantsMessages(normalized)) return { kind: "messages", clientId: null };
 
   const upd = readUpdates(text) ?? (fixed === text ? null : readUpdates(fixed));
   // "don't update me daily" is not a request to start updates.

@@ -23,6 +23,7 @@ import { maskPhone, toE164Digits } from "./phone";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
 import {
   bareReception,
+  blocksOutbound,
   expireMemory,
   fixPractitionerTypos,
   isCancel,
@@ -188,7 +189,7 @@ export const PRAC_MSG = {
     THANKS_REPLIES[now.getUTCMinutes() % THANKS_REPLIES.length](name),
   ack: "\u{1F44D}",
   notSure: (_name: string) =>
-    `Sorry, I didn't quite get that.\nTry "how are my clients doing?", "check in with a client", or "ask reception to…".`,
+    `Sorry, I didn't quite get that.\nTry "how are my clients doing?", a client's name, "my messages", "who checked in this week?" or "ask reception to…".`,
   confirm: (line: string) => `Did you mean: ${line}?`,
   confirmNo: "Okay, I won't.",
   receptionAsk: "What should I pass on to reception?",
@@ -196,7 +197,9 @@ export const PRAC_MSG = {
   help: (name: string) =>
     `Hi ${name}, you're messaging Buddy as a practitioner. Here's what I can do:\n\n` +
     `• "How are my clients doing?" for a quick status of all your clients\n` +
-    `• "How is Sam Kruger doing?" for one client\n` +
+    `• "How is Sam Kruger doing?", or just "Sam Kruger", for one client\n` +
+    `• "Sam's messages" to read what's open for them in full and mark it reviewed. "My messages" for everything waiting\n` +
+    `• "Who checked in this week?" (or today, yesterday, since Monday)\n` +
     `• "Check in with Sam Kruger" and I'll ask them for a check-in, then send you their answers\n` +
     `• "Update me daily at 7am" (or weekdays, every Monday, every morning, stop updates)\n` +
     `• "I've sent Sam Kruger his programme" and I'll let them know\n` +
@@ -497,6 +500,50 @@ export async function handlePractitionerMessage(
         buttons: HELP_BUTTONS,
       });
     } else {
+      // A client's name on its own ("Lauren Ogg", "Lauren off") brings up
+      // that client. A longer message that only mentions a name asks first.
+      // Not for something Buddy can't do or was told not to ("call Thea",
+      // "don't check in with Sam"), nor a Heidi request while Heidi is off:
+      // those stay a "didn't get that".
+      const notJustAName =
+        blocksOutbound(msg.text) ||
+        Boolean(readPractitionerHeidi(msg.text, null)) ||
+        /\b(?:don'?t|do\s+not|never|call|phone|ring|text|sms|e-?mail|book|send|tell|ask|remind|invoice|bill|files?|filez|records?|documents?|chart)\b/i.test(
+          msg.text,
+        );
+      const patients = notJustAName ? [] : await practitionerPatients(admin, prac.userId);
+      if (patients.length && rankPatients(msg.text, patients).length) {
+        const { isShortMessage } = await import("./practitioner-inbox-text");
+        const hits = rankPatients(msg.text, patients);
+        if (!isShortMessage(msg.text) && hits.length === 1) {
+          // A longer sentence that happens to mention a client: ask first.
+          const line = confirmLine(
+            "status_one",
+            String(hits[0].patient.full_name ?? "").trim() || "them",
+          );
+          mem.confirm = { kind: "status_one", clientId: hits[0].patient.id, line };
+          mem.confirmAt = deps.now.getTime();
+          await deps.reply({
+            kind: "buttons",
+            body: PRAC_MSG.confirm(line),
+            buttons: CONFIRM_BUTTONS,
+          });
+          return true;
+        }
+        const resolved = await resolveNamed(mem, deps, "status_one", msg.text, patients, false);
+        if (resolved.asked) return true;
+        if (resolved.target) {
+          await handleStatusIntent(
+            adminIn,
+            prac,
+            msg.text,
+            { kind: "status_one", clientId: resolved.target.id },
+            deps,
+            mem,
+          );
+          return true;
+        }
+      }
       await deps.reply({
         kind: "buttons",
         body: PRAC_MSG.notSure(prac.firstName),
@@ -836,6 +883,10 @@ async function handleStatusIntent(
     await text1(st.formatStatusAll(prac.firstName, statuses, deps.now, intent.practice));
     return;
   }
+  if (intent.kind === "messages" || intent.kind === "review" || intent.kind === "checked_in") {
+    await handleInboxIntent(adminIn, prac, text, intent, deps, mem);
+    return;
+  }
   if (intent.kind === "other") return;
 
   // One client: by button id, or by the name in the message.
@@ -871,11 +922,21 @@ async function handleStatusIntent(
       await text1(PRAC_MSG.notFoundAny(prac.firstName));
       return;
     }
-    await deps.reply({
-      kind: "buttons",
-      body: st.formatStatusOne(s, deps.now),
-      buttons: [{ id: `prac_ci_${target.id}`, title: "Ask for a check-in" }],
-    });
+    const inbox = await import("./practitioner-inbox.server");
+    const open = await inbox.loadOpenAlerts(adminIn, [target.id], deps.now);
+    const body = [st.formatStatusOne(s, deps.now), ...inbox.formatAlertLines(open, deps.now)]
+      .join("\n")
+      .replace(/\n[^\n]*not reviewed yet\. Open their profile in Buddy to review\./, "");
+    const buttons = open.length
+      ? [
+          { id: `prac_msgs_${target.id}`, title: "Read in full" },
+          open.length === 1
+            ? { id: `prac_rev_${open[0].id}`, title: "Mark reviewed" }
+            : { id: `prac_revall_${target.id}`, title: "Mark all reviewed" },
+          { id: `prac_ci_${target.id}`, title: "Ask for a check-in" },
+        ]
+      : [{ id: `prac_ci_${target.id}`, title: "Ask for a check-in" }];
+    await deps.reply({ kind: "buttons", body, buttons });
     return;
   }
 
@@ -919,4 +980,144 @@ async function handleStatusIntent(
       ? PRAC_MSG.checkinUnreachable(name)
       : PRAC_MSG.notRegisteredCheckin(name),
   );
+}
+
+/** Reading open messages, marking them reviewed, and who checked in (11 Oct). */
+async function handleInboxIntent(
+  adminIn: Admin,
+  prac: Practitioner,
+  text: string,
+  intent: Extract<
+    import("./practitioner-status.server").PracIntent,
+    { kind: "messages" } | { kind: "review" } | { kind: "checked_in" }
+  >,
+  deps: PractitionerDeps,
+  mem: PracMemory,
+): Promise<void> {
+  const admin = adminIn as unknown as Db;
+  const inbox = await import("./practitioner-inbox.server");
+  const text1 = (body: string) => deps.reply({ kind: "text", body });
+
+  if (intent.kind === "checked_in") {
+    const st = await import("./practitioner-status.server");
+    const { readCheckedIn } = await import("./practitioner-inbox-text");
+    const range =
+      readCheckedIn(text || "who checked in this week", deps.now) ??
+      readCheckedIn("who checked in this week", deps.now)!;
+    const list = await st.loadClientList(adminIn, prac.userId, intent.practice);
+    const rows = await inbox.loadCheckins(
+      adminIn,
+      list.map((c) => c.id),
+      range,
+      deps.now,
+    );
+    const statuses = await st.loadStatuses(adminIn, list, deps.now);
+    const active = new Set(
+      statuses.filter((x) => st.bucketOf(x, deps.now) !== "inactive").map((x) => x.id),
+    );
+    await text1(inbox.formatCheckedIn(range, list, rows, active, deps.now, intent.practice));
+    return;
+  }
+
+  const patients = await practitionerPatients(admin, prac.userId);
+  const ids = patients.map((p) => p.id);
+  const nameOf = (id: string) =>
+    String(patients.find((p) => p.id === id)?.full_name ?? "").trim() || "this client";
+
+  if (intent.kind === "review") {
+    let alertIds: string[] = [];
+    let clientId = intent.clientId;
+    if (intent.alertId) {
+      const { data } = await admin
+        .from("alerts")
+        .select("id, client_id")
+        .eq("id", intent.alertId)
+        .maybeSingle();
+      if (data && ids.includes(data.client_id)) {
+        alertIds = [data.id];
+        clientId = data.client_id;
+      }
+    } else if (clientId && ids.includes(clientId)) {
+      alertIds = (await inbox.loadOpenAlerts(adminIn, [clientId], deps.now)).map((a) => a.id);
+    }
+    if (!clientId || !ids.includes(clientId)) {
+      await text1(PRAC_MSG.notFoundAny(prac.firstName));
+      return;
+    }
+    const n = await inbox.markReviewed(adminIn, alertIds, ids, prac.userId, deps.now);
+    const left = await inbox.loadOpenAlerts(adminIn, [clientId], deps.now);
+    const name = nameOf(clientId);
+    const done = n
+      ? `Done, ${n === 1 ? "marked as reviewed" : `marked ${n} as reviewed`} for ${name}.`
+      : `That was already reviewed.`;
+    await text1(
+      left.length ? `${done} ${left.length} still open.` : `${done} Nothing else open for ${name}.`,
+    );
+    return;
+  }
+
+  // Messages: one client's, by button id or a name in the text, else all of them.
+  let clientId = intent.clientId && ids.includes(intent.clientId) ? intent.clientId : null;
+  if (!clientId && !intent.clientId) {
+    const hits = rankPatients(text, patients);
+    if (hits.length > 1) {
+      await deps.reply({
+        kind: "list",
+        body: PRAC_MSG.which,
+        buttonLabel: "Choose",
+        rows: hits.slice(0, 10).map((h) => ({
+          id: `prac_msgs_${h.patient.id}`,
+          title: String(h.patient.full_name ?? "Patient").slice(0, 24),
+        })),
+      });
+      return;
+    }
+    if (hits.length === 1) clientId = hits[0].patient.id;
+    else if (/\bred[\s-]?flags?\b/i.test(text)) {
+      // "show me the red flags": the practice list for owners, theirs otherwise.
+      const { adminAnswer } = await import("./practitioner-admin.server");
+      await text1(await adminAnswer(adminIn, prac.userId, "redflags", deps.now));
+      return;
+    }
+  }
+  if (intent.clientId && !clientId) {
+    await text1(PRAC_MSG.notFoundAny(prac.firstName));
+    return;
+  }
+  if (!clientId) {
+    // "My messages" is their own clients; owners can ask for the practice's.
+    const st = await import("./practitioner-status.server");
+    const practiceWide =
+      /\b(practice|everyone|everybody|whole team|all (the )?(clients|patients))\b/i.test(text);
+    const mine = await st.loadClientList(adminIn, prac.userId, practiceWide);
+    const open = await inbox.loadOpenAlerts(
+      adminIn,
+      mine.map((c) => c.id),
+      deps.now,
+    );
+    await text1(inbox.formatInbox(prac.firstName, mine, open, deps.now));
+    return;
+  }
+  const open = await inbox.loadOpenAlerts(adminIn, [clientId], deps.now);
+  const body = inbox.formatClientMessages(nameOf(clientId), open, deps.now);
+  if (!open.length) {
+    await deps.reply({
+      kind: "buttons",
+      body,
+      buttons: [{ id: `prac_one_${clientId}`, title: "Client details" }],
+    });
+    return;
+  }
+  await deps.reply({
+    kind: "buttons",
+    body,
+    buttons: [
+      open.length === 1
+        ? { id: `prac_rev_${open[0].id}`, title: "Mark reviewed" }
+        : { id: `prac_revall_${clientId}`, title: "Mark all reviewed" },
+      { id: `prac_ci_${clientId}`, title: "Ask for a check-in" },
+      { id: `prac_one_${clientId}`, title: "Client details" },
+    ],
+  });
+  void mem;
 }
