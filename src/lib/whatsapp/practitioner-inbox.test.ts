@@ -307,7 +307,7 @@ describe("Justin's chat from 11 Oct, replayed", () => {
   it("still says it didn't get it when there's no name and no command", async () => {
     const { replies, say } = harness();
     await say("blue elephant");
-    expect(replies[0].body).toContain("Sorry, I didn't quite get that.");
+    expect(replies[0].body).toContain("what should I do?");
     expect(replies[0].body).toContain("who checked in this week?");
   });
 });

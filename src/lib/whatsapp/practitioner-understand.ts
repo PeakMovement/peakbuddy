@@ -12,7 +12,7 @@
  *   - medium: a real reading, but the phrasing or the name is fuzzy.
  *     Ask "Did you mean: ...?" with Yes / No. Do not message a patient,
  *     send a programme notice, or pass an errand to reception yet.
- *   - no match: "Sorry, I didn't quite get that." Never guess an action.
+ *   - no match: one short question. Never guess an action.
  *
  * Client names are not in the typo map. "sma" stays "sma" here and is
  * matched against the practitioner's own list afterwards.
@@ -746,6 +746,27 @@ export type PracPending =
       at: number;
     };
 
+/** Who the conversation is about, so "her" and "those" resolve without guessing. */
+export interface PracFocus {
+  clientId?: string;
+  clientName?: string;
+  list?: Array<{ id: string; name: string }>;
+  at: number;
+}
+
+/** A tool call still to run after the current confirmation. */
+export interface PracQueued {
+  tool: string;
+  names: string[];
+  note: string | null;
+  task: string | null;
+  question: string | null;
+  options: string[];
+  frequency: "daily" | "weekdays" | "weekly" | "off" | "menu" | null;
+  weekday: number | null;
+  time: string | null;
+}
+
 export interface PracMemory {
   awaitingReception?: boolean;
   awaitingReceptionAt?: number;
@@ -754,6 +775,10 @@ export interface PracMemory {
   turns?: PracTurn[];
   turnsAt?: number;
   pending?: PracPending | null;
+  focus?: PracFocus | null;
+  queued?: PracQueued[];
+  /** Button labels from the last clarifying question, in order. */
+  clarifyOptions?: string[];
 }
 
 export const PRAC_MEMORY_MS = 30 * 60 * 1000;
@@ -819,6 +844,87 @@ function cleanPending(raw: unknown): PracPending | null {
   return null;
 }
 
+const UUID = /^[0-9a-f-]{36}$/i;
+
+function cleanFocus(raw: unknown): PracFocus | null {
+  if (!raw || typeof raw !== "object") return null;
+  const f = raw as Record<string, unknown>;
+  const clientId = typeof f.clientId === "string" && UUID.test(f.clientId) ? f.clientId : undefined;
+  const clientName =
+    typeof f.clientName === "string" ? f.clientName.replace(/\s+/g, " ").trim().slice(0, 80) : "";
+  const list = Array.isArray(f.list)
+    ? f.list
+        .map((row) => {
+          if (!row || typeof row !== "object") return null;
+          const item = row as Record<string, unknown>;
+          const id = String(item.id ?? "");
+          const name = String(item.name ?? "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 80);
+          if (!UUID.test(id) || !name) return null;
+          return { id, name };
+        })
+        .filter((row): row is { id: string; name: string } => Boolean(row))
+        .slice(0, 10)
+    : [];
+  if (!clientId && !clientName && !list.length) return null;
+  return {
+    clientId,
+    clientName: clientName || undefined,
+    list,
+    at: typeof f.at === "number" ? f.at : 0,
+  };
+}
+
+function cleanQueue(raw: unknown): PracQueued[] {
+  if (!Array.isArray(raw)) return [];
+  const out: PracQueued[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const q = row as Record<string, unknown>;
+    const tool = String(q.tool ?? "");
+    if (!/^[a-z_]{3,40}$/.test(tool)) continue;
+    const frequency = ["daily", "weekdays", "weekly", "off", "menu"].includes(String(q.frequency))
+      ? (String(q.frequency) as PracQueued["frequency"])
+      : null;
+    out.push({
+      tool,
+      names: Array.isArray(q.names)
+        ? q.names
+            .map((n) => String(n).trim())
+            .filter(Boolean)
+            .slice(0, 12)
+        : [],
+      note: typeof q.note === "string" ? q.note.slice(0, 280) : null,
+      task: typeof q.task === "string" ? q.task.slice(0, 600) : null,
+      question: typeof q.question === "string" ? q.question.slice(0, 300) : null,
+      options: Array.isArray(q.options)
+        ? q.options
+            .map((n) => String(n).trim().slice(0, 20))
+            .filter(Boolean)
+            .slice(0, 3)
+        : [],
+      frequency,
+      weekday: typeof q.weekday === "number" ? q.weekday : null,
+      time: typeof q.time === "string" ? q.time.slice(0, 5) : null,
+    });
+  }
+  return out.slice(0, 4);
+}
+
+function cleanOptions(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((n) =>
+      String(n ?? "")
+        .trim()
+        .slice(0, 20),
+    )
+    .filter((n) => n.length >= 2)
+    .slice(0, 3);
+}
+
 function cleanTurns(raw: unknown): PracTurn[] {
   if (!Array.isArray(raw)) return [];
   const turns: PracTurn[] = [];
@@ -836,10 +942,13 @@ export function expireMemory(mem: PracMemory, now: number): void {
   if (mem.awaitingReceptionAt != null && now - mem.awaitingReceptionAt > PRAC_MEMORY_MS)
     mem.awaitingReception = false;
   if (mem.confirmAt != null && now - mem.confirmAt > PRAC_MEMORY_MS) mem.confirm = null;
-  const pendingAt = mem.pending?.at ?? mem.turnsAt;
-  if (pendingAt != null && now - pendingAt > PRAC_MEMORY_MS) {
+  const liveAt = mem.pending?.at ?? mem.focus?.at ?? mem.turnsAt;
+  if (liveAt != null && now - liveAt > PRAC_MEMORY_MS) {
     mem.pending = null;
     mem.turns = [];
+    mem.focus = null;
+    mem.queued = [];
+    mem.clarifyOptions = [];
   }
 }
 
@@ -858,6 +967,7 @@ export function rememberTurn(
   mem.turns = [...(mem.turns ?? []), { role, text: t }].slice(-8);
   mem.turnsAt = now;
   if (mem.pending) mem.pending = { ...mem.pending, at: now };
+  if (mem.focus) mem.focus = { ...mem.focus, at: now };
 }
 
 export function readPracMemory(draft: unknown, now = Date.now()): PracMemory {
@@ -873,6 +983,9 @@ export function readPracMemory(draft: unknown, now = Date.now()): PracMemory {
     turns: cleanTurns(prac?.turns),
     turnsAt: typeof prac?.turnsAt === "number" ? prac.turnsAt : undefined,
     pending: cleanPending(prac?.pending),
+    focus: cleanFocus(prac?.focus),
+    queued: cleanQueue(prac?.queued),
+    clarifyOptions: cleanOptions(prac?.clarifyOptions),
   };
   expireMemory(mem, now);
   if (!mem.awaitingReception) mem.awaitingReception = false;
@@ -885,6 +998,9 @@ export function writePracMemory(draft: unknown, memory: PracMemory): Record<stri
     Boolean(memory.awaitingReception) ||
     Boolean(memory.confirm) ||
     Boolean(memory.pending) ||
+    Boolean(memory.focus) ||
+    Boolean(memory.queued && memory.queued.length) ||
+    Boolean(memory.clarifyOptions && memory.clarifyOptions.length) ||
     Boolean(memory.turns && memory.turns.length);
   if (keep) base.prac = { ...memory };
   else delete base.prac;

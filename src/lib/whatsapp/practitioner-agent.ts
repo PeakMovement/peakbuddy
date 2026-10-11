@@ -1,16 +1,22 @@
 /**
- * Practitioner agent, the part that does not touch the database (11 Oct 2026).
+ * Practitioner agent, the part that does not touch the database.
  *
- * Buddy's phrase matcher stays the fast path for the commands it already
- * gets right. This module is what runs when a practitioner writes the way
- * they actually write: several people, a wording of their own, "all 4",
- * "the first one", "and Steven too".
+ * The model is the primary reader of every practitioner message: terse,
+ * garbled, a voice-note transcript, emoji, or several asks in one line.
+ * It only chooses tools. Names, statuses and messages in the reply come
+ * from the database. Nothing here sends a WhatsApp.
  *
- * The model only chooses a tool. Names, statuses and messages in the reply
- * come from tool results. Nothing here sends a WhatsApp.
+ * The phrase matcher is a zero-cost shortcut for an exact canonical
+ * command or a button tap, and the fallback when the model is down.
  */
-import { rankPatients } from "./practitioner-understand";
-import type { PracCandidate, PracMemory, PracPending, PracTurn } from "./practitioner-understand";
+import { normalizePractitionerText, rankPatients } from "./practitioner-understand";
+import type {
+  PracCandidate,
+  PracFocus,
+  PracMemory,
+  PracPending,
+  PracTurn,
+} from "./practitioner-understand";
 import { practitionerCheckinText, practitionerConfirmSend } from "./voice";
 
 export const AGENT_TOOLS = [
@@ -26,6 +32,9 @@ export const AGENT_TOOLS = [
   "quiet_clients",
   "usage",
   "heidi_read",
+  "help",
+  "confirm_pending",
+  "cancel_pending",
   "clarify",
 ] as const;
 
@@ -38,6 +47,8 @@ export interface AgentDecision {
   note: string | null;
   task: string | null;
   question: string | null;
+  /** Up to three short button labels when the tool is clarify. */
+  options: string[];
   frequency: "daily" | "weekdays" | "weekly" | "off" | "menu" | null;
   weekday: number | null;
   time: string | null;
@@ -49,6 +60,8 @@ export interface AgentTurnInput {
   message: string;
   history: PracTurn[];
   pending: string | null;
+  /** Last client, last list, and anything waiting. Pronouns resolve from this. */
+  context: string;
   heidiEnabled: boolean;
   canSeeAllPractitioners: boolean;
 }
@@ -66,42 +79,43 @@ export type NameHit =
 
 const TOOL_SET = new Set<string>(AGENT_TOOLS);
 
-/** Phrases the matcher has no answer for, so the agent should try first. */
-const LIST_PRACTITIONERS =
-  /\b(?:practitioners?|physios?|physiotherapists?|clinicians?|therapists?)\b[\s\S]{0,50}\b(?:list|listed|have|names|who)\b|\b(?:list|who(?:'s| are| is)?|show(?: me)?|tell me|what are)\b[\s\S]{0,40}\b(?:practitioners?|physios?|physiotherapists?|the team|your team|our team)\b/i;
+/**
+ * The whole message is one canonical command, or a button tap. Those skip
+ * the model. Anything else, including "cayla?" and "ye do it", does not.
+ */
+const EXACT_COMMANDS = new Set([
+  "how are my clients doing",
+  "how are my clients",
+  "my messages",
+  "my message",
+  "help",
+  "what can you do",
+  "what else can you do",
+  "any red flags",
+  "who's gone quiet",
+  "whos gone quiet",
+  "how many clients are using buddy",
+  "practice overview",
+]);
 
-const CUSTOM_NOTE =
-  /\b(?:make sure (?:to|you)|say (?:you(?:'re| are)|that|it's|it is)|tell them|let them know|mention|include that|add that|and say)\b/i;
-
-const RECEPTION_WORD = /\b(?:reception(?:ist)?s?|front\s+desk|secretar(?:y|ies)|mishqah)\b/i;
-
-const ASKING =
-  /\b(?:how|status|message|contact|check|ask|tell|send|programme|program|list|who|what|show|read|update|quiet|flag|usage|heidi|doing|going|ping|nudge)\b/i;
-
-/** Two or more people in one sentence ("Cayla, Michaela, Steven and Vicki"). */
-export function looksLikeSeveralPeople(text: string): boolean {
-  const parts = String(text ?? "")
-    .split(/\s*(?:,|&|\band\b)\s*/i)
-    .map((p) => p.trim())
-    .filter((p) => /[A-Za-z]{3,}/.test(p));
-  return parts.length >= 2;
+export function isExactShortcut(text: string, replyId?: string | null): boolean {
+  if (replyId && !isAgentButton(replyId) && !replyId.startsWith("prac_cl_")) return true;
+  if (replyId) return false;
+  const n = normalizePractitionerText(text);
+  return EXACT_COMMANDS.has(n);
 }
 
 /**
- * True when the matcher should step aside. Clear one-person commands,
- * button taps and reception errands stay on the fast path.
+ * True when this message should stay in practitioner mode even if the
+ * number is also a patient. Exact commands are still commands via the
+ * matcher. A bare pain score ("6") is left for the patient check-in.
  */
 export function needsPractitionerAgent(text: string, memory?: PracMemory | null): boolean {
-  if (memory?.pending) return true;
+  if (memory?.pending || memory?.focus || (memory?.queued && memory.queued.length > 0)) return true;
+  if (isExactShortcut(text, null)) return false;
   const t = String(text ?? "").trim();
-  if (!t) return false;
-  if (LIST_PRACTITIONERS.test(t)) return true;
-  if (RECEPTION_WORD.test(t) && !CUSTOM_NOTE.test(t)) return false;
-  if (CUSTOM_NOTE.test(t) && ASKING.test(t)) return true;
-  // Two or more people in one sentence, including "I've sent Cayla and Steven
-  // their programmes", which the one-name matcher would turn into "which one?".
-  if (looksLikeSeveralPeople(t)) return true;
-  return false;
+  if (!t || /^\d{1,2}$/.test(t)) return false;
+  return true;
 }
 
 export function agentButtons(): Array<{ id: string; title: string }> {
@@ -151,6 +165,7 @@ export function validDecision(raw: unknown): AgentDecision | null {
   const note = typeof row.note === "string" ? clip(row.note, 280) : null;
   const task = typeof row.task === "string" ? clip(row.task, 600) : null;
   const question = typeof row.question === "string" ? clip(row.question, 300) : null;
+  const options = asOptions(row.options);
   if (
     tool === "clarify" &&
     (!question || /\b(i've|i have)\s+(sent|messaged|asked|told)\b/i.test(question))
@@ -162,10 +177,19 @@ export function validDecision(raw: unknown): AgentDecision | null {
     note: note || null,
     task: task || null,
     question: question || null,
+    options,
     frequency,
     weekday,
     time,
   };
+}
+
+function asOptions(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => clip(String(item ?? ""), 20))
+    .filter((item) => item.length >= 2)
+    .slice(0, 3);
 }
 
 /** OpenAI-style tool list. Heidi is left out until its secrets are set. */
@@ -255,10 +279,29 @@ export function practitionerToolSchemas(heidiEnabled: boolean): unknown[] {
       required: [],
     },
     {
+      name: "help",
+      description: "They asked what Buddy can do. No client facts.",
+      properties: {},
+      required: [],
+    },
+    {
+      name: "confirm_pending",
+      description:
+        "They agreed to the pending send: yes, ye do it, all, go ahead, a thumbs up. Only when something is waiting to be sent or picked.",
+      properties: {},
+      required: [],
+    },
+    {
+      name: "cancel_pending",
+      description: "They declined the pending send or choice.",
+      properties: {},
+      required: [],
+    },
+    {
       name: "clarify",
       description:
-        "Ask one short question when the request is unclear. Do not state any client fact.",
-      properties: { question: { type: "string" } },
+        "One short question when the request is unclear. options are up to 3 button labels, each under 20 characters. Do not state any client fact.",
+      properties: { question: { type: "string" }, options: strArray },
       required: ["question"],
     },
   ];
@@ -295,6 +338,26 @@ export function pendingSummary(pending: PracPending | null | undefined): string 
   return `Waiting for Yes, Edit or Cancel before ${pending.action} to ${who}. Preview: ${pending.preview}`;
 }
 
+export function conversationContext(
+  focus: PracFocus | null | undefined,
+  pending: string | null,
+): string {
+  const lines: string[] = [];
+  if (focus?.clientName) {
+    lines.push(
+      `Last client discussed: ${focus.clientName}. "her", "him", "she", "he" and "that one" mean this client.`,
+    );
+  }
+  if (focus?.list?.length) {
+    const shown = focus.list.map((c, i) => `${i + 1}. ${c.name}`).join("\n");
+    lines.push(
+      `Last list shown. "them", "those" and "the ones you mentioned" mean these clients:\n${shown}`,
+    );
+  }
+  if (pending) lines.push(pending);
+  return lines.join("\n");
+}
+
 export function buildPractitionerPrompt(input: AgentTurnInput): {
   system: string;
   messages: Array<{ role: "user" | "assistant"; content: string }>;
@@ -313,17 +376,72 @@ export function buildPractitionerPrompt(input: AgentTurnInput): {
     { role: "user" as const, content: input.message.slice(0, 1500) },
   ];
   const system = `You are Buddy, the WhatsApp assistant at ${input.practiceName}, talking to ${input.practitionerName}, a practitioner.
-Choose exactly one tool. You do not know any clients, statuses, messages or practitioners. Never invent them. Never claim you have sent anything.
-Names go in the tool exactly as spoken. Several people are one tool call with every name. "all", "everyone" or "my clients" is names: ["all"].
+Read the message the way a colleague would. It may be terse ("cayla?"), garbled ("lauren wat she say"), a voice-note transcript, emoji, Afrikaans mixed with English, or several asks run together.
+Call one tool per ask, in order. Several asks means several tools. You do not know any clients, statuses, messages or practitioners. Never invent them. Never claim you have sent anything.
+Names go in the tool as spoken, or copied from the context below. "her", "him" and "that one" are the last client. "them", "those" and "the ones you mentioned" are the last list. "the quiet ones" is names: ["quiet"]. "all" or "everyone" is names: ["all"].
 A wording they want included ("say you're with ${input.practiceName}", "mention the race") goes in note, in their words.
-Follow-ups ("all 4", "yes", "the first one", "1 and 3", "and Steven too") refer to the pending state. Keep the same tool and update the names.
-If you are unsure, call clarify with one short question. No client facts in that question.
-Scheduled updates use schedule_updates. Reception errands use ask_reception.
+If something is waiting to be sent and they agree ("yes", "ye do it", "all", "👍"), call confirm_pending. If they decline, call cancel_pending.
+If you are unsure, call clarify with one short question and up to 3 button labels under 20 characters. No client facts in that question.
+Scheduled updates use schedule_updates. Reception errands use ask_reception. What you can do uses help.
 ${input.canSeeAllPractitioners ? "This person is an owner or admin and can see the whole practice." : "This person sees only their own clients, and only themselves in the practitioner list."}
 ${input.heidiEnabled ? "Heidi is connected. heidi_read needs a first and last name." : "Heidi is not connected. Do not call heidi_read."}
-${input.pending ? `\nPENDING:\n${input.pending}` : ""}
-Write nothing except the tool call.`;
+${input.context ? `\nCONTEXT:\n${input.context}` : ""}
+Write nothing except the tool calls.`;
   return { system, messages };
+}
+
+const ONE_REFERENCE =
+  /^(?:her|him|she|he|that one|this one|that client|this client|the same one|same one|that person)$/i;
+const MANY_REFERENCE =
+  /^(?:them|those|those ones|these|these ones|the ones|the ones you mentioned|everyone you mentioned|those clients|both|both of them|the same ones)$/i;
+const QUIET_REFERENCE =
+  /^(?:quiet|the quiet ones?|quiet ones?|quiet clients?|the quiet clients?)$/i;
+
+/**
+ * Turn "her" / "those" / "the quiet ones" into names the database can look
+ * up. Unresolved pronouns stay unresolved so the caller asks, rather than
+ * searching for a client named "her".
+ */
+export function expandReferences(
+  names: string[],
+  focus: PracFocus | null | undefined,
+): { names: string[]; unresolved: boolean } {
+  const out: string[] = [];
+  let unresolved = false;
+  for (const raw of names) {
+    const n = raw.trim();
+    if (QUIET_REFERENCE.test(n)) {
+      out.push("quiet");
+      continue;
+    }
+    if (ONE_REFERENCE.test(n)) {
+      if (focus?.clientName) out.push(focus.clientName);
+      else unresolved = true;
+      continue;
+    }
+    if (MANY_REFERENCE.test(n)) {
+      if (focus?.list?.length) out.push(...focus.list.map((c) => c.name));
+      else if (focus?.clientName) out.push(focus.clientName);
+      else unresolved = true;
+      continue;
+    }
+    out.push(n);
+  }
+  return { names: out, unresolved };
+}
+
+/** Buttons for a clarifying question. Custom labels when the model gave some. */
+export function clarifyButtons(options: string[]): Array<{ id: string; title: string }> {
+  const custom = options
+    .map((o) => clip(o, 20))
+    .filter((o) => o.length >= 2)
+    .slice(0, 3);
+  if (custom.length) return custom.map((title, i) => ({ id: `prac_cl_${i}`, title }));
+  return [
+    { id: "prac_status", title: "How are my clients" },
+    { id: "prac_inbox", title: "My messages" },
+    { id: "prac_help", title: "What can you do" },
+  ];
 }
 
 /**
@@ -590,39 +708,52 @@ export function sendReport(rows: Array<{ name: string; how: string }>): string {
 }
 
 /**
- * Pull a tool call out of a chat-completions body. Accepts OpenAI tool_calls,
- * a JSON object in the message, and Gemini's functionCall part. Never throws.
+ * Every tool call in a chat-completions body, in order. Accepts OpenAI
+ * tool_calls, a JSON object or array in the message, and Gemini functionCall
+ * parts. At most four. Never throws.
  */
-export function decisionFromGateway(json: unknown): AgentDecision | null {
-  if (!json || typeof json !== "object") return null;
+export function decisionsFromGateway(json: unknown): AgentDecision[] {
+  if (!json || typeof json !== "object") return [];
+  if (Array.isArray(json))
+    return json
+      .map((row) => validDecision(row))
+      .filter((d) => d != null)
+      .slice(0, 4);
   const choices = (json as { choices?: unknown }).choices;
   const message = Array.isArray(choices)
     ? (choices[0] as { message?: Record<string, unknown> } | undefined)?.message
     : null;
   const calls = message && Array.isArray(message.tool_calls) ? message.tool_calls : [];
+  const fromCalls: AgentDecision[] = [];
   for (const call of calls) {
     const fn = (call as { function?: { name?: unknown; arguments?: unknown } }).function;
     if (!fn) continue;
-    const args = parseArgs(fn.arguments);
-    const decision = validDecision({ ...args, tool: fn.name });
-    if (decision) return decision;
+    const decision = validDecision({ ...parseArgs(fn.arguments), tool: fn.name });
+    if (decision) fromCalls.push(decision);
   }
-  const content = message?.content;
-  const fromContent = decisionFromContent(content);
-  if (fromContent) return fromContent;
+  if (fromCalls.length) return fromCalls.slice(0, 4);
+  const fromContent = decisionsFromContent(message?.content);
+  if (fromContent.length) return fromContent.slice(0, 4);
   const parts = (json as { candidates?: Array<{ content?: { parts?: unknown[] } }> })
     .candidates?.[0]?.content?.parts;
+  const fromParts: AgentDecision[] = [];
   if (Array.isArray(parts)) {
     for (const part of parts) {
       if (!part || typeof part !== "object") continue;
       const fc = (part as { functionCall?: { name?: unknown; args?: unknown } }).functionCall;
-      if (fc) {
-        const decision = validDecision({ ...(fc.args as object), tool: fc.name });
-        if (decision) return decision;
-      }
+      if (!fc) continue;
+      const args =
+        fc.args && typeof fc.args === "object" ? (fc.args as Record<string, unknown>) : {};
+      const decision = validDecision({ ...args, tool: fc.name });
+      if (decision) fromParts.push(decision);
     }
   }
-  return null;
+  return fromParts.slice(0, 4);
+}
+
+/** The first tool call, for callers that only need one. */
+export function decisionFromGateway(json: unknown): AgentDecision | null {
+  return decisionsFromGateway(json)[0] ?? null;
 }
 
 function parseArgs(value: unknown): Record<string, unknown> {
@@ -636,23 +767,35 @@ function parseArgs(value: unknown): Record<string, unknown> {
   }
 }
 
-function decisionFromContent(content: unknown): AgentDecision | null {
-  const text = Array.isArray(content)
-    ? content
-        .map((p) =>
-          p && typeof p === "object" && "text" in p
-            ? String((p as { text?: unknown }).text ?? "")
-            : "",
-        )
-        .join("\n")
-    : typeof content === "string"
-      ? content
-      : "";
+function contentText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((p) =>
+      p && typeof p === "object" && "text" in p ? String((p as { text?: unknown }).text ?? "") : "",
+    )
+    .join("\n");
+}
+
+function decisionsFromContent(content: unknown): AgentDecision[] {
+  const text = contentText(content);
+  const array = text.match(/\[[\s\S]*\]/);
+  if (array) {
+    try {
+      const parsed = JSON.parse(array[0]) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed.map((row) => validDecision(row)).filter((d) => d != null);
+      }
+    } catch {
+      /* a single object may still follow */
+    }
+  }
   const fenced = text.match(/\{[\s\S]*\}/);
-  if (!fenced) return null;
+  if (!fenced) return [];
   try {
-    return validDecision(JSON.parse(fenced[0]) as unknown);
+    const one = validDecision(JSON.parse(fenced[0]) as unknown);
+    return one ? [one] : [];
   } catch {
-    return null;
+    return [];
   }
 }

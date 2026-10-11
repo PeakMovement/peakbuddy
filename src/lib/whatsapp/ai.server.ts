@@ -1,4 +1,4 @@
-import { decisionFromGateway } from "./practitioner-agent";
+import { decisionsFromGateway } from "./practitioner-agent";
 import type { AiAssist } from "./conversation";
 import { ASSIST_INTENTS, PRACTICE_INFO, type AssistRoute } from "./assistant";
 import {
@@ -418,7 +418,7 @@ export async function converseWithAi(input: ConverseInput): Promise<ConverseResu
 }
 
 /* ------------------------------------------------------------------ */
-/* Practitioner agent: one tool call, no free-text facts              */
+/* Practitioner agent: tool calls only, no free-text facts            */
 /* ------------------------------------------------------------------ */
 
 export interface PractitionerModelInput {
@@ -428,14 +428,13 @@ export interface PractitionerModelInput {
 }
 
 /**
- * One Gemini Flash call through the Lovable AI gateway. Returns the tool
+ * One Gemini Flash call through the Lovable AI gateway. Returns every tool
  * the model chose, or null when the key is missing or the call fails.
- * The caller then answers from tool results. Nothing here is logged except
- * the HTTP status, and a failed call never sends a message.
+ * The caller answers from tool results. A failed call never sends a message.
  *
- * Fast-path commands never reach this. A practitioner turn that does is
- * one short request (the tools, a few turns, one message), typically well
- * under a second of model time and a fraction of a cent on Flash.
+ * Button taps and a few exact commands never reach this. Every other
+ * practitioner message does: one request, often one to three seconds, well
+ * under a cent on Flash. Several asks come back as several tools.
  */
 export async function decidePractitionerTurn(
   input: PractitionerModelInput,
@@ -451,7 +450,7 @@ export async function decidePractitionerTurn(
         body: JSON.stringify({
           model: "google/gemini-2.5-flash",
           temperature: 0,
-          max_tokens: 400,
+          max_tokens: 800,
           messages: [{ role: "system", content: input.system }, ...input.messages],
           tools: input.tools,
           ...extra,
@@ -461,7 +460,8 @@ export async function decidePractitionerTurn(
       if (res.status === 400 && extra.tool_choice === "required") continue;
       if (!res.ok) return null;
       const json = (await res.json()) as unknown;
-      return decisionFromGateway(json);
+      const decisions = decisionsFromGateway(json);
+      return decisions.length ? decisions : null;
     } catch {
       return null;
     }

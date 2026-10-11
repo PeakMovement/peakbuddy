@@ -16,7 +16,10 @@ import {
   addedNames,
   checkinPreview,
   decisionFromGateway,
+  decisionsFromGateway,
+  expandReferences,
   extraCheckinNote,
+  isExactShortcut,
   joinNames,
   needsPractitionerAgent,
   resolveChoice,
@@ -223,6 +226,14 @@ function baseTables(extraStevens = false): Record<string, Row[]> {
         notes: null,
         created_at: "2026-10-11T08:00:00Z",
       },
+      {
+        client_id: MICHAELA,
+        pain_level: 3,
+        sleep_quality: 3,
+        energy_level: 3,
+        notes: null,
+        created_at: "2026-10-05T08:00:00Z",
+      },
     ],
     alerts: [
       {
@@ -275,6 +286,7 @@ const CHECKIN_FOUR: AgentDecision = {
   note: "say you are with Peak Movement",
   task: null,
   question: null,
+  options: [],
   frequency: null,
   weekday: null,
   time: null,
@@ -291,34 +303,49 @@ afterEach(() => {
   delete process.env.HEIDI_EHR_PROVIDER;
 });
 
-describe("what the phrase matcher steps aside for", () => {
-  const agentPhrases = [
+describe("what reaches the model", () => {
+  const messy = [
+    "cayla?",
+    "msg the quiet ones",
+    "lauren wat she say",
+    "ye do it",
+    "all",
+    "👍",
+    "hoe gaan dit met cayla",
     "please tell me all the practitioners you have listed",
-    "who are the practitioners",
-    "list the physios",
     FOUR,
-    "check in with cayla and steven and say the race is Saturday",
-    "how are cayla and michaela doing",
-    "message steven and vicki, mention you're from the practice",
-  ];
-  it.each(agentPhrases)("sends %s to the agent", (text) => {
-    expect(needsPractitionerAgent(text)).toBe(true);
-  });
-
-  const fast = [
-    "how are my clients doing?",
     "what was laurens message",
     "I've sent Cayla Rosenblatt her programme",
-    "ask reception to book Sam for Thursday",
-    "any red flags?",
-    "who's gone quiet?",
-    "how many clients are using Buddy?",
     "hi buddy",
     "thanks",
     "update me every morning",
+    "um can you just check in with cayla and also tell me who's gone quiet",
   ];
-  it.each(fast)("keeps %s on the fast path", (text) => {
+  it.each(messy)("reads %s with the model", (text) => {
+    expect(isExactShortcut(text, null)).toBe(false);
+    expect(needsPractitionerAgent(text)).toBe(true);
+  });
+
+  const exact = [
+    "how are my clients doing?",
+    "my messages",
+    "any red flags?",
+    "who's gone quiet?",
+    "how many clients are using Buddy?",
+    "practice overview",
+    "help",
+    "what can you do?",
+  ];
+  it.each(exact)("skips the model for the exact command %s", (text) => {
+    expect(isExactShortcut(text, null)).toBe(true);
     expect(needsPractitionerAgent(text)).toBe(false);
+  });
+
+  it("a button tap skips the model, and a bare pain score stays with the patient check-in", () => {
+    expect(isExactShortcut("", "prac_status")).toBe(true);
+    expect(isExactShortcut("yes", "prac_ag_yes")).toBe(false);
+    expect(needsPractitionerAgent("6")).toBe(false);
+    expect(needsPractitionerAgent("all", { pending: { kind: "choose" } as never })).toBe(true);
   });
 });
 
@@ -356,6 +383,25 @@ describe("reading a model tool call", () => {
       decisionFromGateway({ choices: [{ message: { content: "Cayla is doing well, pain 2" } }] }),
     ).toBe(null);
     expect(validDecision({ tool: "invent_client", names: ["Beyonce"] })).toBeNull();
+    expect(
+      decisionsFromGateway({
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                { function: { name: "client_status", arguments: '{"names":["cayla"]}' } },
+                {
+                  function: {
+                    name: "send_checkin",
+                    arguments: '{"names":["steven"],"note":"the race is Saturday"}',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      }).map((d) => d.tool),
+    ).toEqual(["client_status", "send_checkin"]);
   });
 
   it("drops a note that only repeats the practice, and keeps a real one", () => {
@@ -452,23 +498,32 @@ describe("Justin's 11 Oct chat", () => {
     expect(replies[0].body).not.toContain("Justin");
   });
 
-  it("reads Lauren's message on the fast path, without calling the model", async () => {
+  it("reads Lauren from the model's tool, and still reads her if the model is down", async () => {
     let calls = 0;
     const { db, deps, replies } = harness({
       understand: async () => {
         calls++;
-        return { tool: "clarify", question: "should not run" };
+        return { tool: "read_messages", names: ["lauren"] };
       },
     });
     await handlePractitionerMessage(
       asAdmin(db),
       JUSTIN,
-      { text: "what was laurens message", replyId: null },
+      { text: "lauren wat she say", replyId: null },
       deps,
     );
-    expect(calls).toBe(0);
+    expect(calls).toBe(1);
     expect(replies[0].body).toContain("knee felt easier");
     expect(replies[0].body).toContain("Lauren");
+
+    const down = harness({ understand: async () => null });
+    await handlePractitionerMessage(
+      asAdmin(down.db),
+      JUSTIN,
+      { text: "what was laurens message", replyId: null },
+      down.deps,
+    );
+    expect(down.replies[0].body).toContain("knee felt easier");
   });
 
   it("confirms one check-in for all four, then sends and reports each result", async () => {
@@ -914,7 +969,7 @@ describe("when the model fails, the phrase matcher still answers", () => {
     }
   });
 
-  it("an ordinary unknown line is still the last-resort sorry, with a suggestion", async () => {
+  it("an ordinary unknown line asks one short question, with a suggestion", async () => {
     const { db, deps, replies } = harness({ understand: async () => null });
     await handlePractitionerMessage(
       asAdmin(db),
@@ -926,12 +981,12 @@ describe("when the model fails, the phrase matcher still answers", () => {
     expect(replies[0].body).toContain("how are my clients doing?");
   });
 
-  it("routine commands never call the model", async () => {
+  it("an exact status command skips the model; a programme line confirms when the model is up", async () => {
     let calls = 0;
-    const { db, deps, replies } = harness({
+    const { db, deps, replies, sent } = harness({
       understand: async () => {
         calls++;
-        return null;
+        return { tool: "programme_sent", names: ["Cayla Rosenblatt"] };
       },
     });
     await handlePractitionerMessage(
@@ -940,15 +995,17 @@ describe("when the model fails, the phrase matcher still answers", () => {
       { text: "how are my clients doing?", replyId: null },
       deps,
     );
+    expect(calls).toBe(0);
+    expect(replies[0].body).toContain("Here's how your clients are doing");
     await handlePractitionerMessage(
       asAdmin(db),
       JUSTIN,
       { text: "I've sent Cayla Rosenblatt her programme", replyId: null },
       deps,
     );
-    expect(calls).toBe(0);
-    expect(replies[0].body).toContain("Here's how your clients are doing");
-    expect(replies[1].body).toContain("I'll let Cayla know");
+    expect(calls).toBe(1);
+    expect(sent).toHaveLength(0);
+    expect(replyText(replies)).toContain("programme is ready");
   });
 
   it("does not call Gemini during tests when no mock is passed", async () => {
@@ -965,5 +1022,259 @@ describe("when the model fails, the phrase matcher still answers", () => {
     delete process.env.LOVABLE_API_KEY;
     expect(await decidePractitionerTurn({ system: "x", messages: [], tools: [] })).toBeNull();
     fetchSpy.mockRestore();
+  });
+});
+
+describe("terse, garbled and multi-ask messages", () => {
+  const corpus: Array<{ text: string; decision: unknown; pattern: RegExp }> = [
+    {
+      text: "cayla?",
+      decision: { tool: "client_status", names: ["cayla"] },
+      pattern: /Cayla Rosenblatt[\s\S]*pain 4\/10/,
+    },
+    {
+      text: "cayla",
+      decision: { tool: "client_status", names: ["cayla"] },
+      pattern: /knee felt easier/,
+    },
+    {
+      text: "steven??",
+      decision: { tool: "client_status", names: ["steven"] },
+      pattern: /Steven Jacobs/,
+    },
+    {
+      text: "vicki status pls",
+      decision: { tool: "client_status", names: ["vicki"] },
+      pattern: /Vicki-Leigh Atkinson/,
+    },
+    {
+      text: "msg the quiet ones",
+      decision: { tool: "send_checkin", names: ["quiet"] },
+      pattern: /Michaela Geldhof/,
+    },
+    {
+      text: "message the quiet clients",
+      decision: { tool: "send_checkin", names: ["the quiet ones"] },
+      pattern: /Michaela Geldhof/,
+    },
+    {
+      text: "lauren wat she say",
+      decision: { tool: "read_messages", names: ["lauren"] },
+      pattern: /knee felt easier/,
+    },
+    {
+      text: "laurens msg",
+      decision: { tool: "read_messages", names: ["lauren"] },
+      pattern: /Lauren/,
+    },
+    {
+      text: "wat het lauren gesê",
+      decision: { tool: "read_messages", names: ["lauren"] },
+      pattern: /Lauren/,
+    },
+    {
+      text: "hoe gaan dit met cayla",
+      decision: { tool: "client_status", names: ["cayla"] },
+      pattern: /pain 4\/10/,
+    },
+    {
+      text: "pls ping steven",
+      decision: { tool: "send_checkin", names: ["steven"] },
+      pattern: /Steven Jacobs[\s\S]*Send\?/,
+    },
+    {
+      text: "chk in w cayla n steven",
+      decision: { tool: "send_checkin", names: ["cayla", "steven"] },
+      pattern: /Cayla Rosenblatt and Steven Jacobs/,
+    },
+    {
+      text: "um yeah can you check on cayla for me real quick",
+      decision: { tool: "client_status", names: ["cayla"] },
+      pattern: /Cayla Rosenblatt/,
+    },
+    {
+      text: "uh so the programme is ready for cayla thanks",
+      decision: { tool: "programme_sent", names: ["cayla"] },
+      pattern: /programme is ready/,
+    },
+    {
+      text: "book thursday at reception for the front desk pls",
+      decision: { tool: "ask_reception", task: "Book Thursday" },
+      pattern: /reception/,
+    },
+    { text: "red flags??", decision: { tool: "red_flags" }, pattern: /[Rr]ed flag/ },
+    { text: "usage?", decision: { tool: "usage" }, pattern: /Buddy usage/ },
+    { text: "quiet?", decision: { tool: "quiet_clients" }, pattern: /quiet/ },
+    {
+      text: "who's the physios",
+      decision: { tool: "list_practitioners" },
+      pattern: /Justin Owner/,
+    },
+    { text: "wat cn u do", decision: { tool: "help" }, pattern: /Here's what I can do/ },
+    {
+      text: "update me weekdays at 7",
+      decision: { tool: "schedule_updates", frequency: "weekdays", time: "07:00" },
+      pattern: /weekday/,
+    },
+    {
+      text: "👍",
+      decision: {
+        tool: "clarify",
+        question: "What should I do with that?",
+        options: ["How's Cayla", "My messages"],
+      },
+      pattern: /What should I do with that\?/,
+    },
+    {
+      text: "❓",
+      decision: {
+        tool: "clarify",
+        question: "Whose update do you want?",
+        options: ["Cayla", "Steven"],
+      },
+      pattern: /Whose update/,
+    },
+    {
+      text: "all of them",
+      decision: { tool: "client_status", names: ["all"] },
+      pattern: /clients are doing|Cayla Rosenblatt/,
+    },
+    {
+      text: "message beyonce now",
+      decision: { tool: "send_checkin", names: ["Beyonce"] },
+      pattern: /couldn't find Beyonce/,
+    },
+  ];
+
+  it.each(corpus)("$text", async ({ text, decision, pattern }) => {
+    let calls = 0;
+    const { db, deps, replies, sent } = harness({
+      understand: async () => {
+        calls++;
+        return decision;
+      },
+    });
+    await handlePractitionerMessage(asAdmin(db), JUSTIN, { text, replyId: null }, deps);
+    expect(calls, text).toBe(1);
+    expect(replies.map((r) => r.body).join("\n"), text).toMatch(pattern);
+    expect(sent, text).toHaveLength(0);
+    expect(replies.map((r) => r.body).join("\n")).not.toContain("didn't quite get that");
+  });
+
+  it("one sentence can answer and then ask to send", async () => {
+    const { db, deps, replies, sent } = harness({
+      understand: async () => [
+        { tool: "client_status", names: ["cayla"] },
+        { tool: "quiet_clients" },
+        { tool: "send_checkin", names: ["steven"], note: "the race is saturday" },
+      ],
+    });
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      {
+        text: "how's cayla doing and who's gone quiet and message steven the race is saturday",
+        replyId: null,
+      },
+      deps,
+    );
+    const body = replies.map((r) => r.body).join("\n");
+    expect(body).toContain("pain 4/10");
+    expect(body).toMatch(/quiet/i);
+    expect(body).toContain("Steven Jacobs");
+    expect(body).toContain("The race is saturday");
+    expect(sent).toHaveLength(0);
+  });
+
+  it("ye do it and a thumbs up confirm the pending send", async () => {
+    for (const answer of ["ye do it", "👍"]) {
+      const script = [{ tool: "send_checkin", names: ["cayla"] }, { tool: "confirm_pending" }];
+      const { db, deps, replies, sent } = harness({
+        understand: async () => script.shift() ?? null,
+      });
+      const memory: PracMemory = {};
+      await handlePractitionerMessage(
+        asAdmin(db),
+        JUSTIN,
+        { text: "ping cayla", replyId: null },
+        deps,
+        memory,
+      );
+      expect(sent).toHaveLength(0);
+      await handlePractitionerMessage(
+        asAdmin(db),
+        JUSTIN,
+        { text: answer, replyId: null },
+        deps,
+        memory,
+      );
+      expect(sent.some((m) => m.kind === "text" && m.to === "27821111111")).toBe(true);
+      expect(replies.map((r) => r.body).join("\n")).toContain("messaged on WhatsApp");
+    }
+  });
+
+  it("her, those and the ones you mentioned follow the last client and the last list", async () => {
+    const script = [
+      { tool: "client_status", names: ["cayla"] },
+      { tool: "read_messages", names: ["her"] },
+      { tool: "client_status", names: ["cayla", "steven", "vicki"] },
+      { tool: "send_checkin", names: ["the ones you mentioned"] },
+    ];
+    const seen: string[] = [];
+    const { db, deps, replies, sent } = harness({
+      understand: async (input) => {
+        seen.push(input.context);
+        return script.shift() ?? null;
+      },
+    });
+    const memory: PracMemory = {};
+    const say = (text: string) =>
+      handlePractitionerMessage(asAdmin(db), JUSTIN, { text, replyId: null }, deps, memory);
+    await say("cayla?");
+    expect(replies[0].body).toContain("pain 4/10");
+    await say("her messages");
+    expect(replyText(replies)).toContain("Cayla");
+    expect(replyText(replies)).not.toContain("Lauren says");
+    await say("and steven and vicki");
+    await say("check in with those");
+    const body = replyText(replies);
+    expect(body).toContain("Cayla Rosenblatt");
+    expect(body).toContain("Steven Jacobs");
+    expect(body).toContain("Vicki-Leigh Atkinson");
+    expect(sent).toHaveLength(0);
+    expect(seen[1]).toContain("Cayla Rosenblatt");
+    expect(seen[3]).toContain("Steven Jacobs");
+    expect(expandReferences(["her"], memory.focus).names).toEqual([]);
+  });
+
+  it("a clarifying question has buttons, and the tap is the next message", async () => {
+    const { db, deps, replies } = harness({
+      understand: async (input) => {
+        if (input.message === "Her status") return { tool: "client_status", names: ["cayla"] };
+        return {
+          tool: "clarify",
+          question: "Cayla's status, or her messages?",
+          options: ["Her status", "Her messages"],
+        };
+      },
+    });
+    const memory: PracMemory = {};
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "cayla??", replyId: null },
+      deps,
+      memory,
+    );
+    expect(replies[0].body).toBe("Cayla's status, or her messages?");
+    expect(replies[0].buttons?.map((b) => b.title)).toEqual(["Her status", "Her messages"]);
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "", replyId: "prac_cl_0" },
+      deps,
+      memory,
+    );
+    expect(replyText(replies)).toContain("pain 4/10");
   });
 });

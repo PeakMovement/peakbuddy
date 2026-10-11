@@ -19,7 +19,7 @@
 import { log } from "@/lib/log";
 import { HEIDI_MSG } from "./heidi";
 import { handleHeidiTurn, heidiConfig } from "./heidi.server";
-import { isAgentButton, needsPractitionerAgent } from "./practitioner-agent";
+import { isAgentButton, isExactShortcut } from "./practitioner-agent";
 import type { AgentTurnInput } from "./practitioner-agent";
 import { maskPhone, toE164Digits } from "./phone";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
@@ -191,8 +191,8 @@ export const PRAC_MSG = {
   thanks: (name: string, now: Date) =>
     THANKS_REPLIES[now.getUTCMinutes() % THANKS_REPLIES.length](name),
   ack: "\u{1F44D}",
-  notSure: (_name: string) =>
-    `Sorry, I didn't quite get that.\nTry "how are my clients doing?", a client's name, "my messages", "who checked in this week?" or "ask reception to…". You can also just tell me in your own words.`,
+  notSure: (name: string) =>
+    `${name}, what should I do? A client's name, "how are my clients doing?", "my messages", "who checked in this week?", or "ask reception to…" is enough.`,
   confirm: (line: string) => `Did you mean: ${line}?`,
   confirmNo: "Okay, I won't.",
   receptionAsk: "What should I pass on to reception?",
@@ -412,6 +412,21 @@ export async function handlePractitionerMessage(
     await deps.reply({ kind: "text", body: rc.RECEPTION_MSG.toPractitioner(result) });
   };
 
+  const clarifyTap = msg.replyId?.match(/^prac_cl_(\d)$/);
+  if (clarifyTap) {
+    const option = mem.clarifyOptions?.[Number(clarifyTap[1])];
+    if (option) msg = { text: option, replyId: null };
+  }
+
+  // Button taps and a few canonical commands skip the model. Every other
+  // practitioner message is read by the model first. If that call fails,
+  // the phrase matcher below is the outage fallback. An exact command also
+  // drops a half-finished confirmation, so "yes" afterwards is not a send.
+  if (isExactShortcut(msg.text, msg.replyId)) {
+    mem.pending = null;
+    mem.queued = [];
+  } else if (await tryAgent()) return true;
+
   const accepting =
     msg.replyId === "prac_cfm_yes" || Boolean(mem.confirm && !msg.replyId && isYes(msg.text));
   if (accepting) {
@@ -456,13 +471,6 @@ export async function handlePractitionerMessage(
     const patients = await practitionerPatients(admin, prac.userId);
     await handleHeidiTurn(adminIn, prac, heidiCmd, patients, deps);
     return true;
-  }
-
-  // Several people, a wording of their own, or a follow-up ("all 4", "yes",
-  // "and Steven too") goes to the agent. If the model is down, the phrase
-  // matcher below still answers.
-  if (mem.pending || isAgentButton(msg.replyId) || needsPractitionerAgent(msg.text, mem)) {
-    if (await tryAgent()) return true;
   }
 
   // They were asked what to tell reception. The next line is the errand,
@@ -588,7 +596,6 @@ export async function handlePractitionerMessage(
           return true;
         }
       }
-      if (await tryAgent()) return true;
       await deps.reply({
         kind: "buttons",
         body: PRAC_MSG.notSure(prac.firstName),

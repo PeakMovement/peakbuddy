@@ -17,7 +17,11 @@ import {
   checkinBody,
   checkinPreview,
   choiceBody,
+  clarifyButtons,
   confirmOutbound,
+  conversationContext,
+  decisionsFromGateway,
+  expandReferences,
   extraCheckinNote,
   formatPractitionerList,
   isAgentButton,
@@ -30,11 +34,18 @@ import {
   sendReport,
   validDecision,
   type AgentDecision,
+  type AgentTool,
   type AgentTurnInput,
   type NameHit,
   type ScopedClient,
 } from "./practitioner-agent";
-import { isCancel, isYes, type PracMemory, type PracPending } from "./practitioner-understand";
+import {
+  isCancel,
+  isYes,
+  type PracMemory,
+  type PracPending,
+  type PracQueued,
+} from "./practitioner-understand";
 
 type Admin = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 
@@ -211,6 +222,24 @@ async function replyText(ctx: AgentContext, body: string): Promise<void> {
   await ctx.deps.reply({ kind: "text", body });
 }
 
+function rememberFocus(ctx: AgentContext, clients: ScopedClient[]): void {
+  const list = clients
+    .slice(0, 10)
+    .map((c) => ({
+      id: c.id,
+      name: String(c.full_name ?? "").trim() || "A client",
+    }))
+    .filter((c) => c.id);
+  if (!list.length) return;
+  const one = list.length === 1 ? list[0] : null;
+  ctx.mem.focus = {
+    clientId: one?.id,
+    clientName: one?.name,
+    list,
+    at: ctx.deps.now.getTime(),
+  };
+}
+
 function setPending(ctx: AgentContext, pending: PracPending): void {
   ctx.mem.pending = { ...pending, at: ctx.deps.now.getTime() };
   ctx.mem.confirm = null;
@@ -237,6 +266,10 @@ async function askChoice(
     note,
     at: ctx.deps.now.getTime(),
   });
+  rememberFocus(
+    ctx,
+    candidates.map((c) => ({ id: c.id, full_name: c.name })),
+  );
   await replyText(ctx, choiceBody(intro, candidates));
 }
 
@@ -256,6 +289,10 @@ async function showOutbound(
   pending: Extract<PracPending, { kind: "outbound" }>,
 ): Promise<void> {
   setPending(ctx, { ...pending, editing: false });
+  const shown = pending.clientIds
+    .map((id) => ctx.scopeClients.find((c) => c.id === id))
+    .filter((c): c is ScopedClient => Boolean(c));
+  if (shown.length) rememberFocus(ctx, shown);
   await ctx.deps.reply({
     kind: "buttons",
     body: outboundBody(pending),
@@ -295,17 +332,71 @@ function clientsFromHits(hits: NameHit[]): {
   return { resolved, ambiguous, missing };
 }
 
+async function quietClientNames(ctx: AgentContext): Promise<string[]> {
+  const st = await import("./practitioner-status.server");
+  const ids = ctx.scopeClients.map((c) => c.id);
+  if (!ids.length) return [];
+  const { data } = await ctx.admin
+    .from("clients")
+    .select("id, full_name, created_at, auth_user_id")
+    .in("id", ids)
+    .limit(1000);
+  const rows = (data ?? []) as Array<{
+    id: string;
+    full_name: string | null;
+    created_at: string | null;
+    auth_user_id: string | null;
+  }>;
+  const statuses = await st.loadStatuses(ctx.adminIn, rows, ctx.deps.now);
+  return statuses.filter((s) => st.bucketOf(s, ctx.deps.now) === "quiet").map((s) => s.name);
+}
+
+async function askClarify(ctx: AgentContext, decision: AgentDecision): Promise<void> {
+  const buttons = clarifyButtons(decision.options);
+  ctx.mem.clarifyOptions = buttons.filter((b) => b.id.startsWith("prac_cl_")).map((b) => b.title);
+  await ctx.deps.reply({
+    kind: "buttons",
+    body: decision.question || `${ctx.prac.firstName}, what should I do?`,
+    buttons,
+  });
+}
+
 async function prepareClients(
   ctx: AgentContext,
   action: "checkin" | "programme" | "status" | "messages" | "heidi",
   names: string[],
   note: string | null,
 ): Promise<ScopedClient[] | null> {
-  const queries = names.length
-    ? names
-    : action === "status" || action === "messages"
-      ? ["all"]
-      : [];
+  const expanded = expandReferences(
+    names.length ? names : action === "status" || action === "messages" ? ["all"] : [],
+    ctx.mem.focus,
+  );
+  if (expanded.unresolved) {
+    const options = (ctx.mem.focus?.list ?? [])
+      .slice(0, 3)
+      .map((c) => c.name.split(/\s+/)[0] || c.name);
+    await askClarify(ctx, {
+      tool: "clarify",
+      names: [],
+      note: null,
+      task: null,
+      question: "Who do you mean?",
+      options,
+      frequency: null,
+      weekday: null,
+      time: null,
+    });
+    return null;
+  }
+  let queries = expanded.names;
+  if (queries.some((q) => q.toLowerCase() === "quiet")) {
+    const quiet = await quietClientNames(ctx);
+    queries = queries.flatMap((q) => (q.toLowerCase() === "quiet" ? quiet : [q]));
+    if (!queries.length) {
+      await replyText(ctx, "Nobody on your list has gone quiet.");
+      return null;
+    }
+  }
   if (!queries.length) {
     await replyText(ctx, 'Who should I include? A first name is enough, or say "all".');
     return null;
@@ -428,6 +519,7 @@ async function readStatuses(ctx: AgentContext, clients: ScopedClient[]): Promise
     .limit(1000);
   const full = (data ?? rows) as typeof rows;
   const statuses = await st.loadStatuses(admin, full.length ? full : rows, ctx.deps.now);
+  rememberFocus(ctx, clients);
   if (clients.length === ctx.scopeClients.length && clients.length !== 1) {
     await replyText(
       ctx,
@@ -450,6 +542,7 @@ async function readMessages(ctx: AgentContext, clients: ScopedClient[]): Promise
     clients.map((c) => c.id),
     ctx.deps.now,
   );
+  rememberFocus(ctx, clients);
   if (clients.length === ctx.scopeClients.length && clients.length !== 1) {
     await replyText(ctx, inbox.formatInbox(ctx.prac.firstName, clients, open, ctx.deps.now));
     return;
@@ -695,14 +788,86 @@ async function readHeidi(ctx: AgentContext, clients: ScopedClient[]): Promise<vo
   }
 }
 
+function toDecision(row: PracQueued): AgentDecision | null {
+  return validDecision(row);
+}
+
+const OUTBOUND_TOOLS = new Set<AgentTool>(["send_checkin", "programme_sent", "ask_reception"]);
+
+function stash(decision: AgentDecision): PracQueued {
+  return {
+    tool: decision.tool,
+    names: decision.names,
+    note: decision.note,
+    task: decision.task,
+    question: decision.question,
+    options: decision.options,
+    frequency: decision.frequency,
+    weekday: decision.weekday,
+    time: decision.time,
+  };
+}
+
+/** Run queued actions until the next one needs a confirmation. */
+async function drainQueue(ctx: AgentContext): Promise<void> {
+  while (ctx.mem.queued?.length && !ctx.mem.pending) {
+    const [next, ...rest] = ctx.mem.queued;
+    ctx.mem.queued = rest;
+    const decision = toDecision(next);
+    if (!decision) continue;
+    await applyDecision(ctx, decision);
+  }
+}
+
 async function applyDecision(ctx: AgentContext, decision: AgentDecision): Promise<void> {
   const tool = decision.tool;
-  ctx.mem.pending = null;
   log.info("practitioner agent", { tool, names: decision.names.length });
-  if (tool === "clarify") {
-    await replyText(ctx, decision.question || "What would you like me to do?");
+  if (tool === "confirm_pending") {
+    if (ctx.mem.pending?.kind === "outbound") {
+      await confirmPending(ctx);
+      await drainQueue(ctx);
+      return;
+    }
+    if (ctx.mem.pending?.kind === "choose") {
+      await finishChoice(
+        ctx,
+        ctx.mem.pending.candidates.map((c) => c.id),
+      );
+      await drainQueue(ctx);
+      return;
+    }
+    await askClarify(ctx, {
+      ...decision,
+      tool: "clarify",
+      question: "I don't have anything waiting. What should I do?",
+      options: [],
+    });
     return;
   }
+  if (tool === "cancel_pending") {
+    ctx.mem.pending = null;
+    ctx.mem.queued = [];
+    await replyText(ctx, "Okay, I won't.");
+    return;
+  }
+  if (tool === "clarify") {
+    await askClarify(ctx, decision);
+    return;
+  }
+  if (tool === "help") {
+    const { PRAC_MSG } = await import("./practitioner-mode.server");
+    const { HEIDI_MSG } = await import("./heidi");
+    await ctx.deps.reply({
+      kind: "buttons",
+      body: PRAC_MSG.help(ctx.prac.firstName) + (heidiConfig() ? `\n${HEIDI_MSG.helpLine}` : ""),
+      buttons: [
+        { id: "prac_status", title: "How are my clients" },
+        { id: "prac_updates", title: "Regular updates" },
+      ],
+    });
+    return;
+  }
+  ctx.mem.pending = null;
   if (tool === "list_practitioners") {
     const people = await listRoster(ctx);
     await replyText(
@@ -869,12 +1034,14 @@ async function handlePending(
         (isYes(text) || acceptsAll(text, pending.clientIds.length || pending.names.length))))
   ) {
     await confirmPending(ctx);
+    await drainQueue(ctx);
     return true;
   }
   if (pending.kind === "choose") {
     const picked = resolveChoice(text, pending.candidates);
     if (picked) {
       await finishChoice(ctx, [...pending.resolvedIds, ...picked]);
+      await drainQueue(ctx);
       return true;
     }
   }
@@ -911,13 +1078,28 @@ async function handlePending(
   return false;
 }
 
-async function understand(ctx: AgentContext, text: string): Promise<AgentDecision | null> {
+function asDecisions(raw: unknown): AgentDecision[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((row) => validDecision(row))
+      .filter((row): row is AgentDecision => row != null)
+      .slice(0, 4);
+  }
+  const fromGateway = decisionsFromGateway(raw);
+  if (fromGateway.length) return fromGateway;
+  const one = validDecision(raw);
+  return one ? [one] : [];
+}
+
+async function understand(ctx: AgentContext, text: string): Promise<AgentDecision[]> {
+  const pending = pendingSummary(ctx.mem.pending);
   const input: AgentTurnInput = {
     practitionerName: ctx.prac.firstName,
     practiceName: ctx.practiceName,
     message: text,
     history: ctx.mem.turns ?? [],
-    pending: pendingSummary(ctx.mem.pending),
+    pending,
+    context: conversationContext(ctx.mem.focus, pending),
     heidiEnabled: Boolean(heidiConfig()),
     canSeeAllPractitioners: ctx.privileged,
   };
@@ -937,11 +1119,23 @@ async function understand(ctx: AgentContext, text: string): Promise<AgentDecisio
             messages: prompt.messages,
             tools: practitionerToolSchemas(input.heidiEnabled),
           });
-    return validDecision(raw);
+    return asDecisions(raw);
   } catch (e) {
     log.warn("practitioner agent failed", { error: e instanceof Error ? e.message : "unknown" });
-    return null;
+    return [];
   }
+}
+
+/** Answer every ask. Pause at the first outbound action so it can be confirmed. */
+async function applyMany(ctx: AgentContext, decisions: AgentDecision[]): Promise<void> {
+  const work = decisions.filter((d) => d.tool !== "clarify" || decisions.length === 1);
+  const use = work.some((d) => d.tool !== "clarify")
+    ? work.filter((d) => d.tool !== "clarify")
+    : work;
+  if (!use.length) return;
+  ctx.mem.queued = use.slice(1).map(stash);
+  await applyDecision(ctx, use[0]);
+  if (!OUTBOUND_TOOLS.has(use[0].tool)) await drainQueue(ctx);
 }
 
 /**
@@ -992,28 +1186,25 @@ export async function runPractitionerAgent(
 
   if (await handlePending(ctx, msg.text, msg.replyId)) return true;
 
-  const decision = await understand(ctx, msg.text);
-  if (!decision) {
+  const decisions = await understand(ctx, msg.text);
+  if (!decisions.length) {
     if (mem.pending?.kind === "choose") {
       await replyText(
         ctx,
-        choiceBody(
-          'Sorry, I didn\'t quite get that. Reply with a number, a name, or "all".',
-          mem.pending.candidates,
-        ),
+        choiceBody('Which one? Reply with a number, a name, or "all".', mem.pending.candidates),
       );
       return true;
     }
     if (mem.pending?.kind === "outbound") {
       await ctx.deps.reply({
         kind: "buttons",
-        body: `Sorry, I didn't quite get that.\n${outboundBody(mem.pending)}`,
+        body: outboundBody(mem.pending),
         buttons: agentButtons(),
       });
       return true;
     }
     return false;
   }
-  await applyDecision(ctx, decision);
+  await applyMany(ctx, decisions);
   return true;
 }
