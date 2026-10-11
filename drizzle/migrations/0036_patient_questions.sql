@@ -1,4 +1,4 @@
--- 0035_patient_questions
+-- 0036_patient_questions (written as 0035; renamed because Lovable used 0035 for a re-run of 0034)
 --
 -- 1. patient_questions: a practitioner asks Buddy to put a question to a
 --    client ("message Tayla and ask her when her events are"). Buddy asks on
