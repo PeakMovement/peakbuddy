@@ -1035,10 +1035,21 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     const { data } = await admin.from("clients").select(CLIENT_COLS).eq("id", id).maybeSingle();
     client = (data as ClientRow | null) ?? null;
     if (client) {
+      // The practice head sees every alert in the practice, so name the chosen
+      // practitioner instead of saying "you". The chosen practitioner gets
+      // their own WhatsApp (new-patient template) once consent is signed.
+      const { data: pracProfile } = await admin
+        .from("profiles")
+        .select("full_name")
+        .eq("id", client.practitioner_id)
+        .maybeSingle();
+      const pracName =
+        String((pracProfile as { full_name?: string | null } | null)?.full_name ?? "").trim() ||
+        "a practitioner";
       await raiseContactAlert(
         admin,
         client,
-        `New patient joined Buddy on WhatsApp: ${decision.createClient.fullName}. They chose you as their practitioner. Please check this is right.`,
+        `New patient signed up on WhatsApp: ${decision.createClient.fullName}. They chose ${pracName} as their practitioner.`,
         "routine",
       ).catch(() => {});
       const url = await mintConsentLink(admin, client.id, phone).catch(() => null);
