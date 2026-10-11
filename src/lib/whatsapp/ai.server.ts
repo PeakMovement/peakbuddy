@@ -1,3 +1,4 @@
+import { decisionFromGateway } from "./practitioner-agent";
 import type { AiAssist } from "./conversation";
 import { ASSIST_INTENTS, PRACTICE_INFO, type AssistRoute } from "./assistant";
 import {
@@ -414,4 +415,56 @@ export async function converseWithAi(input: ConverseInput): Promise<ConverseResu
   } catch {
     return null;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Practitioner agent: one tool call, no free-text facts              */
+/* ------------------------------------------------------------------ */
+
+export interface PractitionerModelInput {
+  system: string;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  tools: unknown[];
+}
+
+/**
+ * One Gemini Flash call through the Lovable AI gateway. Returns the tool
+ * the model chose, or null when the key is missing or the call fails.
+ * The caller then answers from tool results. Nothing here is logged except
+ * the HTTP status, and a failed call never sends a message.
+ *
+ * Fast-path commands never reach this. A practitioner turn that does is
+ * one short request (the tools, a few turns, one message), typically well
+ * under a second of model time and a fraction of a cent on Flash.
+ */
+export async function decidePractitionerTurn(
+  input: PractitionerModelInput,
+): Promise<unknown | null> {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key || !input.messages.length) return null;
+  const bodies = [{ tool_choice: "required" as const }, { tool_choice: "auto" as const }];
+  for (const extra of bodies) {
+    try {
+      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          temperature: 0,
+          max_tokens: 400,
+          messages: [{ role: "system", content: input.system }, ...input.messages],
+          tools: input.tools,
+          ...extra,
+        }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (res.status === 400 && extra.tool_choice === "required") continue;
+      if (!res.ok) return null;
+      const json = (await res.json()) as unknown;
+      return decisionFromGateway(json);
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }

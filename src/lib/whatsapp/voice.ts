@@ -79,6 +79,28 @@ export function afterEnergy(ctx: VoiceContext): string {
   return `${pick(["Last one.", "Nearly done.", "Last question."], ctx.now, 2)} Anything else you'd like your physiotherapist to know? Type it here, or tap Nothing to add.`;
 }
 
+/**
+ * The line a practitioner asks Buddy to send. `<name>` in the preview is the
+ * patient's first name; the real send fills it in. The practice name is the
+ * one on the account, so the sentence is never invented.
+ */
+export function practitionerCheckinText(
+  firstName: string,
+  practiceName: string,
+  note?: string | null,
+): string {
+  const practice = practiceName.trim() || "Peak Movement";
+  const who = firstName.trim() || "there";
+  const base = `Hi ${who}, it's Buddy from ${practice}, checking in on how you're doing.`;
+  const extra = note?.trim();
+  return extra ? `${base} ${extra}` : base;
+}
+
+/** Confirmation the practitioner sees before anyone is messaged. */
+export function practitionerConfirmSend(who: string, preview: string): string {
+  return `I'll message ${who}: "${preview}" Send?`;
+}
+
 export function saved(ctx: VoiceContext): string {
   const who = ctx.practitionerFirstName ? ctx.practitionerFirstName : "your physiotherapist";
   const base = `Thanks ${ctx.firstName}, that's saved and ${who} can see it.`;

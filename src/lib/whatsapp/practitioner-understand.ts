@@ -708,19 +708,156 @@ export type PracConfirm =
   | { kind: "status_one"; clientId: string; line: string }
   | { kind: "reception"; task: string; line: string };
 
+/** One side of a recent practitioner chat, kept so "all 4" and "yes" still mean something. */
+export interface PracTurn {
+  role: "practitioner" | "buddy";
+  text: string;
+}
+
+export interface PracCandidate {
+  n: number;
+  id: string;
+  name: string;
+}
+
+/**
+ * The agent is waiting. `choose` is a numbered list (ambiguous names).
+ * `outbound` is a send that has been shown and not yet confirmed.
+ */
+export type PracPending =
+  | {
+      kind: "choose";
+      action: "status" | "messages" | "checkin" | "programme" | "heidi";
+      candidates: PracCandidate[];
+      resolvedIds: string[];
+      note: string | null;
+      at: number;
+    }
+  | {
+      kind: "outbound";
+      action: "checkin" | "programme" | "reception";
+      clientIds: string[];
+      names: string[];
+      /** The sentence they are confirming. Check-ins keep the literal "<name>". */
+      preview: string;
+      note: string | null;
+      task: string | null;
+      editing: boolean;
+      at: number;
+    };
+
 export interface PracMemory {
   awaitingReception?: boolean;
   awaitingReceptionAt?: number;
   confirm?: PracConfirm | null;
   confirmAt?: number;
+  turns?: PracTurn[];
+  turnsAt?: number;
+  pending?: PracPending | null;
 }
 
 export const PRAC_MEMORY_MS = 30 * 60 * 1000;
+
+const CHOOSE_ACTIONS = new Set(["status", "messages", "checkin", "programme", "heidi"]);
+const OUTBOUND_ACTIONS = new Set(["checkin", "programme", "reception"]);
+
+function cleanPending(raw: unknown): PracPending | null {
+  if (!raw || typeof raw !== "object") return null;
+  const p = raw as Record<string, unknown>;
+  const at = typeof p.at === "number" ? p.at : 0;
+  if (p.kind === "choose" && CHOOSE_ACTIONS.has(String(p.action))) {
+    const candidates = Array.isArray(p.candidates)
+      ? p.candidates
+          .map((c, i) => {
+            if (!c || typeof c !== "object") return null;
+            const row = c as Record<string, unknown>;
+            const id = String(row.id ?? "");
+            const name = String(row.name ?? "").trim();
+            if (!/^[0-9a-f-]{36}$/i.test(id) || !name) return null;
+            return { n: i + 1, id, name: name.slice(0, 80) };
+          })
+          .filter((c): c is PracCandidate => Boolean(c))
+          .slice(0, 10)
+      : [];
+    if (!candidates.length) return null;
+    const resolvedIds = Array.isArray(p.resolvedIds)
+      ? p.resolvedIds.map(String).filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+      : [];
+    return {
+      kind: "choose",
+      action: p.action as "status",
+      candidates,
+      resolvedIds,
+      note: typeof p.note === "string" ? p.note.slice(0, 280) : null,
+      at,
+    };
+  }
+  if (p.kind === "outbound" && OUTBOUND_ACTIONS.has(String(p.action))) {
+    const clientIds = Array.isArray(p.clientIds)
+      ? p.clientIds.map(String).filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+      : [];
+    const names = Array.isArray(p.names)
+      ? p.names
+          .map((n) => String(n).trim())
+          .filter(Boolean)
+          .slice(0, 15)
+      : [];
+    if (p.action !== "reception" && !clientIds.length) return null;
+    if (p.action === "reception" && typeof p.task !== "string") return null;
+    return {
+      kind: "outbound",
+      action: p.action as "checkin",
+      clientIds,
+      names,
+      preview: String(p.preview ?? "").slice(0, 500),
+      note: typeof p.note === "string" ? p.note.slice(0, 280) : null,
+      task: typeof p.task === "string" ? p.task.slice(0, 600) : null,
+      editing: Boolean(p.editing),
+      at,
+    };
+  }
+  return null;
+}
+
+function cleanTurns(raw: unknown): PracTurn[] {
+  if (!Array.isArray(raw)) return [];
+  const turns: PracTurn[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const t = row as Record<string, unknown>;
+    const role = t.role === "buddy" ? "buddy" : t.role === "practitioner" ? "practitioner" : null;
+    const text = typeof t.text === "string" ? t.text.replace(/\s+/g, " ").trim().slice(0, 400) : "";
+    if (role && text) turns.push({ role, text });
+  }
+  return turns.slice(-8);
+}
 
 export function expireMemory(mem: PracMemory, now: number): void {
   if (mem.awaitingReceptionAt != null && now - mem.awaitingReceptionAt > PRAC_MEMORY_MS)
     mem.awaitingReception = false;
   if (mem.confirmAt != null && now - mem.confirmAt > PRAC_MEMORY_MS) mem.confirm = null;
+  const pendingAt = mem.pending?.at ?? mem.turnsAt;
+  if (pendingAt != null && now - pendingAt > PRAC_MEMORY_MS) {
+    mem.pending = null;
+    mem.turns = [];
+  }
+}
+
+/** Append a short turn. Refreshes the pending timer so a live chat does not expire mid-reply. */
+export function rememberTurn(
+  mem: PracMemory,
+  role: PracTurn["role"],
+  text: string,
+  now: number,
+): void {
+  const t = String(text ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 400);
+  if (!t) return;
+  mem.turns = [...(mem.turns ?? []), { role, text: t }].slice(-8);
+  mem.turnsAt = now;
+  if (mem.pending) mem.pending = { ...mem.pending, at: now };
 }
 
 export function readPracMemory(draft: unknown, now = Date.now()): PracMemory {
@@ -733,6 +870,9 @@ export function readPracMemory(draft: unknown, now = Date.now()): PracMemory {
     awaitingReceptionAt: prac?.awaitingReceptionAt,
     confirm: prac?.confirm ?? null,
     confirmAt: prac?.confirmAt,
+    turns: cleanTurns(prac?.turns),
+    turnsAt: typeof prac?.turnsAt === "number" ? prac.turnsAt : undefined,
+    pending: cleanPending(prac?.pending),
   };
   expireMemory(mem, now);
   if (!mem.awaitingReception) mem.awaitingReception = false;
@@ -741,7 +881,12 @@ export function readPracMemory(draft: unknown, now = Date.now()): PracMemory {
 
 export function writePracMemory(draft: unknown, memory: PracMemory): Record<string, unknown> {
   const base = draft && typeof draft === "object" ? { ...(draft as Record<string, unknown>) } : {};
-  if (memory.awaitingReception || memory.confirm) base.prac = { ...memory };
+  const keep =
+    Boolean(memory.awaitingReception) ||
+    Boolean(memory.confirm) ||
+    Boolean(memory.pending) ||
+    Boolean(memory.turns && memory.turns.length);
+  if (keep) base.prac = { ...memory };
   else delete base.prac;
   return base;
 }

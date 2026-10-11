@@ -19,6 +19,8 @@
 import { log } from "@/lib/log";
 import { HEIDI_MSG } from "./heidi";
 import { handleHeidiTurn, heidiConfig } from "./heidi.server";
+import { isAgentButton, needsPractitionerAgent } from "./practitioner-agent";
+import type { AgentTurnInput } from "./practitioner-agent";
 import { maskPhone, toE164Digits } from "./phone";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
 import {
@@ -34,6 +36,7 @@ import {
   PROGRAMME_SENT,
   rankPatients,
   readPractitionerHeidi,
+  rememberTurn,
   tidyErrand,
   type PracMemory,
 } from "./practitioner-understand";
@@ -189,7 +192,7 @@ export const PRAC_MSG = {
     THANKS_REPLIES[now.getUTCMinutes() % THANKS_REPLIES.length](name),
   ack: "\u{1F44D}",
   notSure: (_name: string) =>
-    `Sorry, I didn't quite get that.\nTry "how are my clients doing?", a client's name, "my messages", "who checked in this week?" or "ask reception to…".`,
+    `Sorry, I didn't quite get that.\nTry "how are my clients doing?", a client's name, "my messages", "who checked in this week?" or "ask reception to…". You can also just tell me in your own words.`,
   confirm: (line: string) => `Did you mean: ${line}?`,
   confirmNo: "Okay, I won't.",
   receptionAsk: "What should I pass on to reception?",
@@ -204,6 +207,7 @@ export const PRAC_MSG = {
     `• "Update me daily at 7am" (or weekdays, every Monday, every morning, stop updates)\n` +
     `• "I've sent Sam Kruger his programme" and I'll let them know\n` +
     `• "Ask reception to book Sam for Thursday" and I'll pass it to reception\n` +
+    `• "Who are the practitioners?" and I'll list them. You can message several clients at once, in your own words\n` +
     `• "What's open with reception?" to see what's still waiting. Just "reception" and I'll ask what to pass on\n\n` +
     `Practice owners can also ask "practice overview", "any red flags?", "who's gone quiet?" or "how many clients are using Buddy?"`,
   notFound: (name: string) =>
@@ -212,6 +216,8 @@ export const PRAC_MSG = {
   willTell: (patient: string) => `Perfect, I'll let ${patient} know.`,
   toldInApp: (patient: string) =>
     `Done, ${patient} isn't on WhatsApp with Buddy, so I've sent them a notification in the Buddy app instead.`,
+  toldTemplate: (patient: string) =>
+    `Done. ${patient} hasn't messaged in the last day, so I sent the programme template.`,
   notRegistered: (patient: string) =>
     `Sorry, ${patient} isn't registered on Buddy yet, so I can't let them know. If you'd like them to join, forward them this link:\n\n${JOIN_LINK}`,
   cantReachYet: (patient: string) =>
@@ -244,6 +250,12 @@ export interface PractitionerDeps {
   requestCheckin?: (
     clientId: string,
   ) => Promise<"sent" | "not_whatsapp" | "busy" | "window_closed" | "failed">;
+  /**
+   * Tool choice for the practitioner agent. Tests pass a mock. When omitted,
+   * Buddy calls Gemini through the Lovable gateway if LOVABLE_API_KEY is set,
+   * and otherwise leaves the phrase matcher to answer.
+   */
+  understand?: (input: AgentTurnInput) => Promise<unknown>;
 }
 
 async function practitionerPatients(admin: Db, userId: string): Promise<PatientRow[]> {
@@ -359,6 +371,31 @@ export async function handlePractitionerMessage(
   const mem: PracMemory = memory ?? {};
   expireMemory(mem, deps.now.getTime());
   const admin = adminIn as unknown as Db;
+  rememberTurn(mem, "practitioner", msg.text, deps.now.getTime());
+  if (!(deps.reply as { wrapped?: boolean }).wrapped) {
+    const reply = deps.reply;
+    const wrapped = async (message: Outgoing) => {
+      const body = "body" in message && typeof message.body === "string" ? message.body : "";
+      rememberTurn(mem, "buddy", body, deps.now.getTime());
+      await reply(message);
+    };
+    (wrapped as { wrapped?: boolean }).wrapped = true;
+    deps = { ...deps, reply: wrapped };
+  }
+
+  let agentTried = false;
+  const tryAgent = async (): Promise<boolean> => {
+    if (agentTried) return false;
+    if (msg.replyId && !isAgentButton(msg.replyId)) return false;
+    agentTried = true;
+    try {
+      const { runPractitionerAgent } = await import("./practitioner-agent.server");
+      return await runPractitionerAgent(adminIn, prac, msg, deps, mem);
+    } catch (e) {
+      log.warn("practitioner agent failed", { error: e instanceof Error ? e.message : "unknown" });
+      return false;
+    }
+  };
 
   const passErrand = async (task: string) => {
     const rc = await import("./reception.server");
@@ -419,6 +456,13 @@ export async function handlePractitionerMessage(
     const patients = await practitionerPatients(admin, prac.userId);
     await handleHeidiTurn(adminIn, prac, heidiCmd, patients, deps);
     return true;
+  }
+
+  // Several people, a wording of their own, or a follow-up ("all 4", "yes",
+  // "and Steven too") goes to the agent. If the model is down, the phrase
+  // matcher below still answers.
+  if (mem.pending || isAgentButton(msg.replyId) || needsPractitionerAgent(msg.text, mem)) {
+    if (await tryAgent()) return true;
   }
 
   // They were asked what to tell reception. The next line is the errand,
@@ -544,6 +588,7 @@ export async function handlePractitionerMessage(
           return true;
         }
       }
+      if (await tryAgent()) return true;
       await deps.reply({
         kind: "buttons",
         body: PRAC_MSG.notSure(prac.firstName),
@@ -579,18 +624,30 @@ export async function handlePractitionerMessage(
   const body =
     result === "whatsapp"
       ? PRAC_MSG.willTell(name)
-      : result === "app"
-        ? PRAC_MSG.toldInApp(name)
-        : result === "not_registered"
-          ? PRAC_MSG.notRegistered(name)
-          : result === "later"
-            ? PRAC_MSG.cantReachYet(name)
-            : PRAC_MSG.failed(name);
+      : result === "template"
+        ? PRAC_MSG.toldTemplate(name)
+        : result === "app"
+          ? PRAC_MSG.toldInApp(name)
+          : result === "not_registered"
+            ? PRAC_MSG.notRegistered(name)
+            : result === "later"
+              ? PRAC_MSG.cantReachYet(name)
+              : PRAC_MSG.failed(name);
   await deps.reply({ kind: "text", body });
   return true;
 }
 
-type TellResult = "whatsapp" | "app" | "not_registered" | "later" | "failed";
+type TellResult = "whatsapp" | "template" | "app" | "not_registered" | "later" | "failed";
+
+/** Programme notice for one patient. Used by the phrase matcher and the agent. */
+export async function notifyProgrammeSent(
+  adminIn: Admin,
+  patient: PatientRow,
+  prac: Practitioner,
+  deps: PractitionerDeps,
+): Promise<TellResult> {
+  return tellPatient(adminIn, patient, prac, deps);
+}
 
 async function tellPatient(
   adminIn: Admin,
@@ -665,7 +722,7 @@ async function tellPatient(
           () => undefined,
           () => undefined,
         );
-      return ok ? "whatsapp" : "failed";
+      return ok ? (message.kind === "template" ? "template" : "whatsapp") : "failed";
     }
     // No template and the window is closed: hold it for their next message.
     const { data: cur } = await admin
