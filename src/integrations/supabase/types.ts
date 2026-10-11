@@ -981,6 +981,50 @@ export type Database = {
           },
         ]
       }
+      patient_questions: {
+        Row: {
+          answer: string | null
+          answered_at: string | null
+          asked_at: string | null
+          client_id: string | null
+          created_at: string
+          id: string
+          practitioner_id: string
+          question: string
+          status: string
+        }
+        Insert: {
+          answer?: string | null
+          answered_at?: string | null
+          asked_at?: string | null
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          practitioner_id: string
+          question: string
+          status?: string
+        }
+        Update: {
+          answer?: string | null
+          answered_at?: string | null
+          asked_at?: string | null
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          practitioner_id?: string
+          question?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_questions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_settings: {
         Row: {
           central_webhook_enabled: boolean
@@ -1263,6 +1307,7 @@ export type Database = {
           id: string
           last_message_at: string | null
           opened_at: string | null
+          pending_text: string | null
           phone: string | null
           practitioner_id: string
           status: string
@@ -1274,6 +1319,7 @@ export type Database = {
           id?: string
           last_message_at?: string | null
           opened_at?: string | null
+          pending_text?: string | null
           phone?: string | null
           practitioner_id: string
           status: string
@@ -1285,6 +1331,7 @@ export type Database = {
           id?: string
           last_message_at?: string | null
           opened_at?: string | null
+          pending_text?: string | null
           phone?: string | null
           practitioner_id?: string
           status?: string
