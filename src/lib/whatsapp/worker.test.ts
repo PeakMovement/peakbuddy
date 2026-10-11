@@ -1155,3 +1155,55 @@ describe("reception number", () => {
     expect((sent[0] as { body: string }).body).toContain("No open requests");
   });
 });
+
+describe("answers to a practitioner's question", () => {
+  const QID = "cccccccc-0000-4000-8000-0000000000aa";
+  const seed = () =>
+    fakeDb({
+      clients: [{ ...CLIENT, notes: null }],
+      whatsapp_inbound: [],
+      whatsapp_conversations: [
+        { id: "c1", phone: "27820000001", client_id: "client-1", state: "idle", draft: {} },
+      ],
+      consent_records: CONSENTED(),
+      check_ins: [],
+      alerts: [],
+      profiles: [{ id: "prac-1", full_name: "Zoe Testperson" }],
+      patient_questions: [
+        {
+          id: QID,
+          client_id: "client-1",
+          practitioner_id: "prac-1",
+          question: "When are your sporting events happening?",
+          status: "asked",
+          created_at: "2026-10-05T06:00:00Z",
+          asked_at: "2026-10-05T06:00:00Z",
+        },
+      ],
+    });
+
+  it("the next message is the answer: saved, thanked, nothing else", async () => {
+    const db = seed();
+    const { provider, sent } = fakeProvider();
+    db.tables.whatsapp_inbound.push(inbound("Saturday the 18th and 2 November"));
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.patient_questions[0]).toMatchObject({
+      status: "answered",
+      answer: "Saturday the 18th and 2 November",
+    });
+    expect(db.tables.clients[0].notes).toContain("Saturday the 18th and 2 November");
+    const bodies = sent.map((m) => (m as { body?: string }).body ?? "");
+    expect(bodies).toEqual(["Thanks, I've passed that on to Zoe."]);
+  });
+
+  it("a red flag in the answer still raises the alert", async () => {
+    const db = seed();
+    const { provider, sent } = fakeProvider();
+    db.tables.whatsapp_inbound.push(inbound("Next week, but I have chest pain and can't breathe"));
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.patient_questions[0].status).toBe("answered");
+    expect(db.tables.alerts.some((a) => a.alert_type === "red_flag")).toBe(true);
+    const bodies = sent.map((m) => (m as { body?: string }).body ?? "").join("\n");
+    expect(bodies).toMatch(/physiotherapist|emergency|10177|112/i);
+  });
+});

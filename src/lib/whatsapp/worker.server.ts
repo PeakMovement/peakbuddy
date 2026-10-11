@@ -481,10 +481,12 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
 
   // A practitioner answering Buddy about a new patient (button, or the brief
   // that follows). Never attached to any patient's history.
+  let rerouted: string | null = null;
   {
     const isAudioMsg = row.kind === "media" && (row.media_mime_type ?? "").startsWith("audio/");
     const looksLikeIntake =
-      /^intake_(add|skip):/i.test(row.reply_id ?? "") || (await hasCollectingIntake(admin, phone));
+      /^intake_(add|skip|done|note|task):/i.test(row.reply_id ?? "") ||
+      (await hasCollectingIntake(admin, phone));
     if (looksLikeIntake) {
       const { handlePractitionerReply } = await import("./practitioner-intake.server");
       const handled = await handlePractitionerReply(
@@ -494,6 +496,15 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
           now,
           transcribe: async () =>
             isAudioMsg && row.media_id ? await transcribe(env, row.media_id) : null,
+          sendButtons: async (body, buttons) => {
+            const { sendLogged } = await import("./practitioner-status.server");
+            await sendLogged(
+              admin as never,
+              { provider: env.provider, secrets: env.secrets },
+              { kind: "buttons", to: phone, body, buttons },
+              body,
+            );
+          },
           send: async (body) => {
             let id: string | null = null;
             let ok = false;
@@ -523,7 +534,10 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
           },
         },
       );
-      if (handled) return null;
+      if (handled === true) return null;
+      // An instruction sent while Buddy was taking notes: note taking is
+      // closed, and the instruction goes on to practitioner mode below.
+      if (typeof handled === "object") rerouted = handled.reroute;
     }
   }
 
@@ -537,7 +551,10 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
       await import("./practitioner-mode.server");
     const prac = await practitionerByPhone(admin, phone).catch(() => null);
     if (prac) {
-      const text = row.body || row.reply_title || "";
+      const { stripTaskPrefix } = await import("./practitioner-intake.server");
+      // "task: ..." is always an instruction; the keyword itself is dropped.
+      const text = stripTaskPrefix(rerouted ?? (row.body || row.reply_title || ""));
+      const replyId = rerouted ? null : row.reply_id;
       const { practitionerIntent } = await import("./practitioner-status.server");
       const { looksLikeProgramme, readPracMemory, readPractitionerHeidi, writePracMemory } =
         await import("./practitioner-understand");
@@ -547,18 +564,19 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
         waiting ||
         PROGRAMME_SENT.test(text) ||
         looksLikeProgramme(text) ||
-        /^(prog|prac)_/i.test(row.reply_id ?? "") ||
-        practitionerIntent(text, row.reply_id).kind !== "other";
+        Boolean(rerouted) ||
+        /^(prog|prac|pq)_/i.test(replyId ?? "") ||
+        practitionerIntent(text, replyId).kind !== "other";
       let heidiCommand = false;
       if (process.env.HEIDI_API_KEY && process.env.HEIDI_REGION && process.env.HEIDI_EHR_PROVIDER) {
         const { heidiConfig } = await import("./heidi.server");
-        heidiCommand = Boolean(heidiConfig() && readPractitionerHeidi(text, row.reply_id));
+        heidiCommand = Boolean(heidiConfig() && readPractitionerHeidi(text, replyId));
       }
       if (!conv.client_id || isCommand || heidiCommand) {
         const handled = await handlePractitionerMessage(
           admin,
           prac,
-          { text, replyId: row.reply_id },
+          { text, replyId },
           {
             provider: env.provider,
             secrets: env.secrets,
@@ -839,6 +857,32 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     if (route?.intent === "progress") progressText = await progressFor(admin, client.id);
   }
 
+  // A question a practitioner asked this patient: a "See question" tap, or
+  // (while idle) the answer. It replaces the normal reply; the red flag rules
+  // still run on it below.
+  let questionStep: import("./patient-questions.server").QuestionStep | null = null;
+  if (client && consent && message.kind !== "media") {
+    const pq = await import("./patient-questions.server");
+    questionStep = await pq
+      .questionStepForPatient(
+        admin,
+        { provider: env.provider, secrets: env.secrets },
+        {
+          client,
+          text: message.text ?? "",
+          replyId: row.reply_id,
+          idle: state === "idle",
+          now,
+        },
+      )
+      .catch((e) => {
+        log.warn("whatsapp worker: question step failed", {
+          error: e instanceof Error ? e.message : "unknown",
+        });
+        return null;
+      });
+  }
+
   // Nothing fixed fits: let the conversational layer interpret it (AI consent
   // only). Outside a check-in that is a message the router called "other";
   // inside one, an answer neither the plain reader nor the answer reader
@@ -866,7 +910,15 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     isPostOperative: postOp.isPostOperative,
     consecutiveMissedCheckins: postOp.consecutiveMissedCheckins,
   }).triggered;
-  if (client && consent && aiAllowed && typed && !flaggedText && (unplacedMid || unplacedIdle)) {
+  if (
+    !questionStep &&
+    client &&
+    consent &&
+    aiAllowed &&
+    typed &&
+    !flaggedText &&
+    (unplacedMid || unplacedIdle)
+  ) {
     const history = await recentTurns(admin, row.from_phone, phone, row.id, now);
     if (!progressText && unplacedIdle) progressText = await progressFor(admin, client.id);
     const { loadPatientContext, renderPatientContext, rememberFact } =
@@ -904,39 +956,62 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     if (token) watchUrl = watchLinkUrl(APP_ORIGIN, token);
   }
 
-  const decision = decide({
-    message,
-    conversation: {
-      state,
-      draft: conv.draft ?? {},
-      checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
-    },
-    client: client ? { firstName: firstNameOf(client.full_name) } : null,
-    hasConsent: consent,
-    checkedInToday: today,
-    redFlags,
-    now,
-    hasWearable: clientHasWearable,
-    converse,
-    route,
-    progressText,
-    wearableOffered: Boolean(conv.wearable_offer_at),
-    assist,
-    consentUrl,
-    inviteWelcome: client ? inviteWelcome : undefined,
-    inviteInvalid: !client && inviteInvalid,
-    signup,
-    hasAppAccount: Boolean(client?.auth_user_id),
-    watchUrl,
-    appOfferDue: Boolean(client && !client.auth_user_id && !conv.app_offer_at),
-    voice: client ? await voiceStats(admin, client, now).catch(() => undefined) : undefined,
-  });
+  // An answer with a red flag in it gets Buddy's full safety reply, not just
+  // "thanks": the answer is already saved, the thanks goes after.
+  const answerOnly = questionStep && !redFlags.triggered ? questionStep : null;
+  const decision: Decision = answerOnly
+    ? {
+        replies: answerOnly.replies,
+        next: {
+          state,
+          draft: conv.draft ?? {},
+          checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
+        },
+      }
+    : decide({
+        message,
+        conversation: {
+          state,
+          draft: conv.draft ?? {},
+          checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
+        },
+        client: client ? { firstName: firstNameOf(client.full_name) } : null,
+        hasConsent: consent,
+        checkedInToday: today,
+        redFlags,
+        now,
+        hasWearable: clientHasWearable,
+        converse,
+        route,
+        progressText,
+        wearableOffered: Boolean(conv.wearable_offer_at),
+        assist,
+        consentUrl,
+        inviteWelcome: client ? inviteWelcome : undefined,
+        inviteInvalid: !client && inviteInvalid,
+        signup,
+        hasAppAccount: Boolean(client?.auth_user_id),
+        watchUrl,
+        appOfferDue: Boolean(client && !client.auth_user_id && !conv.app_offer_at),
+        voice: client ? await voiceStats(admin, client, now).catch(() => undefined) : undefined,
+      });
 
   // Unknown numbers are told once a day, not on every message.
   let replies = decision.replies;
+  if (questionStep && !answerOnly) replies = [...replies, ...questionStep.replies];
   // A message a practitioner asked Buddy to pass on while the window was shut.
   const pendingNotice = (conv.draft as { pendingNotice?: string } | null)?.pendingNotice;
   if (client && pendingNotice) replies = [{ kind: "text", body: pendingNotice }, ...replies];
+  // A practitioner's question that waited for this patient's window. Only
+  // once the conversation is idle (never mid check-in) and never next to a
+  // red flag, so the next message can be read as its answer.
+  if (client && consent && !questionStep && !redFlags.triggered) {
+    const pq = await import("./patient-questions.server");
+    const extra = await pq
+      .deliverWaiting(admin, { client, idleAfter: decision.next.state === "idle", now })
+      .catch(() => []);
+    if (extra.length) replies = [...replies, ...extra];
+  }
   let unmatchedNoticeAt = conv.unmatched_notice_at;
   if (!client) {
     const recently =

@@ -17,6 +17,7 @@
  * update") opens the window and the tap brings the full update.
  */
 import { log } from "@/lib/log";
+import { readPatientQuestion } from "./patient-question-text";
 import { toSast } from "./clinic-hours";
 import { maskPhone, toE164Digits } from "./phone";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
@@ -85,6 +86,10 @@ export type PracIntent =
   /** "contact reception" with no errand: ask, then take the next message. */
   | { kind: "reception_ask" }
   | { kind: "reception_open" }
+  /** "Message Tayla and ask her when ..." (11 Oct). */
+  | { kind: "ask_patient"; question: string }
+  | { kind: "ask_pick"; questionId: string; clientId: string }
+  | { kind: "ask_cancel"; questionId: string }
   | { kind: "other" };
 
 /** "at 7", "at 7:30am", "at 18:00", "at 6pm". Default 07:30. */
@@ -186,6 +191,11 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
   const one = r.match(/^prac_one_([0-9a-f-]{36})$/i);
   if (one) return { kind: "status_one", clientId: one[1] };
 
+  const pick = r.match(/^pq_pick_([0-9a-f-]{36})_([0-9a-f-]{36})$/i);
+  if (pick) return { kind: "ask_pick", questionId: pick[1], clientId: pick[2] };
+  const cancel = r.match(/^pq_cancel_([0-9a-f-]{36})$/i);
+  if (cancel) return { kind: "ask_cancel", questionId: cancel[1] };
+
   if (r.startsWith("prac_adm_")) {
     const topic = r.slice("prac_adm_".length);
     if (topic === "overview" || topic === "redflags" || topic === "quiet" || topic === "usage")
@@ -207,6 +217,13 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
   }
   if (RECEPTION_OPEN.test(text) || RECEPTION_OPEN.test(normalized))
     return { kind: "reception_open" };
+  // A question to put to a client, before check-in requests: "ask Sam when
+  // his race is" is a question; "ask Sam to check in" is not (it returns null).
+  if (!blocked) {
+    const question =
+      readPatientQuestion(text) ?? (fixed === text ? null : readPatientQuestion(fixed));
+    if (question) return { kind: "ask_patient", question };
+  }
   if (!blocked) {
     const loose = looseReceptionTask(text);
     if (loose) return { kind: "reception_confirm", task: loose };

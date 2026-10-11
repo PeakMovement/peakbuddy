@@ -661,6 +661,104 @@ async function tellPatient(
 }
 
 /** Status, updates and check-in requests (practitioner-status.server.ts). */
+/** "Message Tayla and ask her ...": find who, confirm if unsure, then ask. */
+async function handleQuestionIntent(
+  adminIn: Admin,
+  prac: Practitioner,
+  text: string,
+  intent: Extract<
+    import("./practitioner-status.server").PracIntent,
+    { kind: "ask_patient" | "ask_pick" | "ask_cancel" }
+  >,
+  deps: PractitionerDeps,
+): Promise<void> {
+  const pq = await import("./patient-questions.server");
+  const admin = adminIn as unknown as Db;
+  const text1 = (body: string) => deps.reply({ kind: "text", body });
+  const env = { provider: deps.provider, secrets: deps.secrets };
+
+  if (intent.kind === "ask_cancel") {
+    await pq.cancelQuestion(adminIn, intent.questionId);
+    await text1(pq.QUESTION_MSG.cancelled);
+    return;
+  }
+
+  const patients = await practitionerPatients(admin, prac.userId);
+  let questionId: string | null = null;
+  let target: PatientRow | null = null;
+  let question = "";
+
+  if (intent.kind === "ask_pick") {
+    const q = await pq.loadQuestion(adminIn, intent.questionId);
+    target = patients.find((p) => p.id === intent.clientId) ?? null;
+    if (!q || q.practitioner_id !== prac.userId || q.status !== "draft" || !target) {
+      await text1("That question has already been sent or has closed.");
+      return;
+    }
+    questionId = q.id;
+    question = q.question;
+  } else {
+    question = intent.question;
+    const hits = rankPatients(text, patients);
+    if (!hits.length) {
+      await text1(PRAC_MSG.notFoundAny(prac.firstName));
+      return;
+    }
+    questionId = await pq.saveDraft(adminIn, {
+      practitionerId: prac.userId,
+      question,
+      clientId: hits.length === 1 ? hits[0].patient.id : null,
+      now: deps.now,
+    });
+    if (!questionId) {
+      await text1(pq.QUESTION_MSG.failed("them"));
+      return;
+    }
+    if (hits.length > 1) {
+      await deps.reply({
+        kind: "list",
+        body: pq.QUESTION_MSG.which,
+        buttonLabel: "Choose",
+        rows: hits.slice(0, 10).map((h) => ({
+          id: `pq_pick_${questionId}_${h.patient.id}`,
+          title: String(h.patient.full_name ?? "Client").slice(0, 24),
+        })),
+      });
+      return;
+    }
+    if (hits[0].confidence === "medium") {
+      const full = String(hits[0].patient.full_name ?? "").trim() || "them";
+      await deps.reply({
+        kind: "buttons",
+        body: pq.QUESTION_MSG.confirm(full, question),
+        buttons: [
+          { id: `pq_pick_${questionId}_${hits[0].patient.id}`, title: "Yes, ask" },
+          { id: `pq_cancel_${questionId}`, title: "No" },
+        ],
+      });
+      return;
+    }
+    target = hits[0].patient;
+  }
+
+  const name = firstOf(target.full_name);
+  const result = await pq.askNow(adminIn, env, {
+    questionId,
+    clientId: target.id,
+    practitionerName: prac.firstName,
+    now: deps.now,
+  });
+  await text1(
+    result === "asked"
+      ? pq.QUESTION_MSG.asked(name, question)
+      : result === "waiting"
+        ? pq.QUESTION_MSG.waiting(name, question)
+        : result === "not_whatsapp"
+          ? pq.QUESTION_MSG.notOnWhatsApp(name)
+          : pq.QUESTION_MSG.failed(name),
+  );
+}
+
 async function handleStatusIntent(
   adminIn: Admin,
   prac: Practitioner,
@@ -708,6 +806,10 @@ async function handleStatusIntent(
       now: deps.now,
     });
     await text1(rc.RECEPTION_MSG.toPractitioner(result));
+    return;
+  }
+  if (intent.kind === "ask_patient" || intent.kind === "ask_pick" || intent.kind === "ask_cancel") {
+    await handleQuestionIntent(adminIn, prac, text, intent, deps);
     return;
   }
   if (intent.kind === "admin") {
