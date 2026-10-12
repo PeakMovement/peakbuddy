@@ -633,7 +633,7 @@ export interface RankedPatient<T> {
   score: number;
 }
 
-function closeName(token: string, name: string): boolean {
+export function closeName(token: string, name: string): boolean {
   if (token === name || name.length < 3 || token.length < 3) return false;
   if (token[0] !== name[0] || Math.abs(token.length - name.length) > 2) return false;
   const d = editDistance(token, name);
@@ -713,11 +713,21 @@ export interface PracMemory {
   awaitingReceptionAt?: number;
   confirm?: PracConfirm | null;
   confirmAt?: number;
+  /** The client last talked about, for "tell her ...". */
+  lastClientId?: string | null;
+  lastClientAt?: number;
+  /** Tapped "Reply to Nicola": the next message goes to this client. */
+  replyTo?: string | null;
+  replyToAt?: number;
 }
 
 export const PRAC_MEMORY_MS = 30 * 60 * 1000;
+/** "her" still means the same client for this long. */
+export const LAST_CLIENT_MS = 3 * 60 * 60 * 1000;
 
 export function expireMemory(mem: PracMemory, now: number): void {
+  if (mem.lastClientAt != null && now - mem.lastClientAt > LAST_CLIENT_MS) mem.lastClientId = null;
+  if (mem.replyToAt != null && now - mem.replyToAt > PRAC_MEMORY_MS) mem.replyTo = null;
   if (mem.awaitingReceptionAt != null && now - mem.awaitingReceptionAt > PRAC_MEMORY_MS)
     mem.awaitingReception = false;
   if (mem.confirmAt != null && now - mem.confirmAt > PRAC_MEMORY_MS) mem.confirm = null;
@@ -733,6 +743,10 @@ export function readPracMemory(draft: unknown, now = Date.now()): PracMemory {
     awaitingReceptionAt: prac?.awaitingReceptionAt,
     confirm: prac?.confirm ?? null,
     confirmAt: prac?.confirmAt,
+    lastClientId: prac?.lastClientId ?? null,
+    lastClientAt: prac?.lastClientAt,
+    replyTo: prac?.replyTo ?? null,
+    replyToAt: prac?.replyToAt,
   };
   expireMemory(mem, now);
   if (!mem.awaitingReception) mem.awaitingReception = false;
@@ -741,7 +755,8 @@ export function readPracMemory(draft: unknown, now = Date.now()): PracMemory {
 
 export function writePracMemory(draft: unknown, memory: PracMemory): Record<string, unknown> {
   const base = draft && typeof draft === "object" ? { ...(draft as Record<string, unknown>) } : {};
-  if (memory.awaitingReception || memory.confirm) base.prac = { ...memory };
+  if (memory.awaitingReception || memory.confirm || memory.lastClientId || memory.replyTo)
+    base.prac = { ...memory };
   else delete base.prac;
   return base;
 }

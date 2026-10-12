@@ -18,6 +18,7 @@
  */
 import { log } from "@/lib/log";
 import { readPatientQuestion } from "./patient-question-text";
+import { readPatientMessage, type PatientMessageRequest } from "./patient-message-text";
 import { CHECKED_IN, wantsMessages } from "./practitioner-inbox-text";
 import { toSast } from "./clinic-hours";
 import { maskPhone, toE164Digits } from "./phone";
@@ -91,6 +92,10 @@ export type PracIntent =
   | { kind: "ask_patient"; question: string }
   | { kind: "ask_pick"; questionId: string; clientId: string }
   | { kind: "ask_cancel"; questionId: string }
+  /** "Tell Nicola well done", "can you tell her I love her" (12 Oct). */
+  | { kind: "message_patient"; req: PatientMessageRequest }
+  /** Tapped "Reply to Nicola" under a relayed reply. */
+  | { kind: "message_reply"; clientId: string }
   /** Read open messages and alerts: one client's (clientId or a name in the text) or all (11 Oct). */
   | { kind: "messages"; clientId: string | null }
   /** Mark reviewed from WhatsApp: one alert, or all of a client's. */
@@ -202,6 +207,8 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
   if (pick) return { kind: "ask_pick", questionId: pick[1], clientId: pick[2] };
   const cancel = r.match(/^pq_cancel_([0-9a-f-]{36})$/i);
   if (cancel) return { kind: "ask_cancel", questionId: cancel[1] };
+  const replyTo = r.match(/^pm_reply_([0-9a-f-]{36})$/i);
+  if (replyTo) return { kind: "message_reply", clientId: replyTo[1] };
 
   const msgs = r.match(/^prac_msgs_([0-9a-f-]{36})$/i);
   if (msgs) return { kind: "messages", clientId: msgs[1] };
@@ -238,6 +245,9 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
     const question =
       readPatientQuestion(text) ?? (fixed === text ? null : readPatientQuestion(fixed));
     if (question) return { kind: "ask_patient", question };
+    // A message to pass on: "tell Nicola well done", "tell her I love her".
+    const req = readPatientMessage(text);
+    if (req) return { kind: "message_patient", req };
   }
   if (!blocked) {
     const loose = looseReceptionTask(text);

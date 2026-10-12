@@ -559,13 +559,13 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
       const { looksLikeProgramme, readPracMemory, readPractitionerHeidi, writePracMemory } =
         await import("./practitioner-understand");
       const memory = readPracMemory(conv.draft, now.getTime());
-      const waiting = Boolean(memory.awaitingReception || memory.confirm);
+      const waiting = Boolean(memory.awaitingReception || memory.confirm || memory.replyTo);
       const isCommand =
         waiting ||
         PROGRAMME_SENT.test(text) ||
         looksLikeProgramme(text) ||
         Boolean(rerouted) ||
-        /^(prog|prac|pq)_/i.test(replyId ?? "") ||
+        /^(prog|prac|pq|pm)_/i.test(replyId ?? "") ||
         practitionerIntent(text, replyId).kind !== "other";
       let heidiCommand = false;
       if (process.env.HEIDI_API_KEY && process.env.HEIDI_REGION && process.env.HEIDI_EHR_PROVIDER) {

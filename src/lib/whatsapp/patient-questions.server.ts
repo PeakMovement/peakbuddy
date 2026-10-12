@@ -21,6 +21,7 @@
 import { log } from "@/lib/log";
 import { appendNote } from "./practitioner-intake.server";
 export { readPatientQuestion, toPatient } from "./patient-question-text";
+import { isQuestionText } from "./patient-message-text";
 import {
   practitionerContact,
   sendLogged,
@@ -34,6 +35,8 @@ type Db = { from: (t: string) => any };
 const DAY = 86_400_000;
 /** An asked question takes the next message as its answer for this long. */
 export const ANSWER_TTL_MS = 3 * DAY;
+/** A passed-on message takes the next message as the reply for this long. */
+export const REPLY_TTL_MS = 1 * DAY;
 
 export type QuestionStatus = "draft" | "pending" | "asked" | "answered" | "cancelled";
 
@@ -73,6 +76,38 @@ export const QUESTION_MSG = {
   answerNote: (prac: string, question: string, answer: string) =>
     `${prac} asked "${question}" Answer: ${answer}`,
 };
+
+/** Passed-on messages ("tell Nicola well done"). Same rows, no question mark. */
+export const MESSAGE_MSG = {
+  toPatient: (patient: string, prac: string, message: string) =>
+    `Hi ${patient}, a message from ${prac}:\n\n"${message}"\n\nYou can reply here and I'll pass it on.`,
+  sent: (patient: string, message: string) =>
+    `Sent to ${patient}: "${message}" I'll send you their reply.`,
+  waiting: (patient: string, message: string) =>
+    `Got it. ${patient} hasn't messaged me in the last day, so WhatsApp won't let me message them first. I've saved "${message}" and they'll get it the moment they next message Buddy.`,
+  confirm: (patient: string, message: string) => `Send to ${patient}:\n\n"${message}"`,
+  which: "I found more than one client with that name. Who is it for?",
+  whoIsIt: (pronoun: string) =>
+    `Who should I send that to? I'm not sure who "${pronoun}" is. Try "tell Nicola ..." with their name.`,
+  replyAsk: (patient: string) =>
+    `What would you like to say to ${patient}? Type it and I'll send it as it is.`,
+  replyToPrac: (patient: string, message: string, reply: string) =>
+    `${patient} replied to your message "${clip(message, 80)}":\n\n${reply}`,
+  replyNote: (prac: string, message: string, reply: string) =>
+    `${prac} sent "${message}" Reply: ${reply}`,
+  cancelled: "No problem, I haven't sent anything.",
+};
+
+function clip(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n - 3).trimEnd()}...` : s;
+}
+
+/** What the patient reads for a stored question or message. */
+export function patientBody(q: { question: string }, patient: string, prac: string): string {
+  return isQuestionText(q.question)
+    ? QUESTION_MSG.toPatient(patient, prac, q.question)
+    : MESSAGE_MSG.toPatient(patient, prac, q.question);
+}
 
 /* ------------------------------------------------------------------ */
 /* Storage                                                             */
@@ -156,7 +191,7 @@ export async function askNow(
       {
         kind: "text",
         to: conv.phone,
-        body: QUESTION_MSG.toPatient(name, args.practitionerName, q.question),
+        body: patientBody(q, name, args.practitionerName),
       },
       "[practitioner question]",
     );
@@ -164,7 +199,12 @@ export async function askNow(
     await setQuestion(adminIn, q.id, { status: "asked", asked_at: args.now.toISOString() });
     return "asked";
   }
-  const template = process.env.WHATSAPP_QUESTION_TEMPLATE?.trim();
+  // A message has its own template ("has sent you a message"); the question
+  // template says "has a quick question", so a message never uses it.
+  const isQ = isQuestionText(q.question);
+  const template = (
+    isQ ? process.env.WHATSAPP_QUESTION_TEMPLATE : process.env.WHATSAPP_MESSAGE_TEMPLATE
+  )?.trim();
   if (!template) return "waiting";
   const ok = await sendLogged(
     adminIn,
@@ -173,7 +213,11 @@ export async function askNow(
       kind: "template",
       to: conv.phone,
       templateName: template,
-      languageCode: process.env.WHATSAPP_QUESTION_TEMPLATE_LANG?.trim() || "en",
+      languageCode:
+        (isQ
+          ? process.env.WHATSAPP_QUESTION_TEMPLATE_LANG
+          : process.env.WHATSAPP_MESSAGE_TEMPLATE_LANG
+        )?.trim() || "en",
       variables: [name, args.practitionerName],
       buttonPayloads: [`pq_show_${q.id}`],
     },
@@ -243,7 +287,7 @@ export async function questionStepForPatient(
       };
     const prac = await practitionerFirst(adminIn, q.practitioner_id);
     await setQuestion(adminIn, q.id, { status: "asked", asked_at: args.now.toISOString() });
-    return { replies: [{ kind: "text", body: QUESTION_MSG.toPatient(name, prac, q.question) }] };
+    return { replies: [{ kind: "text", body: patientBody(q, name, prac) }] };
   }
   if (!args.idle || args.replyId) return null;
   const text = args.text.trim();
@@ -253,13 +297,15 @@ export async function questionStepForPatient(
       (q) =>
         q.status === "asked" &&
         q.asked_at &&
-        args.now.getTime() - new Date(q.asked_at).getTime() < ANSWER_TTL_MS,
+        args.now.getTime() - new Date(q.asked_at).getTime() <
+          (isQuestionText(q.question) ? ANSWER_TTL_MS : REPLY_TTL_MS),
     )
     .sort((a, b) => String(b.asked_at).localeCompare(String(a.asked_at)))[0];
   if (!asked) return null;
 
   const prac = await practitionerFirst(adminIn, asked.practitioner_id);
   const answer = text.slice(0, 2000);
+  const isQ = isQuestionText(asked.question);
   await setQuestion(adminIn, asked.id, {
     status: "answered",
     answer,
@@ -276,7 +322,9 @@ export async function questionStepForPatient(
     .update({
       notes: appendNote(
         (fresh as { notes?: string | null } | null)?.notes,
-        QUESTION_MSG.answerNote(prac, asked.question, answer),
+        isQ
+          ? QUESTION_MSG.answerNote(prac, asked.question, answer)
+          : MESSAGE_MSG.replyNote(prac, asked.question, answer),
         args.now,
       ),
     })
@@ -288,7 +336,10 @@ export async function questionStepForPatient(
       practitioner_id: asked.practitioner_id,
       client_id: args.client.id,
       alert_type: "client_contact_request",
-      message: `Answer to your question "${asked.question}": ${answer}`.slice(0, 1000),
+      message: (isQ
+        ? `Answer to your question "${asked.question}": ${answer}`
+        : `Reply to your message "${asked.question}": ${answer}`
+      ).slice(0, 1000),
       urgency: "routine",
       is_read: false,
       webhook_fired: false,
@@ -302,8 +353,11 @@ export async function questionStepForPatient(
     adminIn,
     env,
     asked.practitioner_id,
-    QUESTION_MSG.answerToPrac(shortName(args.client.full_name), asked.question, answer),
+    isQ
+      ? QUESTION_MSG.answerToPrac(shortName(args.client.full_name), asked.question, answer)
+      : MESSAGE_MSG.replyToPrac(shortName(args.client.full_name), asked.question, answer),
     args.now,
+    { clientId: args.client.id, firstName: firstOf(args.client.full_name) },
   ).catch((e) =>
     log.warn("question answer relay failed", { error: e instanceof Error ? e.message : "unknown" }),
   );
@@ -325,12 +379,7 @@ export async function deliverWaiting(
   if (!next) return [];
   const prac = await practitionerFirst(adminIn, next.practitioner_id);
   await setQuestion(adminIn, next.id, { status: "asked", asked_at: args.now.toISOString() });
-  return [
-    {
-      kind: "text",
-      body: QUESTION_MSG.toPatient(firstOf(args.client.full_name), prac, next.question),
-    },
-  ];
+  return [{ kind: "text", body: patientBody(next, firstOf(args.client.full_name), prac) }];
 }
 
 function shortName(full: string | null | undefined): string {
@@ -348,13 +397,28 @@ async function tellPractitioner(
   userId: string,
   body: string,
   now: Date,
+  client?: { clientId: string; firstName: string },
 ): Promise<void> {
   const contact = await practitionerContact(adminIn, userId);
   if (contact.phone && (await windowOpen(adminIn, contact.phone, now))) {
+    // A Reply button keeps the conversation going through Buddy.
     const ok = await sendLogged(
       adminIn,
       env,
-      { kind: "text", to: contact.phone, body },
+      client
+        ? {
+            kind: "buttons",
+            to: contact.phone,
+            body,
+            buttons: [
+              {
+                id: `pm_reply_${client.clientId}`,
+                title: `Reply to ${client.firstName}`.slice(0, 20),
+              },
+              { id: `prac_one_${client.clientId}`, title: "Client details" },
+            ],
+          }
+        : { kind: "text", to: contact.phone, body },
       "[question answer relay]",
     );
     if (ok) return;
@@ -364,7 +428,7 @@ async function tellPractitioner(
     await sendPushCore(adminIn as never, {
       userId,
       title: "Buddy",
-      body: "A client answered your question. Open Buddy to see it.",
+      body: "A client replied to you. Open Buddy to see it.",
       data: { kind: "patient_question" },
     });
   } catch (e) {
