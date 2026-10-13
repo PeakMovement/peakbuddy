@@ -3,7 +3,7 @@ import { trackedJob } from "@/lib/job-runs.server";
 import { log } from "@/lib/log";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import { appBaseUrl } from "@/lib/app-url";
-import { digestTeaser, movementLines } from "@/lib/capabilities";
+import { digestTeaser, movementLines, patternInsightDraft } from "@/lib/capabilities";
 import { maskPhone } from "@/lib/whatsapp/phone";
 
 // #7 Weekly practitioner digest.
@@ -213,6 +213,31 @@ async function buildAndSend(
         sleepNow: last.sleep_quality,
         pattern: null,
       }),
+    );
+  }
+
+  const { data: patternRows } = await supabaseAdmin
+    .from("client_patterns")
+    .select("client_id, day_of_week, metric, pattern_type")
+    .in("client_id", clientIds)
+    .eq("active", true)
+    .limit(40);
+  for (const p of (patternRows ?? []) as Array<{
+    client_id: string;
+    day_of_week: number;
+    metric: string;
+    pattern_type: string;
+  }>) {
+    if (p.metric !== "pain" && p.metric !== "energy" && p.metric !== "stress" && p.metric !== "sleep") {
+      continue;
+    }
+    moved.push(
+      patternInsightDraft({
+        clientName: nameById.get(p.client_id) ?? "Client",
+        dayOfWeek: p.day_of_week,
+        metric: p.metric,
+        direction: p.pattern_type === "weekday_low" ? "low" : "high",
+      }).body,
     );
   }
 
