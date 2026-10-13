@@ -385,6 +385,7 @@ async function prepareClients(
       frequency: null,
       weekday: null,
       time: null,
+      enabled: null,
     });
     return null;
   }
@@ -805,6 +806,7 @@ function stash(decision: AgentDecision): PracQueued {
     frequency: decision.frequency,
     weekday: decision.weekday,
     time: decision.time,
+    enabled: decision.enabled,
   };
 }
 
@@ -895,6 +897,22 @@ async function applyDecision(ctx: AgentContext, decision: AgentDecision): Promis
             : "overview";
     const { adminAnswer } = await import("./practitioner-admin.server");
     await replyText(ctx, await adminAnswer(ctx.adminIn, ctx.prac.userId, topic, ctx.deps.now));
+    return;
+  }
+  if (tool === "dismiss_morning") {
+    const { MORNING_MSG } = await import("./morning-checkin");
+    await replyText(ctx, MORNING_MSG.skipped);
+    return;
+  }
+  if (tool === "set_morning_checkin") {
+    const { MORNING_MSG } = await import("./morning-checkin");
+    const { saveMorningCheckinEnabled } = await import("./morning-checkin.server");
+    const enabled = decision.enabled === true;
+    const ok = await saveMorningCheckinEnabled(ctx.adminIn, ctx.prac.userId, enabled, ctx.deps.now);
+    await replyText(
+      ctx,
+      ok ? (enabled ? MORNING_MSG.optedIn : MORNING_MSG.optedOut) : MORNING_MSG.failed,
+    );
     return;
   }
   if (tool === "schedule_updates") {

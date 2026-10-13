@@ -20,6 +20,7 @@ import { log } from "@/lib/log";
 import { readPatientQuestion } from "./patient-question-text";
 import { CHECKED_IN, wantsMessages } from "./practitioner-inbox-text";
 import { toSast } from "./clinic-hours";
+import { morningPhrase } from "./morning-checkin";
 import { maskPhone, toE164Digits } from "./phone";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
 import {
@@ -97,6 +98,12 @@ export type PracIntent =
   | { kind: "review"; alertId: string | null; clientId: string | null }
   /** "Who checked in this week?" */
   | { kind: "checked_in"; practice: boolean }
+  /** Morning note: ask which patients reception should check in with. */
+  | { kind: "morning_reception" }
+  /** Morning note: not today. Does not opt out. */
+  | { kind: "morning_skip" }
+  /** Turn the weekday morning note on or off. */
+  | { kind: "morning_prefs"; enabled: boolean }
   | { kind: "other" };
 
 /** "at 7", "at 7:30am", "at 18:00", "at 6pm". Default 07:30. */
@@ -210,6 +217,9 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
   const revAll = r.match(/^prac_revall_([0-9a-f-]{36})$/i);
   if (revAll) return { kind: "review", alertId: null, clientId: revAll[1] };
   if (r === "prac_inbox") return { kind: "messages", clientId: null };
+  if (r === "prac_morn_update") return { kind: "status_all", practice: false };
+  if (r === "prac_morn_reception") return { kind: "morning_reception" };
+  if (r === "prac_morn_skip") return { kind: "morning_skip" };
 
   if (r.startsWith("prac_adm_")) {
     const topic = r.slice("prac_adm_".length);
@@ -222,6 +232,12 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
   const fixed = fixPractitionerTypos(text);
   const normalized = normalizePractitionerText(text);
   const blocked = blocksOutbound(text) || blocksOutbound(fixed);
+  const morning = morningPhrase(text) ?? (fixed === text ? null : morningPhrase(fixed));
+  if (morning === "off") return { kind: "morning_prefs", enabled: false };
+  if (morning === "on") return { kind: "morning_prefs", enabled: true };
+  if (morning === "reception") return { kind: "morning_reception" };
+  if (morning === "skip") return { kind: "morning_skip" };
+  if (morning === "update") return { kind: "status_all", practice: false };
 
   // Errands for reception come first: "ask reception to remind Sam to
   // check in" is for reception, not a check-in request.
@@ -890,6 +906,16 @@ export async function runPractitionerJobs(
     }
   } catch {
     /* table may not exist until the migration runs */
+  }
+
+  // 4. Weekday morning note, 08:00–10:00 SAST. Same minute job as the updates above.
+  try {
+    const { runMorningCheckins } = await import("./morning-checkin.server");
+    await runMorningCheckins(adminIn, env, now);
+  } catch (e) {
+    log.warn("morning check-in failed", {
+      error: e instanceof Error ? e.message : "unknown",
+    });
   }
 }
 

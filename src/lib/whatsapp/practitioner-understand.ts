@@ -765,11 +765,15 @@ export interface PracQueued {
   frequency: "daily" | "weekdays" | "weekly" | "off" | "menu" | null;
   weekday: number | null;
   time: string | null;
+  enabled: boolean | null;
 }
 
 export interface PracMemory {
   awaitingReception?: boolean;
   awaitingReceptionAt?: number;
+  /** Morning note: waiting for the patients reception should check in with. */
+  awaitingMorningReception?: boolean;
+  awaitingMorningReceptionAt?: number;
   confirm?: PracConfirm | null;
   confirmAt?: number;
   turns?: PracTurn[];
@@ -908,6 +912,7 @@ function cleanQueue(raw: unknown): PracQueued[] {
       frequency,
       weekday: typeof q.weekday === "number" ? q.weekday : null,
       time: typeof q.time === "string" ? q.time.slice(0, 5) : null,
+      enabled: q.enabled === true ? true : q.enabled === false ? false : null,
     });
   }
   return out.slice(0, 4);
@@ -941,6 +946,11 @@ function cleanTurns(raw: unknown): PracTurn[] {
 export function expireMemory(mem: PracMemory, now: number): void {
   if (mem.awaitingReceptionAt != null && now - mem.awaitingReceptionAt > PRAC_MEMORY_MS)
     mem.awaitingReception = false;
+  if (
+    mem.awaitingMorningReceptionAt != null &&
+    now - mem.awaitingMorningReceptionAt > PRAC_MEMORY_MS
+  )
+    mem.awaitingMorningReception = false;
   if (mem.confirmAt != null && now - mem.confirmAt > PRAC_MEMORY_MS) mem.confirm = null;
   const liveAt = mem.pending?.at ?? mem.focus?.at ?? mem.turnsAt;
   if (liveAt != null && now - liveAt > PRAC_MEMORY_MS) {
@@ -978,6 +988,8 @@ export function readPracMemory(draft: unknown, now = Date.now()): PracMemory {
   const mem: PracMemory = {
     awaitingReception: Boolean(prac?.awaitingReception),
     awaitingReceptionAt: prac?.awaitingReceptionAt,
+    awaitingMorningReception: Boolean(prac?.awaitingMorningReception),
+    awaitingMorningReceptionAt: prac?.awaitingMorningReceptionAt,
     confirm: prac?.confirm ?? null,
     confirmAt: prac?.confirmAt,
     turns: cleanTurns(prac?.turns),
@@ -989,6 +1001,7 @@ export function readPracMemory(draft: unknown, now = Date.now()): PracMemory {
   };
   expireMemory(mem, now);
   if (!mem.awaitingReception) mem.awaitingReception = false;
+  if (!mem.awaitingMorningReception) mem.awaitingMorningReception = false;
   return mem;
 }
 
@@ -996,6 +1009,7 @@ export function writePracMemory(draft: unknown, memory: PracMemory): Record<stri
   const base = draft && typeof draft === "object" ? { ...(draft as Record<string, unknown>) } : {};
   const keep =
     Boolean(memory.awaitingReception) ||
+    Boolean(memory.awaitingMorningReception) ||
     Boolean(memory.confirm) ||
     Boolean(memory.pending) ||
     Boolean(memory.focus) ||

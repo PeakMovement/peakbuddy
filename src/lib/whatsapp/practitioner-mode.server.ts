@@ -19,7 +19,8 @@
 import { log } from "@/lib/log";
 import { HEIDI_MSG } from "./heidi";
 import { handleHeidiTurn, heidiConfig } from "./heidi.server";
-import { isAgentButton, isExactShortcut } from "./practitioner-agent";
+import { isAgentButton, isExactShortcut, joinNames } from "./practitioner-agent";
+import { MORNING_MSG, morningNameParts, morningPhrase } from "./morning-checkin";
 import type { AgentTurnInput } from "./practitioner-agent";
 import { maskPhone, toE164Digits } from "./phone";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
@@ -360,6 +361,56 @@ async function resolveNamed(
   return { target: null, asked: false };
 }
 
+/**
+ * Names for the morning "reception check-in" button. Confirms the errand
+ * before anything is passed to reception. Nothing here messages a patient.
+ */
+async function takeMorningReceptionNames(
+  admin: Db,
+  prac: Practitioner,
+  text: string,
+  deps: PractitionerDeps,
+  mem: PracMemory,
+): Promise<void> {
+  const parts = morningNameParts(text);
+  if (!parts.length) {
+    mem.awaitingMorningReception = true;
+    mem.awaitingMorningReceptionAt = deps.now.getTime();
+    await deps.reply({ kind: "text", body: MORNING_MSG.who });
+    return;
+  }
+  const patients = await practitionerPatients(admin, prac.userId);
+  const found: PatientRow[] = [];
+  for (const part of parts) {
+    const hits = rankPatients(part, patients);
+    if (hits.length !== 1) {
+      mem.awaitingMorningReception = true;
+      mem.awaitingMorningReceptionAt = deps.now.getTime();
+      await deps.reply({
+        kind: "text",
+        body: hits.length > 1 ? MORNING_MSG.which(part) : MORNING_MSG.notFound(part),
+      });
+      return;
+    }
+    const patient = hits[0].patient;
+    if (!found.some((p) => p.id === patient.id)) found.push(patient);
+  }
+  const names = found.map((p) => String(p.full_name ?? "").trim() || "a patient");
+  const joined = joinNames(names);
+  mem.awaitingMorningReception = false;
+  mem.confirm = {
+    kind: "reception",
+    task: MORNING_MSG.task(joined),
+    line: `ask reception to check in with ${joined}`,
+  };
+  mem.confirmAt = deps.now.getTime();
+  await deps.reply({
+    kind: "buttons",
+    body: MORNING_MSG.confirm(joined),
+    buttons: CONFIRM_BUTTONS,
+  });
+}
+
 /** Returns false when the message isn't something for practitioner mode. */
 export async function handlePractitionerMessage(
   adminIn: Admin,
@@ -381,6 +432,30 @@ export async function handlePractitionerMessage(
     };
     (wrapped as { wrapped?: boolean }).wrapped = true;
     deps = { ...deps, reply: wrapped };
+  }
+
+  if (mem.awaitingMorningReception && !msg.replyId) {
+    const phrase = morningPhrase(msg.text);
+    const leaveForAnotherCommand =
+      phrase === "update" ||
+      phrase === "skip" ||
+      phrase === "off" ||
+      phrase === "on" ||
+      isExactShortcut(msg.text, null) ||
+      interruptsErrand(msg.text);
+    if (isCancel(msg.text) && phrase !== "off" && phrase !== "on") {
+      mem.awaitingMorningReception = false;
+      await deps.reply({ kind: "text", body: MORNING_MSG.receptionCancelled });
+      return true;
+    }
+    if (leaveForAnotherCommand) mem.awaitingMorningReception = false;
+    else {
+      await takeMorningReceptionNames(admin, prac, msg.text, deps, mem);
+      return true;
+    }
+  }
+  if (mem.awaitingMorningReception && msg.replyId && msg.replyId !== "prac_morn_reception") {
+    mem.awaitingMorningReception = false;
   }
 
   let agentTried = false;
@@ -422,10 +497,20 @@ export async function handlePractitionerMessage(
   // practitioner message is read by the model first. If that call fails,
   // the phrase matcher below is the outage fallback. An exact command also
   // drops a half-finished confirmation, so "yes" afterwards is not a send.
-  if (isExactShortcut(msg.text, msg.replyId)) {
+  // Yes or No on a confirm already on screen is the send decision: it does
+  // not go back to the model, which could turn "yes" into a patient message.
+  const answeringConfirm =
+    Boolean(mem.confirm) &&
+    (msg.replyId === "prac_cfm_yes" ||
+      msg.replyId === "prac_cfm_no" ||
+      (!msg.replyId && (isYes(msg.text) || isCancel(msg.text))));
+  if (answeringConfirm || isExactShortcut(msg.text, msg.replyId)) {
     mem.pending = null;
     mem.queued = [];
-  } else if (await tryAgent()) return true;
+  } else {
+    if (mem.confirm && !msg.replyId) mem.confirm = null;
+    if (await tryAgent()) return true;
+  }
 
   const accepting =
     msg.replyId === "prac_cfm_yes" || Boolean(mem.confirm && !msg.replyId && isYes(msg.text));
@@ -882,6 +967,25 @@ async function handleStatusIntent(
   const admin = adminIn as unknown as Db;
   const text1 = (body: string) => deps.reply({ kind: "text", body });
 
+  if (intent.kind === "morning_skip") {
+    await text1(MORNING_MSG.skipped);
+    return;
+  }
+  if (intent.kind === "morning_prefs") {
+    const { saveMorningCheckinEnabled } = await import("./morning-checkin.server");
+    const ok = await saveMorningCheckinEnabled(adminIn, prac.userId, intent.enabled, deps.now);
+    await text1(
+      ok ? (intent.enabled ? MORNING_MSG.optedIn : MORNING_MSG.optedOut) : MORNING_MSG.failed,
+    );
+    return;
+  }
+  if (intent.kind === "morning_reception") {
+    mem.confirm = null;
+    mem.awaitingMorningReception = true;
+    mem.awaitingMorningReceptionAt = deps.now.getTime();
+    await text1(MORNING_MSG.who);
+    return;
+  }
   if (intent.kind === "updates_menu") {
     await deps.reply({
       kind: "buttons",

@@ -9,6 +9,7 @@
  * The phrase matcher is a zero-cost shortcut for an exact canonical
  * command or a button tap, and the fallback when the model is down.
  */
+import { morningPhrase } from "./morning-checkin";
 import { normalizePractitionerText, rankPatients } from "./practitioner-understand";
 import type {
   PracCandidate,
@@ -35,6 +36,8 @@ export const AGENT_TOOLS = [
   "help",
   "confirm_pending",
   "cancel_pending",
+  "dismiss_morning",
+  "set_morning_checkin",
   "clarify",
 ] as const;
 
@@ -52,6 +55,8 @@ export interface AgentDecision {
   frequency: "daily" | "weekdays" | "weekly" | "off" | "menu" | null;
   weekday: number | null;
   time: string | null;
+  /** set_morning_checkin only. */
+  enabled: boolean | null;
 }
 
 export interface AgentTurnInput {
@@ -102,7 +107,7 @@ export function isExactShortcut(text: string, replyId?: string | null): boolean 
   if (replyId && !isAgentButton(replyId) && !replyId.startsWith("prac_cl_")) return true;
   if (replyId) return false;
   const n = normalizePractitionerText(text);
-  return EXACT_COMMANDS.has(n);
+  return EXACT_COMMANDS.has(n) || morningPhrase(text) != null;
 }
 
 /**
@@ -111,7 +116,13 @@ export function isExactShortcut(text: string, replyId?: string | null): boolean 
  * matcher. A bare pain score ("6") is left for the patient check-in.
  */
 export function needsPractitionerAgent(text: string, memory?: PracMemory | null): boolean {
-  if (memory?.pending || memory?.focus || (memory?.queued && memory.queued.length > 0)) return true;
+  if (
+    memory?.pending ||
+    memory?.focus ||
+    memory?.awaitingMorningReception ||
+    (memory?.queued && memory.queued.length > 0)
+  )
+    return true;
   if (isExactShortcut(text, null)) return false;
   const t = String(text ?? "").trim();
   if (!t || /^\d{1,2}$/.test(t)) return false;
@@ -166,6 +177,8 @@ export function validDecision(raw: unknown): AgentDecision | null {
   const task = typeof row.task === "string" ? clip(row.task, 600) : null;
   const question = typeof row.question === "string" ? clip(row.question, 300) : null;
   const options = asOptions(row.options);
+  const enabled = row.enabled === true ? true : row.enabled === false ? false : null;
+  if (tool === "set_morning_checkin" && enabled == null) return null;
   if (
     tool === "clarify" &&
     (!question || /\b(i've|i have)\s+(sent|messaged|asked|told)\b/i.test(question))
@@ -181,6 +194,7 @@ export function validDecision(raw: unknown): AgentDecision | null {
     frequency,
     weekday,
     time,
+    enabled,
   };
 }
 
@@ -245,13 +259,27 @@ export function practitionerToolSchemas(heidiEnabled: boolean): unknown[] {
     {
       name: "schedule_updates",
       description:
-        "Set or stop the practitioner's scheduled client updates. frequency is daily, weekdays, weekly, off, or menu. time is HH:MM. weekday is 1 (Monday) to 7.",
+        "Set or stop the practitioner's scheduled client updates. frequency is daily, weekdays, weekly, off, or menu. time is HH:MM. weekday is 1 (Monday) to 7. This is not the weekday morning check-in note.",
       properties: {
         frequency: { type: "string" },
         weekday: { type: "integer" },
         time: { type: "string" },
       },
       required: ["frequency"],
+    },
+    {
+      name: "dismiss_morning",
+      description:
+        "They don't want today's morning check-in (not today, skip, no thanks). Does not turn the note off for good.",
+      properties: {},
+      required: [],
+    },
+    {
+      name: "set_morning_checkin",
+      description:
+        'Turn the weekday morning check-in note on or off. enabled false is "stop morning check-ins". enabled true turns it back on. Not "not today", and not the scheduled client update.',
+      properties: { enabled: { type: "boolean" } },
+      required: ["enabled"],
     },
     {
       name: "practice_overview",
@@ -383,6 +411,7 @@ A wording they want included ("say you're with ${input.practiceName}", "mention 
 If something is waiting to be sent and they agree ("yes", "ye do it", "all", "👍"), call confirm_pending. If they decline, call cancel_pending.
 If you are unsure, call clarify with one short question and up to 3 button labels under 20 characters. No client facts in that question.
 Scheduled updates use schedule_updates. Reception errands use ask_reception. What you can do uses help.
+A weekday morning note asks whether they want a patient update or reception to check in with anyone. "Patient update" or agreeing to the update is client_status with names ["all"]. Naming patients for reception to check in with is ask_reception, task "Check in with" those names. "Reception check-in" with no names is clarify asking who, with no client facts. "Not today" is dismiss_morning. "Stop morning check-ins" is set_morning_checkin with enabled false. "Start morning check-ins" is set_morning_checkin with enabled true. "Update me every morning" is schedule_updates, not the morning note.
 ${input.canSeeAllPractitioners ? "This person is an owner or admin and can see the whole practice." : "This person sees only their own clients, and only themselves in the practitioner list."}
 ${input.heidiEnabled ? "Heidi is connected. heidi_read needs a first and last name." : "Heidi is not connected. Do not call heidi_read."}
 ${input.context ? `\nCONTEXT:\n${input.context}` : ""}

@@ -560,7 +560,12 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
         await import("./practitioner-understand");
       const { needsPractitionerAgent } = await import("./practitioner-agent");
       const memory = readPracMemory(conv.draft, now.getTime());
-      const waiting = Boolean(memory.awaitingReception || memory.confirm || memory.pending);
+      const waiting = Boolean(
+        memory.awaitingReception ||
+        memory.awaitingMorningReception ||
+        memory.confirm ||
+        memory.pending,
+      );
       const isCommand =
         waiting ||
         needsPractitionerAgent(text, memory) ||

@@ -30,7 +30,8 @@ export const Route = createFileRoute("/api/public/hooks/whatsapp-worker")({
         const result = await processPendingInbound({ admin: supabaseAdmin as never, ...cfg }, 25);
         if (result.failed > 0) log.warn("whatsapp worker hook", result);
 
-        // Practitioner client updates and requested check-in answers.
+        // Practitioner client updates, requested check-in answers, and the
+        // weekday morning check-in (08:00–10:00 SAST, open days only).
         try {
           const { runPractitionerJobs } = await import("@/lib/whatsapp/practitioner-status.server");
           await runPractitionerJobs(supabaseAdmin as never, cfg);
