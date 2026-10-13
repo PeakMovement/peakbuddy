@@ -123,7 +123,10 @@ describe("talking like a person outside a check-in", () => {
     const d = decide(
       ctx("can I come in thursday", { converse: { reply: "Of course.", action: "booking" } }),
     );
-    expect(bodies(d)).toEqual(["Of course.", ASSIST_MSG.booking]);
+    expect(bodies(d)[0]).toBe("Of course.");
+    expect(bodies(d)[1]).toMatch(/Reply YES/);
+    expect(bodies(d)[1]).toMatch(/Do not assume a free slot/);
+    expect(d.next.draft.pendingBooking).toMatch(/thursday/i);
   });
   it("without the model, the old fixed behaviour still applies", () => {
     const d = decide(ctx("Is the parking free on weekends?"));

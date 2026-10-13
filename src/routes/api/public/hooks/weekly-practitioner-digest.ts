@@ -3,6 +3,8 @@ import { trackedJob } from "@/lib/job-runs.server";
 import { log } from "@/lib/log";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import { appBaseUrl } from "@/lib/app-url";
+import { digestTeaser, movementLines } from "@/lib/capabilities";
+import { maskPhone } from "@/lib/whatsapp/phone";
 
 // #7 Weekly practitioner digest.
 // Opt-in (practices.weekly_digest_enabled). For each opted-in practitioner,
@@ -17,7 +19,13 @@ const FROM_ADDRESS = process.env.BUDDY_EMAIL_FROM || "Buddy <noreply@buddy-healt
 const APP_BASE_URL = appBaseUrl();
 
 type ClientRow = { id: string; full_name: string; practitioner_id: string };
-type CheckInRow = { client_id: string; created_at: string; flagged: boolean | null };
+type CheckInRow = {
+  client_id: string;
+  created_at: string;
+  flagged: boolean | null;
+  pain_level: number | null;
+  sleep_quality: number | null;
+};
 type RiskRow = { client_id: string; risk_score: number; score_date: string };
 
 function escapeHtml(s: string) {
@@ -38,6 +46,7 @@ type DigestData = {
   unreadAlerts: number;
   atRisk: { name: string; score: number }[];
   quiet: { name: string }[];
+  moved: string[];
   dashboardLink: string;
 };
 
@@ -77,6 +86,7 @@ function renderDigest(d: DigestData) {
       ${row("Unread alerts", d.unreadAlerts)}
     </table>
     ${listBlock("Clients to watch", atRiskItems)}
+    ${listBlock("Who moved", d.moved.map((line) => escapeHtml(line)))}
     ${listBlock("Gone quiet", quietItems)}
     <a href="${d.dashboardLink}" style="display:inline-block;background:#4a8df0;color:#0b1836;text-decoration:none;padding:13px 28px;border-radius:8px;font-weight:700;margin:24px 0 8px">Open your dashboard</a>
     <p style="color:#b8c5db;font-size:11px;line-height:1.6;margin:22px 0 0;border-top:1px solid #3658a3;padding-top:16px">
@@ -97,6 +107,7 @@ function renderDigest(d: DigestData) {
     d.atRisk.length
       ? `\nClients to watch:\n${d.atRisk.map((c) => `- ${c.name} (risk ${c.score}/100)`).join("\n")}`
       : "",
+    d.moved.length ? `\nWho moved:\n${d.moved.map((line) => `- ${line}`).join("\n")}` : "",
     d.quiet.length ? `\nGone quiet:\n${d.quiet.map((c) => `- ${c.name}`).join("\n")}` : "",
     `\nOpen your dashboard: ${d.dashboardLink}`,
     `\nAutomated weekly summary — not a clinical alert. Turn off in practice settings.`,
@@ -154,7 +165,7 @@ async function buildAndSend(
 
   const { data: ciRows } = await supabaseAdmin
     .from("check_ins")
-    .select("client_id, created_at, flagged")
+    .select("client_id, created_at, flagged, pain_level, sleep_quality")
     .in("client_id", clientIds)
     .gte("created_at", sinceIso);
   const checkins = (ciRows ?? []) as CheckInRow[];
@@ -181,6 +192,30 @@ async function buildAndSend(
     .slice(0, 5)
     .map((c) => ({ name: c.full_name }));
 
+  const byClient = new Map<string, CheckInRow[]>();
+  for (const row of checkins) {
+    const list = byClient.get(row.client_id) ?? [];
+    list.push(row);
+    byClient.set(row.client_id, list);
+  }
+  const moved: string[] = [];
+  for (const [id, rows] of byClient) {
+    const ordered = [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const first = ordered[0];
+    const last = ordered[ordered.length - 1];
+    if (!first || !last || first === last) continue;
+    moved.push(
+      ...movementLines({
+        name: nameById.get(id) ?? "Client",
+        painThen: first.pain_level,
+        painNow: last.pain_level,
+        sleepThen: first.sleep_quality,
+        sleepNow: last.sleep_quality,
+        pattern: null,
+      }),
+    );
+  }
+
   const { count: unreadAlerts } = await supabaseAdmin
     .from("alerts")
     .select("id", { count: "exact", head: true })
@@ -196,6 +231,7 @@ async function buildAndSend(
     unreadAlerts: unreadAlerts ?? 0,
     atRisk,
     quiet,
+    moved: moved.slice(0, 8),
     dashboardLink: `${APP_BASE_URL}/practitioner/app/dashboard`,
   });
 
@@ -219,7 +255,65 @@ async function buildAndSend(
     log.error("[weeklyDigest] resend gateway error", res.status, await res.text());
     return "error";
   }
+  await sendDigestWhatsApp(supabaseAdmin, practitionerId, practitionerName, atRisk).catch((e) => {
+    log.warn("[weeklyDigest] whatsapp teaser failed", {
+      error: e instanceof Error ? e.message : "unknown",
+    });
+  });
   return "sent";
+}
+
+/** Same words as the email, on WhatsApp. Names only inside the 24 hour window. */
+async function sendDigestWhatsApp(
+  supabaseAdmin: AdminClient,
+  practitionerId: string,
+  practitionerName: string,
+  atRisk: { name: string; score: number }[],
+): Promise<void> {
+  const { whatsappConfigFromEnv } = await import("@/lib/whatsapp/worker.server");
+  const cfg = whatsappConfigFromEnv();
+  if (!cfg) return;
+  const { practitionerContact, windowOpen, sendLogged } = await import(
+    "@/lib/whatsapp/practitioner-status.server"
+  );
+  const contact = await practitionerContact(supabaseAdmin, practitionerId);
+  if (!contact.phone) return;
+  const first = contact.firstName || practitionerName.split(/\s+/)[0] || "there";
+  const teaser = digestTeaser({
+    firstName: first,
+    attention: atRisk.length,
+    names: atRisk.map((a) => a.name),
+  });
+  const now = new Date();
+  if (await windowOpen(supabaseAdmin, contact.phone, now)) {
+    await sendLogged(
+      supabaseAdmin,
+      cfg,
+      { kind: "text", to: contact.phone, body: teaser.freeform },
+      teaser.freeform,
+    );
+    return;
+  }
+  const template = process.env.WHATSAPP_PRAC_UPDATE_TEMPLATE?.trim();
+  if (!template) {
+    log.warn("weekly digest whatsapp skipped: window closed and no template", {
+      to: maskPhone(contact.phone),
+    });
+    return;
+  }
+  await sendLogged(
+    supabaseAdmin,
+    cfg,
+    {
+      kind: "template",
+      to: contact.phone,
+      templateName: template,
+      languageCode: process.env.WHATSAPP_PRAC_UPDATE_TEMPLATE_LANG?.trim() || "en",
+      variables: [...teaser.variables],
+      buttonPayloads: ["prac_status"],
+    },
+    `[weekly digest template ${template}]`,
+  );
 }
 
 export const Route = createFileRoute("/api/public/hooks/weekly-practitioner-digest")({

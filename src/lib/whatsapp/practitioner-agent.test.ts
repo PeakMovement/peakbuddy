@@ -291,6 +291,7 @@ const CHECKIN_FOUR: AgentDecision = {
   weekday: null,
   time: null,
   enabled: null,
+  goal: null,
 };
 
 const PREVIEW = `Hi <name>, it's Buddy from Peak Movement, checking in on how you're doing.`;

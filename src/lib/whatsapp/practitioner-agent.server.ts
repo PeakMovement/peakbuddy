@@ -386,6 +386,7 @@ async function prepareClients(
       weekday: null,
       time: null,
       enabled: null,
+      goal: null,
     });
     return null;
   }
@@ -807,6 +808,7 @@ function stash(decision: AgentDecision): PracQueued {
     weekday: decision.weekday,
     time: decision.time,
     enabled: decision.enabled,
+    goal: decision.goal,
   };
 }
 
@@ -913,6 +915,89 @@ async function applyDecision(ctx: AgentContext, decision: AgentDecision): Promis
       ctx,
       ok ? (enabled ? MORNING_MSG.optedIn : MORNING_MSG.optedOut) : MORNING_MSG.failed,
     );
+    return;
+  }
+  if (tool === "set_programme_reminder") {
+    const clients = await prepareClients(ctx, "status", decision.names, null);
+    const client = clients?.[0];
+    if (!client) return;
+    const tools = await import("./capability-tools.server");
+    const days = decision.programmeDays ?? [];
+    const ok = await tools.saveProgrammeReminder(
+      ctx.adminIn,
+      client.id,
+      days,
+      decision.programmeOptIn === true,
+    );
+    const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const named = days.map((d) => labels[d] ?? "").filter(Boolean).join(", ");
+    await replyText(
+      ctx,
+      ok
+        ? decision.programmeOptIn
+          ? `Saved. ${client.full_name ?? "They"} will get a programme reminder on ${named}. I have not sent one yet.`
+          : `Saved ${named} for ${client.full_name ?? "them"}. I won't message them until they opt in.`
+        : "Sorry, I couldn't save those reminder days just now.",
+    );
+    return;
+  }
+  if (tool === "case_brief" || tool === "set_goal") {
+    const clients = await prepareClients(
+      ctx,
+      "status",
+      decision.names,
+      null,
+    );
+    const client = clients?.[0];
+    if (!client) return;
+    const tools = await import("./capability-tools.server");
+    if (tool === "set_goal") {
+      const ok = await tools.saveClientGoal(ctx.adminIn, client.id, decision.goal ?? "");
+      await replyText(
+        ctx,
+        ok
+          ? `Saved. I won't change ${client.full_name ?? "their"} goal.`
+          : "Sorry, I couldn't save that goal just now.",
+      );
+      return;
+    }
+    await replyText(ctx, await tools.replyCaseBrief(ctx.adminIn, client));
+    return;
+  }
+  if (tool === "who_improved") {
+    const tools = await import("./capability-tools.server");
+    await replyText(
+      ctx,
+      await tools.replyWhoImproved(ctx.adminIn, ctx.scopeClients, ctx.deps.now),
+    );
+    return;
+  }
+  if (tool === "outcomes") {
+    const tools = await import("./capability-tools.server");
+    await replyText(
+      ctx,
+      await tools.replyScorecard(ctx.adminIn, ctx.prac.userId, ctx.scopeClients, ctx.deps.now),
+    );
+    return;
+  }
+  if (tool === "confirm_quiet_nudges") {
+    const { sendPendingQuietNudges } = await import("./quiet-nudge.server");
+    const n = await sendPendingQuietNudges(
+      ctx.adminIn,
+      { provider: ctx.deps.provider, secrets: ctx.deps.secrets },
+      ctx.prac.userId,
+      ctx.deps.now,
+    );
+    await replyText(
+      ctx,
+      n === 0
+        ? "There isn't a quiet-patient reminder waiting for a yes."
+        : `Sent today's check-in reminder to ${n}.`,
+    );
+    return;
+  }
+  if (tool === "book_reception") {
+    await proposeReception(ctx, decision.task ?? "");
     return;
   }
   if (tool === "schedule_updates") {

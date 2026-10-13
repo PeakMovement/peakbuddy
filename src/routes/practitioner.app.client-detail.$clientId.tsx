@@ -4,6 +4,7 @@ import { ClientRewardsSection } from "@/components/ClientRewardsSection";
 import { RequestCheckInButton } from "@/components/RequestCheckInButton";
 import { ClientWearablesCard } from "@/components/ClientWearablesCard";
 import { ClientPatternsCard } from "@/components/ClientPatternsCard";
+import { ClientBetweenSessions } from "@/components/ClientBetweenSessions";
 import { YvesInsightCard } from "@/components/YvesInsightCard";
 import { WhatsAppConversationCard } from "@/components/WhatsAppConversationCard";
 import { ClientWhatsAppInviteCard } from "@/components/WhatsAppInviteCards";
@@ -351,6 +352,11 @@ function ClientDetail() {
         <ProgramStatusRow info={programInfo} />
       )}
 
+      <ClientBetweenSessions
+        clientId={client.id}
+        checkins={items}
+        sessions={wearSessions as never}
+      />
       <ClientWearablesCard
         clientId={client.id}
         sessions={wearSessions as never}

@@ -165,6 +165,17 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
           }
         }
 
+        try {
+          const { runProgrammeReminders } = await import("@/lib/whatsapp/programme-reminder.server");
+          const { whatsappConfigFromEnv } = await import("@/lib/whatsapp/worker.server");
+          const cfg = whatsappConfigFromEnv();
+          if (cfg) await runProgrammeReminders(supabaseAdmin, cfg, now);
+        } catch (e) {
+          log.warn("programme reminder hook failed", {
+            error: e instanceof Error ? e.message : "unknown",
+          });
+        }
+
         return new Response(JSON.stringify({ ok: true, sent, skipped }), {
           headers: { "Content-Type": "application/json" },
         });

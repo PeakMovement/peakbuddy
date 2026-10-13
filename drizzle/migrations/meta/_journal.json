@@ -253,6 +253,13 @@
       "when": 1791810000000,
       "tag": "0037_morning_checkin",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791890000000,
+      "tag": "0038_capability_review",
+      "breakpoints": true
     }
   ]
 }

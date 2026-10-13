@@ -19,6 +19,7 @@ import type {
   PracTurn,
 } from "./practitioner-understand";
 import { practitionerCheckinText, practitionerConfirmSend } from "./voice";
+import { parseProgrammeDays } from "@/lib/capabilities";
 
 export const AGENT_TOOLS = [
   "list_practitioners",
@@ -38,6 +39,13 @@ export const AGENT_TOOLS = [
   "cancel_pending",
   "dismiss_morning",
   "set_morning_checkin",
+  "case_brief",
+  "who_improved",
+  "book_reception",
+  "set_goal",
+  "outcomes",
+  "confirm_quiet_nudges",
+  "set_programme_reminder",
   "clarify",
 ] as const;
 
@@ -57,6 +65,12 @@ export interface AgentDecision {
   time: string | null;
   /** set_morning_checkin only. */
   enabled: boolean | null;
+  /** set_goal only. The words they used. Buddy does not rewrite them. */
+  goal: string | null;
+  /** set_programme_reminder. Weekdays, Sunday = 0. Empty means they named none. */
+  programmeDays?: number[];
+  /** True only when the practitioner says the patient already agreed. */
+  programmeOptIn?: boolean;
 }
 
 export interface AgentTurnInput {
@@ -178,7 +192,21 @@ export function validDecision(raw: unknown): AgentDecision | null {
   const question = typeof row.question === "string" ? clip(row.question, 300) : null;
   const options = asOptions(row.options);
   const enabled = row.enabled === true ? true : row.enabled === false ? false : null;
+  const goal = typeof row.goal === "string" ? clip(row.goal, 200) : null;
+  const fromNumbers = Array.isArray(row.days)
+    ? row.days.filter((d): d is number => typeof d === "number" && d >= 0 && d <= 6)
+    : [];
+  const programmeDays = fromNumbers.length
+    ? [...new Set(fromNumbers)]
+    : parseProgrammeDays(
+        [Array.isArray(row.days) ? row.days.map(String).join(" ") : "", String(row.task ?? ""), String(row.note ?? "")].join(
+          " ",
+        ),
+      );
+  const programmeOptIn = row.optedIn === true;
   if (tool === "set_morning_checkin" && enabled == null) return null;
+  if (tool === "set_goal" && !goal) return null;
+  if (tool === "set_programme_reminder" && programmeDays.length === 0) return null;
   if (
     tool === "clarify" &&
     (!question || /\b(i've|i have)\s+(sent|messaged|asked|told)\b/i.test(question))
@@ -195,6 +223,9 @@ export function validDecision(raw: unknown): AgentDecision | null {
     weekday,
     time,
     enabled,
+    goal,
+    programmeDays,
+    programmeOptIn,
   };
 }
 
@@ -307,6 +338,58 @@ export function practitionerToolSchemas(heidiEnabled: boolean): unknown[] {
       required: [],
     },
     {
+      name: "case_brief",
+      description:
+        "A practitioner-only brief from the stored session note, check-ins, and watch. Needs one client name. Does not message the patient and does not invent clinical advice.",
+      properties: { names: strArray },
+      required: ["names"],
+    },
+    {
+      name: "who_improved",
+      description: "Who has a lower pain score than at the start of this week. No message is sent.",
+      properties: {},
+      required: [],
+    },
+    {
+      name: "book_reception",
+      description:
+        "Ask reception to book or move an appointment. Confirmation first. Put what they asked in task. Do not invent a free slot.",
+      properties: { task: { type: "string" } },
+      required: ["task"],
+    },
+    {
+      name: "set_goal",
+      description:
+        "Store one goal for a client, in the practitioner's words. Needs names and goal. Does not message the patient.",
+      properties: { names: strArray, goal: { type: "string" } },
+      required: ["names", "goal"],
+    },
+    {
+      name: "outcomes",
+      description:
+        "Owner scorecard: counts, initials, and complaint labels. No clinical notes.",
+      properties: {},
+      required: [],
+    },
+    {
+      name: "confirm_quiet_nudges",
+      description:
+        "They agreed to send today's check-in reminder to the quiet patients already named. This is the confirm step. Do not call it unless they agreed.",
+      properties: {},
+      required: [],
+    },
+    {
+      name: "set_programme_reminder",
+      description:
+        "Store the weekdays for a home-programme reminder. days is 0 Sunday through 6 Saturday. Set optedIn true only when they say the patient already agreed. Does not message the patient.",
+      properties: {
+        names: strArray,
+        days: { type: "array", items: { type: "number" } },
+        optedIn: { type: "boolean" },
+      },
+      required: ["names", "days"],
+    },
+    {
       name: "help",
       description: "They asked what Buddy can do. No client facts.",
       properties: {},
@@ -411,6 +494,7 @@ A wording they want included ("say you're with ${input.practiceName}", "mention 
 If something is waiting to be sent and they agree ("yes", "ye do it", "all", "👍"), call confirm_pending. If they decline, call cancel_pending.
 If you are unsure, call clarify with one short question and up to 3 button labels under 20 characters. No client facts in that question.
 Scheduled updates use schedule_updates. Reception errands use ask_reception. What you can do uses help.
+A case brief is case_brief. Who improved this week is who_improved. Booking or moving an appointment is book_reception. A goal they want stored is set_goal. An outcomes or retention scorecard is outcomes. Agreeing to remind the quiet patients already named is confirm_quiet_nudges. Home programme reminder days are set_programme_reminder. days uses 0 for Sunday through 6 for Saturday. optedIn is true only when they say the patient already agreed. Do not message the patient from that tool.
 A weekday morning note asks whether they want a patient update or reception to check in with anyone. "Patient update" or agreeing to the update is client_status with names ["all"]. Naming patients for reception to check in with is ask_reception, task "Check in with" those names. "Reception check-in" with no names is clarify asking who, with no client facts. "Not today" is dismiss_morning. "Stop morning check-ins" is set_morning_checkin with enabled false. "Start morning check-ins" is set_morning_checkin with enabled true. "Update me every morning" is schedule_updates, not the morning note.
 ${input.canSeeAllPractitioners ? "This person is an owner or admin and can see the whole practice." : "This person sees only their own clients, and only themselves in the practitioner list."}
 ${input.heidiEnabled ? "Heidi is connected. heidi_read needs a first and last name." : "Heidi is not connected. Do not call heidi_read."}

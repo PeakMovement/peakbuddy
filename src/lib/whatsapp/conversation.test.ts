@@ -168,6 +168,20 @@ describe("the check-in", () => {
     conv = d.next;
 
     d = decide(ctx({ message: msg("3"), conversation: conv }));
+    expect(d.next.state).toBe("awaiting_stress");
+    conv = d.next;
+
+    d = decide(ctx({ message: msg("2 Low", IDS.stress(2)), conversation: conv }));
+    expect(d.next.state).toBe("awaiting_adherence");
+    conv = d.next;
+
+    d = decide(ctx({ message: msg("I did some walking"), conversation: conv }));
+    expect(d.saveCheckin).toBeUndefined();
+    expect(d.next.draft.adherence).toBeUndefined();
+    expect(d.next.state).toBe("awaiting_adherence");
+    conv = d.next;
+
+    d = decide(ctx({ message: msg("All of them", IDS.adherence.all), conversation: conv }));
     expect(d.next.state).toBe("awaiting_notes");
     conv = d.next;
 
@@ -176,7 +190,9 @@ describe("the check-in", () => {
       pain: 6,
       sleep: 4,
       energy: 3,
-      notes: "Knee a bit stiff in the morning",
+      stress: 2,
+      exerciseAdherence: "all",
+      notes: "I did some walking\nKnee a bit stiff in the morning",
       flagged: false,
     });
     expect(d.next.state).toBe("awaiting_wearable");

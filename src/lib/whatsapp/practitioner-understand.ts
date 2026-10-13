@@ -766,6 +766,7 @@ export interface PracQueued {
   weekday: number | null;
   time: string | null;
   enabled: boolean | null;
+  goal?: string | null;
 }
 
 export interface PracMemory {

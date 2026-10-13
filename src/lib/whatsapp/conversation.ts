@@ -30,7 +30,10 @@ import {
 } from "./schedule";
 import {
   ASSIST_MSG,
+  BOOKING_URL,
   CHECKIN_REQUEST,
+  PRACTICE_WHATSAPP_LINK,
+  LIBRARY_URL,
   MENU,
   PRACTICE_SUMMARY,
   routeFromMenu,
@@ -38,6 +41,8 @@ import {
   routeByKeywords,
   type AssistRoute,
 } from "./assistant";
+import { EXERCISE_MEDIA, LIBRARY_COMING_SOON } from "@/lib/feature-flags";
+import { appointmentAnswer, bookingAsk, bookingSent, bookingTask, programmeAnswer } from "@/lib/capabilities";
 
 /**
  * The WhatsApp check-in conversation, as a pure function.
@@ -57,7 +62,9 @@ import {
  *
  * The check-in asks exactly what the app's check-in form asks, on the same
  * scales, so a WhatsApp check-in and an app check-in are the same row:
- *   pain 0 to 10, sleep 1 to 5, energy 1 to 5, then free notes.
+ *   pain 0 to 10, sleep 1 to 5, energy 1 to 5, stress 1 to 5,
+ *   home-programme adherence, then free notes.
+ * A missed adherence tap is not stored. The patient can still type a number.
  */
 
 export type ConversationState =
@@ -67,6 +74,8 @@ export type ConversationState =
   | "awaiting_pain"
   | "awaiting_sleep"
   | "awaiting_energy"
+  | "awaiting_stress"
+  | "awaiting_adherence"
   | "awaiting_notes"
   | "awaiting_wearable"
   | "awaiting_name"
@@ -82,6 +91,11 @@ export interface CheckinDraft {
   pain?: number;
   sleep?: number;
   energy?: number;
+  stress?: number;
+  /** Set only when they answered. A miss leaves this unset. */
+  adherence?: "all" | "most" | "some" | "none";
+  /** Booking words waiting for YES before reception is asked. */
+  pendingBooking?: string;
   /** Anything the patient wrote along the way, in their own words. */
   notes?: string[];
   /** How many times in a row the current question has not been understood. */
@@ -112,7 +126,8 @@ export interface InboundForDecision {
   replyId?: string;
   kind: "text" | "interactive" | "media" | "unsupported";
   /** Set for media. A voice note we could not transcribe gets its own reply. */
-  mediaType?: "audio" | "other";
+  mediaType?: "audio" | "image" | "video" | "other";
+  mediaId?: string;
   /** A voice note left untranscribed because the patient has AI features off. */
   voiceAiOff?: boolean;
 }
@@ -178,6 +193,10 @@ export interface DecisionContext {
   route?: AssistRoute;
   /** The patient's own trend, worked out by the worker when they ask. */
   progressText?: string;
+  /** Next appointment already on the client record, if any. */
+  appointmentAt?: string | null;
+  /** The exercise the physio assigned, if one is named. Not a session note. */
+  assignedExercise?: string | null;
   /**
    * The conversational fallback's reading of a message that fits no fixed
    * path (AI consent only). Absent: the fixed replies are used.
@@ -191,6 +210,10 @@ export interface CheckinToSave {
   energy: number | null;
   notes: string;
   flagged: boolean;
+  /** Present only when they answered the stress list. */
+  stress?: number | null;
+  /** Present only when they answered. Never "none" from a missed tap. */
+  exerciseAdherence?: "all" | "most" | "some" | "none" | null;
 }
 
 export interface Decision {
@@ -216,6 +239,14 @@ export interface Decision {
   clinicalQuestion?: string;
   /** How often and when to check in (onboarding, or "only weekdays"). Time absent = keep it. */
   setSchedule?: { days: number[]; frequency: "daily" | "custom"; time?: string };
+  /** Patient confirmed. The worker passes this to reception. Nothing is invented. */
+  receptionErrand?: string;
+  /** They stated a goal. Buddy stores it and does not rewrite it. */
+  setGoal?: string;
+  /** Patient opt-in or opt-out for home-programme reminders. */
+  setProgrammeOptIn?: boolean;
+  /** Photo or short video for the treating physio. Not sent to a vision model. */
+  saveExerciseMedia?: { kind: "image" | "video"; caption: string | null; mediaId?: string };
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -231,6 +262,15 @@ export const IDS = {
   wearableNo: "wear_no",
   sleep: (n: number) => `wsleep_${n}`,
   energy: (n: number) => `wenergy_${n}`,
+  stress: (n: number) => `wstress_${n}`,
+  adherence: {
+    all: "adh_all",
+    most: "adh_most",
+    some: "adh_some",
+    none: "adh_none",
+  },
+  bookYes: "book_yes",
+  bookNo: "book_no",
 } as const;
 
 const PRACTICE_PHONE = "067 369 0593";
@@ -267,6 +307,17 @@ export const MSG = {
     "Sorry, I didn't catch that. Please reply with just a number from 0 to 10 for your pain right now.",
   askPainRetry2:
     "Just a single number please, from 0 (no pain) to 10 (worst pain imaginable). For example: 4",
+  askStress: "How stressed have you felt today? 1 is very calm, 5 is very stressed.",
+  askAdherence:
+    "How much of your home exercise programme did you do? If you skip this, I won't record it as did not exercise.",
+  exerciseMediaSaved:
+    "Thanks, I've saved that for your physiotherapist to look at. I don't comment on the movement myself.",
+  goalSaved: (goal: string) =>
+    `Got it. I'll keep this goal as you wrote it: ${goal}. I won't change it.`,
+  programmeOptIn:
+    "Done. I'll remind you about the programme on the days your physio chose. Say stop programme reminders any time.",
+  programmeOptOut: "Okay, I won't send programme reminders.",
+  bookingCancelled: "Okay, I won't ask reception.",
   painGiveUp:
     "No problem, let's leave it for now. I've passed on what you wrote to your physiotherapist. Reply CHECK IN whenever you're ready to try again.",
   skipQuestion: "No problem, let's skip that one.",
@@ -427,7 +478,10 @@ export function readPain(msg: InboundForDecision): number | null {
 }
 
 /** 1 to 5 from our own list id, or a bare digit typed back. */
-export function readScale(msg: InboundForDecision, prefix: "wsleep_" | "wenergy_"): number | null {
+export function readScale(
+  msg: InboundForDecision,
+  prefix: "wsleep_" | "wenergy_" | "wstress_",
+): number | null {
   if (msg.replyId?.startsWith(prefix)) {
     const n = Number(msg.replyId.slice(prefix.length));
     return Number.isInteger(n) && n >= 1 && n <= 5 ? n : null;
@@ -481,6 +535,80 @@ const askEnergy = (body: string = MSG.askEnergy): Reply => ({
   buttonLabel: "Choose",
   rows: ENERGY_ROWS.map((r) => ({ id: IDS.energy(r.n), title: r.title })),
 });
+
+const PAIN_ROWS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({
+  id: `pain_${n}`,
+  title: n === 0 ? "0 No pain" : String(n),
+}));
+
+const askPainList = (body: string): Reply => ({
+  kind: "list",
+  body,
+  buttonLabel: "Choose",
+  rows: PAIN_ROWS,
+});
+
+const STRESS_ROWS = [
+  { n: 5, title: "5 Very stressed" },
+  { n: 4, title: "4 High" },
+  { n: 3, title: "3 Okay" },
+  { n: 2, title: "2 Low" },
+  { n: 1, title: "1 Very calm" },
+];
+
+const askStress = (body: string = MSG.askStress): Reply => ({
+  kind: "list",
+  body,
+  buttonLabel: "Choose",
+  rows: STRESS_ROWS.map((r) => ({ id: IDS.stress(r.n), title: r.title })),
+});
+
+const askAdherence = (body: string = MSG.askAdherence): Reply => ({
+  kind: "list",
+  body,
+  buttonLabel: "Choose",
+  rows: [
+    { id: IDS.adherence.all, title: "All of them" },
+    { id: IDS.adherence.most, title: "Most of them" },
+    { id: IDS.adherence.some, title: "Some of them" },
+    { id: IDS.adherence.none, title: "None of them" },
+  ],
+});
+
+const ADHERENCE_TEXT: Record<string, "all" | "most" | "some" | "none"> = {
+  all: "all",
+  "all of them": "all",
+  most: "most",
+  "most of them": "most",
+  some: "some",
+  "some of them": "some",
+  none: "none",
+  "none of them": "none",
+};
+
+function readAdherence(msg: InboundForDecision): "all" | "most" | "some" | "none" | null {
+  const id = msg.replyId;
+  if (id === IDS.adherence.all) return "all";
+  if (id === IDS.adherence.most) return "most";
+  if (id === IDS.adherence.some) return "some";
+  if (id === IDS.adherence.none) return "none";
+  const key = msg.text.trim().toLowerCase().replace(/[.!]+$/g, "");
+  return ADHERENCE_TEXT[key] ?? null;
+}
+
+function readGoal(text: string): string | null {
+  const m = text.match(/^(?:my goal is|set my goal to)\s+(.{3,120})$/i);
+  return m ? m[1].trim() : null;
+}
+
+function readProgrammeOptIn(text: string): boolean | null {
+  const t = text.trim().toLowerCase();
+  if (/^stop programme reminders?$/.test(t)) return false;
+  if (/^(?:yes[, ]+)?(?:please )?remind me (?:about|of) (?:my )?(?:programme|program|exercises|home programme)$/.test(t)) {
+    return true;
+  }
+  return null;
+}
 
 const wearableLinkReply = (ctx: DecisionContext): Reply =>
   text(ctx.watchUrl ? MSG.wearableLinkDirect(ctx.watchUrl) : MSG.wearableLink);
@@ -608,7 +736,7 @@ function startCheckin(ctx: DecisionContext, lead: Reply[], seedNotes: string[] =
     replies: [
       ...lead,
       text(ctx.voice ? opener(vc(ctx)) : MSG.checkinOpener(ctx.client!.firstName)),
-      text(ctx.voice ? painQuestion(vc(ctx)) : MSG.askPain),
+      askPainList(ctx.voice ? painQuestion(vc(ctx)) : MSG.askPain),
     ],
     next: { state: "awaiting_pain", draft: { notes: seedNotes }, checkinStartedAt: ctx.now },
   };
@@ -647,10 +775,24 @@ function withSafety(decision: Decision, ctx: DecisionContext): Decision {
 
 /** The question waiting for an answer, as the patient last saw it. */
 function pendingQuestionReply(state: ConversationState, draft: CheckinDraft): Reply | null {
-  if (state === "awaiting_pain") return text(draft.update ? ASSIST_MSG.changeAskPain : MSG.askPain);
+  if (state === "awaiting_pain")
+    return draft.update ? text(ASSIST_MSG.changeAskPain) : askPainList(MSG.askPain);
   if (state === "awaiting_sleep") return askSleep();
   if (state === "awaiting_energy") return askEnergy();
+  if (state === "awaiting_stress") return askStress();
+  if (state === "awaiting_adherence") return askAdherence();
   return null;
+}
+
+function bookingConfirm(task: string): Reply {
+  return {
+    kind: "buttons",
+    body: `${bookingAsk(task)} You can also message the practice: ${PRACTICE_WHATSAPP_LINK}`,
+    buttons: [
+      { id: IDS.bookYes, title: "Yes" },
+      { id: IDS.bookNo, title: "No" },
+    ],
+  };
 }
 
 /** Wording of the pending question, for the conversational model's context. */
@@ -658,6 +800,8 @@ export function pendingQuestionText(state: ConversationState): string | null {
   if (state === "awaiting_pain") return MSG.askPain;
   if (state === "awaiting_sleep") return `${MSG.askSleep} (1 very poorly to 5 very well)`;
   if (state === "awaiting_energy") return `${MSG.askEnergy} (1 very low to 5 very high)`;
+  if (state === "awaiting_stress") return MSG.askStress;
+  if (state === "awaiting_adherence") return MSG.askAdherence;
   return null;
 }
 
@@ -695,6 +839,15 @@ function interjectMidCheckin(
         return { replies: [...lead, askEnergy()], next: { ...keepHere, state: "awaiting_energy" } };
       }
       if (state === "awaiting_energy") {
+        return { replies: [...lead, askStress()], next: { ...keepHere, state: "awaiting_stress" } };
+      }
+      if (state === "awaiting_stress") {
+        return {
+          replies: [...lead, askAdherence()],
+          next: { ...keepHere, state: "awaiting_adherence" },
+        };
+      }
+      if (state === "awaiting_adherence") {
         return { replies: [...lead, askNotes()], next: { ...keepHere, state: "awaiting_notes" } };
       }
       return { replies: [...lead, again], next: keepHere };
@@ -745,14 +898,14 @@ function converseIdle(ctx: DecisionContext, raw: string): Decision | null {
       return {
         replies: [
           ...(lead.length ? lead : [text(MSG.checkinOpener(ctx.client!.firstName))]),
-          text(MSG.askPain),
+          askPainList(MSG.askPain),
         ],
         next: { state: "awaiting_pain", draft: { notes: [] }, checkinStartedAt: ctx.now },
       };
     case "log_change":
       if (!ctx.checkedInToday) {
         return {
-          replies: [...lead, text(MSG.askPain)],
+          replies: [...lead, askPainList(MSG.askPain)],
           next: { state: "awaiting_pain", draft: { notes: [] }, checkinStartedAt: ctx.now },
         };
       }
@@ -764,8 +917,13 @@ function converseIdle(ctx: DecisionContext, raw: string): Decision | null {
           checkinStartedAt: ctx.now,
         },
       };
-    case "booking":
-      return { replies: [...lead, text(ASSIST_MSG.booking)], next: IDLE() };
+    case "booking": {
+      const task = bookingTask(ctx.client?.firstName ?? "A patient", raw);
+      return {
+        replies: [...lead, bookingConfirm(task)],
+        next: { state: "idle", draft: { pendingBooking: task }, checkinStartedAt: null },
+      };
+    }
     case "exercises":
       return { replies: [...lead, text(ASSIST_MSG.exercises), ...nudge], next: IDLE() };
     case "progress":
@@ -939,6 +1097,25 @@ export function decide(ctx: DecisionContext): Decision {
     return withSafety({ replies: [consentPrompt(firstName)], next: IDLE("awaiting_consent") }, ctx);
   }
 
+  if (
+    EXERCISE_MEDIA &&
+    (msg.mediaType === "image" || msg.mediaType === "video") &&
+    ctx.client
+  ) {
+    return withSafety(
+      {
+        replies: [text(MSG.exerciseMediaSaved)],
+        next: conv,
+        saveExerciseMedia: {
+          kind: msg.mediaType,
+          caption: raw || null,
+          mediaId: msg.mediaId,
+        },
+      },
+      ctx,
+    );
+  }
+
   if (msg.kind === "media" || msg.kind === "unsupported") {
     if (!raw) {
       const reply =
@@ -951,6 +1128,47 @@ export function decide(ctx: DecisionContext): Decision {
     }
   }
 
+  if (conv.draft.pendingBooking && (conv.state === "idle" || !conv.state.startsWith("awaiting_"))) {
+    const task = conv.draft.pendingBooking;
+    if (msg.replyId === IDS.bookYes || YES.test(raw)) {
+      return withSafety(
+        {
+          replies: [text(bookingSent(BOOKING_URL))],
+          next: IDLE(),
+          receptionErrand: task,
+        },
+        ctx,
+      );
+    }
+    if (msg.replyId === IDS.bookNo || /^(no|nope|cancel|stop)$/i.test(raw.trim())) {
+      return withSafety({ replies: [text(MSG.bookingCancelled)], next: IDLE() }, ctx);
+    }
+  }
+
+  const programmeChoice = readProgrammeOptIn(raw);
+  if (programmeChoice != null && conv.state === "idle") {
+    return withSafety(
+      {
+        replies: [text(programmeChoice ? MSG.programmeOptIn : MSG.programmeOptOut)],
+        next: IDLE(),
+        setProgrammeOptIn: programmeChoice,
+      },
+      ctx,
+    );
+  }
+
+  const statedGoal = readGoal(raw);
+  if (statedGoal && conv.state === "idle") {
+    return withSafety(
+      {
+        replies: [text(MSG.goalSaved(statedGoal))],
+        next: IDLE(),
+        setGoal: statedGoal,
+      },
+      ctx,
+    );
+  }
+
   // Asking for a check-in time works from anywhere in the conversation, and
   // does not disturb a check-in in progress.
   // Not while writing their notes, where "my scan is at 3" is a note.
@@ -960,7 +1178,9 @@ export function decide(ctx: DecisionContext): Decision {
   const midQuestion =
     conv.state === "awaiting_pain" ||
     conv.state === "awaiting_sleep" ||
-    conv.state === "awaiting_energy";
+    conv.state === "awaiting_energy" ||
+    conv.state === "awaiting_stress" ||
+    conv.state === "awaiting_adherence";
   const reminder =
     conv.state === "awaiting_notes" ||
     (midQuestion && !/\b(remind|reminder|change|move|set|every day|daily)\b/i.test(raw))
@@ -1103,8 +1323,8 @@ export function decide(ctx: DecisionContext): Decision {
           // Second miss: skip this one rather than ask a third time.
           return withSafety(
             {
-              replies: [text(MSG.skipQuestion), askNotes()],
-              next: keep({ notes, energy: undefined, misses: 0 }, "awaiting_notes"),
+              replies: [text(MSG.skipQuestion), askStress()],
+              next: keep({ notes, energy: undefined, misses: 0 }, "awaiting_stress"),
             },
             ctx,
           );
@@ -1119,8 +1339,68 @@ export function decide(ctx: DecisionContext): Decision {
       }
       return withSafety(
         {
+          replies: [askStress()],
+          next: keep({ energy, misses: 0 }, "awaiting_stress"),
+        },
+        ctx,
+      );
+    }
+
+    case "awaiting_stress": {
+      const stress = readScale(msg, "wstress_") ?? null;
+      if (stress === null) {
+        const notes = raw ? [...(draft.notes ?? []), raw] : draft.notes;
+        if ((draft.misses ?? 0) >= 1) {
+          return withSafety(
+            {
+              replies: [text(MSG.skipQuestion), askAdherence()],
+              next: keep({ notes, misses: 0 }, "awaiting_adherence"),
+            },
+            ctx,
+          );
+        }
+        return withSafety(
+          {
+            replies: [askStress()],
+            next: keep({ notes, misses: (draft.misses ?? 0) + 1 }, "awaiting_stress"),
+          },
+          ctx,
+        );
+      }
+      return withSafety(
+        {
+          replies: [askAdherence()],
+          next: keep({ stress, misses: 0 }, "awaiting_adherence"),
+        },
+        ctx,
+      );
+    }
+
+    case "awaiting_adherence": {
+      const adherence = readAdherence(msg);
+      if (!adherence) {
+        const notes = raw ? [...(draft.notes ?? []), raw] : draft.notes;
+        if ((draft.misses ?? 0) >= 1) {
+          return withSafety(
+            {
+              replies: [text(MSG.skipQuestion), ctx.voice ? askNotes(afterEnergy(vc(ctx))) : askNotes()],
+              next: keep({ notes, misses: 0 }, "awaiting_notes"),
+            },
+            ctx,
+          );
+        }
+        return withSafety(
+          {
+            replies: [askAdherence()],
+            next: keep({ notes, misses: (draft.misses ?? 0) + 1 }, "awaiting_adherence"),
+          },
+          ctx,
+        );
+      }
+      return withSafety(
+        {
           replies: [ctx.voice ? askNotes(afterEnergy(vc(ctx))) : askNotes()],
-          next: keep({ energy, misses: 0 }, "awaiting_notes"),
+          next: keep({ adherence, misses: 0 }, "awaiting_notes"),
         },
         ctx,
       );
@@ -1176,6 +1456,8 @@ export function decide(ctx: DecisionContext): Decision {
           energy: draft.energy ?? null,
           notes,
           flagged: ctx.redFlags.triggered,
+          ...(typeof draft.stress === "number" ? { stress: draft.stress } : {}),
+          ...(draft.adherence ? { exerciseAdherence: draft.adherence } : {}),
         },
       };
       return withSafety(decision, ctx);
@@ -1372,8 +1654,21 @@ export function decide(ctx: DecisionContext): Decision {
             },
             ctx,
           );
-        case "booking":
-          return withSafety({ replies: [text(ASSIST_MSG.booking), ...nudge], next: IDLE() }, ctx);
+        case "booking": {
+          const task = bookingTask(ctx.client?.firstName ?? "A patient", raw);
+          return withSafety(
+            {
+              replies: [bookingConfirm(task), ...nudge],
+              next: { state: "idle", draft: { pendingBooking: task }, checkinStartedAt: null },
+            },
+            ctx,
+          );
+        }
+        case "appointment":
+          return withSafety(
+            { replies: [text(appointmentAnswer(ctx.appointmentAt ?? null)), ...nudge], next: IDLE() },
+            ctx,
+          );
         case "practice_info":
           return withSafety(
             {
@@ -1403,7 +1698,22 @@ export function decide(ctx: DecisionContext): Decision {
             ctx,
           );
         case "exercises":
-          return withSafety({ replies: [text(ASSIST_MSG.exercises), ...nudge], next: IDLE() }, ctx);
+          return withSafety(
+            {
+              replies: [
+                text(
+                  programmeAnswer({
+                    assigned: ctx.assignedExercise ?? null,
+                    libraryLive: !LIBRARY_COMING_SOON,
+                    libraryUrl: LIBRARY_URL,
+                  }),
+                ),
+                ...nudge,
+              ],
+              next: IDLE(),
+            },
+            ctx,
+          );
         case "help":
           return withSafety(
             {

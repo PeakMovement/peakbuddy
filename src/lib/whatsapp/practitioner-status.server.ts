@@ -917,6 +917,15 @@ export async function runPractitionerJobs(
       error: e instanceof Error ? e.message : "unknown",
     });
   }
+
+  // 5. Quiet patients. Off unless QUIET_PATIENT_NUDGE=1. The patient message
+  // waits for the practitioner to confirm.
+  try {
+    const { runQuietNudges } = await import("./quiet-nudge.server");
+    await runQuietNudges(adminIn, env, now);
+  } catch (e) {
+    log.warn("quiet nudge failed", { error: e instanceof Error ? e.message : "unknown" });
+  }
 }
 
 async function loadClientById(adminIn: Admin, id: string) {
