@@ -207,6 +207,20 @@ export function normalisePhone(value: string): string {
 
 const META_GRAPH_VERSION = "v21.0";
 
+/** Meta's limit for the body of a button or list message. */
+export const INTERACTIVE_BODY_MAX = 1024;
+
+/** Long body: everything but the last paragraph as text, the last paragraph above the buttons. */
+export function splitInteractiveBody(body: string): { head: string; tail: string } {
+  const cut = body.lastIndexOf("\n\n");
+  if (cut > 0) {
+    const head = body.slice(0, cut).trimEnd();
+    const tail = body.slice(cut + 2).trim();
+    if (tail && tail.length <= INTERACTIVE_BODY_MAX) return { head, tail };
+  }
+  return { head: body.slice(0, 4096), tail: "Choose an option below." };
+}
+
 export const metaProvider: WhatsAppProvider = {
   id: "meta",
 
@@ -345,6 +359,17 @@ export const metaProvider: WhatsAppProvider = {
   },
 
   async send(message, secrets) {
+    // Meta rejects buttons and lists whose body is over 1024 characters
+    // (the practitioner help message hit this on 13 Oct). Send the text
+    // first, then the buttons under a short line.
+    if (
+      (message.kind === "buttons" || message.kind === "list") &&
+      message.body.length > INTERACTIVE_BODY_MAX
+    ) {
+      const { head, tail } = splitInteractiveBody(message.body);
+      await metaProvider.send({ kind: "text", to: message.to, body: head }, secrets);
+      return metaProvider.send({ ...message, body: tail }, secrets);
+    }
     const url = `https://graph.facebook.com/${META_GRAPH_VERSION}/${secrets.senderId}/messages`;
     const to = normalisePhone(message.to).replace(/^\+/, "");
     let payload: Record<string, unknown>;
