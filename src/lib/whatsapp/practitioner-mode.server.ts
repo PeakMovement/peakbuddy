@@ -19,6 +19,9 @@
 import { log } from "@/lib/log";
 import { HEIDI_MSG } from "./heidi";
 import { handleHeidiTurn, heidiConfig } from "./heidi.server";
+import { isAgentButton, isExactShortcut, joinNames } from "./practitioner-agent";
+import { MORNING_MSG, morningNameParts, morningPhrase } from "./morning-checkin";
+import type { AgentTurnInput } from "./practitioner-agent";
 import { maskPhone, toE164Digits } from "./phone";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
 import {
@@ -34,6 +37,7 @@ import {
   PROGRAMME_SENT,
   rankPatients,
   readPractitionerHeidi,
+  rememberTurn,
   tidyErrand,
   type PracMemory,
 } from "./practitioner-understand";
@@ -188,8 +192,8 @@ export const PRAC_MSG = {
   thanks: (name: string, now: Date) =>
     THANKS_REPLIES[now.getUTCMinutes() % THANKS_REPLIES.length](name),
   ack: "\u{1F44D}",
-  notSure: (_name: string) =>
-    `Sorry, I didn't quite get that.\nTry "how are my clients doing?", a client's name, "my messages", "who checked in this week?" or "ask reception to…".`,
+  notSure: (name: string) =>
+    `${name}, what should I do? A client's name, "how are my clients doing?", "my messages", "who checked in this week?", or "ask reception to…" is enough.`,
   confirm: (line: string) => `Did you mean: ${line}?`,
   confirmNo: "Okay, I won't.",
   receptionAsk: "What should I pass on to reception?",
@@ -205,6 +209,7 @@ export const PRAC_MSG = {
     `• "Update me daily at 7am" (or weekdays, every Monday, every morning, stop updates)\n` +
     `• "I've sent Sam Kruger his programme" and I'll let them know\n` +
     `• "Ask reception to book Sam for Thursday" and I'll pass it to reception\n` +
+    `• "Who are the practitioners?" and I'll list them. You can message several clients at once, in your own words\n` +
     `• "What's open with reception?" to see what's still waiting. Just "reception" and I'll ask what to pass on\n\n` +
     `Practice owners can also ask "practice overview", "any red flags?", "who's gone quiet?" or "how many clients are using Buddy?"`,
   notFound: (name: string) =>
@@ -213,6 +218,8 @@ export const PRAC_MSG = {
   willTell: (patient: string) => `Perfect, I'll let ${patient} know.`,
   toldInApp: (patient: string) =>
     `Done, ${patient} isn't on WhatsApp with Buddy, so I've sent them a notification in the Buddy app instead.`,
+  toldTemplate: (patient: string) =>
+    `Done. ${patient} hasn't messaged in the last day, so I sent the programme template.`,
   notRegistered: (patient: string) =>
     `Sorry, ${patient} isn't registered on Buddy yet, so I can't let them know. If you'd like them to join, forward them this link:\n\n${JOIN_LINK}`,
   cantReachYet: (patient: string) =>
@@ -245,6 +252,12 @@ export interface PractitionerDeps {
   requestCheckin?: (
     clientId: string,
   ) => Promise<"sent" | "not_whatsapp" | "busy" | "window_closed" | "failed">;
+  /**
+   * Tool choice for the practitioner agent. Tests pass a mock. When omitted,
+   * Buddy calls Gemini through the Lovable gateway if LOVABLE_API_KEY is set,
+   * and otherwise leaves the phrase matcher to answer.
+   */
+  understand?: (input: AgentTurnInput) => Promise<unknown>;
 }
 
 async function practitionerPatients(admin: Db, userId: string): Promise<PatientRow[]> {
@@ -349,6 +362,56 @@ async function resolveNamed(
   return { target: null, asked: false };
 }
 
+/**
+ * Names for the morning "reception check-in" button. Confirms the errand
+ * before anything is passed to reception. Nothing here messages a patient.
+ */
+async function takeMorningReceptionNames(
+  admin: Db,
+  prac: Practitioner,
+  text: string,
+  deps: PractitionerDeps,
+  mem: PracMemory,
+): Promise<void> {
+  const parts = morningNameParts(text);
+  if (!parts.length) {
+    mem.awaitingMorningReception = true;
+    mem.awaitingMorningReceptionAt = deps.now.getTime();
+    await deps.reply({ kind: "text", body: MORNING_MSG.who });
+    return;
+  }
+  const patients = await practitionerPatients(admin, prac.userId);
+  const found: PatientRow[] = [];
+  for (const part of parts) {
+    const hits = rankPatients(part, patients);
+    if (hits.length !== 1) {
+      mem.awaitingMorningReception = true;
+      mem.awaitingMorningReceptionAt = deps.now.getTime();
+      await deps.reply({
+        kind: "text",
+        body: hits.length > 1 ? MORNING_MSG.which(part) : MORNING_MSG.notFound(part),
+      });
+      return;
+    }
+    const patient = hits[0].patient;
+    if (!found.some((p) => p.id === patient.id)) found.push(patient);
+  }
+  const names = found.map((p) => String(p.full_name ?? "").trim() || "a patient");
+  const joined = joinNames(names);
+  mem.awaitingMorningReception = false;
+  mem.confirm = {
+    kind: "reception",
+    task: MORNING_MSG.task(joined),
+    line: `ask reception to check in with ${joined}`,
+  };
+  mem.confirmAt = deps.now.getTime();
+  await deps.reply({
+    kind: "buttons",
+    body: MORNING_MSG.confirm(joined),
+    buttons: CONFIRM_BUTTONS,
+  });
+}
+
 /** Returns false when the message isn't something for practitioner mode. */
 export async function handlePractitionerMessage(
   adminIn: Admin,
@@ -360,6 +423,69 @@ export async function handlePractitionerMessage(
   const mem: PracMemory = memory ?? {};
   expireMemory(mem, deps.now.getTime());
   const admin = adminIn as unknown as Db;
+  rememberTurn(mem, "practitioner", msg.text, deps.now.getTime());
+  if (!(deps.reply as { wrapped?: boolean }).wrapped) {
+    const reply = deps.reply;
+    const wrapped = async (message: Outgoing) => {
+      const body = "body" in message && typeof message.body === "string" ? message.body : "";
+      rememberTurn(mem, "buddy", body, deps.now.getTime());
+      await reply(message);
+    };
+    (wrapped as { wrapped?: boolean }).wrapped = true;
+    deps = { ...deps, reply: wrapped };
+  }
+
+  if (mem.awaitingMorningReception && !msg.replyId) {
+    const phrase = morningPhrase(msg.text);
+    const leaveForAnotherCommand =
+      phrase === "update" ||
+      phrase === "skip" ||
+      phrase === "off" ||
+      phrase === "on" ||
+      isExactShortcut(msg.text, null) ||
+      interruptsErrand(msg.text);
+    if (isCancel(msg.text) && phrase !== "off" && phrase !== "on") {
+      mem.awaitingMorningReception = false;
+      await deps.reply({ kind: "text", body: MORNING_MSG.receptionCancelled });
+      return true;
+    }
+    if (leaveForAnotherCommand) mem.awaitingMorningReception = false;
+    else {
+      await takeMorningReceptionNames(admin, prac, msg.text, deps, mem);
+      return true;
+    }
+  }
+  if (mem.awaitingMorningReception && msg.replyId && msg.replyId !== "prac_morn_reception") {
+    mem.awaitingMorningReception = false;
+  }
+
+  // They tapped "Reply to Nicola": this message goes to Nicola as typed.
+  // It runs before the model so the follow-on sentence is not re-read as a new command.
+  if (mem.replyTo && !msg.replyId && msg.text.trim()) {
+    const clientId = mem.replyTo;
+    mem.replyTo = null;
+    if (isCancel(msg.text)) {
+      const pq = await import("./patient-questions.server");
+      await deps.reply({ kind: "text", body: pq.MESSAGE_MSG.cancelled });
+      return true;
+    }
+    await sendTyped(adminIn, prac, clientId, msg.text.trim(), deps, mem);
+    return true;
+  }
+
+  let agentTried = false;
+  const tryAgent = async (): Promise<boolean> => {
+    if (agentTried) return false;
+    if (msg.replyId && !isAgentButton(msg.replyId)) return false;
+    agentTried = true;
+    try {
+      const { runPractitionerAgent } = await import("./practitioner-agent.server");
+      return await runPractitionerAgent(adminIn, prac, msg, deps, mem);
+    } catch (e) {
+      log.warn("practitioner agent failed", { error: e instanceof Error ? e.message : "unknown" });
+      return false;
+    }
+  };
 
   const passErrand = async (task: string) => {
     const rc = await import("./reception.server");
@@ -375,6 +501,36 @@ export async function handlePractitionerMessage(
     );
     await deps.reply({ kind: "text", body: rc.RECEPTION_MSG.toPractitioner(result) });
   };
+
+  const clarifyTap = msg.replyId?.match(/^prac_cl_(\d)$/);
+  if (clarifyTap) {
+    const option = mem.clarifyOptions?.[Number(clarifyTap[1])];
+    if (option) msg = { text: option, replyId: null };
+  }
+
+  // Button taps and a few canonical commands skip the model. Every other
+  // practitioner message is read by the model first. If that call fails,
+  // the phrase matcher below is the outage fallback. An exact command also
+  // drops a half-finished confirmation, so "yes" afterwards is not a send.
+  // Yes or No on a confirm already on screen is the send decision: it does
+  // not go back to the model, which could turn "yes" into a patient message.
+  const answeringConfirm =
+    Boolean(mem.confirm) &&
+    (msg.replyId === "prac_cfm_yes" ||
+      msg.replyId === "prac_cfm_no" ||
+      (!msg.replyId && (isYes(msg.text) || isCancel(msg.text))));
+  // "tell Nicola well done" and the Reply button have their own confirm step.
+  // The model must not turn those into a different tool.
+  const { practitionerIntent: intentOf } = await import("./practitioner-status.server");
+  const earlyKind = intentOf(msg.text, msg.replyId).kind;
+  const patientMessage = earlyKind === "message_patient" || earlyKind === "message_reply";
+  if (answeringConfirm || patientMessage || isExactShortcut(msg.text, msg.replyId)) {
+    mem.pending = null;
+    mem.queued = [];
+  } else {
+    if (mem.confirm && !msg.replyId) mem.confirm = null;
+    if (await tryAgent()) return true;
+  }
 
   const accepting =
     msg.replyId === "prac_cfm_yes" || Boolean(mem.confirm && !msg.replyId && isYes(msg.text));
@@ -419,19 +575,6 @@ export async function handlePractitionerMessage(
     mem.awaitingReception = false;
     const patients = await practitionerPatients(admin, prac.userId);
     await handleHeidiTurn(adminIn, prac, heidiCmd, patients, deps);
-    return true;
-  }
-
-  // They tapped "Reply to Nicola": this message goes to Nicola as typed.
-  if (mem.replyTo && !msg.replyId && msg.text.trim()) {
-    const clientId = mem.replyTo;
-    mem.replyTo = null;
-    if (isCancel(msg.text)) {
-      const pq = await import("./patient-questions.server");
-      await deps.reply({ kind: "text", body: pq.MESSAGE_MSG.cancelled });
-      return true;
-    }
-    await sendTyped(adminIn, prac, clientId, msg.text.trim(), deps, mem);
     return true;
   }
 
@@ -599,18 +742,30 @@ export async function handlePractitionerMessage(
   const body =
     result === "whatsapp"
       ? PRAC_MSG.willTell(name)
-      : result === "app"
-        ? PRAC_MSG.toldInApp(name)
-        : result === "not_registered"
-          ? PRAC_MSG.notRegistered(name)
-          : result === "later"
-            ? PRAC_MSG.cantReachYet(name)
-            : PRAC_MSG.failed(name);
+      : result === "template"
+        ? PRAC_MSG.toldTemplate(name)
+        : result === "app"
+          ? PRAC_MSG.toldInApp(name)
+          : result === "not_registered"
+            ? PRAC_MSG.notRegistered(name)
+            : result === "later"
+              ? PRAC_MSG.cantReachYet(name)
+              : PRAC_MSG.failed(name);
   await deps.reply({ kind: "text", body });
   return true;
 }
 
-type TellResult = "whatsapp" | "app" | "not_registered" | "later" | "failed";
+type TellResult = "whatsapp" | "template" | "app" | "not_registered" | "later" | "failed";
+
+/** Programme notice for one patient. Used by the phrase matcher and the agent. */
+export async function notifyProgrammeSent(
+  adminIn: Admin,
+  patient: PatientRow,
+  prac: Practitioner,
+  deps: PractitionerDeps,
+): Promise<TellResult> {
+  return tellPatient(adminIn, patient, prac, deps);
+}
 
 async function tellPatient(
   adminIn: Admin,
@@ -685,7 +840,7 @@ async function tellPatient(
           () => undefined,
           () => undefined,
         );
-      return ok ? "whatsapp" : "failed";
+      return ok ? (message.kind === "template" ? "template" : "whatsapp") : "failed";
     }
     // No template and the window is closed: hold it for their next message.
     const { data: cur } = await admin
@@ -1089,6 +1244,25 @@ async function handleStatusIntent(
   const admin = adminIn as unknown as Db;
   const text1 = (body: string) => deps.reply({ kind: "text", body });
 
+  if (intent.kind === "morning_skip") {
+    await text1(MORNING_MSG.skipped);
+    return;
+  }
+  if (intent.kind === "morning_prefs") {
+    const { saveMorningCheckinEnabled } = await import("./morning-checkin.server");
+    const ok = await saveMorningCheckinEnabled(adminIn, prac.userId, intent.enabled, deps.now);
+    await text1(
+      ok ? (intent.enabled ? MORNING_MSG.optedIn : MORNING_MSG.optedOut) : MORNING_MSG.failed,
+    );
+    return;
+  }
+  if (intent.kind === "morning_reception") {
+    mem.confirm = null;
+    mem.awaitingMorningReception = true;
+    mem.awaitingMorningReceptionAt = deps.now.getTime();
+    await text1(MORNING_MSG.who);
+    return;
+  }
   if (intent.kind === "updates_menu") {
     await deps.reply({
       kind: "buttons",

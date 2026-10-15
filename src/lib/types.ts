@@ -63,6 +63,7 @@ export interface Client {
   yves_ai_consent: boolean;
   yves_ai_consent_at: string | null;
   created_at: string;
+  goal?: string | null;
 }
 
 export interface CheckIn {
@@ -78,6 +79,7 @@ export interface CheckIn {
   medication_taken: boolean;
   flagged: boolean;
   created_at: string;
+  exercise_adherence?: "all" | "most" | "some" | "none" | null;
 }
 
 export interface SymptomQuery {

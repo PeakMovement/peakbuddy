@@ -24,6 +24,7 @@ export type AssistIntent =
   | "clinical_question"
   | "progress"
   | "exercises"
+  | "appointment"
   | "greeting"
   | "help"
   | "other";
@@ -35,6 +36,7 @@ export const ASSIST_INTENTS: readonly AssistIntent[] = [
   "clinical_question",
   "progress",
   "exercises",
+  "appointment",
   "greeting",
   "help",
   "other",
@@ -196,6 +198,9 @@ export function routeByKeywords(text: string): AssistRoute {
     )
   ) {
     return { intent: "log_change" };
+  }
+  if (/\b(what time|when) is my (appointment|session)\b|\bmy next (appointment|session)\b/.test(t)) {
+    return { intent: "appointment" };
   }
   if (
     has(

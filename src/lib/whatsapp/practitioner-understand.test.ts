@@ -671,7 +671,7 @@ describe("what Buddy does with a messy message", () => {
     const { say, replies } = harness();
     await say("blue elephant");
     expect(replies[0].kind).toBe("buttons");
-    expect(replies[0].body).toContain("Sorry, I didn't quite get that.");
+    expect(replies[0].body).toContain("what should I do?");
     expect(replies[0].body).toContain("how are my clients doing?");
     expect(replies[0].body).toContain("reception");
     expect(replies[0].buttons).toEqual([
@@ -682,16 +682,14 @@ describe("what Buddy does with a messy message", () => {
     await say("don't check in with sam");
     await say("call thea");
     await say("quiet please");
-    expect(
-      replies.slice(1).every((r) => String(r.body).includes("Sorry, I didn't quite get that.")),
-    ).toBe(true);
+    expect(replies.slice(1).every((r) => String(r.body).includes("what should I do?"))).toBe(true);
   });
 
   it("a messy Heidi phrase stays quiet until the secrets are set", async () => {
     process.env.WHATSAPP_RECEPTION_NUMBER = `+${RECEPTION}`;
     const { db, say, replies, sent } = harness();
     await say("get sam krugers files");
-    expect(replies[0].body).toContain("Sorry, I didn't quite get that.");
+    expect(replies[0].body).toContain("what should I do?");
     expect(sent).toHaveLength(0);
 
     process.env.HEIDI_API_KEY = "test-key";
@@ -702,7 +700,7 @@ describe("what Buddy does with a messy message", () => {
     await say("wat does hiedi say about sam kruger");
     expect(replies[2].body).toBe(HEIDI_MSG.noEmail);
     await say("don't get sam kruger's files");
-    expect(replies[3].body).toContain("Sorry, I didn't quite get that.");
+    expect(replies[3].body).toContain("what should I do?");
 
     await say("contact reception");
     expect(replies[4].body).toBe(PRAC_MSG.receptionAsk);

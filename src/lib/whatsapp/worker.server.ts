@@ -99,10 +99,14 @@ interface ClientRow {
   phone?: string | null;
   notes?: string | null;
   primary_complaint?: string | null;
+  goal?: string | null;
+  next_appointment?: string | null;
+  reply_hour?: number | null;
+  reply_hour_count?: number | null;
 }
 
 const CLIENT_COLS =
-  "id, full_name, practitioner_id, practice_id, yves_ai_consent, auth_user_id, phone, notes, primary_complaint";
+  "id, full_name, practitioner_id, practice_id, yves_ai_consent, auth_user_id, phone, notes, primary_complaint, goal, next_appointment, reply_hour, reply_hour_count";
 
 export interface WorkerResult {
   processed: number;
@@ -395,6 +399,7 @@ async function voiceStats(
   lastPain: number | null;
   streak: number;
   practitionerFirstName: string | null;
+  goal: string | null;
 }> {
   const [{ data: rows, count }, { data: prof }] = await Promise.all([
     admin
@@ -427,7 +432,39 @@ async function voiceStats(
     lastPain,
     streak,
     practitionerFirstName: name || null,
+    goal: client.goal?.trim() || null,
   };
+}
+
+/** Nudge the stored reminder toward the hour they actually reply. One step. No second message. */
+async function rememberReplyHour(admin: Admin, clientId: string, now: Date): Promise<void> {
+  const { shiftedReminderTime } = await import("@/lib/capabilities");
+  const sast = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  const hour = sast.getUTCHours();
+  const minute = sast.getUTCMinutes();
+  const { data } = await admin
+    .from("clients")
+    .select("reply_hour, reply_hour_count")
+    .eq("id", clientId)
+    .maybeSingle();
+  const row = data as { reply_hour?: number | null; reply_hour_count?: number | null } | null;
+  const count = row?.reply_hour === hour ? (row.reply_hour_count ?? 0) + 1 : 1;
+  await admin.from("clients").update({ reply_hour: hour, reply_hour_count: count }).eq("id", clientId);
+  const { data: rem } = await admin
+    .from("checkin_reminders")
+    .select("time_of_day")
+    .eq("client_id", clientId)
+    .maybeSingle();
+  const current = String((rem as { time_of_day?: string } | null)?.time_of_day ?? "").slice(0, 5);
+  if (!current) return;
+  const next = shiftedReminderTime({
+    current,
+    replyHour: hour,
+    replyMinute: minute,
+    samplesAtThisHour: count,
+  });
+  if (!next || next === current) return;
+  await admin.from("checkin_reminders").update({ time_of_day: next }).eq("client_id", clientId);
 }
 
 async function previousPain(admin: Admin, clientId: string): Promise<number | null> {
@@ -558,10 +595,18 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
       const { practitionerIntent } = await import("./practitioner-status.server");
       const { looksLikeProgramme, readPracMemory, readPractitionerHeidi, writePracMemory } =
         await import("./practitioner-understand");
+      const { needsPractitionerAgent } = await import("./practitioner-agent");
       const memory = readPracMemory(conv.draft, now.getTime());
-      const waiting = Boolean(memory.awaitingReception || memory.confirm || memory.replyTo);
+      const waiting = Boolean(
+        memory.awaitingReception ||
+        memory.awaitingMorningReception ||
+        memory.confirm ||
+        memory.pending ||
+        memory.replyTo,
+      );
       const isCommand =
         waiting ||
+        needsPractitionerAgent(text, memory) ||
         PROGRAMME_SENT.test(text) ||
         looksLikeProgramme(text) ||
         Boolean(rerouted) ||
@@ -738,7 +783,18 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   }
 
   const aiAllowed = client ? hasAiConsent(client) : false;
-  const isAudio = row.kind === "media" && (row.media_mime_type ?? "").startsWith("audio/");
+  const mime = row.media_mime_type ?? "";
+  const isAudio = row.kind === "media" && mime.startsWith("audio/");
+  const mediaType =
+    row.kind !== "media"
+      ? undefined
+      : isAudio
+        ? "audio"
+        : mime.startsWith("image/")
+          ? "image"
+          : mime.startsWith("video/")
+            ? "video"
+            : "other";
 
   const message: InboundForDecision = {
     // A join message is a hello, whoever sends it. Someone already on Buddy
@@ -747,7 +803,8 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     text: (code ? "hi" : row.body) || row.reply_title || "",
     replyId: row.reply_id ?? undefined,
     kind: row.kind,
-    mediaType: row.kind === "media" ? (isAudio ? "audio" : "other") : undefined,
+    mediaType,
+    mediaId: row.media_id ?? undefined,
   };
 
   // Voice notes become text, then go down exactly the same path as typing,
@@ -994,6 +1051,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
         watchUrl,
         appOfferDue: Boolean(client && !client.auth_user_id && !conv.app_offer_at),
         voice: client ? await voiceStats(admin, client, now).catch(() => undefined) : undefined,
+        appointmentAt: client?.next_appointment ?? null,
       });
 
   // Unknown numbers are told once a day, not on every message.
@@ -1427,11 +1485,62 @@ async function applyEffects(
       pain_level: c.pain,
       sleep_quality: c.sleep,
       energy_level: c.energy,
+      stress_level: c.stress ?? null,
+      exercise_adherence: c.exerciseAdherence ?? null,
       notes: c.notes || null,
       flagged: c.flagged,
       source: "whatsapp",
     });
     if (error) throw new Error(`check-in insert failed: ${error.code ?? "unknown"}`);
+    await rememberReplyHour(admin, client.id, now).catch(() => undefined);
+  }
+
+  if (decision.setGoal) {
+    await admin
+      .from("clients")
+      .update({ goal: decision.setGoal.slice(0, 200) })
+      .eq("id", client.id)
+      .then(
+        () => undefined,
+        () => undefined,
+      );
+  }
+
+  if (decision.setProgrammeOptIn != null) {
+    await admin
+      .from("clients")
+      .update({ programme_reminder_opt_in: decision.setProgrammeOptIn })
+      .eq("id", client.id)
+      .then(
+        () => undefined,
+        () => undefined,
+      );
+  }
+
+  if (decision.saveExerciseMedia && client) {
+    await admin
+      .from("client_exercise_media")
+      .insert({
+        client_id: client.id,
+        practitioner_id: client.practitioner_id,
+        media_kind: decision.saveExerciseMedia.kind,
+        provider_media_id: decision.saveExerciseMedia.mediaId ?? null,
+        caption: decision.saveExerciseMedia.caption,
+      })
+      .then(
+        () => undefined,
+        () => undefined,
+      );
+  }
+
+  if (decision.receptionErrand) {
+    const { sendToReception } = await import("./reception.server");
+    await sendToReception(admin, { provider: env.provider, secrets: env.secrets }, {
+      practitionerId: client.practitioner_id,
+      practitionerName: fullNameOf(client.full_name, "A patient"),
+      task: decision.receptionErrand,
+      now,
+    }).catch(() => undefined);
   }
 
   // Each of these is best effort: the check-in and consent above are the

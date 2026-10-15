@@ -12,7 +12,7 @@
  *   - medium: a real reading, but the phrasing or the name is fuzzy.
  *     Ask "Did you mean: ...?" with Yes / No. Do not message a patient,
  *     send a programme notice, or pass an errand to reception yet.
- *   - no match: "Sorry, I didn't quite get that." Never guess an action.
+ *   - no match: one short question. Never guess an action.
  *
  * Client names are not in the typo map. "sma" stays "sma" here and is
  * matched against the practitioner's own list afterwards.
@@ -708,11 +708,82 @@ export type PracConfirm =
   | { kind: "status_one"; clientId: string; line: string }
   | { kind: "reception"; task: string; line: string };
 
+/** One side of a recent practitioner chat, kept so "all 4" and "yes" still mean something. */
+export interface PracTurn {
+  role: "practitioner" | "buddy";
+  text: string;
+}
+
+export interface PracCandidate {
+  n: number;
+  id: string;
+  name: string;
+}
+
+/**
+ * The agent is waiting. `choose` is a numbered list (ambiguous names).
+ * `outbound` is a send that has been shown and not yet confirmed.
+ */
+export type PracPending =
+  | {
+      kind: "choose";
+      action: "status" | "messages" | "checkin" | "programme" | "heidi";
+      candidates: PracCandidate[];
+      resolvedIds: string[];
+      note: string | null;
+      at: number;
+    }
+  | {
+      kind: "outbound";
+      action: "checkin" | "programme" | "reception";
+      clientIds: string[];
+      names: string[];
+      /** The sentence they are confirming. Check-ins keep the literal "<name>". */
+      preview: string;
+      note: string | null;
+      task: string | null;
+      editing: boolean;
+      at: number;
+    };
+
+/** Who the conversation is about, so "her" and "those" resolve without guessing. */
+export interface PracFocus {
+  clientId?: string;
+  clientName?: string;
+  list?: Array<{ id: string; name: string }>;
+  at: number;
+}
+
+/** A tool call still to run after the current confirmation. */
+export interface PracQueued {
+  tool: string;
+  names: string[];
+  note: string | null;
+  task: string | null;
+  question: string | null;
+  options: string[];
+  frequency: "daily" | "weekdays" | "weekly" | "off" | "menu" | null;
+  weekday: number | null;
+  time: string | null;
+  enabled: boolean | null;
+  goal?: string | null;
+}
+
 export interface PracMemory {
   awaitingReception?: boolean;
   awaitingReceptionAt?: number;
+  /** Morning note: waiting for the patients reception should check in with. */
+  awaitingMorningReception?: boolean;
+  awaitingMorningReceptionAt?: number;
   confirm?: PracConfirm | null;
   confirmAt?: number;
+  turns?: PracTurn[];
+  turnsAt?: number;
+  pending?: PracPending | null;
+  focus?: PracFocus | null;
+  queued?: PracQueued[];
+  /** Button labels from the last clarifying question, in order. */
+  clarifyOptions?: string[];
   /** The client last talked about, for "tell her ...". */
   lastClientId?: string | null;
   lastClientAt?: number;
@@ -725,12 +796,199 @@ export const PRAC_MEMORY_MS = 30 * 60 * 1000;
 /** "her" still means the same client for this long. */
 export const LAST_CLIENT_MS = 3 * 60 * 60 * 1000;
 
+const CHOOSE_ACTIONS = new Set(["status", "messages", "checkin", "programme", "heidi"]);
+const OUTBOUND_ACTIONS = new Set(["checkin", "programme", "reception"]);
+
+function cleanPending(raw: unknown): PracPending | null {
+  if (!raw || typeof raw !== "object") return null;
+  const p = raw as Record<string, unknown>;
+  const at = typeof p.at === "number" ? p.at : 0;
+  if (p.kind === "choose" && CHOOSE_ACTIONS.has(String(p.action))) {
+    const candidates = Array.isArray(p.candidates)
+      ? p.candidates
+          .map((c, i) => {
+            if (!c || typeof c !== "object") return null;
+            const row = c as Record<string, unknown>;
+            const id = String(row.id ?? "");
+            const name = String(row.name ?? "").trim();
+            if (!/^[0-9a-f-]{36}$/i.test(id) || !name) return null;
+            return { n: i + 1, id, name: name.slice(0, 80) };
+          })
+          .filter((c): c is PracCandidate => Boolean(c))
+          .slice(0, 10)
+      : [];
+    if (!candidates.length) return null;
+    const resolvedIds = Array.isArray(p.resolvedIds)
+      ? p.resolvedIds.map(String).filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+      : [];
+    return {
+      kind: "choose",
+      action: p.action as "status",
+      candidates,
+      resolvedIds,
+      note: typeof p.note === "string" ? p.note.slice(0, 280) : null,
+      at,
+    };
+  }
+  if (p.kind === "outbound" && OUTBOUND_ACTIONS.has(String(p.action))) {
+    const clientIds = Array.isArray(p.clientIds)
+      ? p.clientIds.map(String).filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+      : [];
+    const names = Array.isArray(p.names)
+      ? p.names
+          .map((n) => String(n).trim())
+          .filter(Boolean)
+          .slice(0, 15)
+      : [];
+    if (p.action !== "reception" && !clientIds.length) return null;
+    if (p.action === "reception" && typeof p.task !== "string") return null;
+    return {
+      kind: "outbound",
+      action: p.action as "checkin",
+      clientIds,
+      names,
+      preview: String(p.preview ?? "").slice(0, 500),
+      note: typeof p.note === "string" ? p.note.slice(0, 280) : null,
+      task: typeof p.task === "string" ? p.task.slice(0, 600) : null,
+      editing: Boolean(p.editing),
+      at,
+    };
+  }
+  return null;
+}
+
+const UUID = /^[0-9a-f-]{36}$/i;
+
+function cleanFocus(raw: unknown): PracFocus | null {
+  if (!raw || typeof raw !== "object") return null;
+  const f = raw as Record<string, unknown>;
+  const clientId = typeof f.clientId === "string" && UUID.test(f.clientId) ? f.clientId : undefined;
+  const clientName =
+    typeof f.clientName === "string" ? f.clientName.replace(/\s+/g, " ").trim().slice(0, 80) : "";
+  const list = Array.isArray(f.list)
+    ? f.list
+        .map((row) => {
+          if (!row || typeof row !== "object") return null;
+          const item = row as Record<string, unknown>;
+          const id = String(item.id ?? "");
+          const name = String(item.name ?? "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 80);
+          if (!UUID.test(id) || !name) return null;
+          return { id, name };
+        })
+        .filter((row): row is { id: string; name: string } => Boolean(row))
+        .slice(0, 10)
+    : [];
+  if (!clientId && !clientName && !list.length) return null;
+  return {
+    clientId,
+    clientName: clientName || undefined,
+    list,
+    at: typeof f.at === "number" ? f.at : 0,
+  };
+}
+
+function cleanQueue(raw: unknown): PracQueued[] {
+  if (!Array.isArray(raw)) return [];
+  const out: PracQueued[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const q = row as Record<string, unknown>;
+    const tool = String(q.tool ?? "");
+    if (!/^[a-z_]{3,40}$/.test(tool)) continue;
+    const frequency = ["daily", "weekdays", "weekly", "off", "menu"].includes(String(q.frequency))
+      ? (String(q.frequency) as PracQueued["frequency"])
+      : null;
+    out.push({
+      tool,
+      names: Array.isArray(q.names)
+        ? q.names
+            .map((n) => String(n).trim())
+            .filter(Boolean)
+            .slice(0, 12)
+        : [],
+      note: typeof q.note === "string" ? q.note.slice(0, 280) : null,
+      task: typeof q.task === "string" ? q.task.slice(0, 600) : null,
+      question: typeof q.question === "string" ? q.question.slice(0, 300) : null,
+      options: Array.isArray(q.options)
+        ? q.options
+            .map((n) => String(n).trim().slice(0, 20))
+            .filter(Boolean)
+            .slice(0, 3)
+        : [],
+      frequency,
+      weekday: typeof q.weekday === "number" ? q.weekday : null,
+      time: typeof q.time === "string" ? q.time.slice(0, 5) : null,
+      enabled: q.enabled === true ? true : q.enabled === false ? false : null,
+    });
+  }
+  return out.slice(0, 4);
+}
+
+function cleanOptions(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((n) =>
+      String(n ?? "")
+        .trim()
+        .slice(0, 20),
+    )
+    .filter((n) => n.length >= 2)
+    .slice(0, 3);
+}
+
+function cleanTurns(raw: unknown): PracTurn[] {
+  if (!Array.isArray(raw)) return [];
+  const turns: PracTurn[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const t = row as Record<string, unknown>;
+    const role = t.role === "buddy" ? "buddy" : t.role === "practitioner" ? "practitioner" : null;
+    const text = typeof t.text === "string" ? t.text.replace(/\s+/g, " ").trim().slice(0, 400) : "";
+    if (role && text) turns.push({ role, text });
+  }
+  return turns.slice(-8);
+}
+
 export function expireMemory(mem: PracMemory, now: number): void {
   if (mem.lastClientAt != null && now - mem.lastClientAt > LAST_CLIENT_MS) mem.lastClientId = null;
   if (mem.replyToAt != null && now - mem.replyToAt > PRAC_MEMORY_MS) mem.replyTo = null;
   if (mem.awaitingReceptionAt != null && now - mem.awaitingReceptionAt > PRAC_MEMORY_MS)
     mem.awaitingReception = false;
+  if (
+    mem.awaitingMorningReceptionAt != null &&
+    now - mem.awaitingMorningReceptionAt > PRAC_MEMORY_MS
+  )
+    mem.awaitingMorningReception = false;
   if (mem.confirmAt != null && now - mem.confirmAt > PRAC_MEMORY_MS) mem.confirm = null;
+  const liveAt = mem.pending?.at ?? mem.focus?.at ?? mem.turnsAt;
+  if (liveAt != null && now - liveAt > PRAC_MEMORY_MS) {
+    mem.pending = null;
+    mem.turns = [];
+    mem.focus = null;
+    mem.queued = [];
+    mem.clarifyOptions = [];
+  }
+}
+
+/** Append a short turn. Refreshes the pending timer so a live chat does not expire mid-reply. */
+export function rememberTurn(
+  mem: PracMemory,
+  role: PracTurn["role"],
+  text: string,
+  now: number,
+): void {
+  const t = String(text ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 400);
+  if (!t) return;
+  mem.turns = [...(mem.turns ?? []), { role, text: t }].slice(-8);
+  mem.turnsAt = now;
+  if (mem.pending) mem.pending = { ...mem.pending, at: now };
+  if (mem.focus) mem.focus = { ...mem.focus, at: now };
 }
 
 export function readPracMemory(draft: unknown, now = Date.now()): PracMemory {
@@ -741,8 +999,16 @@ export function readPracMemory(draft: unknown, now = Date.now()): PracMemory {
   const mem: PracMemory = {
     awaitingReception: Boolean(prac?.awaitingReception),
     awaitingReceptionAt: prac?.awaitingReceptionAt,
+    awaitingMorningReception: Boolean(prac?.awaitingMorningReception),
+    awaitingMorningReceptionAt: prac?.awaitingMorningReceptionAt,
     confirm: prac?.confirm ?? null,
     confirmAt: prac?.confirmAt,
+    turns: cleanTurns(prac?.turns),
+    turnsAt: typeof prac?.turnsAt === "number" ? prac.turnsAt : undefined,
+    pending: cleanPending(prac?.pending),
+    focus: cleanFocus(prac?.focus),
+    queued: cleanQueue(prac?.queued),
+    clarifyOptions: cleanOptions(prac?.clarifyOptions),
     lastClientId: prac?.lastClientId ?? null,
     lastClientAt: prac?.lastClientAt,
     replyTo: prac?.replyTo ?? null,
@@ -750,13 +1016,24 @@ export function readPracMemory(draft: unknown, now = Date.now()): PracMemory {
   };
   expireMemory(mem, now);
   if (!mem.awaitingReception) mem.awaitingReception = false;
+  if (!mem.awaitingMorningReception) mem.awaitingMorningReception = false;
   return mem;
 }
 
 export function writePracMemory(draft: unknown, memory: PracMemory): Record<string, unknown> {
   const base = draft && typeof draft === "object" ? { ...(draft as Record<string, unknown>) } : {};
-  if (memory.awaitingReception || memory.confirm || memory.lastClientId || memory.replyTo)
-    base.prac = { ...memory };
+  const keep =
+    Boolean(memory.awaitingReception) ||
+    Boolean(memory.awaitingMorningReception) ||
+    Boolean(memory.confirm) ||
+    Boolean(memory.pending) ||
+    Boolean(memory.focus) ||
+    Boolean(memory.queued && memory.queued.length) ||
+    Boolean(memory.clarifyOptions && memory.clarifyOptions.length) ||
+    Boolean(memory.turns && memory.turns.length) ||
+    Boolean(memory.lastClientId) ||
+    Boolean(memory.replyTo);
+  if (keep) base.prac = { ...memory };
   else delete base.prac;
   return base;
 }

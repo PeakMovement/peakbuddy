@@ -15,3 +15,23 @@ export const TRAINING_SCHEDULE_CROSSCHECK = true;
 // the existing rewards engine. Issuance is still gated by
 // platform_settings.rewards_enabled (off until admin activates Rewards).
 export const RESTAURANT_REWARD_PARTNERS = true;
+
+// Capability review. Risky sends stay off until an env var is set (see
+// capabilities.ts). These constants are the ones that must not go live by
+// flipping a deploy setting in a hurry.
+
+/** Do not send session notes to a model. The case brief is assembled in code. */
+export const CASE_BRIEF_MODEL = false;
+
+/** Photos and short videos are stored for the treating physio. No vision model. */
+export const EXERCISE_MEDIA = true;
+export const EXERCISE_MEDIA_VISION = false;
+
+/** Spoken replies wait until the text check-in is solid. */
+export const VOICE_NOTE_REPLIES = false;
+
+/** A WhatsApp Flow needs a Meta review. The button and list check-in stays. */
+export const WHATSAPP_FLOW_CHECKIN = false;
+
+/** Red-flag word lists for Afrikaans, isiXhosa, and isiZulu are a review scaffold. */
+export const RED_FLAG_LEXICON_LIVE = false;

@@ -291,6 +291,8 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     await say("4");
     await say("4 Well", IDS.sleep(4));
     await say("3");
+    await say("2", IDS.stress(2));
+    await say("all", IDS.adherence.all);
     await say("Feeling stronger on the stairs");
 
     expect(db.tables.check_ins).toHaveLength(1);

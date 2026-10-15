@@ -23,6 +23,8 @@ export interface VoiceContext {
   /** Days in a row with a check-in, counting today's when it is saved. */
   streak?: number;
   practitionerFirstName?: string | null;
+  /** A goal they or their physio wrote. Repeated, never rewritten. */
+  goal?: string | null;
 }
 
 const SAST_MS = 2 * 60 * 60 * 1000;
@@ -36,18 +38,33 @@ export function greeting(ctx: VoiceContext): string {
   return `${part} ${ctx.firstName}`;
 }
 
+function personalFacts(ctx: VoiceContext): string {
+  const bits: string[] = [];
+  if (ctx.practitionerFirstName) bits.push(`${ctx.practitionerFirstName} can see this.`);
+  if (typeof ctx.lastPain === "number") bits.push(`Last time pain was ${ctx.lastPain}.`);
+  if ((ctx.streak ?? 0) >= 3) bits.push(`${ctx.streak} check-ins in a row.`);
+  if (ctx.goal?.trim()) bits.push(`You're working towards: ${ctx.goal.trim()}.`);
+  return bits.join(" ");
+}
+
 export function opener(ctx: VoiceContext): string {
+  const facts = personalFacts(ctx);
+  const withFacts = (line: string) => (facts ? `${line} ${facts}` : line);
   if (!ctx.checkinsDone)
-    return `Hi ${ctx.firstName}, time for your first check-in. It's four quick questions.`;
+    return withFacts(
+      `Hi ${ctx.firstName}, time for your first check-in. It's a few quick questions.`,
+    );
   const g = greeting(ctx);
-  return pick(
-    [
-      `${g}, time for a quick check-in.`,
-      `${g}, ready for today's check-in? Four quick questions.`,
-      `${g}, let's see how today's been.`,
-      `${g}, quick check-in time.`,
-    ],
-    ctx.now,
+  return withFacts(
+    pick(
+      [
+        `${g}, time for a quick check-in.`,
+        `${g}, ready for today's check-in? A few quick questions.`,
+        `${g}, let's see how today's been.`,
+        `${g}, quick check-in time.`,
+      ],
+      ctx.now,
+    ),
   );
 }
 
@@ -79,9 +96,32 @@ export function afterEnergy(ctx: VoiceContext): string {
   return `${pick(["Last one.", "Nearly done.", "Last question."], ctx.now, 2)} Anything else you'd like your physiotherapist to know? Type it here, or tap Nothing to add.`;
 }
 
+/**
+ * The line a practitioner asks Buddy to send. `<name>` in the preview is the
+ * patient's first name; the real send fills it in. The practice name is the
+ * one on the account, so the sentence is never invented.
+ */
+export function practitionerCheckinText(
+  firstName: string,
+  practiceName: string,
+  note?: string | null,
+): string {
+  const practice = practiceName.trim() || "Peak Movement";
+  const who = firstName.trim() || "there";
+  const base = `Hi ${who}, it's Buddy from ${practice}, checking in on how you're doing.`;
+  const extra = note?.trim();
+  return extra ? `${base} ${extra}` : base;
+}
+
+/** Confirmation the practitioner sees before anyone is messaged. */
+export function practitionerConfirmSend(who: string, preview: string): string {
+  return `I'll message ${who}: "${preview}" Send?`;
+}
+
 export function saved(ctx: VoiceContext): string {
   const who = ctx.practitionerFirstName ? ctx.practitionerFirstName : "your physiotherapist";
-  const base = `Thanks ${ctx.firstName}, that's saved and ${who} can see it.`;
+  const goal = ctx.goal?.trim() ? ` You're working towards: ${ctx.goal.trim()}.` : "";
+  const base = `Thanks ${ctx.firstName}, that's saved and ${who} can see it.${goal}`;
   const n = ctx.streak ?? 0;
   if (n === 7) return `${base} That's a full week of check-ins in a row, well done.`;
   if (n === 14) return `${base} Two weeks in a row now, that's great consistency.`;
