@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { latestStatusByMessage, outboundFailed } from "./transcript-delivery";
 
 /**
  * The WhatsApp conversation between Buddy and one patient, for the
@@ -68,7 +69,7 @@ export const getWhatsAppTranscript = createServerFn({ method: "POST" })
       .limit(TRANSCRIPT_PAGE + 1);
     let outQ = db
       .from("whatsapp_outbound")
-      .select("created_at, body, sent_ok")
+      .select("created_at, body, sent_ok, provider_message_id")
       .eq("client_id", data.clientId)
       .order("created_at", { ascending: false })
       .limit(TRANSCRIPT_PAGE + 1);
@@ -92,17 +93,38 @@ export const getWhatsAppTranscript = createServerFn({ method: "POST" })
       text: r.body || r.reply_title || (r.kind === "media" ? "[media]" : ""),
     }));
     // whatsapp_outbound arrives with migration 0014; until then this is empty.
-    const outLines: TranscriptLine[] = (
-      (outbound.error ? [] : (outbound.data ?? [])) as Array<{
-        created_at: string;
-        body: string;
-        sent_ok: boolean;
-      }>
-    ).map((r) => ({
+    const outRows = (
+      outbound.error ? [] : (outbound.data ?? [])
+    ) as Array<{
+      created_at: string;
+      body: string;
+      sent_ok: boolean;
+      provider_message_id: string | null;
+    }>;
+    const ids = outRows.map((r) => r.provider_message_id).filter((id): id is string => Boolean(id));
+    let statusById = new Map<string, string>();
+    if (ids.length) {
+      const status = await db
+        .from("whatsapp_message_status")
+        .select("provider_message_id, status, occurred_at")
+        .in("provider_message_id", ids);
+      if (!status.error) {
+        statusById = latestStatusByMessage(
+          (status.data ?? []) as Array<{
+            provider_message_id: string;
+            status: string;
+            occurred_at: string;
+          }>,
+        );
+      }
+    }
+    const outLines: TranscriptLine[] = outRows.map((r) => ({
       at: r.created_at,
       from: "buddy" as const,
       text: r.body,
-      failed: r.sent_ok === false || undefined,
+      failed:
+        outboundFailed(r.sent_ok, r.provider_message_id ? statusById.get(r.provider_message_id) : null) ||
+        undefined,
     }));
 
     const { lines: page, hasMore } = mergeTranscriptPage(inLines, outLines);

@@ -53,12 +53,24 @@ export async function runProgrammeReminders(
     const { windowOpen, sendLogged } = await import("./practitioner-status.server");
     const { hasCurrentRequiredConsent } = await import("./onboarding.server");
     const template = process.env.WHATSAPP_PROGRAMME_REMINDER_TEMPLATE?.trim() || "";
+    const discharged = new Set<string>();
+    const episode = await admin
+      .from("clients")
+      .select("id, discharged_at")
+      .eq("programme_reminder_opt_in", true)
+      .limit(1000);
+    if (!episode.error) {
+      for (const row of rows<{ id: string; discharged_at?: string | null }>(episode.data)) {
+        if (row.discharged_at) discharged.add(row.id);
+      }
+    }
     for (const client of rows<{
       id: string;
       full_name: string | null;
       programme_reminder_days: number[] | null;
       programme_reminder_last_sent_on: string | null;
     }>(data)) {
+      if (discharged.has(client.id)) continue;
       const { data: conv } = await admin
         .from("whatsapp_conversations")
         .select("phone, opted_out_at, state")

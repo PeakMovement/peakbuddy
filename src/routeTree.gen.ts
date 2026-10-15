@@ -62,6 +62,7 @@ import { Route as AdminAppClientDetailClientIdRouteImport } from './routes/admin
 import { Route as AdminAppPractitionerPractitionerIdRouteImport } from './routes/admin.app.practitioner.$practitionerId'
 import { Route as ApiPublicAlertsActionRouteImport } from './routes/api/public/alerts/action'
 import { Route as ApiPublicCalendarTokenRouteImport } from './routes/api/public/calendar/$token'
+import { Route as ApiPublicDataExportTokenRouteImport } from './routes/api/public/data-export/$token'
 import { Route as ApiPublicGoogleCalendarCallbackRouteImport } from './routes/api/public/google-calendar/callback'
 import { Route as ApiPublicHooksCheckinRemindersRouteImport } from './routes/api/public/hooks/checkin-reminders'
 import { Route as ApiPublicHooksJobHealthCheckRouteImport } from './routes/api/public/hooks/job-health-check'
@@ -353,6 +354,12 @@ const ApiPublicCalendarTokenRoute = ApiPublicCalendarTokenRouteImport.update({
   path: '/api/public/calendar/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicDataExportTokenRoute =
+  ApiPublicDataExportTokenRouteImport.update({
+    id: '/api/public/data-export/$token',
+    path: '/api/public/data-export/$token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicGoogleCalendarCallbackRoute =
   ApiPublicGoogleCalendarCallbackRouteImport.update({
     id: '/api/public/google-calendar/callback',
@@ -526,6 +533,7 @@ export interface FileRoutesByFullPath {
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
   '/api/public/alerts/action': typeof ApiPublicAlertsActionRoute
   '/api/public/calendar/$token': typeof ApiPublicCalendarTokenRoute
+  '/api/public/data-export/$token': typeof ApiPublicDataExportTokenRoute
   '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
   '/api/public/hooks/job-health-check': typeof ApiPublicHooksJobHealthCheckRoute
@@ -600,6 +608,7 @@ export interface FileRoutesByTo {
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
   '/api/public/alerts/action': typeof ApiPublicAlertsActionRoute
   '/api/public/calendar/$token': typeof ApiPublicCalendarTokenRoute
+  '/api/public/data-export/$token': typeof ApiPublicDataExportTokenRoute
   '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
   '/api/public/hooks/job-health-check': typeof ApiPublicHooksJobHealthCheckRoute
@@ -676,6 +685,7 @@ export interface FileRoutesById {
   '/admin/app/practitioner/$practitionerId': typeof AdminAppPractitionerPractitionerIdRoute
   '/api/public/alerts/action': typeof ApiPublicAlertsActionRoute
   '/api/public/calendar/$token': typeof ApiPublicCalendarTokenRoute
+  '/api/public/data-export/$token': typeof ApiPublicDataExportTokenRoute
   '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
   '/api/public/hooks/job-health-check': typeof ApiPublicHooksJobHealthCheckRoute
@@ -753,6 +763,7 @@ export interface FileRouteTypes {
     | '/admin/app/practitioner/$practitionerId'
     | '/api/public/alerts/action'
     | '/api/public/calendar/$token'
+    | '/api/public/data-export/$token'
     | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
     | '/api/public/hooks/job-health-check'
@@ -827,6 +838,7 @@ export interface FileRouteTypes {
     | '/admin/app/practitioner/$practitionerId'
     | '/api/public/alerts/action'
     | '/api/public/calendar/$token'
+    | '/api/public/data-export/$token'
     | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
     | '/api/public/hooks/job-health-check'
@@ -902,6 +914,7 @@ export interface FileRouteTypes {
     | '/admin/app/practitioner/$practitionerId'
     | '/api/public/alerts/action'
     | '/api/public/calendar/$token'
+    | '/api/public/data-export/$token'
     | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
     | '/api/public/hooks/job-health-check'
@@ -951,6 +964,7 @@ export interface RootRouteChildren {
   LovableEmailEventsRoute: typeof LovableEmailEventsRoute
   ApiPublicAlertsActionRoute: typeof ApiPublicAlertsActionRoute
   ApiPublicCalendarTokenRoute: typeof ApiPublicCalendarTokenRoute
+  ApiPublicDataExportTokenRoute: typeof ApiPublicDataExportTokenRoute
   ApiPublicGoogleCalendarCallbackRoute: typeof ApiPublicGoogleCalendarCallbackRoute
   ApiPublicHooksCheckinRemindersRoute: typeof ApiPublicHooksCheckinRemindersRoute
   ApiPublicHooksJobHealthCheckRoute: typeof ApiPublicHooksJobHealthCheckRoute
@@ -1345,6 +1359,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCalendarTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/data-export/$token': {
+      id: '/api/public/data-export/$token'
+      path: '/api/public/data-export/$token'
+      fullPath: '/api/public/data-export/$token'
+      preLoaderRoute: typeof ApiPublicDataExportTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/google-calendar/callback': {
       id: '/api/public/google-calendar/callback'
       path: '/api/public/google-calendar/callback'
@@ -1603,6 +1624,7 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailEventsRoute: LovableEmailEventsRoute,
   ApiPublicAlertsActionRoute: ApiPublicAlertsActionRoute,
   ApiPublicCalendarTokenRoute: ApiPublicCalendarTokenRoute,
+  ApiPublicDataExportTokenRoute: ApiPublicDataExportTokenRoute,
   ApiPublicGoogleCalendarCallbackRoute: ApiPublicGoogleCalendarCallbackRoute,
   ApiPublicHooksCheckinRemindersRoute: ApiPublicHooksCheckinRemindersRoute,
   ApiPublicHooksJobHealthCheckRoute: ApiPublicHooksJobHealthCheckRoute,

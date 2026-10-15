@@ -7,6 +7,7 @@
 
 import { supabase } from "@/lib/supabase";
 import { log } from "@/lib/log";
+import { bindOfflineUser, clearOfflineStore, flushQueue, queueLength } from "@/lib/offline-queue";
 
 const STORAGE_KEY = "buddy_last_active_at";
 const WRITE_THROTTLE_MS = 60 * 1000; // update localStorage at most once per minute
@@ -69,6 +70,21 @@ async function signOutIfIdle(maxIdleMs: number): Promise<void> {
   }
 
   try {
+    if (typeof navigator === "undefined" || navigator.onLine) {
+      await flushQueue().catch(() => undefined);
+    }
+    const left = queueLength();
+    if (
+      left > 0 &&
+      document.visibilityState === "visible" &&
+      typeof window.confirm === "function" &&
+      !window.confirm(
+        `You have ${left} check-in${left === 1 ? "" : "s"} still on this device. Signing out will remove them. Continue?`,
+      )
+    ) {
+      return;
+    }
+    clearOfflineStore();
     await supabase.auth.signOut();
     clearIdleTimestamp();
     log.info("[idle-signout] signed out after inactivity");
@@ -107,9 +123,20 @@ export function initIdleSignout(opts: { maxIdleMs: number }): () => void {
     void signOutIfIdle(maxIdleMs);
   }, CHECK_INTERVAL_MS);
 
-  const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-    if (event === "SIGNED_OUT") clearIdleTimestamp();
-    else if (event === "SIGNED_IN") markActive();
+  void supabase.auth.getSession().then(({ data }) => {
+    bindOfflineUser(data.session?.user?.id ?? null);
+  });
+
+  const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_OUT") {
+      clearIdleTimestamp();
+      void flushQueue()
+        .catch(() => undefined)
+        .finally(() => clearOfflineStore());
+    } else if (event === "SIGNED_IN") {
+      bindOfflineUser(session?.user?.id ?? null);
+      markActive();
+    }
   });
 
   return () => {

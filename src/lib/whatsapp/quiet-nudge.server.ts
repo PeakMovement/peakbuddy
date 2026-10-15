@@ -64,6 +64,13 @@ export async function runQuietNudges(
       practitioner_id: string | null;
       created_at: string | null;
     }>(clientRows);
+    const discharged = new Set<string>();
+    const episode = await admin.from("clients").select("id, discharged_at").limit(1000);
+    if (!episode.error) {
+      for (const row of rows<{ id: string; discharged_at?: string | null }>(episode.data)) {
+        if (row.discharged_at) discharged.add(row.id);
+      }
+    }
     const { data: checkRows } = await admin
       .from("check_ins")
       .select("client_id, created_at")
@@ -85,6 +92,7 @@ export async function runQuietNudges(
       await import("./practitioner-status.server");
     for (const client of clients) {
       if (!client.practitioner_id) continue;
+      if (discharged.has(client.id)) continue;
       const at = latest.get(client.id) ?? client.created_at;
       const quietDays = at ? Math.floor((now.getTime() - new Date(at).getTime()) / 86_400_000) : 99;
       const nudge = nudges.get(client.id);
