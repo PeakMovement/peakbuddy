@@ -250,7 +250,7 @@ describe("the client's answer", () => {
     expect(notes).toContain("Old note");
     expect(notes).toContain('Justin asked "When are your sporting events happening?"');
     expect(notes).toContain("Saturday the 18th and 2 November");
-    expect(e.sent[0]).toMatchObject({ kind: "text", to: PRAC_PHONE });
+    expect(e.sent[0]).toMatchObject({ kind: "buttons", to: PRAC_PHONE });
     expect(e.sent[0].body).toContain("Tayla F. answered your question");
     expect(db.t.alerts[0]).toMatchObject({
       client_id: TAYLA,

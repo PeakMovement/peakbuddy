@@ -601,7 +601,8 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
         memory.awaitingReception ||
         memory.awaitingMorningReception ||
         memory.confirm ||
-        memory.pending,
+        memory.pending ||
+        memory.replyTo,
       );
       const isCommand =
         waiting ||
@@ -609,7 +610,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
         PROGRAMME_SENT.test(text) ||
         looksLikeProgramme(text) ||
         Boolean(rerouted) ||
-        /^(prog|prac|pq)_/i.test(replyId ?? "") ||
+        /^(prog|prac|pq|pm)_/i.test(replyId ?? "") ||
         practitionerIntent(text, replyId).kind !== "other";
       let heidiCommand = false;
       if (process.env.HEIDI_API_KEY && process.env.HEIDI_REGION && process.env.HEIDI_EHR_PROVIDER) {

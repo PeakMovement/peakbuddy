@@ -134,6 +134,7 @@ export function needsPractitionerAgent(text: string, memory?: PracMemory | null)
     memory?.pending ||
     memory?.focus ||
     memory?.awaitingMorningReception ||
+    memory?.replyTo ||
     (memory?.queued && memory.queued.length > 0)
   )
     return true;

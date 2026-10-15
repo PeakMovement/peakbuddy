@@ -633,7 +633,7 @@ export interface RankedPatient<T> {
   score: number;
 }
 
-function closeName(token: string, name: string): boolean {
+export function closeName(token: string, name: string): boolean {
   if (token === name || name.length < 3 || token.length < 3) return false;
   if (token[0] !== name[0] || Math.abs(token.length - name.length) > 2) return false;
   const d = editDistance(token, name);
@@ -784,9 +784,17 @@ export interface PracMemory {
   queued?: PracQueued[];
   /** Button labels from the last clarifying question, in order. */
   clarifyOptions?: string[];
+  /** The client last talked about, for "tell her ...". */
+  lastClientId?: string | null;
+  lastClientAt?: number;
+  /** Tapped "Reply to Nicola": the next message goes to this client. */
+  replyTo?: string | null;
+  replyToAt?: number;
 }
 
 export const PRAC_MEMORY_MS = 30 * 60 * 1000;
+/** "her" still means the same client for this long. */
+export const LAST_CLIENT_MS = 3 * 60 * 60 * 1000;
 
 const CHOOSE_ACTIONS = new Set(["status", "messages", "checkin", "programme", "heidi"]);
 const OUTBOUND_ACTIONS = new Set(["checkin", "programme", "reception"]);
@@ -945,6 +953,8 @@ function cleanTurns(raw: unknown): PracTurn[] {
 }
 
 export function expireMemory(mem: PracMemory, now: number): void {
+  if (mem.lastClientAt != null && now - mem.lastClientAt > LAST_CLIENT_MS) mem.lastClientId = null;
+  if (mem.replyToAt != null && now - mem.replyToAt > PRAC_MEMORY_MS) mem.replyTo = null;
   if (mem.awaitingReceptionAt != null && now - mem.awaitingReceptionAt > PRAC_MEMORY_MS)
     mem.awaitingReception = false;
   if (
@@ -999,6 +1009,10 @@ export function readPracMemory(draft: unknown, now = Date.now()): PracMemory {
     focus: cleanFocus(prac?.focus),
     queued: cleanQueue(prac?.queued),
     clarifyOptions: cleanOptions(prac?.clarifyOptions),
+    lastClientId: prac?.lastClientId ?? null,
+    lastClientAt: prac?.lastClientAt,
+    replyTo: prac?.replyTo ?? null,
+    replyToAt: prac?.replyToAt,
   };
   expireMemory(mem, now);
   if (!mem.awaitingReception) mem.awaitingReception = false;
@@ -1016,7 +1030,9 @@ export function writePracMemory(draft: unknown, memory: PracMemory): Record<stri
     Boolean(memory.focus) ||
     Boolean(memory.queued && memory.queued.length) ||
     Boolean(memory.clarifyOptions && memory.clarifyOptions.length) ||
-    Boolean(memory.turns && memory.turns.length);
+    Boolean(memory.turns && memory.turns.length) ||
+    Boolean(memory.lastClientId) ||
+    Boolean(memory.replyTo);
   if (keep) base.prac = { ...memory };
   else delete base.prac;
   return base;

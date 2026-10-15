@@ -61,6 +61,12 @@ export function readPatientQuestion(text: string): string | null {
  * "when her sporting events are happening" -> "When are your sporting events happening?"
  */
 export function toPatient(q: string): string {
+  // "when your events are happening" reads better as a direct question.
+  return finishQuestion(swapPronouns(q));
+}
+
+/** "she is doing great with her rehab" -> "you are doing great with your rehab". */
+export function swapPronouns(q: string): string {
   let s = ` ${q.trim()} `;
   const swaps: Array<[RegExp, string]> = [
     [/\b(?:she|he|they)\s+(?:is|'s)\b/gi, "you are"],
@@ -83,15 +89,18 @@ export function toPatient(q: string): string {
     [/\b(?:his|their)\b/gi, "your"],
     [/\btheirs\b|\bhers\b/gi, "yours"],
     [
-      /\bher(?=\s+(?!to\b|about\b|for\b|if\b|when\b|and\b|or\b|that\b|at\b|on\b|in\b|with\b)[a-z])/gi,
+      /\bher(?=\s+(?!to\b|about\b|for\b|if\b|when\b|and\b|or\b|that\b|at\b|on\b|in\b|with\b|so\b|very\b|too\b|a\s+lot\b|lots\b|loads\b|back\b|again\b|today\b|tomorrow\b|now\b|soon\b|later\b|more\b|please\b|by\b|from\b|this\b|next\b|tonight\b|all\b|as\b|know\b)[a-z])/gi,
       "your",
     ],
     [/\b(?:her|him|them)\b/gi, "you"],
     [/\b(?:she|he|they)\b/gi, "you"],
   ];
   for (const [re, to] of swaps) s = s.replace(re, to);
-  s = s.trim().replace(/\s+/g, " ");
-  // "when your events are happening" reads better as a direct question.
+  return s.trim().replace(/\s+/g, " ");
+}
+
+function finishQuestion(input: string): string {
+  let s = input;
   const reordered = s.replace(
     /^(when|where|what|how|why|which)\s+(your\s+[a-z]+(?:\s+[a-z]+)?)\s+(are|is|were|was)\s+/i,
     (_m, w: string, subj: string, verb: string) => `${w} ${verb} ${subj} `,

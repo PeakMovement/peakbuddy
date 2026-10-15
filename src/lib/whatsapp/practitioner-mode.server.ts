@@ -203,6 +203,7 @@ export const PRAC_MSG = {
     `• "How are my clients doing?" for a quick status of all your clients\n` +
     `• "How is Sam Kruger doing?", or just "Sam Kruger", for one client\n` +
     `• "Sam's messages" to read what's open for them in full and mark it reviewed. "My messages" for everything waiting\n` +
+    `• "Tell Sam well done on his race" to send Sam a message. I'll show you the words first and pass their reply back to you\n` +
     `• "Who checked in this week?" (or today, yesterday, since Monday)\n` +
     `• "Check in with Sam Kruger" and I'll ask them for a check-in, then send you their answers\n` +
     `• "Update me daily at 7am" (or weekdays, every Monday, every morning, stop updates)\n` +
@@ -458,6 +459,20 @@ export async function handlePractitionerMessage(
     mem.awaitingMorningReception = false;
   }
 
+  // They tapped "Reply to Nicola": this message goes to Nicola as typed.
+  // It runs before the model so the follow-on sentence is not re-read as a new command.
+  if (mem.replyTo && !msg.replyId && msg.text.trim()) {
+    const clientId = mem.replyTo;
+    mem.replyTo = null;
+    if (isCancel(msg.text)) {
+      const pq = await import("./patient-questions.server");
+      await deps.reply({ kind: "text", body: pq.MESSAGE_MSG.cancelled });
+      return true;
+    }
+    await sendTyped(adminIn, prac, clientId, msg.text.trim(), deps, mem);
+    return true;
+  }
+
   let agentTried = false;
   const tryAgent = async (): Promise<boolean> => {
     if (agentTried) return false;
@@ -504,7 +519,12 @@ export async function handlePractitionerMessage(
     (msg.replyId === "prac_cfm_yes" ||
       msg.replyId === "prac_cfm_no" ||
       (!msg.replyId && (isYes(msg.text) || isCancel(msg.text))));
-  if (answeringConfirm || isExactShortcut(msg.text, msg.replyId)) {
+  // "tell Nicola well done" and the Reply button have their own confirm step.
+  // The model must not turn those into a different tool.
+  const { practitionerIntent: intentOf } = await import("./practitioner-status.server");
+  const earlyKind = intentOf(msg.text, msg.replyId).kind;
+  const patientMessage = earlyKind === "message_patient" || earlyKind === "message_reply";
+  if (answeringConfirm || patientMessage || isExactShortcut(msg.text, msg.replyId)) {
     mem.pending = null;
     mem.queued = [];
   } else {
@@ -636,6 +656,12 @@ export async function handlePractitionerMessage(
         body: PRAC_MSG.help(prac.firstName) + (heidiConfig() ? `\n${HEIDI_MSG.helpLine}` : ""),
         buttons: HELP_BUTTONS,
       });
+    } else if (
+      msg.text.trim().split(/\s+/).length >= 2 &&
+      !blocksOutbound(msg.text) &&
+      (await offerToPassOn(adminIn, prac, msg.text.trim(), deps, mem))
+    ) {
+      // In a conversation with a client: offered to pass this on.
     } else {
       // A client's name on its own ("Lauren Ogg", "Lauren off") brings up
       // that client. A longer message that only mentions a name asks first.
@@ -867,6 +893,7 @@ async function handleQuestionIntent(
     { kind: "ask_patient" | "ask_pick" | "ask_cancel" }
   >,
   deps: PractitionerDeps,
+  mem: PracMemory = {},
 ): Promise<void> {
   const pq = await import("./patient-questions.server");
   const admin = adminIn as unknown as Db;
@@ -874,8 +901,12 @@ async function handleQuestionIntent(
   const env = { provider: deps.provider, secrets: deps.secrets };
 
   if (intent.kind === "ask_cancel") {
+    const q = await pq.loadQuestion(adminIn, intent.questionId);
     await pq.cancelQuestion(adminIn, intent.questionId);
-    await text1(pq.QUESTION_MSG.cancelled);
+    const { isQuestionText } = await import("./patient-message-text");
+    await text1(
+      q && !isQuestionText(q.question) ? pq.MESSAGE_MSG.cancelled : pq.QUESTION_MSG.cancelled,
+    );
     return;
   }
 
@@ -937,23 +968,269 @@ async function handleQuestionIntent(
     target = hits[0].patient;
   }
 
-  const name = firstOf(target.full_name);
-  const result = await pq.askNow(adminIn, env, {
-    questionId,
+  rememberClient(mem, target.id, deps.now);
+  await sendStored(adminIn, prac, questionId, target, question, deps);
+}
+
+/** After a Reply tap: send what they typed, as typed. */
+async function sendTyped(
+  adminIn: Admin,
+  prac: Practitioner,
+  clientId: string,
+  text: string,
+  deps: PractitionerDeps,
+  mem: PracMemory,
+): Promise<void> {
+  const pq = await import("./patient-questions.server");
+  const admin = adminIn as unknown as Db;
+  const patients = await practitionerPatients(admin, prac.userId);
+  const target = patients.find((p) => p.id === clientId) ?? null;
+  if (!target) {
+    await deps.reply({ kind: "text", body: PRAC_MSG.notFoundAny(prac.firstName) });
+    return;
+  }
+  const words = text.slice(0, 1000);
+  const id = await pq.saveDraft(adminIn, {
+    practitionerId: prac.userId,
+    question: words,
     clientId: target.id,
-    practitionerName: prac.firstName,
     now: deps.now,
   });
-  await text1(
-    result === "asked"
-      ? pq.QUESTION_MSG.asked(name, question)
-      : result === "waiting"
-        ? pq.QUESTION_MSG.waiting(name, question)
-        : result === "not_whatsapp"
-          ? pq.QUESTION_MSG.notOnWhatsApp(name)
-          : pq.QUESTION_MSG.failed(name),
-  );
+  if (!id) {
+    await deps.reply({ kind: "text", body: pq.QUESTION_MSG.failed(firstOf(target.full_name)) });
+    return;
+  }
+  rememberClient(mem, target.id, deps.now);
+  await sendStored(adminIn, prac, id, target, words, deps);
 }
+
+/**
+ * Buddy didn't recognise the message, but a client replied to this
+ * practitioner in the last 2 hours: it's probably for them. Ask first.
+ */
+async function offerToPassOn(
+  adminIn: Admin,
+  prac: Practitioner,
+  text: string,
+  deps: PractitionerDeps,
+  mem: PracMemory,
+): Promise<boolean> {
+  const clientId = await recentConversationClient(
+    adminIn,
+    prac.userId,
+    deps.now,
+    2 * 60 * 60 * 1000,
+    true,
+  );
+  if (!clientId) return false;
+  const admin = adminIn as unknown as Db;
+  const target = (await practitionerPatients(admin, prac.userId)).find((p) => p.id === clientId);
+  if (!target) return false;
+  const pq = await import("./patient-questions.server");
+  const id = await pq.saveDraft(adminIn, {
+    practitionerId: prac.userId,
+    question: text.slice(0, 1000),
+    clientId,
+    now: deps.now,
+  });
+  if (!id) return false;
+  rememberClient(mem, clientId, deps.now);
+  await deps.reply({
+    kind: "buttons",
+    body: pq.MESSAGE_MSG.confirm(String(target.full_name ?? "").trim() || "them", text),
+    buttons: [
+      { id: `pq_pick_${id}_${clientId}`, title: "Send" },
+      { id: `pq_cancel_${id}`, title: "Don't send" },
+    ],
+  });
+  return true;
+}
+
+function rememberClient(mem: PracMemory, clientId: string, now: Date): void {
+  mem.lastClientId = clientId;
+  mem.lastClientAt = now.getTime();
+}
+
+/** Send a saved question or message to the client and tell the practitioner how it went. */
+async function sendStored(
+  adminIn: Admin,
+  prac: Practitioner,
+  questionId: string,
+  target: PatientRow,
+  text: string,
+  deps: PractitionerDeps,
+): Promise<void> {
+  const pq = await import("./patient-questions.server");
+  const { isQuestionText } = await import("./patient-message-text");
+  const name = firstOf(target.full_name);
+  const result = await pq.askNow(
+    adminIn,
+    { provider: deps.provider, secrets: deps.secrets },
+    { questionId, clientId: target.id, practitionerName: prac.firstName, now: deps.now },
+  );
+  const isQ = isQuestionText(text);
+  await deps.reply({
+    kind: "text",
+    body:
+      result === "asked"
+        ? isQ
+          ? pq.QUESTION_MSG.asked(name, text)
+          : pq.MESSAGE_MSG.sent(name, text)
+        : result === "waiting"
+          ? isQ
+            ? pq.QUESTION_MSG.waiting(name, text)
+            : pq.MESSAGE_MSG.waiting(name, text)
+          : result === "not_whatsapp"
+            ? pq.QUESTION_MSG.notOnWhatsApp(name)
+            : pq.QUESTION_MSG.failed(name),
+  });
+}
+
+/**
+ * The client this practitioner is talking with: the last one a question or
+ * message went to, or who replied, within the window. For "tell her ...".
+ */
+async function recentConversationClient(
+  adminIn: Admin,
+  practitionerId: string,
+  now: Date,
+  windowMs: number,
+  answeredOnly = false,
+): Promise<string | null> {
+  const admin = adminIn as unknown as Db;
+  const { data } = await admin
+    .from("patient_questions")
+    .select("client_id, status, asked_at, answered_at")
+    .eq("practitioner_id", practitionerId)
+    .in("status", answeredOnly ? ["answered"] : ["asked", "answered"])
+    .limit(200);
+  let best: { id: string; at: number } | null = null;
+  for (const r of (data ?? []) as Array<Record<string, string | null>>) {
+    const at = Date.parse(String(r.answered_at ?? r.asked_at ?? ""));
+    if (!r.client_id || !Number.isFinite(at) || now.getTime() - at > windowMs) continue;
+    if (!best || at > best.at) best = { id: r.client_id, at };
+  }
+  return best?.id ?? null;
+}
+
+/**
+ * "Tell Nicola well done", "can you tell her I love her", or the Reply
+ * button under a client's reply. Buddy shows the exact words the client
+ * will get and sends on "Send". After a Reply tap the next message goes
+ * as typed.
+ */
+async function handleMessageIntent(
+  adminIn: Admin,
+  prac: Practitioner,
+  intent: Extract<
+    import("./practitioner-status.server").PracIntent,
+    { kind: "message_patient" | "message_reply" }
+  >,
+  deps: PractitionerDeps,
+  mem: PracMemory,
+): Promise<void> {
+  const pq = await import("./patient-questions.server");
+  const mt = await import("./patient-message-text");
+  const { swapPronouns } = await import("./patient-question-text");
+  const { closeName } = await import("./practitioner-understand");
+  const admin = adminIn as unknown as Db;
+  const text1 = (body: string) => deps.reply({ kind: "text", body });
+  const patients = await practitionerPatients(admin, prac.userId);
+
+  if (intent.kind === "message_reply") {
+    const target = patients.find((p) => p.id === intent.clientId) ?? null;
+    if (!target) {
+      await text1(PRAC_MSG.notFoundAny(prac.firstName));
+      return;
+    }
+    rememberClient(mem, target.id, deps.now);
+    mem.replyTo = target.id;
+    mem.replyToAt = deps.now.getTime();
+    mem.confirm = null;
+    mem.awaitingReception = false;
+    await text1(pq.MESSAGE_MSG.replyAsk(firstOf(target.full_name)));
+    return;
+  }
+
+  const req = intent.req;
+  let targets: PatientRow[] = [];
+  let words = "";
+  if (req.pronoun) {
+    const id =
+      mem.lastClientId ?? (await recentConversationClient(adminIn, prac.userId, deps.now, DAY_MS));
+    const t = patients.find((p) => p.id === id) ?? null;
+    if (!t) {
+      await text1(pq.MESSAGE_MSG.whoIsIt(req.who ?? "them"));
+      return;
+    }
+    targets = [t];
+    words = req.rest.slice((req.who ?? "").length).trim();
+  } else {
+    const probe = req.who ?? req.rest.split(/\s+/).slice(0, 3).join(" ");
+    const hits = rankPatients(probe, patients);
+    if (!hits.length) {
+      await text1(PRAC_MSG.notFoundAny(prac.firstName));
+      return;
+    }
+    targets = hits.slice(0, 10).map((h) => h.patient);
+    words = req.who
+      ? req.rest.slice(req.who.length).trim()
+      : mt.stripLeadingName(
+          req.rest,
+          targets.map((p) => String(p.full_name ?? "")).join(" "),
+          closeName,
+        );
+  }
+  const message = mt.toClientMessage(words, swapPronouns);
+  if (!message) {
+    // "tell Nicola" with nothing after it: ask what to say.
+    if (targets.length === 1) {
+      return handleMessageIntent(
+        adminIn,
+        prac,
+        { kind: "message_reply", clientId: targets[0].id },
+        deps,
+        mem,
+      );
+    }
+    await text1(PRAC_MSG.notFoundAny(prac.firstName));
+    return;
+  }
+  const draftId = await pq.saveDraft(adminIn, {
+    practitionerId: prac.userId,
+    question: message,
+    clientId: targets.length === 1 ? targets[0].id : null,
+    now: deps.now,
+  });
+  if (!draftId) {
+    await text1(pq.QUESTION_MSG.failed("them"));
+    return;
+  }
+  if (targets.length > 1) {
+    await deps.reply({
+      kind: "list",
+      body: pq.MESSAGE_MSG.which,
+      buttonLabel: "Choose",
+      rows: targets.map((p) => ({
+        id: `pq_pick_${draftId}_${p.id}`,
+        title: String(p.full_name ?? "Client").slice(0, 24),
+      })),
+    });
+    return;
+  }
+  const target = targets[0];
+  rememberClient(mem, target.id, deps.now);
+  await deps.reply({
+    kind: "buttons",
+    body: pq.MESSAGE_MSG.confirm(String(target.full_name ?? "").trim() || "them", message),
+    buttons: [
+      { id: `pq_pick_${draftId}_${target.id}`, title: "Send" },
+      { id: `pq_cancel_${draftId}`, title: "Don't send" },
+    ],
+  });
+}
+
+const DAY_MS = 86_400_000;
 
 async function handleStatusIntent(
   adminIn: Admin,
@@ -1024,7 +1301,11 @@ async function handleStatusIntent(
     return;
   }
   if (intent.kind === "ask_patient" || intent.kind === "ask_pick" || intent.kind === "ask_cancel") {
-    await handleQuestionIntent(adminIn, prac, text, intent, deps);
+    await handleQuestionIntent(adminIn, prac, text, intent, deps, mem);
+    return;
+  }
+  if (intent.kind === "message_patient" || intent.kind === "message_reply") {
+    await handleMessageIntent(adminIn, prac, intent, deps, mem);
     return;
   }
   if (intent.kind === "admin") {
@@ -1078,6 +1359,7 @@ async function handleStatusIntent(
     await text1(PRAC_MSG.notFoundAny(prac.firstName));
     return;
   }
+  rememberClient(mem, target.id, deps.now);
 
   if (intent.kind === "status_one") {
     const { data: row } = await admin
@@ -1103,7 +1385,10 @@ async function handleStatusIntent(
             : { id: `prac_revall_${target.id}`, title: "Mark all reviewed" },
           { id: `prac_ci_${target.id}`, title: "Ask for a check-in" },
         ]
-      : [{ id: `prac_ci_${target.id}`, title: "Ask for a check-in" }];
+      : [
+          { id: `prac_ci_${target.id}`, title: "Ask for a check-in" },
+          { id: `pm_reply_${target.id}`, title: "Send a message" },
+        ];
     await deps.reply({ kind: "buttons", body, buttons });
     return;
   }
