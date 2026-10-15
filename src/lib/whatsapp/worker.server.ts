@@ -17,6 +17,14 @@ import {
   type InboundForDecision,
 } from "./conversation";
 import { maskPhone, matchPhone, toE164Digits } from "./phone";
+import { BUDDY_FLAGS, converseDailyCap, patientFlag } from "@/lib/buddy-flags";
+import { acceptClientRow, resolveLinkedClient } from "./client-load";
+import { mergeDayCheckIn, partialFromDraft, type DayCheckIn } from "@/lib/checkin-day";
+import { attemptOf, canRetry, inboundQueueDetail, retryReason } from "./inbound-retry";
+import { takeAiUsage } from "./ai-usage";
+import { PHONE_CLASH_PATIENT, phoneClashOwnerMessage } from "./phone-clash";
+import { isDataCopyRequest, DATA_COPY_PATIENT } from "@/lib/data-export-bundle";
+import { clientDischarged } from "./care.server";
 import { getProvider, type ProviderSecrets, type WhatsAppProvider } from "./provider";
 import { looksPostOperative, runRedFlagRules, type RuleLayerResult } from "./red-flag-rules";
 import { consecutiveMissedCheckins, sastDayKey } from "./missed-checkins";
@@ -74,6 +82,7 @@ interface InboundRow {
   media_id?: string | null;
   media_mime_type?: string | null;
   received_at: string;
+  failure_reason?: string | null;
 }
 
 interface ConversationRow {
@@ -103,10 +112,16 @@ interface ClientRow {
   next_appointment?: string | null;
   reply_hour?: number | null;
   reply_hour_count?: number | null;
+  phone_e164?: string | null;
+  discharged_at?: string | null;
 }
 
 const CLIENT_COLS =
-  "id, full_name, practitioner_id, practice_id, yves_ai_consent, auth_user_id, phone, notes, primary_complaint, goal, next_appointment, reply_hour, reply_hour_count";
+  "id, full_name, practitioner_id, practice_id, yves_ai_consent, auth_user_id, phone, notes, primary_complaint, goal, next_appointment, reply_hour, reply_hour_count, phone_e164, discharged_at";
+
+/** Columns that existed before next_appointment. Used when the wide select fails. */
+const CLIENT_COLS_SAFE =
+  "id, full_name, practitioner_id, practice_id, yves_ai_consent, auth_user_id, phone, notes, primary_complaint";
 
 export interface WorkerResult {
   processed: number;
@@ -201,10 +216,28 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
     /* never blocks the inbound queue */
   }
 
+  let staleSaved = 0;
+  let staleUnsaved = 0;
+  if (patientFlag(BUDDY_FLAGS.inboundRetry)) {
+    const { data: failedRows } = await admin
+      .from("whatsapp_inbound")
+      .select("id, failure_reason")
+      .eq("status", "failed")
+      .limit(20);
+    for (const failed of (failedRows ?? []) as Array<{ id: string; failure_reason?: string | null }>) {
+      if (!canRetry(failed.failure_reason)) continue;
+      await admin
+        .from("whatsapp_inbound")
+        .update({ status: "pending" })
+        .eq("id", failed.id)
+        .eq("status", "failed");
+    }
+  }
+
   const { data: rows, error } = await admin
     .from("whatsapp_inbound")
     .select(
-      "id, provider, provider_message_id, from_phone, kind, body, reply_id, reply_title, media_id, media_mime_type, received_at",
+      "id, provider, provider_message_id, from_phone, kind, body, reply_id, reply_title, media_id, media_mime_type, received_at, failure_reason",
     )
     .eq("status", "pending")
     .order("received_at", { ascending: true })
@@ -239,12 +272,18 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
       !voiceStillRaw &&
       !runRedFlagRules({ text: row.body ?? "" }).triggered
     ) {
+      const saved = await saveStalePartial(admin, row, new Date(nowMs)).catch(() => "failed" as const);
+      if (saved === "saved") staleSaved++;
+      else staleUnsaved++;
       await admin
         .from("whatsapp_inbound")
         .update({
           status: "ignored",
           processed_at: new Date().toISOString(),
-          failure_reason: "stale: not reached within 2 hours, not answered",
+          failure_reason:
+            saved === "saved"
+              ? "stale: partial check-in saved, rest not answered"
+              : "stale: not reached within 2 hours, not answered",
         })
         .eq("id", row.id)
         .eq("status", "pending");
@@ -279,18 +318,32 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
         .eq("id", row.id);
       result.processed++;
     } catch (e) {
-      const reason = e instanceof Error ? e.message.slice(0, 200) : "unknown";
+      const reason = e instanceof Error ? e.message.slice(0, 160) : "unknown";
+      const marked = retryReason(row.failure_reason, reason);
+      const retry = patientFlag(BUDDY_FLAGS.inboundRetry) && attemptOf(marked) < 3;
       await admin
         .from("whatsapp_inbound")
         .update({
-          status: "failed",
+          status: retry ? "pending" : "failed",
           processed_at: new Date().toISOString(),
-          failure_reason: reason,
+          failure_reason: marked,
         })
         .eq("id", row.id);
       log.warn("whatsapp worker: message failed", { reason, from: maskPhone(row.from_phone) });
       result.failed++;
     }
+  }
+
+  await noteInboundHealth(admin, staleSaved, staleUnsaved).catch(() => undefined);
+  const usage = takeAiUsage();
+  if (usage) {
+    const { recordJobRun } = await import("@/lib/job-runs.server");
+    await recordJobRun("whatsapp-ai-usage", {
+      ok: true,
+      status: 200,
+      durationMs: 0,
+      detail: usage,
+    }).catch(() => undefined);
   }
 
   return result;
@@ -347,24 +400,184 @@ async function loadConversation(admin: Admin, phone: string): Promise<Conversati
   throw new Error(`conversation load failed: ${error?.code ?? "unknown"}`);
 }
 
-async function findClientIdByPhone(admin: Admin, phone: string): Promise<string | null> {
+interface PhoneHit {
+  id: string;
+  full_name: string | null;
+  practitioner_id: string;
+  practice_id?: string | null;
+}
+
+async function findClientByPhone(
+  admin: Admin,
+  phone: string,
+): Promise<{ id: string | null; clash: PhoneHit[] | null }> {
+  const digits = toE164Digits(phone);
+  if (digits && patientFlag(BUDDY_FLAGS.phoneAmbiguous)) {
+    const indexed = await admin
+      .from("clients")
+      .select("id, full_name, practitioner_id, practice_id")
+      .eq("phone_e164", digits)
+      .limit(5);
+    if (!indexed.error) {
+      const rows = (indexed.data ?? []) as PhoneHit[];
+      if (rows.length === 1) return { id: rows[0].id, clash: null };
+      if (rows.length > 1) return { id: null, clash: rows };
+    }
+  }
   // Pilot scale: read the numbers and compare in code, because practitioners
-  // type numbers in every format and SQL cannot normalise them reliably. The
-  // result is stored on the conversation, so this only runs until a match.
+  // type numbers in every format and SQL cannot normalise them reliably.
   const { data } = await admin
     .from("clients")
-    .select("id, phone")
+    .select("id, full_name, practitioner_id, practice_id, phone")
     .not("phone", "is", null)
     .limit(5000);
-  const match = matchPhone(phone, (data ?? []) as Array<{ id: string; phone: string | null }>);
+  const rows = (data ?? []) as Array<PhoneHit & { phone: string | null }>;
+  const match = matchPhone(phone, rows);
   if (match.kind === "ambiguous") {
     log.warn("whatsapp worker: number on more than one profile", {
       from: maskPhone(phone),
       count: match.ids.length,
     });
-    return null;
+    const clash = rows.filter((r) => match.ids.includes(r.id));
+    return { id: null, clash: patientFlag(BUDDY_FLAGS.phoneAmbiguous) ? clash : null };
   }
-  return match.kind === "matched" ? match.id : null;
+  return { id: match.kind === "matched" ? match.id : null, clash: null };
+}
+
+async function loadLinkedClient(admin: Admin, clientId: string): Promise<ClientRow | null> {
+  const primary = await admin.from("clients").select(CLIENT_COLS).eq("id", clientId).maybeSingle();
+  let fallback: { data: ClientRow | null; error: { code?: string } | null } | null = null;
+  if (primary.error) {
+    log.warn("whatsapp worker: client select failed", { code: primary.error.code });
+    const second = await admin.from("clients").select(CLIENT_COLS_SAFE).eq("id", clientId).maybeSingle();
+    if (second.error) log.warn("whatsapp worker: client select failed", { code: second.error.code });
+    fallback = {
+      data: (second.data as ClientRow | null) ?? null,
+      error: second.error ? { code: second.error.code } : null,
+    };
+  }
+  const resolved = resolveLinkedClient(
+    clientId,
+    {
+      data: (primary.data as ClientRow | null) ?? null,
+      error: primary.error ? { code: primary.error.code } : null,
+    },
+    fallback,
+  );
+  if (resolved.outcome === "unreadable") {
+    throw new Error(`client select failed: ${primary.error?.code ?? "unknown"}`);
+  }
+  return acceptClientRow(clientId, resolved.client);
+}
+
+async function noteInboundHealth(admin: Admin, staleSaved: number, staleUnsaved: number): Promise<void> {
+  const { data } = await admin
+    .from("whatsapp_inbound")
+    .select("failure_reason")
+    .eq("status", "failed")
+    .limit(100);
+  const dead = ((data ?? []) as Array<{ failure_reason?: string | null }>).filter(
+    (r) => !canRetry(r.failure_reason),
+  ).length;
+  if (!dead && !staleSaved && !staleUnsaved) return;
+  const { recordJobRun, INBOUND_QUEUE_JOB } = await import("@/lib/job-runs.server");
+  await recordJobRun(INBOUND_QUEUE_JOB, {
+    ok: false,
+    status: 500,
+    durationMs: 0,
+    detail: inboundQueueDetail(dead, staleSaved, staleUnsaved),
+  });
+}
+
+async function saveStalePartial(
+  admin: Admin,
+  row: InboundRow,
+  now: Date,
+): Promise<"saved" | "empty" | "failed"> {
+  const phone = toE164Digits(row.from_phone);
+  if (!phone) return "empty";
+  const { data: conv } = await admin
+    .from("whatsapp_conversations")
+    .select("client_id, draft")
+    .eq("phone", phone)
+    .maybeSingle();
+  const found = conv as { client_id?: string | null; draft?: unknown } | null;
+  const partial = partialFromDraft(
+    (found?.draft ?? null) as Parameters<typeof partialFromDraft>[0],
+  );
+  if (!found?.client_id || !partial) return "empty";
+  const client = await loadLinkedClient(admin, found.client_id).catch(() => null);
+  if (!client) return "failed";
+  const notes = partial.notes ?? "";
+  const flagged = runRedFlagRules({ text: notes }).triggered || partial.flagged;
+  try {
+    await saveDayCheckIn(admin, client, { ...partial, flagged }, now, "whatsapp");
+    return "saved";
+  } catch {
+    return "failed";
+  }
+}
+
+async function saveDayCheckIn(
+  admin: Admin,
+  client: ClientRow,
+  incoming: {
+    pain: number | null;
+    sleep: number | null;
+    stress: number | null;
+    energy: number | null;
+    mood: string | number | null;
+    notes: string | null;
+    medicationTaken: boolean | null;
+    flagged: boolean;
+    exerciseAdherence?: string | null;
+  },
+  now: Date,
+  source: string,
+): Promise<void> {
+  const row = {
+    client_id: client.id,
+    practitioner_id: client.practitioner_id,
+    pain_level: incoming.pain,
+    sleep_quality: incoming.sleep,
+    energy_level: incoming.energy,
+    stress_level: incoming.stress,
+    mood: incoming.mood,
+    notes: incoming.notes,
+    flagged: incoming.flagged,
+    exercise_adherence: incoming.exerciseAdherence ?? null,
+    source,
+  };
+  const { error } = await admin.from("check_ins").insert(row);
+  if (!error) return;
+  if (error.code !== "23505") throw new Error(`check-in insert failed: ${error.code ?? "unknown"}`);
+  const dayStart = new Date(`${toSast(now).date}T00:00:00+02:00`).toISOString();
+  const dayEnd = new Date(new Date(dayStart).getTime() + 24 * 60 * 60 * 1000).toISOString();
+  const { data: existing } = await admin
+    .from("check_ins")
+    .select(
+      "id, pain_level, sleep_quality, stress_level, energy_level, mood, notes, medication_taken, flagged, exercise_adherence",
+    )
+    .eq("client_id", client.id)
+    .gte("created_at", dayStart)
+    .lt("created_at", dayEnd)
+    .order("created_at", { ascending: true })
+    .limit(1);
+  const current = (existing as DayCheckIn[] | null)?.[0] as (DayCheckIn & { id: string }) | undefined;
+  if (!current?.id) throw new Error("check-in insert failed: 23505");
+  const merged = mergeDayCheckIn(current, {
+    pain: incoming.pain,
+    sleep: incoming.sleep,
+    stress: incoming.stress,
+    energy: incoming.energy,
+    mood: incoming.mood,
+    notes: incoming.notes,
+    medicationTaken: incoming.medicationTaken,
+    flagged: incoming.flagged,
+    exerciseAdherence: incoming.exerciseAdherence ?? null,
+  });
+  const { error: updateError } = await admin.from("check_ins").update(merged).eq("id", current.id);
+  if (updateError) throw new Error(`check-in merge failed: ${updateError.code ?? "unknown"}`);
 }
 
 async function hasCurrentConsent(admin: Admin, clientId: string): Promise<boolean> {
@@ -744,17 +957,30 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
       inviteInvalid = true;
     }
   }
-  if (!clientId) clientId = await findClientIdByPhone(admin, phone);
+  let phoneClash: PhoneHit[] | null = null;
+  if (!clientId) {
+    const found = await findClientByPhone(admin, phone);
+    clientId = found.id;
+    phoneClash = found.clash;
+  }
 
   let client: ClientRow | null = null;
   if (clientId) {
-    const { data } = await admin
-      .from("clients")
-      .select(CLIENT_COLS)
-      .eq("id", clientId)
-      .maybeSingle();
-    client = (data as ClientRow | null) ?? null;
+    client = await loadLinkedClient(admin, clientId);
     if (!client) clientId = null;
+  }
+  if (client && patientFlag(BUDDY_FLAGS.phoneAmbiguous)) {
+    const digits = toE164Digits(phone);
+    if (digits && client.phone_e164 !== digits) {
+      await admin
+        .from("clients")
+        .update({ phone_e164: digits })
+        .eq("id", client.id)
+        .then(
+          () => undefined,
+          () => undefined,
+        );
+    }
   }
   if (client && inviteWelcome) {
     // Fill in what the practitioner may not have had when adding them.
@@ -771,7 +997,9 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   if (client) inviteInvalid = false;
 
   // Self sign-up: a practice link, and no profile for this number yet.
+  // Two profiles on one number: do not create a third.
   let signup: Parameters<typeof decide>[0]["signup"] = undefined;
+  if (phoneClash) signupPracticeId = null;
   if (!client && signupPracticeId) {
     const roster = await practiceRoster(admin, signupPracticeId).catch(() => null);
     if (roster) signup = { practiceId: signupPracticeId, ...roster };
@@ -967,7 +1195,18 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     isPostOperative: postOp.isPostOperative,
     consecutiveMissedCheckins: postOp.consecutiveMissedCheckins,
   }).triggered;
+  const dataCopy =
+    Boolean(client && consent && patientFlag(BUDDY_FLAGS.dataExportSend) && isDataCopyRequest(typed) && !flaggedText);
+  const sastDay = toSast(now).date;
+  const aiSoFar =
+    (conv.draft as { aiDay?: string; aiCount?: number } | null)?.aiDay === sastDay
+      ? Number((conv.draft as { aiCount?: number }).aiCount ?? 0)
+      : 0;
+  let aiCount = aiSoFar;
+  const converseCapped = patientFlag(BUDDY_FLAGS.cheapAi) && aiCount >= converseDailyCap();
   if (
+    !dataCopy &&
+    !converseCapped &&
     !questionStep &&
     client &&
     consent &&
@@ -991,6 +1230,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
         hasWearable: clientHasWearable,
         context: ctx ? renderPatientContext(ctx, now) : null,
       })) ?? undefined;
+    if (converse) aiCount += 1;
     if (converse?.remember) await rememberFact(admin, client.id, converse.remember);
   }
 
@@ -1056,6 +1296,33 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
 
   // Unknown numbers are told once a day, not on every message.
   let replies = decision.replies;
+  const clashWindow =
+    now.getTime() - new Date(row.received_at).getTime() < 24 * 60 * 60 * 1000 - 2 * 60 * 1000;
+  if (phoneClash && patientFlag(BUDDY_FLAGS.phoneAmbiguous)) {
+    decision.createClient = undefined;
+    signup = undefined;
+    const safety = redFlags.triggered ? replies : [];
+    replies = clashWindow
+      ? [...safety, { kind: "text", body: PHONE_CLASH_PATIENT }]
+      : safety;
+    decision.next = { state: "unmatched", draft: conv.draft ?? {}, checkinStartedAt: null };
+    await notifyPhoneClash(admin, phoneClash).catch(() => undefined);
+  }
+  if (dataCopy && client && !redFlags.triggered) {
+    replies = [{ kind: "text", body: DATA_COPY_PATIENT }];
+    decision.next = {
+      state,
+      draft: conv.draft ?? {},
+      checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
+    };
+    decision.saveCheckin = undefined;
+    await raiseContactAlert(
+      admin,
+      client,
+      `${fullNameOf(client.full_name, "A client")} asked for a copy of what Buddy holds. Review it, then send the link.`,
+      "routine",
+    ).catch(() => undefined);
+  }
   if (questionStep && !answerOnly) replies = [...replies, ...questionStep.replies];
   // A message a practitioner asked Buddy to pass on while the window was shut.
   const pendingNotice = (conv.draft as { pendingNotice?: string } | null)?.pendingNotice;
@@ -1090,8 +1357,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   // the consent link so nothing is collected before it is signed.
   if (!client && decision.createClient) {
     const id = await createSelfSignupClient(admin, { ...decision.createClient, phone });
-    const { data } = await admin.from("clients").select(CLIENT_COLS).eq("id", id).maybeSingle();
-    client = (data as ClientRow | null) ?? null;
+    client = await loadLinkedClient(admin, id);
     if (client) {
       // The practice head sees every alert in the practice, so name the chosen
       // practitioner instead of saying "you". The chosen practitioner gets
@@ -1132,9 +1398,24 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     });
   }
 
+  if (phoneClash && patientFlag(BUDDY_FLAGS.phoneAmbiguous) && redFlagQualifies(redFlags)) {
+    for (const hit of phoneClash) {
+      await raiseRedFlagAlert(
+        admin,
+        {
+          id: hit.id,
+          full_name: hit.full_name,
+          practitioner_id: hit.practitioner_id,
+          practice_id: hit.practice_id,
+        },
+        redFlags,
+      ).catch(() => null);
+    }
+  }
+
   // No profile at all: still write an alert for the practice, or say nothing
   // about the physiotherapist being told.
-  if (!client && !redFlagAlertId && redFlagQualifies(redFlags)) {
+  if (!client && !phoneClash && !redFlagAlertId && redFlagQualifies(redFlags)) {
     redFlagAlertId = await raiseUnmatchedRedFlag(
       admin,
       phone,
@@ -1187,6 +1468,8 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
           Object.entries(decision.next.draft ?? {}).filter(([k]) => k !== "pendingNotice"),
         ),
         appliedInboundId: row.id,
+        aiDay: sastDay,
+        aiCount,
       },
       checkin_started_at: decision.next.checkinStartedAt?.toISOString() ?? null,
       opted_out_at: optedOutAt,
@@ -1479,19 +1762,23 @@ async function applyEffects(
 
   if (decision.saveCheckin) {
     const c = decision.saveCheckin;
-    const { error } = await admin.from("check_ins").insert({
-      client_id: client.id,
-      practitioner_id: client.practitioner_id,
-      pain_level: c.pain,
-      sleep_quality: c.sleep,
-      energy_level: c.energy,
-      stress_level: c.stress ?? null,
-      exercise_adherence: c.exerciseAdherence ?? null,
-      notes: c.notes || null,
-      flagged: c.flagged,
-      source: "whatsapp",
-    });
-    if (error) throw new Error(`check-in insert failed: ${error.code ?? "unknown"}`);
+    await saveDayCheckIn(
+      admin,
+      client,
+      {
+        pain: c.pain,
+        sleep: c.sleep ?? null,
+        stress: c.stress ?? null,
+        energy: c.energy ?? null,
+        mood: null,
+        notes: c.notes || null,
+        medicationTaken: null,
+        flagged: c.flagged,
+        exerciseAdherence: c.exerciseAdherence ?? null,
+      },
+      now,
+      "whatsapp",
+    );
     await rememberReplyHour(admin, client.id, now).catch(() => undefined);
   }
 
@@ -1824,12 +2111,7 @@ export async function notifyRedFlagAlert(admin: Admin, alertId: string): Promise
 
   let client: ClientRow | null = null;
   if (a.client_id) {
-    const { data: c } = await admin
-      .from("clients")
-      .select(CLIENT_COLS)
-      .eq("id", a.client_id)
-      .maybeSingle();
-    client = (c as ClientRow | null) ?? null;
+    client = await loadLinkedClient(admin, a.client_id).catch(() => null);
     if (!client) return;
   }
   const practitionerId = client?.practitioner_id ?? a.practitioner_id;
@@ -1999,6 +2281,24 @@ async function practiceOwnerId(admin: Admin, client: ClientRow): Promise<string 
 
 /** Start of the alert text for a voice note Buddy did not listen to. */
 export const VOICE_UNREAD_ALERT = "Voice note on WhatsApp that Buddy did not read.";
+
+async function notifyPhoneClash(admin: Admin, hits: PhoneHit[]): Promise<void> {
+  const message = phoneClashOwnerMessage(hits.map((h) => fullNameOf(h.full_name, "A profile")));
+  const told = new Set<string>();
+  for (const hit of hits) {
+    if (!hit.practitioner_id || told.has(`${hit.practitioner_id}:${hit.id}`)) continue;
+    told.add(`${hit.practitioner_id}:${hit.id}`);
+    await admin.from("alerts").insert({
+      practitioner_id: hit.practitioner_id,
+      client_id: hit.id,
+      alert_type: "client_contact_request",
+      message,
+      urgency: "soon",
+      is_read: false,
+      webhook_fired: false,
+    });
+  }
+}
 
 async function raiseContactAlert(
   admin: Admin,
@@ -2239,6 +2539,7 @@ export async function sendWhatsAppReminder(
     checkin_started_at: string | null;
   } | null;
   if (!conv || conv.opted_out_at || conv.state === "opted_out") return "not_whatsapp";
+  if (await clientDischarged(admin, clientId)) return "not_whatsapp";
   if (!(await hasCurrentConsent(admin, clientId))) return "not_whatsapp";
   // Mid-conversation in the last half hour: they're busy with Buddy, leave
   // them be. A check-in left unfinished for longer gets a nudge to finish it
@@ -2421,6 +2722,17 @@ export async function sendWhatsAppReminder(
   // Outside the 24 hour window: the approved reminder template, when it is
   // switched on (WHATSAPP_REMINDER_TEMPLATE). One tap on "Start check-in"
   // reopens the conversation and starts today's check-in.
+  // Stale consent does not get that template. The consent link itself can
+  // only go out inside the window, which is handled above.
+  if (patientFlag(BUDDY_FLAGS.reminderRelease)) {
+    const signed = await currentConsentTypes(admin, clientId).catch(() => null);
+    if (signed && !(signed.has("popia_core") && signed.has("whatsapp_checkins"))) {
+      log.info("whatsapp reminder skipped: consent wording is not current", {
+        to: maskPhone(conv.phone),
+      });
+      return "not_whatsapp";
+    }
+  }
   const reminderTemplate = process.env.WHATSAPP_REMINDER_TEMPLATE?.trim();
   if (reminderTemplate) {
     let id: string | null = null;

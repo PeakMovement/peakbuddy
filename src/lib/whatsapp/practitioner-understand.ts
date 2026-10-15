@@ -727,7 +727,15 @@ export interface PracCandidate {
 export type PracPending =
   | {
       kind: "choose";
-      action: "status" | "messages" | "checkin" | "programme" | "heidi";
+      action:
+        | "status"
+        | "messages"
+        | "checkin"
+        | "programme"
+        | "heidi"
+        | "discharge"
+        | "reopen"
+        | "data_copy";
       candidates: PracCandidate[];
       resolvedIds: string[];
       note: string | null;
@@ -735,7 +743,7 @@ export type PracPending =
     }
   | {
       kind: "outbound";
-      action: "checkin" | "programme" | "reception";
+      action: "checkin" | "programme" | "reception" | "discharge" | "reopen" | "data_copy" | "appointment";
       clientIds: string[];
       names: string[];
       /** The sentence they are confirming. Check-ins keep the literal "<name>". */
@@ -796,8 +804,25 @@ export const PRAC_MEMORY_MS = 30 * 60 * 1000;
 /** "her" still means the same client for this long. */
 export const LAST_CLIENT_MS = 3 * 60 * 60 * 1000;
 
-const CHOOSE_ACTIONS = new Set(["status", "messages", "checkin", "programme", "heidi"]);
-const OUTBOUND_ACTIONS = new Set(["checkin", "programme", "reception"]);
+const CHOOSE_ACTIONS = new Set([
+  "status",
+  "messages",
+  "checkin",
+  "programme",
+  "heidi",
+  "discharge",
+  "reopen",
+  "data_copy",
+]);
+const OUTBOUND_ACTIONS = new Set([
+  "checkin",
+  "programme",
+  "reception",
+  "discharge",
+  "reopen",
+  "data_copy",
+  "appointment",
+]);
 
 function cleanPending(raw: unknown): PracPending | null {
   if (!raw || typeof raw !== "object") return null;
@@ -823,7 +848,7 @@ function cleanPending(raw: unknown): PracPending | null {
       : [];
     return {
       kind: "choose",
-      action: p.action as "status",
+      action: p.action as Extract<PracPending, { kind: "choose" }>["action"],
       candidates,
       resolvedIds,
       note: typeof p.note === "string" ? p.note.slice(0, 280) : null,
@@ -841,10 +866,11 @@ function cleanPending(raw: unknown): PracPending | null {
           .slice(0, 15)
       : [];
     if (p.action !== "reception" && !clientIds.length) return null;
-    if (p.action === "reception" && typeof p.task !== "string") return null;
+    if ((p.action === "reception" || p.action === "appointment") && typeof p.task !== "string")
+      return null;
     return {
       kind: "outbound",
-      action: p.action as "checkin",
+      action: p.action as Extract<PracPending, { kind: "outbound" }>["action"],
       clientIds,
       names,
       preview: String(p.preview ?? "").slice(0, 500),

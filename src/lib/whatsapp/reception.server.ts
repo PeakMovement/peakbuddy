@@ -22,8 +22,12 @@
  * errands; nothing here is logged beyond counts and masked numbers.
  */
 import { log } from "@/lib/log";
+import { BUDDY_FLAGS, patientFlag } from "@/lib/buddy-flags";
 import { maskPhone, toE164Digits } from "./phone";
 import type { OutboundMessage } from "./provider";
+import { appointmentConfirmLine, singleNamedVisit } from "./appointment-time";
+import { formatOpenErrands, type OpenErrand } from "./reception-errands";
+import { readPracMemory, writePracMemory } from "./practitioner-understand";
 import {
   practitionerContact,
   sendLogged,
@@ -425,13 +429,15 @@ export async function handleReceptionMessage(
     .eq("id", target.id)
     .select("id")
     .limit(1);
-  await tellPractitioner(
+  const relay = await withVisitConfirm(
     adminIn,
-    env,
     target.practitioner_id,
+    target.request_text,
+    replyText,
     RECEPTION_MSG.relayReply(target.request_text, replyText),
     now,
   );
+  await tellPractitioner(adminIn, env, target.practitioner_id, relay, now);
   await deps.reply({
     kind: "text",
     body: RECEPTION_MSG.passed(
@@ -460,4 +466,89 @@ export async function practitionerOpenList(
     lines.push(`• ${short(r.request_text, 80)} (${state})`);
   }
   return lines.join("\n");
+}
+
+/**
+ * Open errands for the morning note and the owner overview.
+ * A query error returns nothing, so the status reply still goes out.
+ */
+export async function openErrandLine(
+  adminIn: Admin,
+  practitionerIds: string[],
+  now: Date,
+): Promise<string | null> {
+  const ids = [...new Set(practitionerIds.filter(Boolean))];
+  if (!ids.length) return null;
+  try {
+    const admin = adminIn as unknown as Db;
+    const { data, error } = await admin
+      .from("reception_requests")
+      .select("request_text, created_at, sent_at, practitioner_id, status")
+      .eq("status", "open")
+      .in("practitioner_id", ids)
+      .limit(40);
+    if (error || !data) return null;
+    return formatOpenErrands(data as OpenErrand[], now);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * When reception names a time and the errand names exactly one client,
+ * ask the physio to confirm before anything is stored.
+ */
+async function withVisitConfirm(
+  adminIn: Admin,
+  practitionerId: string,
+  requestText: string,
+  replyText: string,
+  relay: string,
+  now: Date,
+): Promise<string> {
+  if (!patientFlag(BUDDY_FLAGS.appointmentWrite)) return relay;
+  const admin = adminIn as unknown as Db;
+  const { data, error } = await admin
+    .from("clients")
+    .select("id, full_name")
+    .eq("practitioner_id", practitionerId)
+    .limit(500);
+  if (error || !data) return relay;
+  const match = singleNamedVisit(
+    requestText,
+    replyText,
+    data as Array<{ id: string; full_name: string | null }>,
+    now,
+  );
+  if (!match) return relay;
+  const line = appointmentConfirmLine(match.name, match.label);
+  const contact = await practitionerContact(adminIn, practitionerId);
+  const phone = contact.phone;
+  if (phone) {
+    const { data: conv } = await admin
+      .from("whatsapp_conversations")
+      .select("id, draft")
+      .eq("phone", phone)
+      .maybeSingle();
+    const row = conv as { id?: string; draft?: unknown } | null;
+    if (row?.id) {
+      const mem = readPracMemory(row.draft, now.getTime());
+      mem.pending = {
+        kind: "outbound",
+        action: "appointment",
+        clientIds: [match.clientId],
+        names: [match.name],
+        preview: line,
+        note: null,
+        task: match.iso,
+        editing: false,
+        at: now.getTime(),
+      };
+      await admin
+        .from("whatsapp_conversations")
+        .update({ draft: writePracMemory(row.draft, mem) })
+        .eq("id", row.id);
+    }
+  }
+  return `${relay}\n\n${line}`;
 }

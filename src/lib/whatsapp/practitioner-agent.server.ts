@@ -8,12 +8,20 @@
  * tool names, never names, notes or message text.
  */
 import { log } from "@/lib/log";
+import { BUDDY_FLAGS, patientFlag } from "@/lib/buddy-flags";
+import {
+  dischargeConfirm,
+  dischargePhysioResult,
+  reopenConfirm,
+  reopenPhysioResult,
+} from "./discharge";
 import { heidiConfig } from "./heidi.server";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
 import {
   addedNames,
   agentButtons,
   buildPractitionerPrompt,
+  carePhrase,
   checkinBody,
   checkinPreview,
   choiceBody,
@@ -281,6 +289,12 @@ function outboundBody(pending: Extract<PracPending, { kind: "outbound" }>): stri
   if (pending.action === "programme") {
     return `I'll tell ${joinNames(pending.names)} their programme is ready. Send?`;
   }
+  if (pending.action === "discharge") return dischargeConfirm(joinNames(pending.names));
+  if (pending.action === "reopen") return reopenConfirm(joinNames(pending.names));
+  if (pending.action === "data_copy") {
+    return `Prepare a copy of what Buddy holds for ${joinNames(pending.names)} and send a one-time link if their WhatsApp window is open? I will not add any interpretation.`;
+  }
+  if (pending.action === "appointment") return pending.preview;
   return confirmOutbound(pending.names, pending.preview);
 }
 
@@ -363,7 +377,7 @@ async function askClarify(ctx: AgentContext, decision: AgentDecision): Promise<v
 
 async function prepareClients(
   ctx: AgentContext,
-  action: "checkin" | "programme" | "status" | "messages" | "heidi",
+  action: Extract<PracPending, { kind: "choose" }>["action"],
   names: string[],
   note: string | null,
 ): Promise<ScopedClient[] | null> {
@@ -523,10 +537,10 @@ async function readStatuses(ctx: AgentContext, clients: ScopedClient[]): Promise
   const statuses = await st.loadStatuses(admin, full.length ? full : rows, ctx.deps.now);
   rememberFocus(ctx, clients);
   if (clients.length === ctx.scopeClients.length && clients.length !== 1) {
-    await replyText(
-      ctx,
-      st.formatStatusAll(ctx.prac.firstName, statuses, ctx.deps.now, ctx.privileged),
-    );
+    const rc = await import("./reception.server");
+    const errands = await rc.openErrandLine(ctx.adminIn, [ctx.prac.userId], ctx.deps.now);
+    const body = st.formatStatusAll(ctx.prac.firstName, statuses, ctx.deps.now, ctx.privileged);
+    await replyText(ctx, errands ? `${body}\n\n${errands}` : body);
     return;
   }
   const bodies = statuses.map((s) => st.formatStatusOne(s, ctx.deps.now));
@@ -732,6 +746,25 @@ async function executeReception(ctx: AgentContext, task: string): Promise<void> 
   await replyText(ctx, rc.RECEPTION_MSG.toPractitioner(result));
 }
 
+async function proposeCare(
+  ctx: AgentContext,
+  action: "discharge" | "reopen" | "data_copy",
+  clients: ScopedClient[],
+): Promise<void> {
+  const names = clients.map((c) => String(c.full_name ?? "").trim() || "A client");
+  await showOutbound(ctx, {
+    kind: "outbound",
+    action,
+    clientIds: clients.map((c) => c.id),
+    names,
+    preview: action,
+    note: null,
+    task: null,
+    editing: false,
+    at: ctx.deps.now.getTime(),
+  });
+}
+
 async function finishChoice(ctx: AgentContext, ids: string[]): Promise<void> {
   const pending = ctx.mem.pending;
   if (!pending || pending.kind !== "choose") return;
@@ -756,6 +789,10 @@ async function finishChoice(ctx: AgentContext, ids: string[]): Promise<void> {
   }
   if (pending.action === "programme") {
     await proposeProgramme(ctx, clients);
+    return;
+  }
+  if (pending.action === "discharge" || pending.action === "reopen" || pending.action === "data_copy") {
+    await proposeCare(ctx, pending.action, clients);
     return;
   }
   await proposeCheckin(ctx, clients, pending.note);
@@ -794,7 +831,14 @@ function toDecision(row: PracQueued): AgentDecision | null {
   return validDecision(row);
 }
 
-const OUTBOUND_TOOLS = new Set<AgentTool>(["send_checkin", "programme_sent", "ask_reception"]);
+const OUTBOUND_TOOLS = new Set<AgentTool>([
+  "send_checkin",
+  "programme_sent",
+  "ask_reception",
+  "discharge_client",
+  "reopen_episode",
+  "prepare_data_copy",
+]);
 
 function stash(decision: AgentDecision): PracQueued {
   return {
@@ -1054,6 +1098,28 @@ async function applyDecision(ctx: AgentContext, decision: AgentDecision): Promis
     if (!clients) return;
     if (action === "checkin") await proposeCheckin(ctx, clients, decision.note);
     else await proposeProgramme(ctx, clients);
+    return;
+  }
+  if (tool === "discharge_client" || tool === "reopen_episode" || tool === "prepare_data_copy") {
+    const flagged =
+      tool === "prepare_data_copy" ? BUDDY_FLAGS.dataExportSend : BUDDY_FLAGS.discharge;
+    if (!patientFlag(flagged)) {
+      await replyText(
+        ctx,
+        tool === "prepare_data_copy"
+          ? "Sending a copy is not switched on yet. Nothing was sent. You can still prepare the file on their client page."
+          : "Discharge is not switched on yet. I have not changed their reminders.",
+      );
+      return;
+    }
+    if (decision.names.some((n) => n.toLowerCase() === "all")) {
+      await replyText(ctx, "Name the client. I will not do that for everyone at once.");
+      return;
+    }
+    const action =
+      tool === "discharge_client" ? "discharge" : tool === "reopen_episode" ? "reopen" : "data_copy";
+    const clients = await prepareClients(ctx, action, decision.names, null);
+    if (clients) await proposeCare(ctx, action, clients);
   }
 }
 
@@ -1068,7 +1134,127 @@ async function confirmPending(ctx: AgentContext): Promise<void> {
     await executeProgramme(ctx, pending.clientIds);
     return;
   }
+  if (pending.action === "discharge" || pending.action === "reopen") {
+    await executeEpisode(ctx, pending.action, pending.clientIds);
+    return;
+  }
+  if (pending.action === "data_copy") {
+    await executeDataCopy(ctx, pending.clientIds);
+    return;
+  }
+  if (pending.action === "appointment") {
+    await executeAppointment(ctx, pending.clientIds[0], pending.task, pending.names[0]);
+    return;
+  }
   await executeCheckins(ctx, pending.clientIds, pending.note);
+}
+
+function scopedIds(ctx: AgentContext, ids: string[]): string[] {
+  return [...new Set(ids)].filter((id) => ctx.scopeClients.some((c) => c.id === id));
+}
+
+async function executeEpisode(
+  ctx: AgentContext,
+  action: "discharge" | "reopen",
+  ids: string[],
+): Promise<void> {
+  ctx.mem.pending = null;
+  if (!patientFlag(BUDDY_FLAGS.discharge)) {
+    await replyText(ctx, "Discharge is not switched on yet. I have not changed their reminders.");
+    return;
+  }
+  const allowed = scopedIds(ctx, ids);
+  if (!allowed.length) {
+    await replyText(ctx, "Those clients are not on your list, so I did not change anything.");
+    return;
+  }
+  const { setDischarged, tellDischargePaused } = await import("./care.server");
+  const admin = ctx.admin as unknown as import("@supabase/supabase-js").SupabaseClient;
+  const lines: string[] = [];
+  for (const id of allowed) {
+    const name = nameOf(ctx.scopeClients, id);
+    const saved = await setDischarged(admin, id, action === "discharge", ctx.deps.now);
+    if (!saved) {
+      lines.push(`I could not update ${name} just now.`);
+      continue;
+    }
+    if (action === "reopen") {
+      lines.push(reopenPhysioResult(name));
+      continue;
+    }
+    const told = await tellDischargePaused(
+      admin,
+      { provider: ctx.deps.provider, secrets: ctx.deps.secrets },
+      id,
+      ctx.deps.now,
+    );
+    lines.push(dischargePhysioResult(name, told));
+  }
+  await replyText(ctx, lines.join("\n"));
+}
+
+async function executeDataCopy(ctx: AgentContext, ids: string[]): Promise<void> {
+  ctx.mem.pending = null;
+  if (!patientFlag(BUDDY_FLAGS.dataExportSend)) {
+    await replyText(
+      ctx,
+      "Sending a copy is not switched on yet. Nothing was sent. You can still prepare the file on their client page.",
+    );
+    return;
+  }
+  const allowed = scopedIds(ctx, ids).slice(0, 3);
+  if (!allowed.length) {
+    await replyText(ctx, "Those clients are not on your list, so I did not prepare a copy.");
+    return;
+  }
+  const { loadExportBundle, mintExportLink, sendExportLink, exportCounts, exportReadyNote } =
+    await import("./data-copy.server");
+  const admin = ctx.admin as unknown as import("@supabase/supabase-js").SupabaseClient;
+  const lines: string[] = [];
+  for (const id of allowed) {
+    const name = nameOf(ctx.scopeClients, id);
+    const bundle = await loadExportBundle(admin, [id]);
+    const counts = exportCounts(bundle);
+    const link = await mintExportLink(admin, id, ctx.prac.userId);
+    if (!link) {
+      lines.push(`I could not prepare a link for ${name} just now.`);
+      continue;
+    }
+    const sent = await sendExportLink(
+      admin,
+      { provider: ctx.deps.provider, secrets: ctx.deps.secrets },
+      id,
+      link.url,
+      ctx.deps.now,
+    );
+    lines.push(exportReadyNote(name, counts, sent));
+  }
+  await replyText(ctx, lines.join("\n"));
+}
+
+async function executeAppointment(
+  ctx: AgentContext,
+  clientId: string | undefined,
+  iso: string | null,
+  name: string | undefined,
+): Promise<void> {
+  ctx.mem.pending = null;
+  if (!patientFlag(BUDDY_FLAGS.appointmentWrite)) {
+    await replyText(ctx, "Saving a visit time is not switched on yet. I did not store one.");
+    return;
+  }
+  if (!clientId || !iso || !ctx.scopeClients.some((c) => c.id === clientId)) {
+    await replyText(ctx, "I could not match that visit to one client, so I did not store a time.");
+    return;
+  }
+  const { error } = await ctx.admin.from("clients").update({ next_appointment: iso }).eq("id", clientId);
+  if (error) {
+    log.warn("next appointment save failed", { code: (error as { code?: string }).code });
+    await replyText(ctx, "I could not store that time just now.");
+    return;
+  }
+  const who = name || nameOf(ctx.scopeClients, clientId);
+  await replyText(ctx, `Saved. ${who}'s next visit is stored. I did not invent a slot.`);
 }
 
 function acceptsAll(text: string, count: number): boolean {
@@ -1120,6 +1306,15 @@ async function handlePending(
     return true;
   }
   if (pending.kind === "outbound" && (replyId === "prac_ag_edit" || /^edit$/i.test(text.trim()))) {
+    if (
+      pending.action === "discharge" ||
+      pending.action === "reopen" ||
+      pending.action === "data_copy" ||
+      pending.action === "appointment"
+    ) {
+      await replyText(ctx, "Reply Yes to go ahead, or Cancel.");
+      return true;
+    }
     pending.editing = true;
     pending.at = ctx.deps.now.getTime();
     await replyText(
@@ -1148,7 +1343,10 @@ async function handlePending(
       return true;
     }
   }
-  if (pending.kind === "outbound" && pending.action !== "reception") {
+  if (
+    pending.kind === "outbound" &&
+    (pending.action === "checkin" || pending.action === "programme")
+  ) {
     const extra = addedNames(text);
     if (extra) {
       const hits = resolveNames(extra, ctx.scopeClients);
@@ -1288,6 +1486,24 @@ export async function runPractitionerAgent(
   }
 
   if (await handlePending(ctx, msg.text, msg.replyId)) return true;
+
+  const care = carePhrase(msg.text);
+  if (care) {
+    await applyDecision(ctx, {
+      tool: care.tool,
+      names: [care.name],
+      note: null,
+      task: null,
+      question: null,
+      options: [],
+      frequency: null,
+      weekday: null,
+      time: null,
+      enabled: null,
+      goal: null,
+    });
+    return true;
+  }
 
   const decisions = await understand(ctx, msg.text);
   if (!decisions.length) {
