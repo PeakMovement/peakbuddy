@@ -189,6 +189,8 @@ const CLINICAL_GROUPS: Array<{
       "dont want to live", "don't want to live", "do not want to live",
       "no point in living", "no point anymore", "better off without me",
       "selfmoord", "ek wil nie meer hier wees nie", "wil myself seermaak",
+      "not coping", "cant cope", "can't cope", "cannot cope",
+      "feel hopeless", "so depressed", "breaking down",
     ],
   },
 ];

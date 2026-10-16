@@ -567,9 +567,13 @@ describe("Justin's 11 Oct chat", () => {
     const texts = sent.filter((m) => m.kind === "text").map((m) => m.to);
     const templates = sent.filter((m) => m.kind === "template");
     expect(texts).toEqual(["27821111111"]);
-    expect(textSent(sent)).toBe(
-      "Hi Cayla, it's Buddy from Peak Movement, checking in on how you're doing.",
+    const sentBody = textSent(sent);
+    expect(sentBody).toBe(
+      practitionerCheckinText("Cayla", "Peak Movement", null, { clientId: CAYLA, now: NOW }),
     );
+    expect(sentBody).toContain("Cayla");
+    expect(sentBody).toContain("Peak Movement");
+    expect(sentBody).not.toMatch(/\b(pain|heal|diagnos)/i);
     expect(templates).toHaveLength(1);
     expect(templates[0]).toMatchObject({
       to: "27822222222",
@@ -1278,5 +1282,71 @@ describe("terse, garbled and multi-ask messages", () => {
       memory,
     );
     expect(replyText(replies)).toContain("pain 4/10");
+  });
+
+  it("replaces the pending recipient and does not send", async () => {
+    const { db, deps, replies, sent } = harness({
+      understand: async () => ({ tool: "send_checkin", names: ["cayla"] }),
+    });
+    const memory: PracMemory = {};
+    await handlePractitionerMessage(asAdmin(db), JUSTIN, { text: "ping cayla", replyId: null }, deps, memory);
+    expect(sent).toHaveLength(0);
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "no I meant Lauren", replyId: null },
+      deps,
+      memory,
+    );
+    expect(sent).toHaveLength(0);
+    const last = replies.at(-1)?.body ?? "";
+    expect(last).toContain("Lauren");
+    expect(last).not.toContain("Cayla");
+    expect(last).not.toMatch(/messaged on WhatsApp/);
+  });
+
+  it("drops the only recipient without sending", async () => {
+    const { db, deps, replies, sent } = harness({
+      understand: async () => ({ tool: "send_checkin", names: ["cayla"] }),
+    });
+    const memory: PracMemory = {};
+    await handlePractitionerMessage(asAdmin(db), JUSTIN, { text: "ping cayla", replyId: null }, deps, memory);
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "actually not her", replyId: null },
+      deps,
+      memory,
+    );
+    expect(sent).toHaveLength(0);
+    expect(replies.at(-1)?.body).toBe("Okay, I won't.");
+  });
+
+  it("answers a caseload question from stored rows when the model is down", async () => {
+    const { db, deps, replies, sent } = harness({
+      understand: async () => {
+        throw new Error("model down");
+      },
+    });
+    const cayla = db.t.clients.find((c) => c.id === CAYLA);
+    if (cayla) cayla.primary_complaint = "ACL repair";
+    const older = {
+      client_id: CAYLA,
+      pain_level: 7,
+      sleep_quality: 3,
+      energy_level: 3,
+      notes: null,
+      created_at: "2026-10-01T08:00:00Z",
+      exercise_adherence: "none",
+    };
+    db.t.check_ins.push(older);
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "which ACL patients are improving", replyId: null },
+      deps,
+    );
+    expect(sent).toHaveLength(0);
+    expect(replies.map((r) => r.body).join("\n")).toContain("Cayla");
   });
 });

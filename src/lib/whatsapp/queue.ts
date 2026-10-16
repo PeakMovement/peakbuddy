@@ -34,7 +34,7 @@ const UNIQUE_VIOLATION = "23505";
 export function createInboundStore(admin: Admin): InboundStore {
   return {
     async enqueue(message: InboundMessage) {
-      const { error } = await admin.from(TABLE).insert({
+      const row: Record<string, unknown> = {
         provider: message.providerId,
         provider_message_id: message.providerMessageId,
         from_phone: message.from,
@@ -47,7 +47,14 @@ export function createInboundStore(admin: Admin): InboundStore {
         media_mime_type: message.media?.mimeType ?? null,
         sent_at: message.sentAt.toISOString(),
         status: "pending",
-      });
+      };
+      if (message.quotedMessageId) row.quoted_message_id = message.quotedMessageId;
+      let { error } = await admin.from(TABLE).insert(row);
+      if (error && error.code !== UNIQUE_VIOLATION && message.quotedMessageId) {
+        delete row.quoted_message_id;
+        const second = await admin.from(TABLE).insert(row);
+        error = second.error;
+      }
 
       if (!error) return "stored";
       if (error.code === UNIQUE_VIOLATION) return "duplicate";

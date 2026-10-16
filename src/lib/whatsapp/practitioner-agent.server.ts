@@ -17,6 +17,7 @@ import {
 } from "./discharge";
 import { heidiConfig } from "./heidi.server";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
+import { answerCaseload, type CaseloadRow } from "./caseload";
 import {
   addedNames,
   agentButtons,
@@ -47,6 +48,16 @@ import {
   type NameHit,
   type ScopedClient,
 } from "./practitioner-agent";
+import {
+  explainFromStored,
+  followUpOf,
+  handoverOf,
+  phrasePractitioner,
+  replacedName,
+  droppedName,
+  sliceStored,
+  summariseThread,
+} from "./practitioner-talk";
 import {
   isCancel,
   isYes,
@@ -105,6 +116,10 @@ interface AgentContext {
   scopeClients: ScopedClient[];
   practiceName: string;
   privileged: boolean;
+  inboundText: string;
+  /** When set, text replies are held so they can share one confirm. */
+  hold: string[] | null;
+  leadIn: string | null;
 }
 
 const firstOf = (name: string) => name.trim().split(/\s+/)[0] || "there";
@@ -227,7 +242,12 @@ function nameOf(clients: ScopedClient[], id: string): string {
 }
 
 async function replyText(ctx: AgentContext, body: string): Promise<void> {
-  await ctx.deps.reply({ kind: "text", body });
+  const phrased = phrasePractitioner(ctx.inboundText, body);
+  if (ctx.hold) {
+    ctx.hold.push(phrased);
+    return;
+  }
+  await ctx.deps.reply({ kind: "text", body: phrased });
 }
 
 function rememberFocus(ctx: AgentContext, clients: ScopedClient[]): void {
@@ -246,6 +266,23 @@ function rememberFocus(ctx: AgentContext, clients: ScopedClient[]): void {
     list,
     at: ctx.deps.now.getTime(),
   };
+  if (one) {
+    ctx.mem.lastClientId = one.id;
+    ctx.mem.lastClientName = one.name;
+    ctx.mem.lastClientAt = ctx.deps.now.getTime();
+  }
+}
+
+function liveFocus(ctx: AgentContext) {
+  if (ctx.mem.focus) return ctx.mem.focus;
+  if (ctx.mem.lastClientId && ctx.mem.lastClientName) {
+    return {
+      clientId: ctx.mem.lastClientId,
+      clientName: ctx.mem.lastClientName,
+      at: ctx.mem.lastClientAt ?? 0,
+    };
+  }
+  return null;
 }
 
 function setPending(ctx: AgentContext, pending: PracPending): void {
@@ -307,9 +344,12 @@ async function showOutbound(
     .map((id) => ctx.scopeClients.find((c) => c.id === id))
     .filter((c): c is ScopedClient => Boolean(c));
   if (shown.length) rememberFocus(ctx, shown);
+  const waiting = ctx.mem.queued?.length ?? 0;
+  const lead = ctx.leadIn?.trim();
+  const tail = waiting ? `\n\n${waiting} more still waiting after you confirm this.` : "";
   await ctx.deps.reply({
     kind: "buttons",
-    body: outboundBody(pending),
+    body: `${lead ? `${lead}\n\n` : ""}${outboundBody(pending)}${tail}`,
     buttons: agentButtons(),
   });
 }
@@ -383,7 +423,7 @@ async function prepareClients(
 ): Promise<ScopedClient[] | null> {
   const expanded = expandReferences(
     names.length ? names : action === "status" || action === "messages" ? ["all"] : [],
-    ctx.mem.focus,
+    liveFocus(ctx),
   );
   if (expanded.unresolved) {
     const options = (ctx.mem.focus?.list ?? [])
@@ -545,6 +585,7 @@ async function readStatuses(ctx: AgentContext, clients: ScopedClient[]): Promise
   }
   const bodies = statuses.map((s) => st.formatStatusOne(s, ctx.deps.now));
   const text = bodies.join("\n\n");
+  if (clients.length === 1) ctx.mem.lastFacts = text.slice(0, 800);
   await replyText(
     ctx,
     text.length > 3800 ? `${text.slice(0, 3700)}\n...and more in the Buddy app.` : text,
@@ -612,7 +653,10 @@ async function deliverCheckin(
     .maybeSingle();
   const clientRow = row as { auth_user_id: string | null; full_name: string | null } | null;
   const full = String(clientRow?.full_name ?? client.full_name ?? "").trim();
-  const body = checkinBody(firstOf(full), ctx.practiceName, note);
+  const body = checkinBody(firstOf(full), ctx.practiceName, note, {
+    clientId: client.id,
+    now: ctx.deps.now,
+  });
   const onWhatsApp = Boolean(conv && !conv.opted_out_at && conv.state !== "opted_out");
 
   if (onWhatsApp && conv) {
@@ -1008,6 +1052,38 @@ async function applyDecision(ctx: AgentContext, decision: AgentDecision): Promis
     await replyText(ctx, await tools.replyCaseBrief(ctx.adminIn, client));
     return;
   }
+  if (tool === "explain_client") {
+    const clients = await prepareClients(ctx, "status", decision.names, null);
+    const client = clients?.[0];
+    if (!client) return;
+    await replyText(ctx, await explainClient(ctx, client));
+    return;
+  }
+  if (tool === "caseload_query") {
+    await replyText(ctx, await caseloadAnswer(ctx, decision.question || ctx.inboundText));
+    return;
+  }
+  if (tool === "summarise_thread") {
+    await replyText(ctx, summariseThread(ctx.mem.turns ?? []));
+    return;
+  }
+  if (tool === "pause_buddy" || tool === "resume_buddy") {
+    const clients = await prepareClients(ctx, "status", decision.names, null);
+    const client = clients?.[0];
+    if (!client) return;
+    const paused = tool === "pause_buddy";
+    const ok = await setBuddyPaused(ctx, client.id, paused);
+    const who = String(client.full_name ?? "").trim() || "them";
+    await replyText(
+      ctx,
+      ok
+        ? paused
+          ? `I'll stay quiet on ${who}'s chat until you hand it back. Nothing was sent to them.`
+          : `I'll pick ${who}'s chat back up, with what was already saved.`
+        : "I couldn't update that chat just now. Nothing was sent.",
+    );
+    return;
+  }
   if (tool === "who_improved") {
     const tools = await import("./capability-tools.server");
     await replyText(
@@ -1257,6 +1333,248 @@ async function executeAppointment(
   await replyText(ctx, `Saved. ${who}'s next visit is stored. I did not invent a slot.`);
 }
 
+function blankDecision(tool: AgentTool, names: string[]): AgentDecision {
+  return {
+    tool,
+    names,
+    note: null,
+    task: null,
+    question: null,
+    options: [],
+    frequency: null,
+    weekday: null,
+    time: null,
+    enabled: null,
+    goal: null,
+  };
+}
+
+async function repropose(
+  ctx: AgentContext,
+  pending: Extract<PracPending, { kind: "outbound" }>,
+  clients: ScopedClient[],
+): Promise<void> {
+  if (!clients.length) {
+    ctx.mem.pending = null;
+    ctx.mem.queued = [];
+    await replyText(ctx, "Okay, I won't.");
+    return;
+  }
+  if (pending.action === "programme") {
+    await proposeProgramme(ctx, clients);
+    return;
+  }
+  if (pending.action === "discharge" || pending.action === "reopen" || pending.action === "data_copy") {
+    await proposeCare(ctx, pending.action, clients);
+    return;
+  }
+  await proposeCheckin(ctx, clients, pending.note);
+}
+
+async function swapRecipients(
+  ctx: AgentContext,
+  pending: Extract<PracPending, { kind: "outbound" }>,
+  name: string,
+): Promise<void> {
+  const hits = resolveNames([name], ctx.scopeClients);
+  const { resolved, ambiguous } = clientsFromHits(hits);
+  if (ambiguous.length && resolved.length !== 1) {
+    const action =
+      pending.action === "programme"
+        ? "programme"
+        : pending.action === "discharge"
+          ? "discharge"
+          : pending.action === "reopen"
+            ? "reopen"
+            : pending.action === "data_copy"
+              ? "data_copy"
+              : "checkin";
+    await askChoice(ctx, action, ambiguous, [], pending.note, `Who did you mean by ${name}?`);
+    return;
+  }
+  const client = resolved[0];
+  if (!client) {
+    await replyText(ctx, `I couldn't find ${name} on your list. I have not sent anything.`);
+    return;
+  }
+  await repropose(ctx, pending, [client]);
+}
+
+async function dropRecipient(
+  ctx: AgentContext,
+  pending: Extract<PracPending, { kind: "outbound" }>,
+  drop: "pronoun" | string,
+): Promise<void> {
+  let ids = pending.clientIds;
+  if (drop === "pronoun") {
+    const last = ctx.mem.focus?.clientId ?? ctx.mem.lastClientId;
+    ids = last && ids.includes(last) ? ids.filter((id) => id !== last) : ids.slice(0, -1);
+  } else {
+    const needle = drop.toLowerCase();
+    ids = ids.filter((id) => {
+      const full = nameOf(ctx.scopeClients, id).toLowerCase();
+      const first = full.split(/\s+/)[0] ?? "";
+      return full !== needle && first !== needle && !full.startsWith(`${needle} `);
+    });
+  }
+  const clients = ids.map((id) => ctx.scopeClients.find((c) => c.id === id)).filter((c): c is ScopedClient => Boolean(c));
+  await repropose(ctx, pending, clients);
+}
+
+async function explainClient(ctx: AgentContext, client: ScopedClient): Promise<string> {
+  const name = String(client.full_name ?? "").trim() || "This client";
+  const { data: risks } = await ctx.admin
+    .from("risk_scores")
+    .select("risk_score, summary, delta_vs_baseline")
+    .eq("client_id", client.id)
+    .order("score_date", { ascending: false })
+    .limit(1);
+  const risk = ((risks ?? []) as Array<Record<string, unknown>>)[0];
+  const { data: checks } = await ctx.admin
+    .from("check_ins")
+    .select("pain_level, sleep_quality, energy_level, stress_level, notes")
+    .eq("client_id", client.id)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const check = ((checks ?? []) as Array<Record<string, unknown>>)[0];
+  const breakdown = Array.isArray((risk?.delta_vs_baseline as { breakdown?: unknown } | undefined)?.breakdown)
+    ? ((risk?.delta_vs_baseline as { breakdown: Array<{ metric?: string; direction?: string }> }).breakdown)
+    : [];
+  const worse = breakdown.filter((b) => b.direction === "worse").map((b) => String(b.metric ?? "")).filter(Boolean);
+  const better = breakdown.filter((b) => b.direction === "better").map((b) => String(b.metric ?? "")).filter(Boolean);
+  const line = explainFromStored({
+    name,
+    riskScore: typeof risk?.risk_score === "number" ? risk.risk_score : null,
+    summary: typeof risk?.summary === "string" ? risk.summary : null,
+    worse,
+    better,
+    lastPain: typeof check?.pain_level === "number" ? check.pain_level : null,
+    lastSleep: typeof check?.sleep_quality === "number" ? check.sleep_quality : null,
+    lastEnergy: typeof check?.energy_level === "number" ? check.energy_level : null,
+    lastStress: typeof check?.stress_level === "number" ? check.stress_level : null,
+    lastNote: typeof check?.notes === "string" ? check.notes : null,
+  });
+  ctx.mem.lastFacts = line.slice(0, 800);
+  ctx.mem.lastClientId = client.id;
+  ctx.mem.lastClientName = name;
+  ctx.mem.lastClientAt = ctx.deps.now.getTime();
+  return line;
+}
+
+async function caseloadAnswer(ctx: AgentContext, question: string): Promise<string> {
+  const ids = ctx.scopeClients.map((c) => c.id);
+  if (!ids.length) return "Nobody on your list matches that from the stored check ins.";
+  const { data: clients } = await ctx.admin
+    .from("clients")
+    .select("id, full_name, primary_complaint")
+    .in("id", ids)
+    .limit(200);
+  const { data: checks } = await ctx.admin
+    .from("check_ins")
+    .select("client_id, pain_level, sleep_quality, exercise_adherence, created_at")
+    .in("client_id", ids)
+    .order("created_at", { ascending: false })
+    .limit(800);
+  const weekAgo = ctx.deps.now.getTime() - 7 * 24 * 60 * 60 * 1000;
+  const byClient = new Map<string, Array<Record<string, unknown>>>();
+  for (const row of (checks ?? []) as Array<Record<string, unknown>>) {
+    const id = String(row.client_id ?? "");
+    const list = byClient.get(id) ?? [];
+    list.push(row);
+    byClient.set(id, list);
+  }
+  const rows: CaseloadRow[] = ((clients ?? []) as Array<Record<string, unknown>>).map((c) => {
+    const list = byClient.get(String(c.id)) ?? [];
+    const latest = list[0];
+    const previous = list.find((row) => row !== latest && typeof row.pain_level === "number");
+    const adherence = latest?.exercise_adherence;
+    return {
+      name: String(c.full_name ?? "").trim() || "A client",
+      complaint: typeof c.primary_complaint === "string" ? c.primary_complaint : null,
+      adherence:
+        adherence === "all" || adherence === "most" || adherence === "some" || adherence === "none"
+          ? adherence
+          : null,
+      pain: typeof latest?.pain_level === "number" ? latest.pain_level : null,
+      previousPain: typeof previous?.pain_level === "number" ? previous.pain_level : null,
+      sleep: typeof latest?.sleep_quality === "number" ? latest.sleep_quality : null,
+      checkedInThisWeek: list.some((row) => new Date(String(row.created_at ?? 0)).getTime() >= weekAgo),
+    };
+  });
+  return answerCaseload(question, rows) ?? "Nobody on your list matches that from the stored check ins.";
+}
+
+async function setBuddyPaused(ctx: AgentContext, clientId: string, paused: boolean): Promise<boolean> {
+  const { data } = await ctx.admin
+    .from("whatsapp_conversations")
+    .select("id, draft")
+    .eq("client_id", clientId)
+    .limit(1);
+  const row = ((data ?? []) as Array<{ id: string; draft: Record<string, unknown> | null }>)[0];
+  if (!row?.id) return false;
+  const draft = { ...(row.draft ?? {}) };
+  if (paused) draft.buddyPaused = { at: ctx.deps.now.toISOString(), told: false };
+  else delete draft.buddyPaused;
+  const saved = await ctx.admin
+    .from("whatsapp_conversations")
+    .update({ draft })
+    .eq("id", row.id)
+    .then(
+      () => true,
+      () => false,
+    );
+  if (!saved) return false;
+  await ctx.admin
+    .from("whatsapp_conversations")
+    .update(
+      paused
+        ? { buddy_paused_at: ctx.deps.now.toISOString(), buddy_paused_by: ctx.prac.userId }
+        : { buddy_paused_at: null, buddy_paused_by: null, buddy_pause_note: null },
+    )
+    .eq("id", row.id)
+    .then(
+      () => undefined,
+      () => undefined,
+    );
+  return true;
+}
+
+async function answerFollowUp(ctx: AgentContext, follow: ReturnType<typeof followUpOf>): Promise<boolean> {
+  if (!follow) return false;
+  if (follow === "summary") {
+    await replyText(ctx, summariseThread(ctx.mem.turns ?? []));
+    return true;
+  }
+  const focus = liveFocus(ctx);
+  if (follow === "others") {
+    const rest = (ctx.mem.focus?.list ?? []).filter((c) => c.id !== focus?.clientId);
+    if (!rest.length) {
+      await replyText(ctx, "I don't have another client from that list.");
+      return true;
+    }
+    await applyDecision(
+      ctx,
+      blankDecision(
+        "client_status",
+        rest.map((c) => c.name),
+      ),
+    );
+    return true;
+  }
+  const name = focus?.clientName;
+  if (!name) return false;
+  if (follow === "why") {
+    await applyDecision(ctx, blankDecision("explain_client", [name]));
+    return true;
+  }
+  if (ctx.mem.lastFacts) {
+    await replyText(ctx, sliceStored(follow, ctx.mem.lastFacts));
+    return true;
+  }
+  await applyDecision(ctx, blankDecision("client_status", [name]));
+  return true;
+}
+
 function acceptsAll(text: string, count: number): boolean {
   const n = text
     .toLowerCase()
@@ -1343,6 +1661,18 @@ async function handlePending(
       return true;
     }
   }
+  if (pending.kind === "outbound" && pending.action !== "reception" && pending.action !== "appointment") {
+    const replacement = replacedName(text);
+    if (replacement) {
+      await swapRecipients(ctx, pending, replacement);
+      return true;
+    }
+    const drop = droppedName(text);
+    if (drop) {
+      await dropRecipient(ctx, pending, drop);
+      return true;
+    }
+  }
   if (
     pending.kind === "outbound" &&
     (pending.action === "checkin" || pending.action === "programme")
@@ -1400,7 +1730,7 @@ async function understand(ctx: AgentContext, text: string): Promise<AgentDecisio
     message: text,
     history: ctx.mem.turns ?? [],
     pending,
-    context: conversationContext(ctx.mem.focus, pending),
+    context: conversationContext(liveFocus(ctx), pending),
     heidiEnabled: Boolean(heidiConfig()),
     canSeeAllPractitioners: ctx.privileged,
   };
@@ -1427,13 +1757,42 @@ async function understand(ctx: AgentContext, text: string): Promise<AgentDecisio
   }
 }
 
-/** Answer every ask. Pause at the first outbound action so it can be confirmed. */
+const TEXT_READS = new Set<AgentTool>([
+  "client_status",
+  "read_messages",
+  "list_practitioners",
+  "practice_overview",
+  "red_flags",
+  "quiet_clients",
+  "usage",
+  "case_brief",
+  "who_improved",
+  "outcomes",
+  "explain_client",
+  "caseload_query",
+  "summarise_thread",
+]);
+
+/** Answer every ask. Read-only answers share the one confirm. Nothing sends here. */
 async function applyMany(ctx: AgentContext, decisions: AgentDecision[]): Promise<void> {
   const work = decisions.filter((d) => d.tool !== "clarify" || decisions.length === 1);
   const use = work.some((d) => d.tool !== "clarify")
     ? work.filter((d) => d.tool !== "clarify")
     : work;
   if (!use.length) return;
+  const reads = use.filter((d) => !OUTBOUND_TOOLS.has(d.tool));
+  const outs = use.filter((d) => OUTBOUND_TOOLS.has(d.tool));
+  if (outs.length >= 1 && reads.length >= 1 && reads.every((d) => TEXT_READS.has(d.tool))) {
+    ctx.hold = [];
+    for (const decision of reads) await applyDecision(ctx, decision);
+    const prefix = (ctx.hold ?? []).filter(Boolean).join("\n\n");
+    ctx.hold = null;
+    ctx.mem.queued = outs.slice(1).map(stash).slice(0, 4);
+    ctx.leadIn = prefix || null;
+    await applyDecision(ctx, outs[0]);
+    ctx.leadIn = null;
+    return;
+  }
   ctx.mem.queued = use.slice(1).map(stash);
   await applyDecision(ctx, use[0]);
   if (!OUTBOUND_TOOLS.has(use[0].tool)) await drainQueue(ctx);
@@ -1460,6 +1819,9 @@ export async function runPractitionerAgent(
     scopeClients: loaded.clients,
     practiceName: loaded.practiceName,
     privileged: loaded.privileged,
+    inboundText: msg.text,
+    hold: null,
+    leadIn: null,
   };
 
   if (msg.replyId && !isAgentButton(msg.replyId)) return false;
@@ -1486,6 +1848,20 @@ export async function runPractitionerAgent(
   }
 
   if (await handlePending(ctx, msg.text, msg.replyId)) return true;
+
+  const follow = followUpOf(msg.text);
+  if (follow && (await answerFollowUp(ctx, follow))) return true;
+
+  const hand = handoverOf(msg.text);
+  if (hand) {
+    await applyDecision(ctx, blankDecision(hand.action, [hand.name]));
+    return true;
+  }
+
+  if (answerCaseload(msg.text, []) != null && !/\b(message|send|ask reception)\b/i.test(msg.text)) {
+    await applyDecision(ctx, { ...blankDecision("caseload_query", []), question: msg.text.slice(0, 300) });
+    return true;
+  }
 
   const care = carePhrase(msg.text);
   if (care) {
