@@ -794,6 +794,9 @@ export interface PracMemory {
   clarifyOptions?: string[];
   /** The client last talked about, for "tell her ...". */
   lastClientId?: string | null;
+  lastClientName?: string | null;
+  /** Last stored status card, so "and her sleep?" can quote it after a quiet gap. */
+  lastFacts?: string | null;
   lastClientAt?: number;
   /** Tapped "Reply to Nicola": the next message goes to this client. */
   replyTo?: string | null;
@@ -979,7 +982,11 @@ function cleanTurns(raw: unknown): PracTurn[] {
 }
 
 export function expireMemory(mem: PracMemory, now: number): void {
-  if (mem.lastClientAt != null && now - mem.lastClientAt > LAST_CLIENT_MS) mem.lastClientId = null;
+  if (mem.lastClientAt != null && now - mem.lastClientAt > LAST_CLIENT_MS) {
+    mem.lastClientId = null;
+    mem.lastClientName = null;
+    mem.lastFacts = null;
+  }
   if (mem.replyToAt != null && now - mem.replyToAt > PRAC_MEMORY_MS) mem.replyTo = null;
   if (mem.awaitingReceptionAt != null && now - mem.awaitingReceptionAt > PRAC_MEMORY_MS)
     mem.awaitingReception = false;
@@ -1036,6 +1043,9 @@ export function readPracMemory(draft: unknown, now = Date.now()): PracMemory {
     queued: cleanQueue(prac?.queued),
     clarifyOptions: cleanOptions(prac?.clarifyOptions),
     lastClientId: prac?.lastClientId ?? null,
+    lastClientName:
+      typeof prac?.lastClientName === "string" ? prac.lastClientName.slice(0, 80) : null,
+    lastFacts: typeof prac?.lastFacts === "string" ? prac.lastFacts.slice(0, 800) : null,
     lastClientAt: prac?.lastClientAt,
     replyTo: prac?.replyTo ?? null,
     replyToAt: prac?.replyToAt,

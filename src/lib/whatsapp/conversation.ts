@@ -112,6 +112,16 @@ export interface CheckinDraft {
   /** Self sign-up from a practice link: which practice, and the name they gave. */
   signupPracticeId?: string;
   signupName?: string;
+  /** Free-text scores are waiting for a yes before the row is saved. */
+  confirming?: boolean;
+  /** The field a bare "I meant 3" should rewrite. */
+  lastField?: "pain" | "sleep" | "energy" | "stress" | "adherence";
+  /** A score in this draft came from words or emoji, not a button or a bare digit. */
+  freeText?: boolean;
+  /** Name to use in this chat. Stored long term only with AI consent. */
+  preferredName?: string;
+  /** Physio took the thread. Buddy stays quiet until this is cleared. */
+  buddyPaused?: { at: string; told?: boolean };
 }
 
 export interface ConversationSnapshot {
@@ -195,6 +205,16 @@ export interface DecisionContext {
   progressText?: string;
   /** Next appointment already on the client record, if any. */
   appointmentAt?: string | null;
+  /** True when this patient has agreed to AI features. Memory is not stored otherwise. */
+  aiConsent?: boolean;
+  /** Practice tone. Replies stay in English in every tone. */
+  tone?: "warm" | "concise" | "sa";
+  /** The message they swiped to reply to, if we still have its text. */
+  quotedText?: string | null;
+  /** Everyday facts already stored for them. Shown only when they ask. */
+  memories?: string[];
+  /** One stored fact the opener may mention. Null when there is nothing to say. */
+  contextFact?: string | null;
   /** The exercise the physio assigned, if one is named. Not a session note. */
   assignedExercise?: string | null;
   /**
@@ -247,6 +267,14 @@ export interface Decision {
   setProgrammeOptIn?: boolean;
   /** Photo or short video for the treating physio. Not sent to a vision model. */
   saveExerciseMedia?: { kind: "image" | "video"; caption: string | null; mediaId?: string };
+  /** Everyday facts to store. The worker writes them only when AI consent is on. */
+  rememberFacts?: string[];
+  /** Archive remembered facts. "all" clears the list. Works without AI consent. */
+  forgetMemory?: "all" | string;
+  /** Patient asked for, or declined, template outreach between sessions. */
+  setOutreachOptIn?: boolean;
+  /** Codes only. Never the patient's words. */
+  analytics?: { kind: "understood" | "fallback" | "saved" | "deferred" | "dropoff"; detail?: string };
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -271,6 +299,8 @@ export const IDS = {
   },
   bookYes: "book_yes",
   bookNo: "book_no",
+  saveCheckin: "checkin_save",
+  changeCheckin: "checkin_change",
 } as const;
 
 const PRACTICE_PHONE = "067 369 0593";
@@ -1065,6 +1095,28 @@ export function decide(ctx: DecisionContext): Decision {
       { replies: [text(CONTACT_ACKNOWLEDGEMENT)], next: conv, contactRequest: true },
       ctx,
     );
+  }
+  if (msg.replyId === "outreach_later") {
+    return {
+      replies: [text("Okay, I'll leave it. Reply when you want to log it.")],
+      next: conv,
+      analytics: { kind: "deferred", detail: "outreach" },
+    };
+  }
+  if (msg.replyId === "outreach_ok") {
+    return {
+      replies: [text("Good to hear.")],
+      next: conv,
+      analytics: { kind: "understood", detail: "outreach_ok" },
+    };
+  }
+  if (msg.replyId === "outreach_stop") {
+    return {
+      replies: [text("Okay, I won't send extra reminders.")],
+      next: conv,
+      setOutreachOptIn: false,
+      analytics: { kind: "understood", detail: "outreach_stop" },
+    };
   }
 
   // 4. Consent before anything is collected. Everyone is checked, existing

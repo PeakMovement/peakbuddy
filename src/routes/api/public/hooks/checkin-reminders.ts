@@ -217,6 +217,17 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
           });
         }
 
+        try {
+          const { runProactiveOutreach } = await import("@/lib/whatsapp/outreach.server");
+          const { whatsappConfigFromEnv } = await import("@/lib/whatsapp/worker.server");
+          const cfg = whatsappConfigFromEnv();
+          if (cfg) await runProactiveOutreach(supabaseAdmin, cfg, now);
+        } catch (e) {
+          log.warn("proactive outreach hook failed", {
+            error: e instanceof Error ? e.message : "unknown",
+          });
+        }
+
         return new Response(JSON.stringify({ ok: true, sent, skipped }), {
           headers: { "Content-Type": "application/json" },
         });

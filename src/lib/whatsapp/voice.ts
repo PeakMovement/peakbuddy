@@ -25,6 +25,10 @@ export interface VoiceContext {
   practitionerFirstName?: string | null;
   /** A goal they or their physio wrote. Repeated, never rewritten. */
   goal?: string | null;
+  /** How many times the goal was already said this week. After two, leave it off. */
+  goalMentions?: number;
+  /** Salts the opener so two patients do not get the same line on the same evening. */
+  clientId?: string | null;
 }
 
 const SAST_MS = 2 * 60 * 60 * 1000;
@@ -38,13 +42,22 @@ export function greeting(ctx: VoiceContext): string {
   return `${part} ${ctx.firstName}`;
 }
 
+function saltOf(id?: string | null): number {
+  if (!id) return 0;
+  let n = 0;
+  for (let i = 0; i < id.length; i++) n = (n + id.charCodeAt(i)) % 997;
+  return n;
+}
+
+/** One fact only. A one point change is not announced as a trend. */
 function personalFacts(ctx: VoiceContext): string {
-  const bits: string[] = [];
-  if (ctx.practitionerFirstName) bits.push(`${ctx.practitionerFirstName} can see this.`);
-  if (typeof ctx.lastPain === "number") bits.push(`Last time pain was ${ctx.lastPain}.`);
-  if ((ctx.streak ?? 0) >= 3) bits.push(`${ctx.streak} check-ins in a row.`);
-  if (ctx.goal?.trim()) bits.push(`You're working towards: ${ctx.goal.trim()}.`);
-  return bits.join(" ");
+  if ((ctx.streak ?? 0) >= 7) return `${ctx.streak} check-ins in a row.`;
+  if ((ctx.streak ?? 0) >= 3) return `${ctx.streak} check-ins in a row.`;
+  const goal = ctx.goal?.trim();
+  if (goal && (ctx.goalMentions ?? 0) < 2) return `You're working towards: ${goal}.`;
+  if (typeof ctx.lastPain === "number") return `Last time pain was ${ctx.lastPain}.`;
+  if (ctx.practitionerFirstName) return `${ctx.practitionerFirstName} can see this.`;
+  return "";
 }
 
 export function opener(ctx: VoiceContext): string {
@@ -64,6 +77,7 @@ export function opener(ctx: VoiceContext): string {
         `${g}, quick check-in time.`,
       ],
       ctx.now,
+      saltOf(ctx.clientId),
     ),
   );
 }
@@ -81,7 +95,8 @@ export function afterPain(ctx: VoiceContext, pain: number): string {
   const last = ctx.lastPain;
   let ack = "Thanks.";
   if (typeof last === "number") {
-    if (pain < last) ack = `Thanks, ${pain} today, down from ${last} last time.`;
+    if (pain < last && last - pain === 1) ack = `Thanks, ${pain}.`;
+    else if (pain < last) ack = `Thanks, ${pain} today, down from ${last} last time.`;
     else if (pain === last) ack = `Thanks, ${pain} again today.`;
     else ack = `Thanks for letting me know, ${pain} today.`;
   }
@@ -101,14 +116,26 @@ export function afterEnergy(ctx: VoiceContext): string {
  * patient's first name; the real send fills it in. The practice name is the
  * one on the account, so the sentence is never invented.
  */
+const CHECKIN_OPENERS: Array<(who: string, practice: string) => string> = [
+  (who, practice) => `Hi ${who}, it's Buddy from ${practice}, checking in on how you're doing.`,
+  (who, practice) => `Hi ${who}, Buddy here from ${practice}. Quick check in when you have a moment.`,
+  (who, practice) => `${who}, it's Buddy at ${practice}. How are you doing today?`,
+  (who, practice) => `Hi ${who}, ${practice} asked me to check in.`,
+];
+
 export function practitionerCheckinText(
   firstName: string,
   practiceName: string,
   note?: string | null,
+  vary?: { clientId?: string; now?: Date } | null,
 ): string {
   const practice = practiceName.trim() || "Peak Movement";
   const who = firstName.trim() || "there";
-  const base = `Hi ${who}, it's Buddy from ${practice}, checking in on how you're doing.`;
+  const listIndex =
+    vary?.now && vary.clientId
+      ? (dayIndex(vary.now) + saltOf(vary.clientId)) % CHECKIN_OPENERS.length
+      : 0;
+  const base = CHECKIN_OPENERS[listIndex](who, practice);
   const extra = note?.trim();
   return extra ? `${base} ${extra}` : base;
 }
@@ -120,8 +147,7 @@ export function practitionerConfirmSend(who: string, preview: string): string {
 
 export function saved(ctx: VoiceContext): string {
   const who = ctx.practitionerFirstName ? ctx.practitionerFirstName : "your physiotherapist";
-  const goal = ctx.goal?.trim() ? ` You're working towards: ${ctx.goal.trim()}.` : "";
-  const base = `Thanks ${ctx.firstName}, that's saved and ${who} can see it.${goal}`;
+  const base = `Thanks ${ctx.firstName}, that's saved and ${who} can see it.`;
   const n = ctx.streak ?? 0;
   if (n === 7) return `${base} That's a full week of check-ins in a row, well done.`;
   if (n === 14) return `${base} Two weeks in a row now, that's great consistency.`;

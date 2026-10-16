@@ -8,6 +8,7 @@ import { ClientPatternsCard } from "@/components/ClientPatternsCard";
 import { ClientBetweenSessions } from "@/components/ClientBetweenSessions";
 import { YvesInsightCard } from "@/components/YvesInsightCard";
 import { WhatsAppConversationCard } from "@/components/WhatsAppConversationCard";
+import { BuddyThreadCard } from "@/components/BuddyThreadCard";
 import { ClientWhatsAppInviteCard } from "@/components/WhatsAppInviteCards";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, X } from "lucide-react";
@@ -367,6 +368,7 @@ function ClientDetail() {
       <ClientSchedulePanel clientId={client.id} mode="practitioner" />
       <YvesInsightCard clientId={client.id} />
       <WhatsAppConversationCard clientId={client.id} />
+      <BuddyThreadCard clientId={client.id} />
       <ClientWhatsAppInviteCard
         clientId={client.id}
         clientName={client.full_name ?? ""}
