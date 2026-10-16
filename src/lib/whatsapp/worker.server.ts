@@ -100,13 +100,27 @@ interface ClientRow {
   notes?: string | null;
   primary_complaint?: string | null;
   goal?: string | null;
+  /** Not selected. No migration on main creates clients.next_appointment. */
   next_appointment?: string | null;
   reply_hour?: number | null;
   reply_hour_count?: number | null;
 }
 
-const CLIENT_COLS =
-  "id, full_name, practitioner_id, practice_id, yves_ai_consent, auth_user_id, phone, notes, primary_complaint, goal, next_appointment, reply_hour, reply_hour_count";
+/** Columns that have been on clients since before the practitioner-agent release. */
+const CLIENT_COLS_SAFE =
+  "id, full_name, practitioner_id, practice_id, yves_ai_consent, auth_user_id, phone, notes, primary_complaint";
+
+/**
+ * goal, reply_hour and reply_hour_count arrive with migration 0038. Until that
+ * file is applied, naming them fails the whole select. next_appointment is
+ * intentionally absent: nothing on main creates that column, and a failed
+ * read used to be treated as an unknown number.
+ */
+const CLIENT_COLS = `${CLIENT_COLS_SAFE}, goal, reply_hour, reply_hour_count`;
+
+/** Shown to the practice when a profile read fails. No message text, no full number. */
+export const LOOKUP_FAILED_ALERT =
+  "Buddy could not read a patient profile, so a WhatsApp reply was not logged. The sender was not told their number is unknown.";
 
 export interface WorkerResult {
   processed: number;
@@ -347,24 +361,86 @@ async function loadConversation(admin: Admin, phone: string): Promise<Conversati
   throw new Error(`conversation load failed: ${error?.code ?? "unknown"}`);
 }
 
-async function findClientIdByPhone(admin: Admin, phone: string): Promise<string | null> {
+async function findClientIdByPhone(
+  admin: Admin,
+  phone: string,
+): Promise<{ id: string | null; failed: boolean }> {
   // Pilot scale: read the numbers and compare in code, because practitioners
   // type numbers in every format and SQL cannot normalise them reliably. The
   // result is stored on the conversation, so this only runs until a match.
-  const { data } = await admin
-    .from("clients")
-    .select("id, phone")
-    .not("phone", "is", null)
-    .limit(5000);
-  const match = matchPhone(phone, (data ?? []) as Array<{ id: string; phone: string | null }>);
+  let data: Array<{ id: string; phone: string | null }> | null = null;
+  let failed = false;
+  try {
+    const res = await admin
+      .from("clients")
+      .select("id, phone")
+      .not("phone", "is", null)
+      .limit(5000);
+    if (res.error) {
+      log.warn("whatsapp worker: phone lookup failed", { code: res.error.code ?? "unknown" });
+      failed = true;
+    } else {
+      data = (res.data ?? []) as Array<{ id: string; phone: string | null }>;
+    }
+  } catch (e) {
+    log.warn("whatsapp worker: phone lookup threw", {
+      error: e instanceof Error ? e.message.slice(0, 120) : "unknown",
+    });
+    failed = true;
+  }
+  if (failed) return { id: null, failed: true };
+  const match = matchPhone(phone, data ?? []);
   if (match.kind === "ambiguous") {
     log.warn("whatsapp worker: number on more than one profile", {
       from: maskPhone(phone),
       count: match.ids.length,
     });
-    return null;
+    return { id: null, failed: false };
   }
-  return match.kind === "matched" ? match.id : null;
+  return { id: match.kind === "matched" ? match.id : null, failed: false };
+}
+
+type ClientRead = { data: ClientRow | null; error: { code?: string } | null };
+
+async function readClient(admin: Admin, clientId: string, cols: string): Promise<ClientRead> {
+  try {
+    const res = await admin.from("clients").select(cols).eq("id", clientId).maybeSingle();
+    return {
+      data: (res.data as ClientRow | null) ?? null,
+      error: res.error ? { code: res.error.code } : null,
+    };
+  } catch (e) {
+    log.warn("whatsapp worker: client select threw", {
+      error: e instanceof Error ? e.message.slice(0, 120) : "unknown",
+    });
+    return { data: null, error: { code: "throw" } };
+  }
+}
+
+/**
+ * A missing column fails the wide select and PostgREST returns no row. Fall
+ * back to columns that already exist, and never report that as "no profile".
+ * A row whose id is not the one requested is refused.
+ */
+async function selectClient(
+  admin: Admin,
+  clientId: string,
+): Promise<{ client: ClientRow | null; outcome: "ok" | "missing" | "unreadable" }> {
+  const primary = await readClient(admin, clientId, CLIENT_COLS);
+  if (!primary.error) {
+    return primary.data?.id === clientId
+      ? { client: primary.data, outcome: "ok" }
+      : { client: null, outcome: "missing" };
+  }
+  log.warn("whatsapp worker: client select failed", { code: primary.error.code ?? "unknown" });
+  const fallback = await readClient(admin, clientId, CLIENT_COLS_SAFE);
+  if (!fallback.error) {
+    return fallback.data?.id === clientId
+      ? { client: fallback.data, outcome: "ok" }
+      : { client: null, outcome: "missing" };
+  }
+  log.warn("whatsapp worker: client select failed", { code: fallback.error.code ?? "unknown" });
+  return { client: null, outcome: "unreadable" };
 }
 
 async function hasCurrentConsent(admin: Admin, clientId: string): Promise<boolean> {
@@ -744,16 +820,21 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
       inviteInvalid = true;
     }
   }
-  if (!clientId) clientId = await findClientIdByPhone(admin, phone);
+  if (!clientId) {
+    const found = await findClientIdByPhone(admin, phone);
+    if (found.failed) {
+      await failClosedUnreadable(admin, phone, null, "client phone lookup failed");
+    }
+    clientId = found.id;
+  }
 
   let client: ClientRow | null = null;
   if (clientId) {
-    const { data } = await admin
-      .from("clients")
-      .select(CLIENT_COLS)
-      .eq("id", clientId)
-      .maybeSingle();
-    client = (data as ClientRow | null) ?? null;
+    const loaded = await selectClient(admin, clientId);
+    if (loaded.outcome === "unreadable") {
+      await failClosedUnreadable(admin, phone, clientId, "client select failed");
+    }
+    client = loaded.client;
     if (!client) clientId = null;
   }
   if (client && inviteWelcome) {
@@ -1090,8 +1171,8 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   // the consent link so nothing is collected before it is signed.
   if (!client && decision.createClient) {
     const id = await createSelfSignupClient(admin, { ...decision.createClient, phone });
-    const { data } = await admin.from("clients").select(CLIENT_COLS).eq("id", id).maybeSingle();
-    client = (data as ClientRow | null) ?? null;
+    const loaded = await selectClient(admin, id);
+    client = loaded.outcome === "ok" ? loaded.client : null;
     if (client) {
       // The practice head sees every alert in the practice, so name the chosen
       // practitioner instead of saying "you". The chosen practitioner gets
@@ -1797,6 +1878,98 @@ async function unmatchedPractitionerId(
 }
 
 /**
+ * A profile read failed. Tell the practice owner (and the treating
+ * practitioner, when that is someone else). Do not message the sender.
+ */
+async function alertClientUnreadable(
+  admin: Admin,
+  phone: string,
+  clientId: string | null,
+): Promise<void> {
+  let treating: string | null = null;
+  let practiceId: string | null = null;
+  if (clientId) {
+    const row = await readClient(admin, clientId, "id, practitioner_id, practice_id");
+    if (!row.error && row.data?.id === clientId) {
+      treating = row.data.practitioner_id ?? null;
+      practiceId = row.data.practice_id ?? null;
+    }
+  }
+  let owner: string | null = null;
+  if (practiceId) {
+    const { data } = await admin
+      .from("practices")
+      .select("practitioner_id")
+      .eq("id", practiceId)
+      .maybeSingle();
+    owner = (data as { practitioner_id?: string | null } | null)?.practitioner_id ?? null;
+  }
+  if (!owner) owner = await unmatchedPractitionerId(admin, null);
+  const recipients = [...new Set([owner, treating].filter((id): id is string => Boolean(id)))];
+  if (!recipients.length) {
+    log.warn("whatsapp worker: client unreadable and no owner to alert", {
+      from: maskPhone(phone),
+    });
+    return;
+  }
+  const since = new Date(Date.now() - DAY_MS).toISOString();
+  const message = `${LOOKUP_FAILED_ALERT} Number ending ${maskPhone(phone)}.`.slice(0, 1000);
+  for (const practitionerId of recipients) {
+    const { data: recent } = await admin
+      .from("alerts")
+      .select("id, client_id")
+      .eq("alert_type", "whatsapp_lookup_failed")
+      .eq("practitioner_id", practitionerId)
+      .gte("created_at", since)
+      .limit(20);
+    const dup = ((recent ?? []) as Array<{ client_id?: string | null }>).some((a) =>
+      clientId ? a.client_id === clientId : !a.client_id,
+    );
+    if (dup) continue;
+    const { error } = await admin.from("alerts").insert({
+      practitioner_id: practitionerId,
+      client_id: clientId,
+      alert_type: "whatsapp_lookup_failed",
+      message,
+      urgency: "soon",
+      is_read: false,
+      webhook_fired: false,
+    });
+    if (error) {
+      log.warn("whatsapp worker: lookup alert failed", { code: error.code ?? "unknown" });
+      continue;
+    }
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { sendPushCore } = await import("@/lib/push.functions");
+      await sendPushCore(supabaseAdmin, {
+        userId: practitionerId,
+        title: "Buddy",
+        body: "A WhatsApp reply was not logged because a patient profile could not be read.",
+        data: { clientId: clientId ?? "", kind: "whatsapp_lookup" },
+      });
+    } catch {
+      /* the alert row is the record; push is best effort */
+    }
+  }
+}
+
+/** Alert the owner, then fail the inbound. No reply is sent. */
+async function failClosedUnreadable(
+  admin: Admin,
+  phone: string,
+  clientId: string | null,
+  reason: string,
+): Promise<never> {
+  await alertClientUnreadable(admin, phone, clientId).catch((e) => {
+    log.warn("whatsapp worker: lookup alert failed", {
+      error: e instanceof Error ? e.message.slice(0, 120) : "unknown",
+    });
+  });
+  throw new Error(reason);
+}
+
+/**
  * Push, WhatsApp, email and webhook for a red-flag alert already saved. Runs
  * after the patient has had their replies (so a slow notification never holds
  * up the conversation), and again from the minute job for any channel that
@@ -1824,12 +1997,9 @@ export async function notifyRedFlagAlert(admin: Admin, alertId: string): Promise
 
   let client: ClientRow | null = null;
   if (a.client_id) {
-    const { data: c } = await admin
-      .from("clients")
-      .select(CLIENT_COLS)
-      .eq("id", a.client_id)
-      .maybeSingle();
-    client = (c as ClientRow | null) ?? null;
+    const loaded = await selectClient(admin, a.client_id);
+    if (loaded.outcome === "unreadable") return;
+    client = loaded.client;
     if (!client) return;
   }
   const practitionerId = client?.practitioner_id ?? a.practitioner_id;

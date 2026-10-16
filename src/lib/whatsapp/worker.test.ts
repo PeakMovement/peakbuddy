@@ -37,7 +37,7 @@ afterEach(() => {
   }
 });
 import type { OutboundMessage, WhatsAppProvider } from "./provider";
-import { IDS } from "./conversation";
+import { IDS, MSG } from "./conversation";
 import { acceptConsentLink } from "./onboarding.server";
 import { currentConsent } from "@/lib/consent/wording";
 
@@ -57,7 +57,7 @@ const CONSENTED = () =>
 
 type Row = Record<string, any>;
 
-function fakeDb(seed: Record<string, Row[]>) {
+function fakeDb(seed: Record<string, Row[]>, opts?: { missingColumns?: Record<string, string[]> }) {
   const tables: Record<string, Row[]> = {};
   for (const [k, v] of Object.entries(seed)) tables[k] = v.map((r) => ({ ...r }));
   let idSeq = 0;
@@ -72,6 +72,8 @@ function fakeDb(seed: Record<string, Row[]>) {
     let lim = Infinity;
     let head = false;
     let returning = false;
+    // PostgREST fails the whole select when any named column is absent (42703).
+    let selectError: { code: string; message: string } | null = null;
 
     const run = () => {
       if (op === "insert") return inserted;
@@ -90,9 +92,19 @@ function fakeDb(seed: Record<string, Row[]>) {
     };
 
     const api: any = {
-      select(_cols?: string, opts?: { count?: string; head?: boolean }) {
+      select(cols?: string, selectOpts?: { count?: string; head?: boolean }) {
         if (op !== "select") returning = true;
-        if (opts?.head) head = true;
+        else if (typeof cols === "string") {
+          const missing = opts?.missingColumns?.[table] ?? [];
+          const asked = cols
+            .split(",")
+            .map((c) => c.trim())
+            .filter(Boolean);
+          const hit = asked.find((c) => missing.includes(c));
+          if (hit)
+            selectError = { code: "42703", message: `column ${table}.${hit} does not exist` };
+        }
+        if (selectOpts?.head) head = true;
         return api;
       },
       insert(r: Row | Row[]) {
@@ -170,15 +182,23 @@ function fakeDb(seed: Record<string, Row[]>) {
         return api;
       },
       async maybeSingle() {
+        if (selectError && op === "select") return { data: null, error: selectError };
         const d = run();
         return { data: d[0] ?? null, error: null };
       },
       async single() {
+        if (selectError && op === "select") return { data: null, error: selectError };
         const d = run();
         return d[0] ? { data: d[0], error: null } : { data: null, error: { code: "PGRST116" } };
       },
       then(resolve: any, reject: any) {
         try {
+          if (selectError && op === "select") {
+            return Promise.resolve({ data: null, error: selectError, count: null }).then(
+              resolve,
+              reject,
+            );
+          }
           const d = run();
           return Promise.resolve(
             head ? { data: null, count: d.length, error: null } : { data: d, error: null },
@@ -358,6 +378,137 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     });
     expect(db.tables.check_ins).toHaveLength(0);
     expect(db.tables.consent_records).toHaveLength(0);
+  });
+
+  // 00:21 SAST is 22:21 UTC the previous calendar day. The evening check-in
+  // is still open; a missing column must not turn the pain reply into "unknown".
+  const MIDNIGHT_REPLY = new Date("2026-10-15T22:21:00.000Z");
+  const EVENING_CHECKIN = "2026-10-15T16:00:00.000Z";
+
+  function linkedPainReply(from = "27670000001") {
+    const row = inbound("3", undefined, from);
+    row.received_at = MIDNIGHT_REPLY.toISOString();
+    return row;
+  }
+
+  it("a missing next_appointment column still records a linked patient's pain reply", async () => {
+    const db = fakeDb(
+      {
+        clients: [{ ...CLIENT, phone: "067 000 0001", practice_id: "practice-1" }],
+        practices: [{ id: "practice-1", practitioner_id: "prac-1" }],
+        whatsapp_inbound: [linkedPainReply()],
+        whatsapp_conversations: [
+          {
+            id: "c1",
+            phone: "27670000001",
+            client_id: "client-1",
+            state: "awaiting_pain",
+            draft: { notes: [] },
+            checkin_started_at: EVENING_CHECKIN,
+          },
+        ],
+        consent_records: CONSENTED(),
+        check_ins: [
+          { id: "old", client_id: "client-1", pain_level: 1, created_at: EVENING_CHECKIN },
+        ],
+        alerts: [],
+      },
+      {
+        // next_appointment has no migration on main. goal / reply_hour arrive
+        // in 0038, which may not be applied yet. Either missing column fails
+        // the whole client select.
+        missingColumns: {
+          clients: ["next_appointment", "goal", "reply_hour", "reply_hour_count"],
+        },
+      },
+    );
+    const { provider, sent } = fakeProvider();
+    const result = await processPendingInbound({
+      admin: db.admin,
+      provider,
+      secrets: SECRETS,
+      now: () => MIDNIGHT_REPLY,
+    });
+    expect(result.failed).toBe(0);
+    expect(sent.map((m) => ("body" in m ? m.body : ""))).not.toContain(MSG.unmatched);
+    expect(db.tables.whatsapp_conversations[0]).toMatchObject({
+      client_id: "client-1",
+      state: "awaiting_sleep",
+    });
+    expect(db.tables.whatsapp_conversations[0].draft.pain).toBe(3);
+    expect(db.tables.alerts.some((a) => a.alert_type === "whatsapp_lookup_failed")).toBe(false);
+  });
+
+  it("a failed client read never tells a linked number it is unknown; the owner is alerted", async () => {
+    const db = fakeDb(
+      {
+        clients: [{ ...CLIENT, phone: "067 000 0001", practice_id: "practice-1" }],
+        practices: [{ id: "practice-1", practitioner_id: "prac-1" }],
+        whatsapp_inbound: [linkedPainReply()],
+        whatsapp_conversations: [
+          {
+            id: "c1",
+            phone: "27670000001",
+            client_id: "client-1",
+            state: "awaiting_pain",
+            draft: { notes: [] },
+            checkin_started_at: EVENING_CHECKIN,
+          },
+        ],
+        consent_records: CONSENTED(),
+        check_ins: [],
+        alerts: [],
+      },
+      { missingColumns: { clients: ["full_name"] } },
+    );
+    const { provider, sent } = fakeProvider();
+    const result = await processPendingInbound({
+      admin: db.admin,
+      provider,
+      secrets: SECRETS,
+      now: () => MIDNIGHT_REPLY,
+    });
+    expect(result.failed).toBe(1);
+    expect(sent).toHaveLength(0);
+    expect(db.tables.whatsapp_inbound[0]).toMatchObject({ status: "failed" });
+    expect(db.tables.whatsapp_inbound[0].failure_reason).toContain("client select failed");
+    expect(db.tables.whatsapp_conversations[0]).toMatchObject({
+      client_id: "client-1",
+      state: "awaiting_pain",
+    });
+    const alert = db.tables.alerts.find((a) => a.alert_type === "whatsapp_lookup_failed");
+    expect(alert).toMatchObject({
+      practitioner_id: "prac-1",
+      client_id: "client-1",
+      urgency: "soon",
+    });
+    expect(String(alert?.message)).not.toContain("067");
+    expect(String(alert?.message)).not.toContain("27670000001");
+    expect(String(alert?.message)).toContain("0001");
+  });
+
+  it("a failed phone lookup does not tell the sender their number is unknown", async () => {
+    const db = fakeDb(
+      {
+        clients: [{ ...CLIENT, phone: "067 000 0001", practice_id: "practice-1" }],
+        practices: [{ id: "practice-1", practitioner_id: "owner-1" }],
+        whatsapp_inbound: [linkedPainReply()],
+        whatsapp_conversations: [],
+        alerts: [],
+      },
+      { missingColumns: { clients: ["phone"] } },
+    );
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({
+      admin: db.admin,
+      provider,
+      secrets: SECRETS,
+      now: () => MIDNIGHT_REPLY,
+    });
+    expect(sent.map((m) => ("body" in m ? m.body : ""))).not.toContain(MSG.unmatched);
+    expect(db.tables.whatsapp_conversations[0].state).not.toBe("unmatched");
+    expect(db.tables.whatsapp_inbound[0].status).toBe("failed");
+    expect(db.tables.alerts.some((a) => a.alert_type === "whatsapp_lookup_failed")).toBe(true);
   });
 
   it("links an unknown number as soon as the practitioner adds it to the profile", async () => {
