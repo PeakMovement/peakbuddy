@@ -17,6 +17,8 @@ import {
 } from "./conversation";
 import { maskPhone, matchPhone, toE164Digits } from "./phone";
 import { BUDDY_FLAGS, converseDailyCap, patientFlag } from "@/lib/buddy-flags";
+import { runDialogue } from "./dialogue";
+import { normaliseTone } from "./personality";
 import { acceptClientRow, resolveLinkedClient } from "./client-load";
 import { mergeDayCheckIn, partialFromDraft, type DayCheckIn } from "@/lib/checkin-day";
 import { attemptOf, canRetry, inboundQueueDetail, retryReason } from "./inbound-retry";
@@ -1093,6 +1095,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   }
 
   const aiAllowed = client ? hasAiConsent(client) : false;
+  const conversational = patientFlag(BUDDY_FLAGS.conversationalPatient);
   const mime = row.media_mime_type ?? "";
   const isAudio = row.kind === "media" && mime.startsWith("audio/");
   const mediaType =
@@ -1278,6 +1281,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   let aiCount = aiSoFar;
   const converseCapped = patientFlag(BUDDY_FLAGS.cheapAi) && aiCount >= converseDailyCap();
   if (
+    !conversational &&
     !dataCopy &&
     !converseCapped &&
     !questionStep &&
@@ -1330,16 +1334,55 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   // An answer with a red flag in it gets Buddy's full safety reply, not just
   // "thanks": the answer is already saved, the thanks goes after.
   const answerOnly = questionStep && !redFlags.triggered ? questionStep : null;
-  const decision: Decision = answerOnly
-    ? {
-        replies: answerOnly.replies,
-        next: {
-          state,
-          draft: conv.draft ?? {},
-          checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
-        },
-      }
-    : decide({
+  let quotedText: string | null = null;
+  let tone: "warm" | "concise" | "sa" = "warm";
+  let memories: string[] = [];
+  if (conversational && client && !answerOnly) {
+    const quoteRow = await admin
+      .from("whatsapp_inbound")
+      .select("quoted_message_id")
+      .eq("id", row.id)
+      .maybeSingle()
+      .then(
+        (r) => r.data as { quoted_message_id?: string | null } | null,
+        () => null,
+      );
+    const quotedId = quoteRow?.quoted_message_id;
+    if (quotedId) {
+      const found = await admin
+        .from("whatsapp_outbound")
+        .select("body")
+        .eq("provider_message_id", quotedId)
+        .maybeSingle()
+        .then(
+          (r) => r.data as { body?: string | null } | null,
+          () => null,
+        );
+      quotedText = found?.body ?? null;
+    }
+    const practiceTone = await admin
+      .from("practices")
+      .select("buddy_tone")
+      .eq("practitioner_id", client.practitioner_id)
+      .maybeSingle()
+      .then(
+        (r) => r.data as { buddy_tone?: string | null } | null,
+        () => null,
+      );
+    tone = normaliseTone(practiceTone?.buddy_tone);
+    const memoryRows = await admin
+      .from("patient_memory")
+      .select("fact")
+      .eq("client_id", client.id)
+      .is("archived_at", null)
+      .limit(12)
+      .then(
+        (r) => (r.data ?? []) as Array<{ fact?: string }>,
+        () => [] as Array<{ fact?: string }>,
+      );
+    memories = memoryRows.map((m) => m.fact ?? "").filter(Boolean);
+  }
+  const decisionInput = {
         message,
         conversation: {
           state,
@@ -1366,7 +1409,35 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
         appOfferDue: Boolean(client && !client.auth_user_id && !conv.app_offer_at),
         voice: client ? await voiceStats(admin, client, now).catch(() => undefined) : undefined,
         appointmentAt: client?.next_appointment ?? null,
-      });
+        aiConsent: aiAllowed,
+        tone,
+        quotedText,
+        memories,
+      };
+  const reacted =
+    conversational === false &&
+    (row.reply_id === "react_yes" || row.reply_id === "react_no");
+  const dialogueDecision =
+    conversational && !answerOnly && !reacted ? runDialogue(decisionInput) : null;
+  const decision: Decision = answerOnly
+    ? {
+        replies: answerOnly.replies,
+        next: {
+          state,
+          draft: conv.draft ?? {},
+          checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
+        },
+      }
+    : reacted
+      ? {
+          replies: [],
+          next: {
+            state,
+            draft: conv.draft ?? {},
+            checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
+          },
+        }
+      : (dialogueDecision ?? decide(decisionInput));
 
   // Unknown numbers are told once a day, not on every message.
   let replies = decision.replies;
@@ -1861,6 +1932,50 @@ async function applyEffects(
       "whatsapp",
     );
     await rememberReplyHour(admin, client.id, now).catch(() => undefined);
+  }
+
+  if (decision.rememberFacts?.length && client) {
+    const { rememberFact } = await import("./patient-context.server");
+    for (const fact of decision.rememberFacts) {
+      await rememberFact(admin, client.id, fact).catch(() => undefined);
+    }
+  }
+  if (decision.forgetMemory && client) {
+    let query = admin
+      .from("patient_memory")
+      .update({ archived_at: now.toISOString() })
+      .eq("client_id", client.id)
+      .is("archived_at", null);
+    if (decision.forgetMemory !== "all") {
+      query = query.ilike("fact", `%${decision.forgetMemory.slice(0, 40)}%`);
+    }
+    await query.then(
+      () => undefined,
+      () => undefined,
+    );
+  }
+  if (decision.setOutreachOptIn != null && client) {
+    await admin
+      .from("clients")
+      .update({ outreach_opt_in: decision.setOutreachOptIn })
+      .eq("id", client.id)
+      .then(
+        () => undefined,
+        () => undefined,
+      );
+  }
+  if (decision.analytics && client) {
+    await admin
+      .from("conversation_events")
+      .insert({
+        client_id: client.id,
+        kind: decision.analytics.kind,
+        detail: decision.analytics.detail ?? null,
+      })
+      .then(
+        () => undefined,
+        () => undefined,
+      );
   }
 
   if (decision.setGoal) {

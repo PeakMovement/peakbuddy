@@ -1,3 +1,5 @@
+import { reactionReplyId } from "./reactions";
+
 /**
  * Provider boundary for the WhatsApp channel.
  *
@@ -35,6 +37,8 @@ export interface InboundMessage {
   reply?: { id: string; title: string };
   /** Present for media. We do not download media in this phase. */
   media?: { id: string; mimeType: string };
+  /** Provider id of the message they swiped to reply to. */
+  quotedMessageId?: string;
   providerId: WhatsAppProviderId;
 }
 
@@ -296,8 +300,14 @@ export const metaProvider: WhatsAppProvider = {
             providerId: "meta" as const,
           };
 
+          const quoted = m.context?.id ? String(m.context.id) : undefined;
           if (m.type === "text") {
-            messages.push({ ...base, kind: "text", text: String(m.text?.body ?? "") });
+            messages.push({
+              ...base,
+              kind: "text",
+              text: String(m.text?.body ?? ""),
+              quotedMessageId: quoted,
+            });
           } else if (m.type === "interactive") {
             const br = m.interactive?.button_reply;
             const lr = m.interactive?.list_reply;
@@ -333,8 +343,16 @@ export const metaProvider: WhatsAppProvider = {
               },
             });
           } else if (m.type === "reaction") {
-            // A thumbs-up on one of Buddy's messages needs no reply.
-            continue;
+            const emoji = String(m.reaction?.emoji ?? "");
+            const replyId = reactionReplyId(emoji);
+            if (!replyId) continue;
+            messages.push({
+              ...base,
+              kind: "interactive",
+              text: emoji,
+              reply: { id: replyId, title: emoji },
+              quotedMessageId: m.reaction?.message_id ? String(m.reaction.message_id) : undefined,
+            });
           } else {
             messages.push({ ...base, kind: "unsupported", text: "" });
           }

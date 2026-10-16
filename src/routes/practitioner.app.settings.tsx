@@ -6,6 +6,8 @@ import { ChangePasswordCard } from "@/components/ChangePasswordCard";
 import { PracticeJoinLinkCard } from "@/components/PracticeJoinLinkCard";
 import { PracticeWhatsAppLinkCard } from "@/components/WhatsAppInviteCards";
 import { RestaurantPartnersManager } from "@/components/RestaurantPartnersManager";
+import { ConversationAnalyticsCard } from "@/components/ConversationAnalyticsCard";
+import { normaliseTone, type BuddyTone } from "@/lib/whatsapp/personality";
 
 import { supabase } from "@/lib/supabase";
 import type { Practice, Profile } from "@/lib/types";
@@ -44,6 +46,7 @@ function Settings() {
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [weeklyDigestEnabled, setWeeklyDigestEnabled] = useState(false);
   const [autoRewardEnabled, setAutoRewardEnabled] = useState(true);
+  const [buddyTone, setBuddyTone] = useState<BuddyTone>("warm");
 
   useEffect(() => {
     (async () => {
@@ -70,6 +73,7 @@ function Settings() {
       setAutoRewardEnabled(
         (pr as { auto_reward_enabled?: boolean } | null)?.auto_reward_enabled ?? true,
       );
+      setBuddyTone(normaliseTone((pr as { buddy_tone?: string } | null)?.buddy_tone));
       setPracticeId(pr?.id ?? null);
       setLoading(false);
     })();
@@ -107,6 +111,7 @@ function Settings() {
       whatsapp_number: normalizedWa || null,
       weekly_digest_enabled: weeklyDigestEnabled,
       auto_reward_enabled: autoRewardEnabled,
+      buddy_tone: buddyTone,
     };
 
     let pracErr: { message: string } | null = null;
@@ -205,6 +210,36 @@ function Settings() {
               value={practiceName}
               onChange={(e) => setPracticeName(e.target.value)}
             />
+          </div>
+          <div>
+            <label style={labelStyle}>Buddy tone</label>
+            <select
+              style={inputStyle}
+              value={buddyTone}
+              onChange={(e) => setBuddyTone(normaliseTone(e.target.value))}
+            >
+              <option value="warm">Warm</option>
+              <option value="concise">Concise</option>
+              <option value="sa">SA friendly</option>
+            </select>
+            <p style={{ color: "var(--white-muted)", fontSize: 13, lineHeight: 1.5, margin: "6px 0 0" }}>
+              Warm, concise, or a South African friendly greeting. Replies stay in English. Approved WhatsApp templates stay as written.
+            </p>
+          </div>
+          <div>
+            <label style={labelStyle}>Buddy tone</label>
+            <select
+              style={inputStyle}
+              value={buddyTone}
+              onChange={(e) => setBuddyTone(normaliseTone(e.target.value))}
+            >
+              <option value="warm">Warm</option>
+              <option value="concise">Concise</option>
+              <option value="sa">SA friendly</option>
+            </select>
+            <p style={{ color: "var(--white-muted)", fontSize: 13, lineHeight: 1.5, margin: "6px 0 0" }}>
+              Warm, concise, or a South African friendly greeting. Replies stay in English. Approved WhatsApp templates stay as written.
+            </p>
           </div>
           <div>
             <label style={labelStyle}>Profession</label>
@@ -351,6 +386,8 @@ function Settings() {
           {saving ? "Saving…" : "Save"}
         </button>
       </form>
+
+      <ConversationAnalyticsCard />
 
       <div style={{ marginTop: 20 }}>
         <RestaurantPartnersManager scope="practice" />
