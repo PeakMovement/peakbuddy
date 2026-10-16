@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { trackedJob } from "@/lib/job-runs.server";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import { log } from "@/lib/log";
+import { BUDDY_FLAGS, patientFlag } from "@/lib/buddy-flags";
+import { reminderFollowUp } from "@/lib/whatsapp/reminder-claim";
 
 /**
  * Cron endpoint — runs every 5 minutes.
@@ -95,6 +97,20 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
               skipped++;
               continue;
             }
+            // A missing column must not skip the whole reminder run.
+            const loose = supabaseAdmin as unknown as { from: (table: string) => any };
+            const episode = await loose
+              .from("clients")
+              .select("discharged_at")
+              .eq("id", client.id)
+              .maybeSingle();
+            if (
+              !episode.error &&
+              (episode.data as { discharged_at?: string | null } | null)?.discharged_at
+            ) {
+              skipped++;
+              continue;
+            }
 
             // Skip if a check-in already exists today (local date).
             // Local midnight in the reminder's own timezone, as a UTC instant.
@@ -144,24 +160,49 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
             const wa = await sendWhatsAppReminder(supabaseAdmin, client.id, now).catch(
               () => "failed" as const,
             );
-            if (wa === "sent") {
-              sent++;
+            const follow = reminderFollowUp(
+              wa,
+              Boolean(client.auth_user_id),
+              patientFlag(BUDDY_FLAGS.reminderRelease),
+            );
+            if (follow === "release") {
+              await supabaseAdmin
+                .from("checkin_reminders")
+                .update({ last_sent_on: null })
+                .eq("id", r.id);
+              skipped++;
+              continue;
+            }
+            if (wa === "sent" || follow === "keep") {
+              if (wa === "sent") sent++;
+              else skipped++;
               continue;
             }
             if (!client.auth_user_id) {
               skipped++;
               continue;
             }
-            await sendPushCore(supabaseAdmin, {
-              userId: client.auth_user_id,
-              title: "Time for your check-in",
-              body: "Tap to log how you're feeling today.",
-              data: { type: "checkin_reminder", path: "/client/app/checkin" },
-              sentBy: null,
-            });
-            sent++;
+            try {
+              await sendPushCore(supabaseAdmin, {
+                userId: client.auth_user_id,
+                title: "Time for your check-in",
+                body: "Tap to log how you're feeling today.",
+                data: { type: "checkin_reminder", path: "/client/app/checkin" },
+                sentBy: null,
+              });
+              sent++;
+            } catch (e) {
+              log.warn("checkin-reminders failed", { id: r.id, error: e });
+              if (wa === "failed" && patientFlag(BUDDY_FLAGS.reminderRelease)) {
+                await supabaseAdmin
+                  .from("checkin_reminders")
+                  .update({ last_sent_on: null })
+                  .eq("id", r.id);
+              }
+            }
           } catch (e) {
             log.warn("checkin-reminders failed", { id: r.id, error: e });
+            skipped++;
           }
         }
 

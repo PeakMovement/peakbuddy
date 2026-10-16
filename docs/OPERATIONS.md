@@ -118,3 +118,26 @@ There is **no** in-repo deploy GitHub Action and no `wrangler deploy` in CI. Pub
 5. Add that origin to Supabase Auth redirect URLs, OAuth apps, and `ALLOWED_ORIGINS`.
 
 Do not publish the Peak Movement **marketing** site from this repo.
+
+## Publish the ten Buddy improvements
+
+Apply `drizzle/migrations/0039_client_care_columns.sql`, `0040_checkin_one_per_sast_day.sql`, and `0041_data_export_links.sql` to the live database. Do not copy them into `supabase/migrations/`.
+
+Regenerate the route tree before publish:
+
+```bash
+bunx @tanstack/router-cli generate
+```
+
+Patient-facing switches stay off until the env var is exactly `1`:
+
+- `BUDDY_REMINDER_RELEASE`
+- `BUDDY_APPOINTMENT_WRITE`
+- `BUDDY_INBOUND_RETRY`
+- `BUDDY_CHEAP_AI`
+- `BUDDY_CONVERSE_DAILY_CAP` (integer, default 8, only when cheap AI is on)
+- `BUDDY_PHONE_AMBIGUOUS`
+- `BUDDY_DISCHARGE`
+- `BUDDY_DATA_EXPORT_SEND`
+
+No new Meta template. The morning note keeps its three buttons. Discharge, a data-copy link, and an ambiguous-phone line go out only inside the existing 24 hour window.

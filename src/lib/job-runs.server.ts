@@ -33,6 +33,9 @@ export const EXPECTED_JOBS: Array<{ job: string; label: string; windowMs: number
 /** Written when a red-flag alert reaches no channel, or the WhatsApp template is missing. */
 export const RED_FLAG_NOTIFY_JOB = "red-flag-notify";
 
+/** Written when inbound messages are still failed, or a stale one was only partly saved. */
+export const INBOUND_QUEUE_JOB = "whatsapp-inbound-dead";
+
 export async function recordJobRun(
   job: string,
   run: { ok: boolean; status: number; durationMs: number; detail?: string },
@@ -165,6 +168,23 @@ export function evaluateJobHealth(
       job: RED_FLAG_NOTIFY_JOB,
       label: "Red-flag notifications",
       problem: `${recentAlarms.length} delivery failure${recentAlarms.length === 1 ? "" : "s"} in the last day. Latest: ${why}`,
+    });
+  }
+
+  const dead = rows
+    .filter(
+      (r) =>
+        r.job === INBOUND_QUEUE_JOB &&
+        !r.ok &&
+        now.getTime() - new Date(r.ran_at).getTime() < 26 * HOUR,
+    )
+    .sort((a, b) => b.ran_at.localeCompare(a.ran_at));
+  if (dead.length) {
+    const why = dead[0].detail?.trim() || "inbound messages were not finished";
+    problems.push({
+      job: INBOUND_QUEUE_JOB,
+      label: "WhatsApp inbound queue",
+      problem: why,
     });
   }
   return problems;

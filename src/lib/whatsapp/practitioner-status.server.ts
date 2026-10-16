@@ -320,11 +320,15 @@ export interface ClientStatus {
   }>;
   openAlerts: Array<{ type: string; urgency: string; at: string; kind?: AlertKind }>;
   channel: "whatsapp" | "app" | "none";
+  /** Set after a confirmed discharge. Open alerts still surface. */
+  discharged?: boolean;
 }
 
 export type Bucket = "attention" | "quiet" | "well" | "inactive";
 
 export function bucketOf(c: ClientStatus, now: Date): Bucket {
+  if (c.discharged && c.openAlerts.length) return "attention";
+  if (c.discharged) return "inactive";
   const last = c.checkins[0];
   const lastMs = last ? now.getTime() - new Date(last.at).getTime() : Infinity;
   const joinedMs = c.joinedAt ? now.getTime() - new Date(c.joinedAt).getTime() : Infinity;
@@ -611,6 +615,13 @@ export async function loadStatuses(
       .in("client_id", ids)
       .limit(2000),
   ]);
+  const discharged = new Set<string>();
+  const episode = await admin.from("clients").select("id, discharged_at").in("id", ids).limit(2000);
+  if (!episode.error) {
+    for (const row of (episode.data ?? []) as Array<{ id: string; discharged_at?: string | null }>) {
+      if (row.discharged_at) discharged.add(row.id);
+    }
+  }
   const onWa = new Set(
     ((convs ?? []) as Array<{ client_id: string; opted_out_at: string | null; state: string }>)
       .filter((c) => !c.opted_out_at && c.state !== "opted_out")
@@ -625,6 +636,7 @@ export async function loadStatuses(
       checkins: [],
       openAlerts: [],
       channel: onWa.has(c.id) ? "whatsapp" : c.auth_user_id ? "app" : "none",
+      discharged: discharged.has(c.id),
     });
   }
   const rows = ((cis ?? []) as Array<Record<string, any>>).sort(

@@ -1,6 +1,9 @@
 import { decisionsFromGateway } from "./practitioner-agent";
 import type { AiAssist } from "./conversation";
 import { ASSIST_INTENTS, PRACTICE_INFO, type AssistRoute } from "./assistant";
+import { BUDDY_FLAGS, patientFlag } from "@/lib/buddy-flags";
+import { noteAiCall } from "./ai-usage";
+import { log } from "@/lib/log";
 import {
   CONVERSE_ACTIONS,
   formatHistory,
@@ -26,7 +29,78 @@ import {
  */
 
 const ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929";
+const FLASH_MODEL = "google/gemini-2.5-flash";
 const TIMEOUT_MS = 12_000;
+
+function usageOf(json: { usage?: { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number } }): {
+  inputTokens: number;
+  outputTokens: number;
+} {
+  const u = json.usage;
+  return {
+    inputTokens: u?.input_tokens ?? u?.prompt_tokens ?? 0,
+    outputTokens: u?.output_tokens ?? u?.completion_tokens ?? 0,
+  };
+}
+
+function noteStatus(model: string, status: number, json?: { usage?: { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number } }): void {
+  log.warn("ai call", { model, status });
+  const tokens = json ? usageOf(json) : { inputTokens: 0, outputTokens: 0 };
+  noteAiCall({ model, status, ...tokens });
+}
+
+/** Same Flash gateway the practitioner agent uses. Arguments only, never logged. */
+async function flashTool(
+  system: string,
+  user: string,
+  toolName: string,
+  parameters: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) {
+    noteStatus(FLASH_MODEL, 0);
+    return null;
+  }
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
+      body: JSON.stringify({
+        model: FLASH_MODEL,
+        temperature: 0,
+        max_tokens: 200,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: { name: toolName, description: toolName, parameters },
+          },
+        ],
+        tool_choice: { type: "function", function: { name: toolName } },
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      noteStatus(FLASH_MODEL, res.status);
+      return null;
+    }
+    const json = (await res.json()) as {
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+      choices?: Array<{ message?: { tool_calls?: Array<{ function?: { arguments?: string } }> } }>;
+    };
+    noteAiCall({ model: FLASH_MODEL, status: res.status, ...usageOf(json) });
+    const raw = json.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    noteStatus(FLASH_MODEL, 0);
+    return null;
+  }
+}
 
 export type AnswerField = "painScore" | "sleep" | "energy";
 
@@ -67,8 +141,24 @@ Rules:
 
 /** Fallback reader for one check-in answer. Null when unsure or unavailable. */
 export async function readAnswerWithAi(field: AnswerField, reply: string): Promise<number | null> {
+  if (!reply.trim()) return null;
+  if (patientFlag(BUDDY_FLAGS.cheapAi)) {
+    const args = await flashTool(SYSTEM, `Question: ${QUESTION[field]}\nPatient's reply: ${reply.slice(0, 1000)}`, ANSWER_TOOL.name, {
+      type: "object",
+      properties: ANSWER_TOOL.input_schema.properties,
+      required: [...ANSWER_TOOL.input_schema.required],
+    });
+    return validAnswer(field, args?.value);
+  }
+  return readAnswerWithSonnet(field, reply);
+}
+
+async function readAnswerWithSonnet(field: AnswerField, reply: string): Promise<number | null> {
   const key = process.env.ANTHROPIC_API_KEY;
-  if (!key || !reply.trim()) return null;
+  if (!key) {
+    noteStatus(ANTHROPIC_MODEL, 0);
+    return null;
+  }
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -92,13 +182,19 @@ export async function readAnswerWithAi(field: AnswerField, reply: string): Promi
       }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      noteStatus(ANTHROPIC_MODEL, res.status);
+      return null;
+    }
     const json = (await res.json()) as {
+      usage?: { input_tokens?: number; output_tokens?: number };
       content?: Array<{ type: string; input?: { value?: unknown } }>;
     };
+    noteAiCall({ model: ANTHROPIC_MODEL, status: res.status, ...usageOf(json) });
     const value = json.content?.find((c) => c.type === "tool_use")?.input?.value;
     return validAnswer(field, value);
   } catch {
+    noteStatus(ANTHROPIC_MODEL, 0);
     return null;
   }
 }
@@ -227,8 +323,24 @@ ${PRACTICE_INFO}`;
 
 /** AI router. Null on any failure, and the caller falls back to keywords. */
 export async function routeWithAi(text: string): Promise<AssistRoute | null> {
+  if (!text.trim()) return null;
+  if (patientFlag(BUDDY_FLAGS.cheapAi)) {
+    const args = await flashTool(ROUTE_SYSTEM, text.slice(0, 1500), ROUTE_TOOL.name, {
+      type: "object",
+      properties: ROUTE_TOOL.input_schema.properties,
+      required: [...ROUTE_TOOL.input_schema.required],
+    });
+    return validRoute(args ?? undefined);
+  }
+  return routeWithSonnet(text);
+}
+
+async function routeWithSonnet(text: string): Promise<AssistRoute | null> {
   const key = process.env.ANTHROPIC_API_KEY;
-  if (!key || !text.trim()) return null;
+  if (!key) {
+    noteStatus(ANTHROPIC_MODEL, 0);
+    return null;
+  }
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -247,12 +359,18 @@ export async function routeWithAi(text: string): Promise<AssistRoute | null> {
       }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      noteStatus(ANTHROPIC_MODEL, res.status);
+      return null;
+    }
     const json = (await res.json()) as {
+      usage?: { input_tokens?: number; output_tokens?: number };
       content?: Array<{ type: string; input?: { intent?: unknown; answer?: unknown } }>;
     };
+    noteAiCall({ model: ANTHROPIC_MODEL, status: res.status, ...usageOf(json) });
     return validRoute(json.content?.find((c) => c.type === "tool_use")?.input);
   } catch {
+    noteStatus(ANTHROPIC_MODEL, 0);
     return null;
   }
 }
@@ -404,15 +522,21 @@ export async function converseWithAi(input: ConverseInput): Promise<ConverseResu
       }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      noteStatus(ANTHROPIC_MODEL, res.status);
+      return null;
+    }
     const json = (await res.json()) as {
+      usage?: { input_tokens?: number; output_tokens?: number };
       content?: Array<{
         type: string;
         input?: { reply?: unknown; action?: unknown; time?: unknown; remember?: unknown };
       }>;
     };
+    noteAiCall({ model: ANTHROPIC_MODEL, status: res.status, ...usageOf(json) });
     return validConverse(json.content?.find((c) => c.type === "tool_use")?.input);
   } catch {
+    noteStatus(ANTHROPIC_MODEL, 0);
     return null;
   }
 }
