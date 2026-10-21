@@ -138,6 +138,23 @@ export function renderTranscript(name: string, weekLabel: string, lines: BackupL
   return [...head, ...body, ""].join("\n");
 }
 
+const PAGE = 1000;
+
+/** Reads every row of a query, a page at a time (capped at 20 pages). */
+export async function readAllPages(
+  page: (lo: number, hi: number) => PromiseLike<{ data: unknown[] | null; error?: unknown }>,
+): Promise<unknown[]> {
+  const out: unknown[] = [];
+  for (let i = 0; i < 20; i++) {
+    const { data, error } = await page(i * PAGE, i * PAGE + PAGE - 1);
+    if (error) throw new Error("drive backup read failed");
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
 export interface BackupResult {
   ok: boolean;
   reason?: string;
@@ -164,21 +181,28 @@ export async function runWeeklyDriveBackup(
   const from = week.start.toISOString();
   const to = week.end.toISOString();
 
-  const [{ data: inbound }, { data: outbound }] = await Promise.all([
-    admin
-      .from("whatsapp_inbound")
-      .select("*")
-      .gte("received_at", from)
-      .lt("received_at", to)
-      .not("client_id", "is", null)
-      .limit(20000),
-    admin
-      .from("whatsapp_outbound")
-      .select("client_id, body, created_at, sent_ok")
-      .gte("created_at", from)
-      .lt("created_at", to)
-      .not("client_id", "is", null)
-      .limit(20000),
+  // Paged: the API returns at most 1000 rows per read.
+  const [inbound, outbound] = await Promise.all([
+    readAllPages((lo, hi) =>
+      admin
+        .from("whatsapp_inbound")
+        .select("*")
+        .gte("received_at", from)
+        .lt("received_at", to)
+        .not("client_id", "is", null)
+        .order("received_at", { ascending: true })
+        .range(lo, hi),
+    ),
+    readAllPages((lo, hi) =>
+      admin
+        .from("whatsapp_outbound")
+        .select("client_id, body, created_at, sent_ok")
+        .gte("created_at", from)
+        .lt("created_at", to)
+        .not("client_id", "is", null)
+        .order("created_at", { ascending: true })
+        .range(lo, hi),
+    ),
   ]);
 
   const byClient = new Map<string, BackupLine[]>();

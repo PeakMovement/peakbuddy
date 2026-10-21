@@ -19,14 +19,26 @@ const DAY = 24 * HOUR;
 
 /** Each job, in plain words, and how long it may go without a success. */
 export const EXPECTED_JOBS: Array<{ job: string; label: string; windowMs: number }> = [
-  { job: "whatsapp-worker-tick", label: "WhatsApp backup responder (every minute)", windowMs: 30 * MIN },
-  { job: "checkin-reminders-tick", label: "Check-in reminders (every 5 minutes)", windowMs: 30 * MIN },
+  {
+    job: "whatsapp-worker-tick",
+    label: "WhatsApp backup responder (every minute)",
+    windowMs: 30 * MIN,
+  },
+  {
+    job: "checkin-reminders-tick",
+    label: "Check-in reminders (every 5 minutes)",
+    windowMs: 30 * MIN,
+  },
   { job: "wearables-sync-daily", label: "Wearables sync (daily)", windowMs: 26 * HOUR },
   { job: "nightly-pattern-detection", label: "Pattern detection (nightly)", windowMs: 26 * HOUR },
   { job: "nightly-risk-analysis", label: "Risk analysis (nightly)", windowMs: 26 * HOUR },
   { job: "onboarding-library-nudge", label: "Onboarding nudge (daily)", windowMs: 26 * HOUR },
   { job: "weekly-practitioner-digest", label: "Practitioner digest (weekly)", windowMs: 8 * DAY },
-  { job: "whatsapp-drive-backup-weekly", label: "WhatsApp Drive backup (weekly)", windowMs: 8 * DAY },
+  {
+    job: "whatsapp-drive-backup-weekly",
+    label: "WhatsApp Drive backup (weekly)",
+    windowMs: 8 * DAY,
+  },
   { job: "job-health-check", label: "Job health check (daily)", windowMs: 26 * HOUR },
 ];
 
@@ -92,10 +104,27 @@ export function trackedJob<C>(
         ok: res.status < 400,
         status: res.status,
         durationMs: Date.now() - started,
+        detail: res.status >= 400 ? await failureReason(res) : undefined,
       });
     }
     return res;
   };
+}
+
+/** The "reason" a failing hook gave, so the health email can say why. Never the body itself. */
+async function failureReason(res: Response): Promise<string | undefined> {
+  try {
+    const json = (await res.clone().json()) as { reason?: unknown; error?: unknown };
+    const why =
+      typeof json?.reason === "string"
+        ? json.reason
+        : typeof json?.error === "string"
+          ? json.error
+          : "";
+    return why ? why.slice(0, 200) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export interface JobRunRow {
@@ -124,16 +153,14 @@ export function evaluateJobHealth(
 ): JobProblem[] {
   const problems: JobProblem[] = [];
   for (const { job, label, windowMs } of EXPECTED_JOBS) {
-    const runs = rows
-      .filter((r) => r.job === job)
-      .sort((a, b) => b.ran_at.localeCompare(a.ran_at));
+    const runs = rows.filter((r) => r.job === job).sort((a, b) => b.ran_at.localeCompare(a.ran_at));
     const latest = runs[0];
     const lastOk = runs.find((r) => r.ok);
     if (latest && !latest.ok) {
       problems.push({
         job,
         label,
-        problem: `Last run failed (status ${latest.status ?? "unknown"}) at ${sast(latest.ran_at)}`,
+        problem: `Last run failed (status ${latest.status ?? "unknown"}${latest.detail ? `: ${latest.detail}` : ""}) at ${sast(latest.ran_at)}`,
       });
       continue;
     }
@@ -180,23 +207,52 @@ export async function runJobHealthCheck(
 ): Promise<{ ok: boolean; problems: JobProblem[]; emailed: boolean }> {
   const longest = Math.max(...EXPECTED_JOBS.map((j) => j.windowMs));
   const since = new Date(now.getTime() - longest - DAY).toISOString();
-  const table = () => admin.from("job_runs" as never) as unknown as {
-    select: (c: string) => any;
-    delete: () => any;
-  };
+  const table = () =>
+    admin.from("job_runs" as never) as unknown as {
+      select: (c: string) => any;
+      delete: () => any;
+    };
 
-  const [{ data: rows, error }, { data: first }] = await Promise.all([
-    table().select("job, ran_at, ok, status, detail").gte("ran_at", since).order("ran_at", { ascending: false }).limit(20000),
+  // Per job: its latest run and its latest success. One big read used to be
+  // capped at 1000 rows by the API, so the every-minute jobs crowded out the
+  // daily and weekly ones and the email said they never ran (Oct 2026).
+  const cols = "job, ran_at, ok, status, detail";
+  const reads = EXPECTED_JOBS.flatMap(({ job }) => [
+    table()
+      .select(cols)
+      .eq("job", job)
+      .gte("ran_at", since)
+      .order("ran_at", { ascending: false })
+      .limit(1),
+    table()
+      .select(cols)
+      .eq("job", job)
+      .eq("ok", true)
+      .gte("ran_at", since)
+      .order("ran_at", { ascending: false })
+      .limit(1),
+  ]);
+  const alarms = table()
+    .select(cols)
+    .eq("job", RED_FLAG_NOTIFY_JOB)
+    .gte("ran_at", new Date(now.getTime() - 26 * HOUR).toISOString())
+    .order("ran_at", { ascending: false })
+    .limit(500);
+  const [results, alarmRead, { data: first }] = await Promise.all([
+    Promise.all(reads),
+    alarms,
     table().select("ran_at").order("ran_at", { ascending: true }).limit(1),
   ]);
-  if (error) throw new Error(`job_runs read failed: ${error.message}`);
+  const failedRead = [...results, alarmRead].find(
+    (r: { error?: { message?: string } | null }) => r.error,
+  );
+  if (failedRead) throw new Error(`job_runs read failed: ${failedRead.error.message}`);
+  const rows = [...results, alarmRead].flatMap(
+    (r: { data?: JobRunRow[] | null }) => (r.data ?? []) as JobRunRow[],
+  );
   const trackingSince = (first as Array<{ ran_at: string }> | null)?.[0]?.ran_at;
 
-  const problems = evaluateJobHealth(
-    (rows ?? []) as JobRunRow[],
-    now,
-    trackingSince ? new Date(trackingSince) : null,
-  );
+  const problems = evaluateJobHealth(rows, now, trackingSince ? new Date(trackingSince) : null);
 
   // Keep two weeks of heartbeats.
   await table()
