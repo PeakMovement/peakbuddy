@@ -211,7 +211,7 @@ export const PRAC_MSG = {
     `• "Ask reception to book Sam for Thursday" and I'll pass it to reception\n` +
     `• "Who are the practitioners?" and I'll list them. You can message several clients at once, in your own words\n` +
     `• "What's open with reception?" to see what's still waiting. Just "reception" and I'll ask what to pass on\n\n` +
-    `Practice owners can also ask "practice overview", "any red flags?", "who's gone quiet?" or "how many clients are using Buddy?"`,
+    `Practice owners can also ask "practice overview", "any red flags?", "who's gone quiet?" or "how many clients are using Buddy?", and "archive everyone who hasn't responded in 60 days" (records are kept, "unarchive Sam" brings them back)`,
   notFound: (name: string) =>
     `I couldn't find a patient matching that on your list, ${name}. Try their first and last name, for example "I've sent Sam Kruger his programme".`,
   which: "I found more than one patient with that name. Which one did you mean?",
@@ -273,13 +273,16 @@ async function practitionerPatients(admin: Db, userId: string): Promise<PatientR
     ...((owned ?? []) as Array<{ id: string }>).map((p) => p.id),
     ...((memberOf ?? []) as Array<{ practice_id: string }>).map((m) => m.practice_id),
   ];
-  const own = await admin
-    .from("clients")
-    .select("id, full_name")
-    .eq("practitioner_id", userId)
-    .limit(2000);
+  const { withoutArchived } = await import("@/lib/client-archive.server");
+  const own = await withoutArchived((f) => {
+    const q = admin.from("clients").select("id, full_name").eq("practitioner_id", userId);
+    return (f ? q.is("archived_at", null) : q).limit(2000);
+  });
   const inPractice = practiceIds.length
-    ? await admin.from("clients").select("id, full_name").in("practice_id", practiceIds).limit(5000)
+    ? await withoutArchived((f) => {
+        const q = admin.from("clients").select("id, full_name").in("practice_id", practiceIds);
+        return (f ? q.is("archived_at", null) : q).limit(5000);
+      })
     : { data: [] };
   const all = new Map<string, PatientRow>();
   for (const r of [

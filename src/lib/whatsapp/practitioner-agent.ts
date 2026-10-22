@@ -46,6 +46,8 @@ export const AGENT_TOOLS = [
   "outcomes",
   "confirm_quiet_nudges",
   "set_programme_reminder",
+  "archive_clients",
+  "unarchive_clients",
   "clarify",
 ] as const;
 
@@ -71,6 +73,8 @@ export interface AgentDecision {
   programmeDays?: number[];
   /** True only when the practitioner says the patient already agreed. */
   programmeOptIn?: boolean;
+  /** archive_clients: no check-in or message for this many days. */
+  idleDays?: number | null;
 }
 
 export interface AgentTurnInput {
@@ -200,11 +204,16 @@ export function validDecision(raw: unknown): AgentDecision | null {
   const programmeDays = fromNumbers.length
     ? [...new Set(fromNumbers)]
     : parseProgrammeDays(
-        [Array.isArray(row.days) ? row.days.map(String).join(" ") : "", String(row.task ?? ""), String(row.note ?? "")].join(
-          " ",
-        ),
+        [
+          Array.isArray(row.days) ? row.days.map(String).join(" ") : "",
+          String(row.task ?? ""),
+          String(row.note ?? ""),
+        ].join(" "),
       );
   const programmeOptIn = row.optedIn === true;
+  const rawIdle = row.idleDays ?? row.idle_days;
+  const idleDays =
+    typeof rawIdle === "number" && rawIdle >= 1 && rawIdle <= 730 ? Math.round(rawIdle) : null;
   if (tool === "set_morning_checkin" && enabled == null) return null;
   if (tool === "set_goal" && !goal) return null;
   if (tool === "set_programme_reminder" && programmeDays.length === 0) return null;
@@ -227,6 +236,7 @@ export function validDecision(raw: unknown): AgentDecision | null {
     goal,
     programmeDays,
     programmeOptIn,
+    idleDays,
   };
 }
 
@@ -367,8 +377,7 @@ export function practitionerToolSchemas(heidiEnabled: boolean): unknown[] {
     },
     {
       name: "outcomes",
-      description:
-        "Owner scorecard: counts, initials, and complaint labels. No clinical notes.",
+      description: "Owner scorecard: counts, initials, and complaint labels. No clinical notes.",
       properties: {},
       required: [],
     },
@@ -389,6 +398,20 @@ export function practitionerToolSchemas(heidiEnabled: boolean): unknown[] {
         optedIn: { type: "boolean" },
       },
       required: ["names", "days"],
+    },
+    {
+      name: "archive_clients",
+      description:
+        'Archive clients who have stopped responding (practice owner only). Records are kept; they come off lists and get no more reminders. Named clients, or names ["inactive"] for everyone with no check-in or message for idleDays days (default 60). "Delete", "remove" or "clear out" old clients means this. A confirmation is shown first.',
+      properties: { names: strArray, idleDays: { type: "integer" } },
+      required: [],
+    },
+    {
+      name: "unarchive_clients",
+      description:
+        'Bring archived clients back (practice owner only). names as spoken, or ["all"].',
+      properties: { names: strArray },
+      required: ["names"],
     },
     {
       name: "help",
@@ -495,7 +518,7 @@ A wording they want included ("say you're with ${input.practiceName}", "mention 
 If something is waiting to be sent and they agree ("yes", "ye do it", "all", "👍"), call confirm_pending. If they decline, call cancel_pending.
 If you are unsure, call clarify with one short question and up to 3 button labels under 20 characters. No client facts in that question.
 Scheduled updates use schedule_updates. Reception errands use ask_reception. What you can do uses help.
-A case brief is case_brief. Who improved this week is who_improved. Booking or moving an appointment is book_reception. A goal they want stored is set_goal. An outcomes or retention scorecard is outcomes. Agreeing to remind the quiet patients already named is confirm_quiet_nudges. Home programme reminder days are set_programme_reminder. days uses 0 for Sunday through 6 for Saturday. optedIn is true only when they say the patient already agreed. Do not message the patient from that tool.
+A case brief is case_brief. Who improved this week is who_improved. Booking or moving an appointment is book_reception. A goal they want stored is set_goal. An outcomes or retention scorecard is outcomes. Agreeing to remind the quiet patients already named is confirm_quiet_nudges. Deleting, removing, clearing out or archiving old or unresponsive clients is archive_clients: named clients, or names ["inactive"] with idleDays when they give a period ("not responded in 3 months" is idleDays 90). Bringing someone back is unarchive_clients. Home programme reminder days are set_programme_reminder. days uses 0 for Sunday through 6 for Saturday. optedIn is true only when they say the patient already agreed. Do not message the patient from that tool.
 A weekday morning note asks whether they want a patient update or reception to check in with anyone. "Patient update" or agreeing to the update is client_status with names ["all"]. Naming patients for reception to check in with is ask_reception, task "Check in with" those names. "Reception check-in" with no names is clarify asking who, with no client facts. "Not today" is dismiss_morning. "Stop morning check-ins" is set_morning_checkin with enabled false. "Start morning check-ins" is set_morning_checkin with enabled true. "Update me every morning" is schedule_updates, not the morning note.
 ${input.canSeeAllPractitioners ? "This person is an owner or admin and can see the whole practice." : "This person sees only their own clients, and only themselves in the practitioner list."}
 ${input.heidiEnabled ? "Heidi is connected. heidi_read needs a first and last name." : "Heidi is not connected. Do not call heidi_read."}

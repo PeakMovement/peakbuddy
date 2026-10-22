@@ -86,7 +86,10 @@ function renderDigest(d: DigestData) {
       ${row("Unread alerts", d.unreadAlerts)}
     </table>
     ${listBlock("Clients to watch", atRiskItems)}
-    ${listBlock("Who moved", d.moved.map((line) => escapeHtml(line)))}
+    ${listBlock(
+      "Who moved",
+      d.moved.map((line) => escapeHtml(line)),
+    )}
     ${listBlock("Gone quiet", quietItems)}
     <a href="${d.dashboardLink}" style="display:inline-block;background:#4a8df0;color:#0b1836;text-decoration:none;padding:13px 28px;border-radius:8px;font-weight:700;margin:24px 0 8px">Open your dashboard</a>
     <p style="color:#b8c5db;font-size:11px;line-height:1.6;margin:22px 0 0;border-top:1px solid #3658a3;padding-top:16px">
@@ -154,10 +157,14 @@ async function buildAndSend(
   if (!email) return "skipped";
   const practitionerName = (prof as { full_name?: string } | null)?.full_name || "Practitioner";
 
-  const { data: clientRows } = await supabaseAdmin
-    .from("clients")
-    .select("id, full_name, practitioner_id")
-    .eq("practitioner_id", practitionerId);
+  const { withoutArchived } = await import("@/lib/client-archive.server");
+  const { data: clientRows } = await withoutArchived((f) => {
+    const q = supabaseAdmin
+      .from("clients")
+      .select("id, full_name, practitioner_id")
+      .eq("practitioner_id", practitionerId);
+    return f ? q.is("archived_at" as never, null) : q;
+  });
   const clients = (clientRows ?? []) as ClientRow[];
   if (clients.length === 0) return "skipped";
   const clientIds = clients.map((c) => c.id);
@@ -228,7 +235,12 @@ async function buildAndSend(
     metric: string;
     pattern_type: string;
   }>) {
-    if (p.metric !== "pain" && p.metric !== "energy" && p.metric !== "stress" && p.metric !== "sleep") {
+    if (
+      p.metric !== "pain" &&
+      p.metric !== "energy" &&
+      p.metric !== "stress" &&
+      p.metric !== "sleep"
+    ) {
       continue;
     }
     moved.push(
@@ -298,9 +310,8 @@ async function sendDigestWhatsApp(
   const { whatsappConfigFromEnv } = await import("@/lib/whatsapp/worker.server");
   const cfg = whatsappConfigFromEnv();
   if (!cfg) return;
-  const { practitionerContact, windowOpen, sendLogged } = await import(
-    "@/lib/whatsapp/practitioner-status.server"
-  );
+  const { practitionerContact, windowOpen, sendLogged } =
+    await import("@/lib/whatsapp/practitioner-status.server");
   const contact = await practitionerContact(supabaseAdmin, practitionerId);
   if (!contact.phone) return;
   const first = contact.firstName || practitionerName.split(/\s+/)[0] || "there";

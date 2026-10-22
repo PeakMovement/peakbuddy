@@ -86,11 +86,17 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
               continue;
             }
 
-            const { data: client } = await supabaseAdmin
-              .from("clients")
-              .select("id, auth_user_id, full_name")
-              .eq("id", r.client_id)
-              .maybeSingle();
+            // Archived clients get no reminders (client-archive.server.ts).
+            const { withoutArchived } = await import("@/lib/client-archive.server");
+            const { data: client } = (await withoutArchived((f) => {
+              const q = supabaseAdmin
+                .from("clients")
+                .select("id, auth_user_id, full_name")
+                .eq("id", r.client_id);
+              return (f ? q.is("archived_at" as never, null) : q).maybeSingle();
+            })) as {
+              data: { id: string; auth_user_id: string | null; full_name: string } | null;
+            };
             if (!client) {
               skipped++;
               continue;
@@ -166,7 +172,8 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
         }
 
         try {
-          const { runProgrammeReminders } = await import("@/lib/whatsapp/programme-reminder.server");
+          const { runProgrammeReminders } =
+            await import("@/lib/whatsapp/programme-reminder.server");
           const { whatsappConfigFromEnv } = await import("@/lib/whatsapp/worker.server");
           const cfg = whatsappConfigFromEnv();
           if (cfg) await runProgrammeReminders(supabaseAdmin, cfg, now);

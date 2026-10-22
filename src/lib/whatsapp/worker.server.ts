@@ -525,7 +525,10 @@ async function rememberReplyHour(admin: Admin, clientId: string, now: Date): Pro
     .maybeSingle();
   const row = data as { reply_hour?: number | null; reply_hour_count?: number | null } | null;
   const count = row?.reply_hour === hour ? (row.reply_hour_count ?? 0) + 1 : 1;
-  await admin.from("clients").update({ reply_hour: hour, reply_hour_count: count }).eq("id", clientId);
+  await admin
+    .from("clients")
+    .update({ reply_hour: hour, reply_hour_count: count })
+    .eq("id", clientId);
   const { data: rem } = await admin
     .from("checkin_reminders")
     .select("time_of_day")
@@ -850,6 +853,12 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
       .is("onboarding_source", null);
   }
   if (client) inviteInvalid = false;
+  // An archived client who writes in is back: unarchive (best effort; before
+  // migration 0042 this update simply fails and changes nothing).
+  if (client) {
+    const { unarchiveOnContact } = await import("@/lib/client-archive.server");
+    await unarchiveOnContact(admin as never, client.id);
+  }
 
   // Self sign-up: a practice link, and no profile for this number yet.
   let signup: Parameters<typeof decide>[0]["signup"] = undefined;
@@ -1616,12 +1625,16 @@ async function applyEffects(
 
   if (decision.receptionErrand) {
     const { sendToReception } = await import("./reception.server");
-    await sendToReception(admin, { provider: env.provider, secrets: env.secrets }, {
-      practitionerId: client.practitioner_id,
-      practitionerName: fullNameOf(client.full_name, "A patient"),
-      task: decision.receptionErrand,
-      now,
-    }).catch(() => undefined);
+    await sendToReception(
+      admin,
+      { provider: env.provider, secrets: env.secrets },
+      {
+        practitionerId: client.practitioner_id,
+        practitionerName: fullNameOf(client.full_name, "A patient"),
+        task: decision.receptionErrand,
+        now,
+      },
+    ).catch(() => undefined);
   }
 
   // Each of these is best effort: the check-in and consent above are the

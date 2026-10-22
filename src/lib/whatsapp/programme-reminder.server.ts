@@ -17,6 +17,7 @@ type Admin = (typeof import("@/integrations/supabase/client.server"))["supabaseA
 interface Chain extends PromiseLike<{ data: unknown; error: { message?: string } | null }> {
   select: (columns?: string) => Chain;
   eq: (column: string, value: unknown) => Chain;
+  is: (column: string, value: null) => Chain;
   limit: (count: number) => Chain;
   update: (values: Record<string, unknown>) => Chain;
 }
@@ -35,13 +36,16 @@ export async function runProgrammeReminders(
   const today = morningCheckinDate(now);
   const weekday = new Date(`${today}T00:00:00Z`).getUTCDay();
   try {
-    const { data, error } = await admin
-      .from("clients")
-      .select(
-        "id, full_name, programme_reminder_opt_in, programme_reminder_days, programme_reminder_last_sent_on",
-      )
-      .eq("programme_reminder_opt_in", true)
-      .limit(1000);
+    const { withoutArchived } = await import("@/lib/client-archive.server");
+    const { data, error } = await withoutArchived((f) => {
+      const q = admin
+        .from("clients")
+        .select(
+          "id, full_name, programme_reminder_opt_in, programme_reminder_days, programme_reminder_last_sent_on",
+        )
+        .eq("programme_reminder_opt_in", true);
+      return (f ? q.is("archived_at", null) : q).limit(1000);
+    });
     if (error) {
       log.warn("programme reminder skipped: clients unavailable");
       return;

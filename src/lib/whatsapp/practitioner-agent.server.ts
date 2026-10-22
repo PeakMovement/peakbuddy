@@ -145,7 +145,11 @@ async function loadAgentContext(
   let clients = scope.clients.map((c) => ({ id: c.id, full_name: c.full_name }));
   const privileged = scope.practice || role === "admin" || role === "super_admin";
   if (privileged && !scope.practice) {
-    const { data } = await admin.from("clients").select("id, full_name").limit(2000);
+    const { withoutArchived } = await import("@/lib/client-archive.server");
+    const { data } = await withoutArchived((f) => {
+      const q = admin.from("clients").select("id, full_name");
+      return (f ? q.is("archived_at", null) : q).limit(2000);
+    });
     clients = (data ?? []) as ScopedClient[];
   }
   return { clients, practiceName, privileged };
@@ -281,7 +285,33 @@ function outboundBody(pending: Extract<PracPending, { kind: "outbound" }>): stri
   if (pending.action === "programme") {
     return `I'll tell ${joinNames(pending.names)} their programme is ready. Send?`;
   }
+  if (pending.action === "archive") return archiveConfirmBody(pending);
   return confirmOutbound(pending.names, pending.preview);
+}
+
+const ARCHIVE_LIST_MAX = 25;
+
+function archiveConfirmBody(pending: Extract<PracPending, { kind: "outbound" }>): string {
+  const n = pending.names.length;
+  const shown = pending.names.slice(0, ARCHIVE_LIST_MAX).map((name) => `• ${name}`);
+  if (n > ARCHIVE_LIST_MAX) shown.push(`• ...and ${n - ARCHIVE_LIST_MAX} more`);
+  const why = pending.preview ? ` (${pending.preview})` : "";
+  return [
+    `I'll archive ${n === 1 ? "this client" : `these ${n} clients`}${why}:`,
+    ...shown,
+    "",
+    'They come off your lists and updates, and Buddy stops all reminders and check-ins. Their records are kept, and "unarchive" plus a name brings anyone back. If they message Buddy themselves, they\'re unarchived automatically.',
+    ...(pending.note ? ["", pending.note] : []),
+    "",
+    n === 1 ? "Archive them?" : "Archive all of them?",
+  ].join("\n");
+}
+
+function archiveButtons(): Array<{ id: string; title: string }> {
+  return [
+    { id: "prac_ag_yes", title: "Yes, archive" },
+    { id: "prac_ag_no", title: "Cancel" },
+  ];
 }
 
 async function showOutbound(
@@ -296,7 +326,7 @@ async function showOutbound(
   await ctx.deps.reply({
     kind: "buttons",
     body: outboundBody(pending),
-    buttons: agentButtons(),
+    buttons: pending.action === "archive" ? archiveButtons() : agentButtons(),
   });
 }
 
@@ -363,7 +393,7 @@ async function askClarify(ctx: AgentContext, decision: AgentDecision): Promise<v
 
 async function prepareClients(
   ctx: AgentContext,
-  action: "checkin" | "programme" | "status" | "messages" | "heidi",
+  action: "checkin" | "programme" | "status" | "messages" | "heidi" | "archive",
   names: string[],
   note: string | null,
 ): Promise<ScopedClient[] | null> {
@@ -758,7 +788,148 @@ async function finishChoice(ctx: AgentContext, ids: string[]): Promise<void> {
     await proposeProgramme(ctx, clients);
     return;
   }
+  if (pending.action === "archive") {
+    await proposeArchive(ctx, clients, [], null);
+    return;
+  }
   await proposeCheckin(ctx, clients, pending.note);
+}
+
+const IDLE_WORDS =
+  /^(?:all|everyone|everybody|quiet|inactive|old|idle|unresponsive|not responding|the quiet ones?)$/i;
+
+async function archiveTool(ctx: AgentContext, decision: AgentDecision): Promise<void> {
+  const ar = await import("@/lib/client-archive.server");
+  if (!(await ar.canArchive(ctx.adminIn, ctx.prac.userId))) {
+    await replyText(
+      ctx,
+      "Only the practice owner can archive clients. Ask them if someone should come off the list.",
+    );
+    return;
+  }
+  const names = decision.names.filter((n) => n.trim());
+  const idleMode =
+    decision.idleDays != null || !names.length || names.every((n) => IDLE_WORDS.test(n.trim()));
+  if (!idleMode) {
+    const clients = await prepareClients(ctx, "archive", names, null);
+    if (clients?.length) await proposeArchive(ctx, clients, [], null);
+    return;
+  }
+  const days = decision.idleDays ?? ar.DEFAULT_IDLE_DAYS;
+  const { idle, heldBack } = await ar.findIdleClients(
+    ctx.adminIn,
+    ctx.scopeClients,
+    days,
+    ctx.deps.now,
+  );
+  const held = heldBack.map((c) => String(c.full_name ?? "").trim() || "A client");
+  if (!idle.length) {
+    await replyText(
+      ctx,
+      `Nobody on your list has gone ${days} days without a check-in or message.${held.length ? ` ${joinNames(held)} ${held.length === 1 ? "has" : "have"} been quiet that long but ${held.length === 1 ? "has" : "have"} an open alert, so I've left them.` : ""}`,
+    );
+    return;
+  }
+  await proposeArchive(ctx, idle, held, days);
+}
+
+async function proposeArchive(
+  ctx: AgentContext,
+  clients: ScopedClient[],
+  heldBack: string[],
+  days: number | null,
+): Promise<void> {
+  const ar = await import("@/lib/client-archive.server");
+  const capped = clients.slice(0, ar.MAX_ARCHIVE);
+  const extra = clients.length - capped.length;
+  const notes: string[] = [];
+  if (heldBack.length)
+    notes.push(
+      `I've left out ${joinNames(heldBack)}: ${heldBack.length === 1 ? "they have" : "each has"} an open alert.`,
+    );
+  if (extra > 0)
+    notes.push(`That's the first ${ar.MAX_ARCHIVE}. Ask again for the other ${extra}.`);
+  await showOutbound(ctx, {
+    kind: "outbound",
+    action: "archive",
+    clientIds: capped.map((c) => c.id),
+    names: capped.map((c) => String(c.full_name ?? "").trim() || "A client"),
+    preview: days ? `no check-in or message from them in ${days} days` : "",
+    note: notes.join(" ") || null,
+    task: null,
+    editing: false,
+    at: ctx.deps.now.getTime(),
+  });
+}
+
+async function executeArchive(ctx: AgentContext, ids: string[]): Promise<void> {
+  const ar = await import("@/lib/client-archive.server");
+  ctx.mem.pending = null;
+  if (!(await ar.canArchive(ctx.adminIn, ctx.prac.userId))) {
+    await replyText(ctx, "Only the practice owner can archive clients.");
+    return;
+  }
+  const inScope = ids.filter((id) => ctx.scopeClients.some((c) => c.id === id));
+  const result = await ar.archiveClients(ctx.adminIn, inScope, ctx.prac.userId, ctx.deps.now);
+  log.info("practitioner agent archive", { count: result.count, ok: result.ok });
+  if (!result.ok) {
+    await replyText(
+      ctx,
+      "Sorry, I couldn't archive them just now. Archiving may not be switched on yet (it needs a small database update).",
+    );
+    return;
+  }
+  ctx.mem.focus = null;
+  const names = inScope.map((id) => nameOf(ctx.scopeClients, id));
+  await replyText(
+    ctx,
+    result.count === 0
+      ? "They were already archived."
+      : `Done. Archived ${result.count === 1 ? names[0] : `${result.count} clients`}. Their records are kept. Say "unarchive" and a name to bring anyone back.`,
+  );
+}
+
+async function unarchiveTool(ctx: AgentContext, decision: AgentDecision): Promise<void> {
+  const ar = await import("@/lib/client-archive.server");
+  if (!(await ar.canArchive(ctx.adminIn, ctx.prac.userId))) {
+    await replyText(ctx, "Only the practice owner can unarchive clients.");
+    return;
+  }
+  const archived = await ar.loadArchivedInScope(ctx.adminIn, ctx.prac.userId);
+  if (!archived.length) {
+    await replyText(ctx, "There's nobody archived at the moment.");
+    return;
+  }
+  const names = decision.names.filter((n) => n.trim());
+  if (!names.length) {
+    await replyText(ctx, 'Who should I bring back? Say a name, or "all".');
+    return;
+  }
+  const hits = resolveNames(names, archived);
+  const { resolved, ambiguous, missing } = clientsFromHits(hits);
+  if (ambiguous.length) {
+    await replyText(
+      ctx,
+      `I found more than one archived client for that: ${joinNames(ambiguous.map((c) => String(c.full_name ?? "").trim() || "A client"))}. Say the full name.`,
+    );
+    return;
+  }
+  if (!resolved.length) {
+    await replyText(ctx, `I couldn't find ${joinNames(missing)} among the archived clients.`);
+    return;
+  }
+  const result = await ar.unarchiveClients(
+    ctx.adminIn,
+    resolved.map((c) => c.id),
+  );
+  log.info("practitioner agent unarchive", { count: result.count, ok: result.ok });
+  const shown = resolved.map((c) => String(c.full_name ?? "").trim() || "A client");
+  await replyText(
+    ctx,
+    !result.ok
+      ? "Sorry, I couldn't do that just now. Please try again in a minute."
+      : `Done. ${joinNames(shown)} ${shown.length === 1 ? "is" : "are"} back on your list.${missing.length ? ` I couldn't find ${joinNames(missing)} among the archived clients.` : ""} Reminders start again at their usual time.`,
+  );
 }
 
 async function readHeidi(ctx: AgentContext, clients: ScopedClient[]): Promise<void> {
@@ -794,7 +965,12 @@ function toDecision(row: PracQueued): AgentDecision | null {
   return validDecision(row);
 }
 
-const OUTBOUND_TOOLS = new Set<AgentTool>(["send_checkin", "programme_sent", "ask_reception"]);
+const OUTBOUND_TOOLS = new Set<AgentTool>([
+  "send_checkin",
+  "programme_sent",
+  "ask_reception",
+  "archive_clients",
+]);
 
 function stash(decision: AgentDecision): PracQueued {
   return {
@@ -809,6 +985,7 @@ function stash(decision: AgentDecision): PracQueued {
     time: decision.time,
     enabled: decision.enabled,
     goal: decision.goal,
+    idleDays: decision.idleDays ?? null,
   };
 }
 
@@ -872,6 +1049,14 @@ async function applyDecision(ctx: AgentContext, decision: AgentDecision): Promis
     return;
   }
   ctx.mem.pending = null;
+  if (tool === "archive_clients") {
+    await archiveTool(ctx, decision);
+    return;
+  }
+  if (tool === "unarchive_clients") {
+    await unarchiveTool(ctx, decision);
+    return;
+  }
   if (tool === "list_practitioners") {
     const people = await listRoster(ctx);
     await replyText(
@@ -930,7 +1115,10 @@ async function applyDecision(ctx: AgentContext, decision: AgentDecision): Promis
       decision.programmeOptIn === true,
     );
     const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const named = days.map((d) => labels[d] ?? "").filter(Boolean).join(", ");
+    const named = days
+      .map((d) => labels[d] ?? "")
+      .filter(Boolean)
+      .join(", ");
     await replyText(
       ctx,
       ok
@@ -942,12 +1130,7 @@ async function applyDecision(ctx: AgentContext, decision: AgentDecision): Promis
     return;
   }
   if (tool === "case_brief" || tool === "set_goal") {
-    const clients = await prepareClients(
-      ctx,
-      "status",
-      decision.names,
-      null,
-    );
+    const clients = await prepareClients(ctx, "status", decision.names, null);
     const client = clients?.[0];
     if (!client) return;
     const tools = await import("./capability-tools.server");
@@ -966,10 +1149,7 @@ async function applyDecision(ctx: AgentContext, decision: AgentDecision): Promis
   }
   if (tool === "who_improved") {
     const tools = await import("./capability-tools.server");
-    await replyText(
-      ctx,
-      await tools.replyWhoImproved(ctx.adminIn, ctx.scopeClients, ctx.deps.now),
-    );
+    await replyText(ctx, await tools.replyWhoImproved(ctx.adminIn, ctx.scopeClients, ctx.deps.now));
     return;
   }
   if (tool === "outcomes") {
@@ -1068,6 +1248,10 @@ async function confirmPending(ctx: AgentContext): Promise<void> {
     await executeProgramme(ctx, pending.clientIds);
     return;
   }
+  if (pending.action === "archive") {
+    await executeArchive(ctx, pending.clientIds);
+    return;
+  }
   await executeCheckins(ctx, pending.clientIds, pending.note);
 }
 
@@ -1098,6 +1282,9 @@ async function handlePending(
     await replyText(ctx, "Okay, I won't.");
     return true;
   }
+  if (pending.kind === "outbound" && pending.action === "archive" && pending.editing) {
+    pending.editing = false;
+  }
   if (pending.kind === "outbound" && pending.editing) {
     if (needsPractitionerAgent(text) && !extraCheckinNote(text, ctx.practiceName)) return false;
     const note = extraCheckinNote(text, ctx.practiceName) ?? text.trim().slice(0, 240);
@@ -1119,7 +1306,11 @@ async function handlePending(
     );
     return true;
   }
-  if (pending.kind === "outbound" && (replyId === "prac_ag_edit" || /^edit$/i.test(text.trim()))) {
+  if (
+    pending.kind === "outbound" &&
+    pending.action !== "archive" &&
+    (replyId === "prac_ag_edit" || /^edit$/i.test(text.trim()))
+  ) {
     pending.editing = true;
     pending.at = ctx.deps.now.getTime();
     await replyText(
@@ -1148,7 +1339,11 @@ async function handlePending(
       return true;
     }
   }
-  if (pending.kind === "outbound" && pending.action !== "reception") {
+  if (
+    pending.kind === "outbound" &&
+    pending.action !== "reception" &&
+    pending.action !== "archive"
+  ) {
     const extra = addedNames(text);
     if (extra) {
       const hits = resolveNames(extra, ctx.scopeClients);
@@ -1302,7 +1497,7 @@ export async function runPractitionerAgent(
       await ctx.deps.reply({
         kind: "buttons",
         body: outboundBody(mem.pending),
-        buttons: agentButtons(),
+        buttons: mem.pending.action === "archive" ? archiveButtons() : agentButtons(),
       });
       return true;
     }

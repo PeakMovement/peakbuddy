@@ -15,6 +15,7 @@ type SendEnv = { provider: WhatsAppProvider; secrets: ProviderSecrets };
 interface Chain extends PromiseLike<{ data: unknown; error: { message?: string } | null }> {
   select: (columns?: string) => Chain;
   eq: (column: string, value: unknown) => Chain;
+  is: (column: string, value: null) => Chain;
   in: (column: string, value: unknown[]) => Chain;
   order: (column: string, opts?: { ascending: boolean }) => Chain;
   limit: (count: number) => Chain;
@@ -39,15 +40,20 @@ type Nudge = {
   pending_confirm: boolean;
 };
 
-export async function runQuietNudges(adminIn: Admin, env: SendEnv, now = new Date()): Promise<void> {
+export async function runQuietNudges(
+  adminIn: Admin,
+  env: SendEnv,
+  now = new Date(),
+): Promise<void> {
   if (process.env.QUIET_PATIENT_NUDGE !== "1") return;
   const admin = db(adminIn);
   const today = morningCheckinDate(now);
   try {
-    const { data: clientRows, error } = await admin
-      .from("clients")
-      .select("id, full_name, practitioner_id, created_at")
-      .limit(1000);
+    const { withoutArchived } = await import("@/lib/client-archive.server");
+    const { data: clientRows, error } = await withoutArchived((f) => {
+      const q = admin.from("clients").select("id, full_name, practitioner_id, created_at");
+      return (f ? q.is("archived_at", null) : q).limit(1000);
+    });
     if (error) {
       log.warn("quiet nudge skipped: clients unavailable");
       return;
@@ -75,9 +81,8 @@ export async function runQuietNudges(adminIn: Admin, env: SendEnv, now = new Dat
       .limit(1000);
     const nudges = new Map(rows<Nudge>(nudgeRows).map((n) => [n.client_id, n]));
     const tell = new Map<string, string[]>();
-    const { windowOpen, practitionerContact, sendLogged } = await import(
-      "./practitioner-status.server"
-    );
+    const { windowOpen, practitionerContact, sendLogged } =
+      await import("./practitioner-status.server");
     for (const client of clients) {
       if (!client.practitioner_id) continue;
       const at = latest.get(client.id) ?? client.created_at;
@@ -152,11 +157,11 @@ export async function sendPendingQuietNudges(
 ): Promise<number> {
   const admin = db(adminIn);
   const today = morningCheckinDate(now);
-  const { data: clientRows } = await admin
-    .from("clients")
-    .select("id")
-    .eq("practitioner_id", practitionerId)
-    .limit(1000);
+  const { withoutArchived } = await import("@/lib/client-archive.server");
+  const { data: clientRows } = await withoutArchived((f) => {
+    const q = admin.from("clients").select("id").eq("practitioner_id", practitionerId);
+    return (f ? q.is("archived_at", null) : q).limit(1000);
+  });
   const ids = rows<{ id: string }>(clientRows).map((c) => c.id);
   if (!ids.length) return 0;
   const { data: nudgeRows } = await admin
@@ -168,7 +173,9 @@ export async function sendPendingQuietNudges(
   const { sendWhatsAppReminder } = await import("./worker.server");
   let sent = 0;
   for (const nudge of pending) {
-    const result = await sendWhatsAppReminder(adminIn, nudge.client_id, now).catch(() => "failed" as const);
+    const result = await sendWhatsAppReminder(adminIn, nudge.client_id, now).catch(
+      () => "failed" as const,
+    );
     if (result === "window_closed") {
       log.warn("quiet nudge skipped: window closed and no template");
     }

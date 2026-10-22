@@ -63,22 +63,28 @@ export async function loadScope(adminIn: Admin, userId: string): Promise<Scope> 
   let clients: ClientRow[] = [];
   let practice = false;
   let label = "your clients";
+  const { withoutArchived } = await import("@/lib/client-archive.server");
   if (ids.length) {
-    const { data } = await admin.from("clients").select(cols).in("practice_id", ids).limit(2000);
+    const { data } = await withoutArchived((f) => {
+      const q = admin.from("clients").select(cols).in("practice_id", ids);
+      return (f ? q.is("archived_at", null) : q).limit(2000);
+    });
     clients = (data ?? []) as ClientRow[];
     practice = true;
     label = String(ownedRows[0]?.practice_name ?? "").trim() || "the practice";
   } else if (superAdmin) {
-    const { data } = await admin.from("clients").select(cols).limit(2000);
+    const { data } = await withoutArchived((f) => {
+      const q = admin.from("clients").select(cols);
+      return (f ? q.is("archived_at", null) : q).limit(2000);
+    });
     clients = (data ?? []) as ClientRow[];
     practice = true;
     label = "all practices";
   } else {
-    const { data } = await admin
-      .from("clients")
-      .select(cols)
-      .eq("practitioner_id", userId)
-      .limit(2000);
+    const { data } = await withoutArchived((f) => {
+      const q = admin.from("clients").select(cols).eq("practitioner_id", userId);
+      return (f ? q.is("archived_at", null) : q).limit(2000);
+    });
     clients = (data ?? []) as ClientRow[];
   }
 

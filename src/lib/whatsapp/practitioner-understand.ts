@@ -727,7 +727,7 @@ export interface PracCandidate {
 export type PracPending =
   | {
       kind: "choose";
-      action: "status" | "messages" | "checkin" | "programme" | "heidi";
+      action: "status" | "messages" | "checkin" | "programme" | "heidi" | "archive";
       candidates: PracCandidate[];
       resolvedIds: string[];
       note: string | null;
@@ -735,7 +735,8 @@ export type PracPending =
     }
   | {
       kind: "outbound";
-      action: "checkin" | "programme" | "reception";
+      /** archive: preview is why they were picked, note lists anyone left out. */
+      action: "checkin" | "programme" | "reception" | "archive";
       clientIds: string[];
       names: string[];
       /** The sentence they are confirming. Check-ins keep the literal "<name>". */
@@ -767,6 +768,7 @@ export interface PracQueued {
   time: string | null;
   enabled: boolean | null;
   goal?: string | null;
+  idleDays?: number | null;
 }
 
 export interface PracMemory {

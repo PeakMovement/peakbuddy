@@ -17,6 +17,7 @@
  * update") opens the window and the tap brings the full update.
  */
 import { log } from "@/lib/log";
+import { withoutArchived } from "@/lib/client-archive.server";
 import { readPatientQuestion } from "./patient-question-text";
 import { readPatientMessage, type PatientMessageRequest } from "./patient-message-text";
 import { CHECKED_IN, wantsMessages } from "./practitioner-inbox-text";
@@ -564,15 +565,17 @@ export async function loadClientList(
         .map((m) => m.practice_id),
     ];
     if (ids.length) {
-      const { data } = await admin.from("clients").select(cols).in("practice_id", ids).limit(1000);
+      const { data } = await withoutArchived((f) => {
+        const q = admin.from("clients").select(cols).in("practice_id", ids);
+        return (f ? q.is("archived_at", null) : q).limit(1000);
+      });
       return (data ?? []) as never;
     }
   }
-  const { data } = await admin
-    .from("clients")
-    .select(cols)
-    .eq("practitioner_id", userId)
-    .limit(1000);
+  const { data } = await withoutArchived((f) => {
+    const q = admin.from("clients").select(cols).eq("practitioner_id", userId);
+    return (f ? q.is("archived_at", null) : q).limit(1000);
+  });
   return (data ?? []) as never;
 }
 

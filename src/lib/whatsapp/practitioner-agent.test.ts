@@ -74,6 +74,7 @@ interface FakeQuery extends PromiseLike<{ data: Row[]; error: null }> {
   gte: (k: string, v: unknown) => FakeQuery;
   lt: (k: string, v: unknown) => FakeQuery;
   is: (k: string, v: unknown) => FakeQuery;
+  not: (k: string, op: string, v: unknown) => FakeQuery;
   order: () => FakeQuery;
   limit: () => FakeQuery;
   maybeSingle: () => Promise<{ data: Row | null; error: null }>;
@@ -93,7 +94,11 @@ function fakeDb(tables: Record<string, Row[]>) {
       in: (k, v) => (filters.push((r) => v.some((item) => item === r[k])), api),
       gte: (k, v) => (filters.push((r) => String(r[k] ?? "") >= String(v)), api),
       lt: (k, v) => (filters.push((r) => String(r[k] ?? "") < String(v)), api),
-      is: (k, v) => (filters.push((r) => r[k] === v), api),
+      is: (k, v) => (filters.push((r) => (r[k] ?? null) === v), api),
+      not: (k, op, v) => (
+        filters.push((r) => (op === "is" && v === null ? (r[k] ?? null) !== null : true)),
+        api
+      ),
       order: () => api,
       limit: () => api,
       maybeSingle: () => Promise.resolve({ data: rows()[0] ?? null, error: null }),
@@ -108,8 +113,9 @@ function fakeDb(tables: Record<string, Row[]>) {
         return Promise.resolve({ data: r, error: null });
       },
       then: (res, rej) => {
-        if (patch) for (const r of rows()) Object.assign(r, patch);
-        return Promise.resolve({ data: rows(), error: null }).then(res, rej);
+        const hit = rows();
+        if (patch) for (const r of hit) Object.assign(r, patch);
+        return Promise.resolve({ data: hit, error: null }).then(res, rej);
       },
     };
     return api;
@@ -1278,5 +1284,92 @@ describe("terse, garbled and multi-ask messages", () => {
       memory,
     );
     expect(replyText(replies)).toContain("pain 4/10");
+  });
+});
+
+describe("archiving clients who stopped responding (22 Oct)", () => {
+  const ARCHIVE_IDLE = (days: number | null) => ({
+    tool: "archive_clients",
+    names: ["inactive"],
+    ...(days ? { idleDays: days } : {}),
+  });
+
+  it("owner: proposes the idle ones, leaves out anyone with an open alert, archives on Yes", async () => {
+    const { db, deps, replies } = harness({
+      understand: async (input) =>
+        input.message.startsWith("delete") ? ARCHIVE_IDLE(30) : { tool: "confirm_pending" },
+    });
+    const memory: PracMemory = {};
+    const say = (text: string, replyId: string | null = null) =>
+      handlePractitionerMessage(asAdmin(db), JUSTIN, { text, replyId }, deps, memory);
+    await say("delete old clients who aren't responding, nothing in a month");
+    const body = replyText(replies);
+    expect(body).toContain(
+      "I'll archive this client (no check-in or message from them in 30 days)",
+    );
+    expect(body).toContain("• Vicki-Leigh Atkinson");
+    expect(body).not.toContain("Cayla");
+    expect(body).toContain("I've left out Lauren Ogg: they have an open alert.");
+    expect(replies.at(-1)?.buttons?.map((b) => b.id)).toEqual(["prac_ag_yes", "prac_ag_no"]);
+    expect(db.t.clients.find((c) => c.id === VICKI)?.archived_at).toBeUndefined();
+
+    await say("", "prac_ag_yes");
+    expect(replyText(replies)).toContain("Done. Archived Vicki-Leigh Atkinson.");
+    expect(db.t.clients.find((c) => c.id === VICKI)).toMatchObject({
+      archived_at: NOW.toISOString(),
+      archived_by: "justin",
+    });
+  });
+
+  it("archived clients drop out of name lookups, and unarchive brings them back", async () => {
+    const { db, deps, replies } = harness({
+      understand: async (input) =>
+        input.message.startsWith("unarchive")
+          ? { tool: "unarchive_clients", names: ["vicki"] }
+          : { tool: "client_status", names: ["vicki"] },
+    });
+    db.t.clients.find((c) => c.id === VICKI)!.archived_at = "2026-10-10T00:00:00Z";
+    const memory: PracMemory = {};
+    const say = (text: string) =>
+      handlePractitionerMessage(asAdmin(db), JUSTIN, { text, replyId: null }, deps, memory);
+    await say("how is vicki");
+    expect(replyText(replies)).toContain("couldn't find vicki");
+    await say("unarchive vicki");
+    expect(replyText(replies)).toContain("Done. Vicki-Leigh Atkinson is back on your list.");
+    expect(db.t.clients.find((c) => c.id === VICKI)?.archived_at).toBeNull();
+  });
+
+  it("nobody idle for the default 60 days", async () => {
+    const { deps, db, replies } = harness({ understand: async () => ARCHIVE_IDLE(null) });
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "remove the inactive clients", replyId: null },
+      deps,
+      {},
+    );
+    expect(replyText(replies)).toContain("Nobody on your list has gone 60 days");
+  });
+
+  it("a practitioner who isn't the owner can't archive", async () => {
+    const { deps, db, replies } = harness({ understand: async () => ARCHIVE_IDLE(30) });
+    await handlePractitionerMessage(
+      asAdmin(db),
+      ZOE,
+      { text: "archive my old clients", replyId: null },
+      deps,
+      {},
+    );
+    expect(replyText(replies)).toContain("Only the practice owner can archive clients.");
+    expect(db.t.clients.some((c) => c.archived_at)).toBe(false);
+  });
+
+  it("the model's tool call is read", () => {
+    expect(
+      validDecision({ tool: "archive_clients", names: ["inactive"], idleDays: 90 }),
+    ).toMatchObject({
+      tool: "archive_clients",
+      idleDays: 90,
+    });
   });
 });
