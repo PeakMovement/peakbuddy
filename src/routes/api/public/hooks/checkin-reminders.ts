@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { trackedJob } from "@/lib/job-runs.server";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import { log } from "@/lib/log";
+import { reminderDueOnWeekday } from "@/lib/whatsapp/schedule";
 
 /**
  * Cron endpoint — runs every 5 minutes.
@@ -65,7 +66,9 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
             const minute = parseInt(get("minute"), 10);
             const localDate = `${get("year")}-${get("month")}-${get("day")}`;
 
-            if (!(r.days_of_week ?? []).includes(wd)) {
+            // days_of_week is the patient's choice. A "daily" frequency label must
+            // not widen it: "twice a week" is stored as those days only.
+            if (!reminderDueOnWeekday(r.days_of_week, wd)) {
               skipped++;
               continue;
             }

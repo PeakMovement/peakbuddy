@@ -31,6 +31,7 @@ import { type ConverseResult, type ConverseTurn } from "./converse";
 import { progressSummary, routeByKeywords, routeFromMenu, type AssistRoute } from "./assistant";
 import { hasAiConsent } from "@/lib/ai-consent";
 import { APP_ORIGIN, ONBOARD_MSG, parseJoinCode } from "./onboarding";
+import { readScheduleChange } from "./schedule";
 import {
   createSelfSignupClient,
   currentConsentTypes,
@@ -1039,6 +1040,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   const midCheckin =
     state === "awaiting_pain" || state === "awaiting_sleep" || state === "awaiting_energy";
   const typed = message.text.trim();
+  const scheduleRequest = Boolean(typed && readScheduleChange(typed));
   const unplacedMid =
     midCheckin &&
     !message.replyId &&
@@ -1064,6 +1066,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     aiAllowed &&
     typed &&
     !flaggedText &&
+    !scheduleRequest &&
     (unplacedMid || unplacedIdle)
   ) {
     const history = await recentTurns(admin, row.from_phone, phone, row.id, now);
