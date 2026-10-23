@@ -780,6 +780,58 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     });
   });
 
+  it("saves a weekly frequency and named days onto the reminder row", async () => {
+    const idle = {
+      id: "c1",
+      phone: "27820000001",
+      client_id: "client-1",
+      state: "idle",
+      draft: {},
+      checkin_started_at: null,
+    };
+    const db = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [inbound("please only check in twice a week")],
+      whatsapp_conversations: [idle],
+      consent_records: CONSENTED(),
+      check_ins: [],
+      checkin_reminders: [
+        {
+          client_id: "client-1",
+          enabled: true,
+          frequency: "daily",
+          time_of_day: "18:00",
+          days_of_week: [0, 1, 2, 3, 4, 5, 6],
+          timezone: "Africa/Johannesburg",
+        },
+      ],
+    });
+    const { provider } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.checkin_reminders[0]).toMatchObject({
+      frequency: "custom",
+      days_of_week: [1, 4],
+      time_of_day: "18:00",
+      enabled: true,
+    });
+
+    db.tables.whatsapp_inbound.push(inbound("only on Tuesdays and Thursdays"));
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.checkin_reminders[0]).toMatchObject({
+      frequency: "custom",
+      days_of_week: [2, 4],
+      time_of_day: "18:00",
+    });
+
+    db.tables.whatsapp_inbound.push(inbound("please check in every day at 8am"));
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.checkin_reminders[0]).toMatchObject({
+      frequency: "daily",
+      days_of_week: [0, 1, 2, 3, 4, 5, 6],
+      time_of_day: "08:00",
+    });
+  });
+
   it("does not offer a wearable to someone who already has one connected", async () => {
     const db = fakeDb({
       clients: [CLIENT],
