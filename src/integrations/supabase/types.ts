@@ -142,6 +142,7 @@ export type Database = {
           condition_note: string | null
           created_at: string
           energy_level: number | null
+          exercise_adherence: string | null
           flagged: boolean
           id: string
           medication_taken: boolean | null
@@ -159,6 +160,7 @@ export type Database = {
           condition_note?: string | null
           created_at?: string
           energy_level?: number | null
+          exercise_adherence?: string | null
           flagged?: boolean
           id?: string
           medication_taken?: boolean | null
@@ -176,6 +178,7 @@ export type Database = {
           condition_note?: string | null
           created_at?: string
           energy_level?: number | null
+          exercise_adherence?: string | null
           flagged?: boolean
           id?: string
           medication_taken?: boolean | null
@@ -298,6 +301,44 @@ export type Database = {
             foreignKeyName: "client_baselines_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_exercise_media: {
+        Row: {
+          caption: string | null
+          client_id: string
+          created_at: string
+          id: string
+          media_kind: string
+          practitioner_id: string
+          provider_media_id: string | null
+        }
+        Insert: {
+          caption?: string | null
+          client_id: string
+          created_at?: string
+          id?: string
+          media_kind: string
+          practitioner_id: string
+          provider_media_id?: string | null
+        }
+        Update: {
+          caption?: string | null
+          client_id?: string
+          created_at?: string
+          id?: string
+          media_kind?: string
+          practitioner_id?: string
+          provider_media_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_exercise_media_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
           },
@@ -456,6 +497,8 @@ export type Database = {
       }
       clients: {
         Row: {
+          archived_at: string | null
+          archived_by: string | null
           auth_user_id: string | null
           calendar_feed_token: string | null
           check_in_frequency: string
@@ -463,6 +506,7 @@ export type Database = {
           email: string | null
           first_login_at: string | null
           full_name: string
+          goal: string | null
           id: string
           library_intro_seen_at: string | null
           login_code: string
@@ -483,6 +527,11 @@ export type Database = {
           program_status: string
           program_suggested_at: string | null
           program_suggested_by: string | null
+          programme_reminder_days: number[]
+          programme_reminder_last_sent_on: string | null
+          programme_reminder_opt_in: boolean
+          reply_hour: number | null
+          reply_hour_count: number
           suggested_program_id: string | null
           timezone: string
           tracking_duration_weeks: number
@@ -491,6 +540,8 @@ export type Database = {
           yves_enabled: boolean
         }
         Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
           auth_user_id?: string | null
           calendar_feed_token?: string | null
           check_in_frequency?: string
@@ -498,6 +549,7 @@ export type Database = {
           email?: string | null
           first_login_at?: string | null
           full_name: string
+          goal?: string | null
           id?: string
           library_intro_seen_at?: string | null
           login_code: string
@@ -518,6 +570,11 @@ export type Database = {
           program_status?: string
           program_suggested_at?: string | null
           program_suggested_by?: string | null
+          programme_reminder_days?: number[]
+          programme_reminder_last_sent_on?: string | null
+          programme_reminder_opt_in?: boolean
+          reply_hour?: number | null
+          reply_hour_count?: number
           suggested_program_id?: string | null
           timezone?: string
           tracking_duration_weeks?: number
@@ -526,6 +583,8 @@ export type Database = {
           yves_enabled?: boolean
         }
         Update: {
+          archived_at?: string | null
+          archived_by?: string | null
           auth_user_id?: string | null
           calendar_feed_token?: string | null
           check_in_frequency?: string
@@ -533,6 +592,7 @@ export type Database = {
           email?: string | null
           first_login_at?: string | null
           full_name?: string
+          goal?: string | null
           id?: string
           library_intro_seen_at?: string | null
           login_code?: string
@@ -553,6 +613,11 @@ export type Database = {
           program_status?: string
           program_suggested_at?: string | null
           program_suggested_by?: string | null
+          programme_reminder_days?: number[]
+          programme_reminder_last_sent_on?: string | null
+          programme_reminder_opt_in?: boolean
+          reply_hour?: number | null
+          reply_hour_count?: number
           suggested_program_id?: string | null
           timezone?: string
           tracking_duration_weeks?: number
@@ -1346,6 +1411,27 @@ export type Database = {
           },
         ]
       }
+      practitioner_morning_checkins: {
+        Row: {
+          enabled: boolean
+          last_sent_on: string | null
+          practitioner_id: string
+          updated_at: string
+        }
+        Insert: {
+          enabled?: boolean
+          last_sent_on?: string | null
+          practitioner_id: string
+          updated_at?: string
+        }
+        Update: {
+          enabled?: boolean
+          last_sent_on?: string | null
+          practitioner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       practitioner_update_prefs: {
         Row: {
           frequency: string
@@ -1646,6 +1732,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      quiet_patient_nudges: {
+        Row: {
+          client_id: string
+          last_patient_sent_on: string | null
+          last_physio_notified_on: string | null
+          nudges_in_window: number
+          pending_confirm: boolean
+          updated_at: string
+          window_started_on: string | null
+        }
+        Insert: {
+          client_id: string
+          last_patient_sent_on?: string | null
+          last_physio_notified_on?: string | null
+          nudges_in_window?: number
+          pending_confirm?: boolean
+          updated_at?: string
+          window_started_on?: string | null
+        }
+        Update: {
+          client_id?: string
+          last_patient_sent_on?: string | null
+          last_physio_notified_on?: string | null
+          nudges_in_window?: number
+          pending_confirm?: boolean
+          updated_at?: string
+          window_started_on?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiet_patient_nudges_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reception_requests: {
         Row: {
