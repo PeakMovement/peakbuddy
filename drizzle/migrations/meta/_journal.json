@@ -267,6 +267,13 @@
       "when": 1792600000000,
       "tag": "0042_client_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792985084876,
+      "tag": "0040_apply_client_archive",
+      "breakpoints": true
     }
   ]
 }
