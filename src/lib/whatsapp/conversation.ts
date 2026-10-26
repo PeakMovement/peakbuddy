@@ -24,6 +24,7 @@ import {
   DEFAULT_TIME,
   FREQUENCIES,
   readFrequency,
+  readScheduleChange,
   SCHEDULE_MSG,
   TIMES,
   type ScheduleChoice,
@@ -109,6 +110,10 @@ export interface CheckinDraft {
   /** Onboarding schedule: which question is open, and the frequency picked. */
   scheduleStep?: "frequency" | "time";
   scheduleId?: string;
+  /** Days chosen in free text ("twice a week", "Tuesdays and Thursdays"). */
+  scheduleDays?: number[];
+  schedulePhrase?: string;
+  scheduleFrequency?: "daily" | "custom";
   /** Self sign-up from a practice link: which practice, and the name they gave. */
   signupPracticeId?: string;
   signupName?: string;
@@ -704,6 +709,38 @@ const timeList = (body: string): Reply => ({
   rows: TIMES.map((t) => ({ id: t.id, title: t.title })),
 });
 
+function choiceFromDraft(d: CheckinDraft): ScheduleChoice {
+  if (d.scheduleDays && d.scheduleDays.length > 0 && d.schedulePhrase && d.scheduleFrequency) {
+    return {
+      id: d.scheduleId ?? "sched_custom",
+      title: d.schedulePhrase,
+      phrase: d.schedulePhrase,
+      days: d.scheduleDays,
+      frequency: d.scheduleFrequency,
+    };
+  }
+  return FREQUENCIES.find((f) => f.id === d.scheduleId) ?? FREQUENCIES[0];
+}
+
+function scheduleDraft(choice: ScheduleChoice): CheckinDraft {
+  return {
+    scheduleStep: "time",
+    scheduleId: choice.id,
+    scheduleDays: choice.days,
+    schedulePhrase: choice.phrase,
+    scheduleFrequency: choice.frequency,
+  };
+}
+
+/** "at 7:30am" inside a sentence that already asked to change the schedule. */
+function clockInText(text: string): string | null {
+  const direct = readReminderTime(text) ?? readBareTime(text);
+  if (direct) return direct;
+  const m = text.match(/\b(?:at|om)\s*(\d{1,2})(?:[:h.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?/i);
+  if (!m) return null;
+  return readReminderTime(`remind me at ${m[1]}${m[2] ? `:${m[2]}` : ""}${m[3] ?? ""}`);
+}
+
 function scheduleDone(
   ctx: DecisionContext,
   choice: ScheduleChoice,
@@ -1169,6 +1206,41 @@ export function decide(ctx: DecisionContext): Decision {
     );
   }
 
+  // How often, and which days, works from anywhere except a note they are
+  // writing and the onboarding question (that one asks for a time next).
+  // A check-in already in progress stays open; the pending question is asked
+  // again so a frequency change does not swallow their answer.
+  if (
+    conv.state !== "awaiting_notes" &&
+    conv.state !== "awaiting_schedule" &&
+    !conv.draft.awaitingQuestion
+  ) {
+    const change = readScheduleChange(raw);
+    if (change) {
+      const t = clockInText(raw);
+      const pending = pendingQuestionReply(conv.state, conv.draft);
+      return withSafety(
+        {
+          replies: [
+            text(
+              t
+                ? SCHEDULE_MSG.confirmed(change.phrase, t).split("\n\n")[0]
+                : `Done, I'll check in ${change.phrase} from now on, at your usual time.`,
+            ),
+            ...(pending ? [pending] : []),
+          ],
+          next: conv.state === "idle" ? IDLE() : conv,
+          setSchedule: {
+            days: change.days,
+            frequency: change.frequency,
+            ...(t ? { time: t } : {}),
+          },
+        },
+        ctx,
+      );
+    }
+  }
+
   // Asking for a check-in time works from anywhere in the conversation, and
   // does not disturb a check-in in progress.
   // Not while writing their notes, where "my scan is at 3" is a note.
@@ -1497,12 +1569,14 @@ export function decide(ctx: DecisionContext): Decision {
       if ((d.scheduleStep ?? "frequency") === "frequency") {
         const f = readFrequency(msg.replyId, raw);
         if (f) {
+          const picked = msg.replyId ? null : clockInText(raw);
+          if (picked) return withSafety(scheduleDone(ctx, f, picked), ctx);
           return withSafety(
             {
               replies: [timeList(SCHEDULE_MSG.askTime)],
               next: {
                 state: "awaiting_schedule",
-                draft: { scheduleStep: "time", scheduleId: f.id },
+                draft: scheduleDraft(f),
                 checkinStartedAt: ctx.now,
               },
             },
@@ -1519,9 +1593,30 @@ export function decide(ctx: DecisionContext): Decision {
           ctx,
         );
       }
-      const choice = FREQUENCIES.find((f) => f.id === d.scheduleId) ?? FREQUENCIES[0];
+      const choice = choiceFromDraft(d);
       const picked =
-        TIMES.find((t) => t.id === msg.replyId)?.time ?? readBareTime(raw) ?? readReminderTime(raw);
+        TIMES.find((t) => t.id === msg.replyId)?.time ?? (msg.replyId ? null : clockInText(raw));
+      const looksLikeClock = /^\d{1,2}(?:[:h.]\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?[.!]*$/i.test(
+        raw.trim(),
+      );
+      const changed = msg.replyId || looksLikeClock ? null : readFrequency(undefined, raw);
+      if (
+        changed &&
+        (changed.frequency !== choice.frequency || changed.days.join() !== choice.days.join())
+      ) {
+        if (picked) return withSafety(scheduleDone(ctx, changed, picked), ctx);
+        return withSafety(
+          {
+            replies: [timeList(SCHEDULE_MSG.askTime)],
+            next: {
+              state: "awaiting_schedule",
+              draft: scheduleDraft(changed),
+              checkinStartedAt: ctx.now,
+            },
+          },
+          ctx,
+        );
+      }
       if (picked) return withSafety(scheduleDone(ctx, choice, picked), ctx);
       if (misses >= 1) return withSafety(scheduleDone(ctx, choice, DEFAULT_TIME, true), ctx);
       return withSafety(
@@ -1552,27 +1647,6 @@ export function decide(ctx: DecisionContext): Decision {
         );
       }
       if (CHECKIN_REQUEST.test(raw)) return withSafety(startCheckin(ctx, []), ctx);
-      {
-        const asksSchedule = /\b(check[\s-]?ins?|remind\w*|message me)\b|^only\b/i.test(raw);
-        const f = asksSchedule ? readFrequency(undefined, raw) : null;
-        if (f) {
-          const t = readReminderTime(raw) ?? readBareTime(raw);
-          return withSafety(
-            {
-              replies: [
-                text(
-                  t
-                    ? SCHEDULE_MSG.confirmed(f.phrase, t).split("\n\n")[0]
-                    : `Done, I'll check in ${f.phrase} from now on, at your usual time.`,
-                ),
-              ],
-              next: IDLE(),
-              setSchedule: { days: f.days, frequency: f.frequency, ...(t ? { time: t } : {}) },
-            },
-            ctx,
-          );
-        }
-      }
       if (/^(app|the app|buddy app|get the app)[.!?]*$/i.test(raw)) {
         return withSafety(
           ctx.hasAppAccount
