@@ -737,7 +737,9 @@ async function executeProgramme(ctx: AgentContext, ids: string[]): Promise<void>
               ? "queued"
               : result === "not_registered"
                 ? "not_registered"
-                : "failed";
+                : result === "needs_consent"
+                  ? "needs_consent"
+                  : "failed";
     rows.push({ name: nameOf(ctx.scopeClients, id), how });
   }
   ctx.mem.pending = null;

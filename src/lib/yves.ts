@@ -952,6 +952,49 @@ export function applyKeywordFloor(
 
   return { urgency, severity, escalated, matchedTerms, topCategory };
 }
+
+/**
+ * Keyword and combination floors on the raw text. Always run these, including
+ * when the model sets negation_detected or attribution_detected. Each floor
+ * already skips a phrase that is itself negated or attributed. The result
+ * urgency and severity are never below the model's.
+ */
+export function applySafetyFloors<
+  T extends {
+    urgency: UrgencyTier;
+    severity: number;
+    red_flag_category?: RedFlagCategory | null;
+    should_notify_practitioner?: boolean;
+    red_flags?: string[];
+    rationale?: string;
+  },
+>(text: string, ai: T): T & { _floor_terms: string[]; _combo_terms: string[] } {
+  const floor = applyKeywordFloor(text, ai.urgency, ai.severity);
+  const combo = applyCombinationFloor(text, floor.urgency, floor.severity);
+  const urgency =
+    URGENCY_RANK[combo.urgency] > URGENCY_RANK[ai.urgency] ? combo.urgency : ai.urgency;
+  const severity = Math.max(ai.severity, combo.severity);
+  const escalated = severity > ai.severity || URGENCY_RANK[urgency] > URGENCY_RANK[ai.urgency];
+  if (!escalated) return { ...ai, _floor_terms: [], _combo_terms: [] };
+
+  const cluster = combo.matched.length > 0 ? ` Cluster: ${combo.matched.join(", ")}.` : "";
+  return {
+    ...ai,
+    urgency,
+    severity,
+    red_flag_category: ai.red_flag_category ?? combo.topCategory ?? floor.topCategory,
+    should_notify_practitioner: Boolean(ai.should_notify_practitioner) || severity >= 6,
+    red_flags: [...(ai.red_flags ?? []), ...floor.matchedTerms, ...combo.matched],
+    rationale:
+      (ai.rationale ?? "") +
+      (cluster
+        ? ` Safety floor escalated based on detected cluster.${cluster}`
+        : " Safety floor escalated based on detected terms."),
+    _floor_terms: floor.matchedTerms,
+    _combo_terms: combo.matched,
+  };
+}
+
 export function analyzeRealTime(text: string): RealTimeResult {
   if (!text.trim()) {
     return {
@@ -1106,44 +1149,49 @@ export async function analyzeSymptom(
     /* fall through */
   }
 
-  // Layer 3 — keyword floor on top of AI
+  // Layer 3 — floors on top of AI. Model negation/attribution flags do not skip
+  // this. Floors only escalate, and they still ignore a phrase that is itself
+  // negated or attributed.
   if (aiResult) {
-    if (aiResult.negation_detected || aiResult.attribution_detected) {
-      return { ...aiResult, source: "ai_primary" };
-    }
-    const floor = applyKeywordFloor(text, aiResult.urgency, aiResult.severity);
-    if (floor.escalated) {
+    const floored = applySafetyFloors(text, aiResult);
+    const escalated =
+      floored.severity > aiResult.severity ||
+      URGENCY_RANK[floored.urgency] > URGENCY_RANK[aiResult.urgency];
+    if (escalated) {
       return {
-        ...aiResult,
-        urgency: floor.urgency,
-        severity: floor.severity,
-        red_flag_detected: floor.severity >= 5,
-        red_flag_category: aiResult.red_flag_category ?? floor.topCategory,
-        should_notify_practitioner: floor.severity >= 6,
-        suggested_next_step: buildNextStep(floor.urgency, pName),
+        ...floored,
+        red_flag_detected: aiResult.red_flag_detected || floored.severity >= 5,
+        suggested_next_step: buildNextStep(floored.urgency, pName),
         source: "ai_keyword_escalated",
       };
     }
     return { ...aiResult, source: "ai_primary" };
   }
 
-  // Keyword fallback — LLM unavailable
-  const floor = applyKeywordFloor(text, "routine", 0);
+  // Keyword fallback — LLM unavailable. Same floors, still escalate-only.
+  const floor = applySafetyFloors(text, {
+    urgency: "routine",
+    severity: 0,
+    red_flags: [],
+    rationale: "",
+    red_flag_category: null,
+  });
+  const terms = [...floor._floor_terms, ...floor._combo_terms];
   return {
     urgency: floor.urgency,
     severity: floor.severity,
     red_flag_detected: floor.severity >= 5,
     suggested_next_step: buildNextStep(floor.urgency, pName),
     rationale:
-      floor.matchedTerms.length > 0
-        ? `Keyword detection identified: ${floor.matchedTerms.join(", ")}.`
+      terms.length > 0
+        ? `Keyword detection identified: ${terms.join(", ")}.`
         : "No specific red flags detected. Monitor and contact your practitioner if symptoms worsen.",
-    red_flags: floor.matchedTerms,
+    red_flags: terms,
     categories: [],
-    red_flag_category: floor.topCategory,
+    red_flag_category: floor.red_flag_category ?? null,
     differential: [],
     recommended_questions: [],
-    escalation_reason: floor.escalated ? "current_text" : "none",
+    escalation_reason: terms.length > 0 ? "current_text" : "none",
     negation_detected: false,
     attribution_detected: false,
     should_notify_practitioner: floor.severity >= 6,

@@ -20,6 +20,8 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { sendPushCore } = await import("@/lib/push.functions");
         const { sendWhatsAppReminder } = await import("@/lib/whatsapp/worker.server");
+        const { claimAndDeliverCheckinReminder } =
+          await import("@/lib/whatsapp/checkin-reminder.server");
 
         const { data: reminders, error } = await supabaseAdmin
           .from("checkin_reminders")
@@ -133,42 +135,26 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
               continue;
             }
 
-            // Atomically claim today's send BEFORE pushing, so two overlapping
-            // cron runs can't both send (the fire window spans >1 run).
-            const { data: claimed } = await supabaseAdmin
-              .from("checkin_reminders")
-              .update({ last_sent_on: localDate })
-              .eq("id", r.id)
-              // Claim rows never sent (NULL) OR last sent on a different day;
-              // .neq alone would exclude NULLs and skip first-ever reminders.
-              .or(`last_sent_on.is.null,last_sent_on.neq.${localDate}`)
-              .select("id")
-              .maybeSingle();
-            if (!claimed) {
-              skipped++;
-              continue;
-            }
-
-            // WhatsApp first for anyone checking in there; the app push otherwise.
-            const wa = await sendWhatsAppReminder(supabaseAdmin, client.id, now).catch(
-              () => "failed" as const,
-            );
-            if (wa === "sent") {
-              sent++;
-              continue;
-            }
-            if (!client.auth_user_id) {
-              skipped++;
-              continue;
-            }
-            await sendPushCore(supabaseAdmin, {
-              userId: client.auth_user_id,
-              title: "Time for your check-in",
-              body: "Tap to log how you're feeling today.",
-              data: { type: "checkin_reminder", path: "/client/app/checkin" },
-              sentBy: null,
+            // Claim before sending so two overlapping ticks can't both send.
+            // The claim is kept only after WhatsApp reports "sent" or a push
+            // reports at least one delivery. Otherwise it is put back.
+            const outcome = await claimAndDeliverCheckinReminder(supabaseAdmin, {
+              reminderId: r.id,
+              authUserId: client.auth_user_id,
+              localDate,
+              previousSentOn: r.last_sent_on,
+              sendWhatsApp: () => sendWhatsAppReminder(supabaseAdmin, client.id, now),
+              sendPush: (userId) =>
+                sendPushCore(supabaseAdmin, {
+                  userId,
+                  title: "Time for your check-in",
+                  body: "Tap to log how you're feeling today.",
+                  data: { type: "checkin_reminder", path: "/client/app/checkin" },
+                  sentBy: null,
+                }),
             });
-            sent++;
+            if (outcome === "sent") sent++;
+            else skipped++;
           } catch (e) {
             log.warn("checkin-reminders failed", { id: r.id, error: e });
           }

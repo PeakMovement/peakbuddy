@@ -518,15 +518,6 @@ type Reply = Decision["replies"][number];
 
 const text = (body: string): Reply => ({ kind: "text", body });
 
-const consentPrompt = (firstName: string): Reply => ({
-  kind: "buttons",
-  body: MSG.consentIntro(firstName),
-  buttons: [
-    { id: IDS.consentYes, title: "I agree" },
-    { id: IDS.consentNo, title: "No thanks" },
-  ],
-});
-
 const askSleep = (body: string = MSG.askSleep): Reply => ({
   kind: "list",
   body,
@@ -1067,9 +1058,11 @@ export function decide(ctx: DecisionContext): Decision {
     if (START.test(raw)) {
       return {
         replies: [
-          ctx.consentUrl
-            ? text(ONBOARD_MSG.consentLink(firstName, ctx.consentUrl))
-            : consentPrompt(firstName),
+          text(
+            ctx.consentUrl
+              ? ONBOARD_MSG.consentLink(firstName, ctx.consentUrl)
+              : ONBOARD_MSG.consentPageOnly(firstName),
+          ),
         ],
         next: IDLE("awaiting_consent"),
         optIn: true,
@@ -1120,18 +1113,16 @@ export function decide(ctx: DecisionContext): Decision {
   if (ctx.hasConsent && ctx.inviteWelcome) {
     return withSafety(startCheckin(ctx, welcome), ctx);
   }
+  // No link and no current consent: do not offer an in-chat "I agree". That
+  // only recorded WhatsApp consent and skipped the POPIA page.
   if (!ctx.hasConsent) {
-    if (conv.state === "awaiting_consent") {
-      if (msg.replyId === IDS.consentYes || YES.test(raw)) {
-        const started = startCheckin(ctx, [text(MSG.consentThanks)]);
-        return withSafety({ ...started, recordConsent: true }, ctx);
-      }
-      return withSafety(
-        { replies: [text(MSG.consentRetry), consentPrompt(firstName)], next: conv },
-        ctx,
-      );
-    }
-    return withSafety({ replies: [consentPrompt(firstName)], next: IDLE("awaiting_consent") }, ctx);
+    return withSafety(
+      {
+        replies: [...welcome, text(ONBOARD_MSG.consentPageOnly(firstName))],
+        next: IDLE("awaiting_consent"),
+      },
+      ctx,
+    );
   }
 
   if (
