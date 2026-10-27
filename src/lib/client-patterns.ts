@@ -27,6 +27,25 @@ export type DetectedPattern = {
 
 const METRICS: PatternMetric[] = ["pain", "energy", "stress", "sleep"];
 
+/** South Africa is UTC+2 all year, so weekday and calendar date need no timezone library. */
+const SAST_MS = 2 * 60 * 60 * 1000;
+
+/** 0 = Sunday … 6 = Saturday, in Africa/Johannesburg. */
+export function sastWeekday(createdAt: string | Date): number {
+  const d = typeof createdAt === "string" ? new Date(createdAt) : createdAt;
+  return new Date(d.getTime() + SAST_MS).getUTCDay();
+}
+
+/** YYYY-MM-DD in Africa/Johannesburg. */
+export function sastDateKey(at: Date = new Date()): string {
+  return new Date(at.getTime() + SAST_MS).toISOString().slice(0, 10);
+}
+
+/** Inclusive start of the SAST calendar day, for a `created_at` lower bound. */
+export function sastDayStartIso(at: Date = new Date()): string {
+  return `${sastDateKey(at)}T00:00:00+02:00`;
+}
+
 // For pain and stress, higher = worse → "elevated" is the concerning direction.
 // For energy and sleep, lower = worse → "low" is the concerning direction.
 const HIGHER_IS_WORSE: Record<PatternMetric, boolean> = {
@@ -93,7 +112,7 @@ export function detectWeekdayPatterns(
       if (v === null) continue;
       const d = new Date(c.created_at);
       if (Number.isNaN(d.getTime())) continue;
-      const dow = d.getUTCDay();
+      const dow = sastWeekday(d);
       all.push(v);
       byDay[dow].push(v);
     }

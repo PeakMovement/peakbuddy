@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { detectWeekdayPatterns, describePattern, type CheckInInput } from "./client-patterns";
+import {
+  detectWeekdayPatterns,
+  describePattern,
+  sastDateKey,
+  sastDayStartIso,
+  sastWeekday,
+  type CheckInInput,
+} from "./client-patterns";
 
 // Build a check-in on a specific weekday. 2024-01-01 is a Monday (UTC).
 // Offsets: Sun=-1? we pick concrete known dates instead.
@@ -11,6 +18,10 @@ const DATES: Record<number, string[]> = {
   4: ["2024-01-04", "2024-01-11", "2024-01-18"], // Thursdays
   5: ["2024-01-05", "2024-01-12", "2024-01-19"], // Fridays
 };
+
+function ciLate(date: string, pain: number): CheckInInput {
+  return { ...ci(date, pain), created_at: `${date}T22:30:00.000Z` };
+}
 
 function ci(date: string, pain: number): CheckInInput {
   return {
@@ -53,6 +64,23 @@ describe("detectWeekdayPatterns", () => {
     for (const d of DATES[1]) rows.push(ci(d, 8));
     for (const dow of [2, 3, 4, 5]) for (const d of DATES[dow]) rows.push(ci(d, 2));
     expect(detectWeekdayPatterns(rows)).toEqual(detectWeekdayPatterns(rows));
+  });
+
+  it("counts 00:30 SAST as that morning, not the previous UTC evening", () => {
+    // Sunday 22:30 UTC is Monday 00:30 in Johannesburg. Evening 18:00 SAST stays Monday.
+    expect(sastWeekday("2024-01-07T22:30:00.000Z")).toBe(1);
+    expect(sastWeekday("2024-01-01T16:00:00.000Z")).toBe(1);
+    expect(sastDateKey(new Date("2026-10-27T22:30:00.000Z"))).toBe("2026-10-28");
+    expect(sastDayStartIso(new Date("2026-10-27T22:30:00.000Z"))).toBe("2026-10-28T00:00:00+02:00");
+    expect(sastDateKey(new Date("2026-10-27T16:00:00.000Z"))).toBe("2026-10-27");
+
+    const rows: CheckInInput[] = [];
+    for (const d of ["2024-01-07", "2024-01-14", "2024-01-21", "2024-01-28", "2024-02-04"]) {
+      rows.push(ciLate(d, 8));
+    }
+    for (const dow of [2, 3, 4, 5]) for (const d of DATES[dow]) rows.push(ci(d, 2));
+    const monday = detectWeekdayPatterns(rows).find((p) => p.metric === "pain");
+    expect(monday?.day_of_week).toBe(1);
   });
 
   it("describePattern produces non-empty, non-alarming copy", () => {

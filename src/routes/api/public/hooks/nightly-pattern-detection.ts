@@ -1,16 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { trackedJob } from "@/lib/job-runs.server";
 import { log } from "@/lib/log";
-import { detectWeekdayPatterns, type CheckInInput, type DetectedPattern } from "@/lib/client-patterns";
+import {
+  detectWeekdayPatterns,
+  sastDayStartIso,
+  type CheckInInput,
+  type DetectedPattern,
+} from "@/lib/client-patterns";
 import { patternInsightDraft } from "@/lib/capabilities";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 
 // #5 Predictive nudges — Phase 2 detection job.
-// Nightly, consent-gated: for each client with passive_monitoring_enabled,
-// pull ~90 days of check-ins, detect day-of-week patterns, and upsert them into
-// client_patterns. This job has NO user-facing effect — it only maintains the
-// pattern store the practitioner view (and, later, opt-in nudges) read from.
-// Nudge SENDING is deliberately NOT part of this job; that is gated separately.
+// Nightly, for each client with passive_monitoring_enabled: pull ~90 days of
+// check-ins, detect day-of-week patterns, and upsert them into client_patterns.
+// This does not call a model and does not check AI consent. It has no
+// user-facing effect — it only maintains the pattern store the practitioner
+// view reads. Nudge sending is a separate gate. Dates are South African.
 
 const BATCH_SIZE = 50;
 const LOOKBACK_DAYS = 90;
@@ -26,13 +31,12 @@ async function writePatternDraft(
 ): Promise<void> {
   const top = patterns[0];
   if (!top || !client.practitioner_id) return;
-  const day = new Date().toISOString().slice(0, 10);
   const { count } = await supabaseAdmin
     .from("practitioner_drafts")
     .select("id", { count: "exact", head: true })
     .eq("client_id", client.id)
     .eq("kind", "pattern_insight")
-    .gte("created_at", `${day}T00:00:00.000Z`);
+    .gte("created_at", sastDayStartIso());
   if ((count ?? 0) > 0) return;
   const direction = top.pattern_type === "weekday_low" ? "low" : "high";
   const draft = patternInsightDraft({
