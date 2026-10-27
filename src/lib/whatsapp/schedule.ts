@@ -185,9 +185,28 @@ function withoutClock(text: string): string {
     );
 }
 
+/**
+ * Phrases that mean once a week but don't sit in "once a week" order.
+ * "every once in a week", "once in a week", "once every week".
+ */
+function normaliseCadence(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/\bevery\s+once\s+in\s+(?:a|the)\s+weeks?\b/g, "once a week")
+    .replace(/\bonce\s+in\s+(?:a|the)\s+weeks?\b/g, "once a week")
+    .replace(/\bonce\s+every\s+weeks?\b/g, "once a week");
+}
+
+/** "not every day" with no other count must not be stored as daily. */
+function rejectsDaily(text: string): boolean {
+  return /\b(?:not|never|don'?t|do not|stop)\b[\s\S]{0,40}\b(?:every ?day|each day|daily)\b/i.test(
+    text,
+  );
+}
+
 /** How many times a week, or null when they didn't say a count. */
 function timesPerWeek(text: string): number | null {
-  const t = text.toLowerCase();
+  const t = normaliseCadence(text);
   const explicit = t.match(
     new RegExp(
       `\\b(${COUNT_WORD})\\s*(?:x|times?|keer)?\\s*(?:a|per|each|'?n|\\/)?\\s*(?:weeks?|weekly|weekliks|wk)\\b`,
@@ -215,15 +234,17 @@ function daysMentioned(text: string): number[] {
 }
 
 function parseFrequencyBody(text: string): ScheduleChoice | null {
-  const t = text.toLowerCase().trim();
+  const t = normaliseCadence(text.trim());
   if (!t) return null;
   if (/\bevery\s*(?:other|second|2|two)\s*days?\b/.test(t)) return choiceForDays([0, 2, 4, 6]);
   if (/\bevery\s*(?:3|three)\s*days?\b/.test(t)) return choiceForDays([1, 4]);
-  const mentioned = daysMentioned(t);
-  if (mentioned.length) return choiceForDays(mentioned);
-  if (/\b(every ?day|each day|daily|elke dag|daagliks)\b/.test(t)) return byId("sched_daily");
+  // A count beats "every day" in the same sentence: "not every day, once a week".
   const count = timesPerWeek(t);
   if (count) return choiceForDays(SPREAD[count]);
+  const mentioned = daysMentioned(t);
+  if (mentioned.length) return choiceForDays(mentioned);
+  if (rejectsDaily(t)) return null;
+  if (/\b(every ?day|each day|daily|elke dag|daagliks)\b/.test(t)) return byId("sched_daily");
   const loose = withoutClock(t).match(new RegExp(`\\b(${COUNT_WORD})\\s*(?:x|times|keer)\\b`, "i"));
   if (loose) {
     const n = wordToCount(loose[1]);
@@ -274,9 +295,10 @@ const BARE_CADENCE = new RegExp(
 );
 
 /**
- * A later message that changes how often Buddy checks in. Stricter than
- * readFrequency: a pain score, a parking question, or "training twice a week"
- * is not a schedule change. Null when it isn't one.
+ * A later message that changes how often Buddy checks in. A pain score, a
+ * parking question, or "training twice a week" is not a schedule change.
+ * An explicit cadence ("once every week", "not every day, once a week") is
+ * saved without a cue word such as "check in" or "only". Null when it isn't one.
  */
 export function readScheduleChange(text: string): ScheduleChoice | null {
   const t = text.trim();
@@ -289,6 +311,8 @@ export function readScheduleChange(text: string): ScheduleChoice | null {
       t,
     ) && !/\b(check[\s-]?ins?|remind\w*)\b/i.test(t);
   if (topic) return null;
+  const normalised = normaliseCadence(t);
+  const explicitCount = timesPerWeek(normalised) !== null;
   const cue =
     /\b(check[\s-]?ins?|remind\w*|message me|text me|whatsapp me)\b/i.test(t) ||
     /^(?:hi[, ]+)?(?:please[, ]+)?(?:only|just)\b/i.test(t) ||
@@ -297,8 +321,25 @@ export function readScheduleChange(text: string): ScheduleChoice | null {
       t,
     ) ||
     (t.length <= 80 && /\b(?:except|not on)\b/i.test(t));
-  if (cue || BARE_CADENCE.test(t)) return choice;
+  if (cue || explicitCount || BARE_CADENCE.test(t) || BARE_CADENCE.test(normalised)) return choice;
   return null;
+}
+
+/** Sunday through Saturday, the row created before a patient has chosen. */
+export function isFullWeek(days: unknown): boolean {
+  return normalizeDays(days).length === 7;
+}
+
+/** Stable phrase. A sent copy of it means Buddy has already asked once. */
+export const SCHEDULE_CONFIRM_MARKER = "If you'd rather fewer days";
+
+/**
+ * One question for someone still on the default daily row. Sent only on a
+ * reply they already triggered, or on a check-in they were already due, and
+ * only once. It does not change their days.
+ */
+export function scheduleConfirmText(): string {
+  return `You're on a daily check-in. ${SCHEDULE_CONFIRM_MARKER}, tell me, for example "once a week" or "only Mondays". If every day is right, reply "every day".`;
 }
 
 /**

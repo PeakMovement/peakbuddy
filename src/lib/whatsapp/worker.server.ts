@@ -30,7 +30,12 @@ import { type ConverseResult, type ConverseTurn } from "./converse";
 import { progressSummary, routeByKeywords, routeFromMenu, type AssistRoute } from "./assistant";
 import { hasAiConsent } from "@/lib/ai-consent";
 import { APP_ORIGIN, ONBOARD_MSG, parseJoinCode } from "./onboarding";
-import { readScheduleChange } from "./schedule";
+import {
+  isFullWeek,
+  readScheduleChange,
+  SCHEDULE_CONFIRM_MARKER,
+  scheduleConfirmText,
+} from "./schedule";
 import {
   createSelfSignupClient,
   currentConsentTypes,
@@ -1140,6 +1145,21 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   // Unknown numbers are told once a day, not on every message.
   let replies = decision.replies;
   if (questionStep && !answerOnly) replies = [...replies, ...questionStep.replies];
+  // Someone still on the default daily row is asked once, on this reply.
+  // A red flag, an opt-out, or a schedule they just set is left alone.
+  if (
+    client &&
+    consent &&
+    !redFlags.triggered &&
+    !decision.optOut &&
+    !decision.setSchedule &&
+    state !== "awaiting_schedule" &&
+    state !== "awaiting_consent" &&
+    state !== "opted_out"
+  ) {
+    const line = await scheduleConfirmIfDue(admin, client.id, state).catch(() => null);
+    if (line) replies = [...replies, { kind: "text" as const, body: line }];
+  }
   // A message a practitioner asked Buddy to pass on while the window was shut.
   // Hold it until both current consents exist. Delivering it here is the send.
   const pendingNotice = (conv.draft as { pendingNotice?: string } | null)?.pendingNotice;
@@ -2382,6 +2402,37 @@ export type WhatsAppReminderResult =
   | "failed";
 
 /**
+ * One question for a patient still on the default all-week row. Null when
+ * they have already been asked, or their days are not the untouched default.
+ * Looks at messages already sent, so no new column is required.
+ */
+async function scheduleConfirmIfDue(
+  admin: Admin,
+  clientId: string,
+  state: string,
+): Promise<string | null> {
+  if (state === "awaiting_schedule" || state === "awaiting_consent" || state === "opted_out")
+    return null;
+  const { data: rem } = await admin
+    .from("checkin_reminders")
+    .select("days_of_week")
+    .eq("client_id", clientId)
+    .maybeSingle();
+  const days = (rem as { days_of_week?: unknown } | null)?.days_of_week;
+  if (!isFullWeek(days)) return null;
+  const { data: prior } = await admin
+    .from("whatsapp_outbound")
+    .select("body, sent_ok")
+    .eq("client_id", clientId)
+    .limit(200);
+  const asked = ((prior ?? []) as Array<{ body?: string | null; sent_ok?: boolean | null }>).some(
+    (row) => row.sent_ok !== false && String(row.body ?? "").includes(SCHEDULE_CONFIRM_MARKER),
+  );
+  if (asked) return null;
+  return scheduleConfirmText();
+}
+
+/**
  * The daily nudge for a WhatsApp patient. Only inside Meta's 24 hour window:
  * outside it Buddy stays quiet until the patient next writes in (no paid
  * template messages, by decision).
@@ -2530,7 +2581,8 @@ export async function sendWhatsAppReminder(
   if (windowOpen && openQuestion) {
     // Finish the open check-in rather than start a second one.
     const nudge = `Hi ${firstName}, we were halfway through today's check-in. Here's where we left off:`;
-    for (const body of [nudge, openQuestion]) {
+    const confirm = await scheduleConfirmIfDue(admin, clientId, conv.state).catch(() => null);
+    for (const body of [nudge, openQuestion, ...(confirm ? [confirm] : [])]) {
       let id: string | null = null;
       let ok = false;
       try {
@@ -2554,9 +2606,10 @@ export async function sendWhatsAppReminder(
       ? await voiceStats(admin, { id: clientId, ...clientRow } as ClientRow, now).catch(() => null)
       : null;
     const v = { firstName, now, ...(stats ?? {}) };
+    const confirm = await scheduleConfirmIfDue(admin, clientId, conv.state).catch(() => null);
     const bodies = stats
-      ? [opener(v), painQuestion(v)]
-      : [MSG.checkinOpener(firstName), MSG.askPain];
+      ? [opener(v), painQuestion(v), ...(confirm ? [confirm] : [])]
+      : [MSG.checkinOpener(firstName), MSG.askPain, ...(confirm ? [confirm] : [])];
     let allOk = true;
     for (const body of bodies) {
       let id: string | null = null;

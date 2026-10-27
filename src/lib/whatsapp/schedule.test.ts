@@ -47,6 +47,14 @@ describe("schedule helpers", () => {
     expect(readFrequency(undefined, "2 times per week")?.id).toBe("sched_2x");
     expect(readFrequency(undefined, "4 times a week")?.days).toEqual([1, 2, 4, 5]);
     expect(readFrequency(undefined, "once a week")?.id).toBe("sched_weekly");
+    expect(readFrequency(undefined, "every once in a week")?.id).toBe("sched_weekly");
+    expect(readFrequency(undefined, "once in a week")?.id).toBe("sched_weekly");
+    expect(readFrequency(undefined, "once every week")?.id).toBe("sched_weekly");
+    expect(readFrequency(undefined, "not every day, once a week")?.days).toEqual([1]);
+    expect(
+      readFrequency(undefined, "don't message me every day, once a week please")?.days,
+    ).toEqual([1]);
+    expect(readFrequency(undefined, "not every day")).toBeNull();
     expect(readFrequency(undefined, "only on Tuesdays and Thursdays")?.days).toEqual([2, 4]);
     expect(readFrequency(undefined, "every Tuesday")?.phrase).toBe("every Tuesday");
     expect(readFrequency(undefined, "every day except Sunday")?.days).toEqual([1, 2, 3, 4, 5, 6]);
@@ -63,7 +71,13 @@ describe("schedule helpers", () => {
     expect(readScheduleChange("my knee hurts on Mondays")).toBeNull();
     expect(readScheduleChange("4")).toBeNull();
     expect(readScheduleChange("remind me at 7am")).toBeNull();
-    expect(readScheduleChange("change my check-in time to 6pm")).toBeNull();
+    expect(readScheduleChange("once every week")?.days).toEqual([1]);
+    expect(readScheduleChange("every once in a week")?.days).toEqual([1]);
+    expect(readScheduleChange("once in a week")?.days).toEqual([1]);
+    expect(readScheduleChange("I want once a week not every day")?.days).toEqual([1]);
+    expect(readScheduleChange("not every day, once a week")?.days).toEqual([1]);
+    expect(readScheduleChange("don't message me every day, once a week please")?.days).toEqual([1]);
+    expect(readScheduleChange("see you tuesday")).toBeNull();
   });
   it("the scheduler sends only on the saved days", () => {
     expect(reminderDueOnWeekday([1, 4], 1)).toBe(true);
@@ -169,6 +183,11 @@ describe("onboarding asks how often and when", () => {
       days: [0, 1, 2, 3, 4, 5, 6],
       frequency: "daily",
     });
+
+    const plain = decide(ctx(snap("idle"), msg("once every week")));
+    expect(plain.setSchedule).toEqual({ days: [1], frequency: "custom" });
+    const mixed = decide(ctx(snap("idle"), msg("not every day, once a week")));
+    expect(mixed.setSchedule).toEqual({ days: [1], frequency: "custom" });
   });
 
   it("a time and days in one message are both saved, without starting from the daily default", () => {

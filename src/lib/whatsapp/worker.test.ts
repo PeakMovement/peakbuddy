@@ -930,6 +930,52 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     });
   });
 
+  it("asks once about the default daily row, and does not change it until they say so", async () => {
+    const daily = {
+      client_id: "client-1",
+      enabled: true,
+      frequency: "daily",
+      time_of_day: "18:00",
+      days_of_week: [0, 1, 2, 3, 4, 5, 6],
+      timezone: "Africa/Johannesburg",
+    };
+    const db = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [inbound("thanks")],
+      whatsapp_conversations: [
+        {
+          id: "c1",
+          phone: "27820000001",
+          client_id: "client-1",
+          state: "idle",
+          draft: {},
+          checkin_started_at: null,
+        },
+      ],
+      consent_records: CONSENTED(),
+      check_ins: [],
+      checkin_reminders: [daily],
+      whatsapp_outbound: [],
+    });
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(JSON.stringify(sent)).toMatch(/If you'd rather fewer days/);
+    expect(db.tables.checkin_reminders[0].days_of_week).toEqual([0, 1, 2, 3, 4, 5, 6]);
+
+    db.tables.whatsapp_inbound.push(inbound("still here"));
+    const before = sent.length;
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(JSON.stringify(sent.slice(before))).not.toMatch(/If you'd rather fewer days/);
+    expect(db.tables.checkin_reminders[0].days_of_week).toEqual([0, 1, 2, 3, 4, 5, 6]);
+
+    db.tables.whatsapp_inbound.push(inbound("every once in a week"));
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.checkin_reminders[0]).toMatchObject({
+      frequency: "custom",
+      days_of_week: [1],
+    });
+  });
+
   it("does not offer a wearable to someone who already has one connected", async () => {
     const db = fakeDb({
       clients: [CLIENT],
@@ -1345,6 +1391,29 @@ describe("daily WhatsApp reminders", () => {
     expect(r).toBe("sent");
     expect(JSON.stringify(sent)).toMatch(/time for your first check-in|check-in/);
     expect(db.tables.whatsapp_conversations[0].state).toBe("awaiting_pain");
+  });
+
+  it("adds the daily-days question to a check-in they were already due, once", async () => {
+    const db = seed({
+      whatsapp_inbound: [
+        { from_phone: "+27820000001", received_at: "2026-10-04T18:30:00Z", status: "done" },
+      ],
+      checkin_reminders: [
+        { client_id: "client-1", days_of_week: [0, 1, 2, 3, 4, 5, 6], enabled: true },
+      ],
+    });
+    const { provider, sent } = fakeProvider();
+    const r = await sendWhatsAppReminder(db.admin, "client-1", NOW(), {
+      provider,
+      secrets: SECRETS,
+    });
+    expect(r).toBe("sent");
+    expect(JSON.stringify(sent)).toMatch(/If you'd rather fewer days/);
+    expect(
+      db.tables.whatsapp_outbound.some(
+        (row) => String(row.body).includes("If you'd rather fewer days") && row.sent_ok !== false,
+      ),
+    ).toBe(true);
   });
 
   it("stays quiet outside the 24 hour window", async () => {
