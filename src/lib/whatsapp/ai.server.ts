@@ -215,7 +215,7 @@ export function assistFor(field: AnswerField, value: number | null): AiAssist {
 /* ------------------------------------------------------------------ */
 
 const TRANSCRIBE_PROMPT =
-  "Transcribe this voice note from a physiotherapy patient exactly as spoken, in the language spoken (English or Afrikaans). Return only the transcript text, nothing else. If there is no intelligible speech, return an empty string.";
+  "Transcribe this voice note exactly as spoken. The speaker may use English, Afrikaans, isiXhosa, isiZulu, or Sesotho, including a mix in one note. Do not translate. Do not add words, advice, or a summary. Return only the transcript. If there is no intelligible speech, return an empty string.";
 
 /**
  * Voice note to text through the Lovable AI gateway (Gemini, which accepts

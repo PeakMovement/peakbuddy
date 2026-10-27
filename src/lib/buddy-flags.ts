@@ -22,6 +22,16 @@ export const BUDDY_FLAGS = {
   discharge: "BUDDY_DISCHARGE",
   /** A confirmed copy can be sent to the patient. Preparing the file does not send. */
   dataExportSend: "BUDDY_DATA_EXPORT_SEND",
+  /**
+   * Patient WhatsApp uses the dialogue manager (one bubble, asides, corrections).
+   * Off until this is exactly "1". The practitioner chat does not use this flag.
+   */
+  conversationalPatient: "BUDDY_CONVERSATIONAL_PATIENT",
+  /**
+   * Template outreach that can reopen the 24 hour window. Off until "1".
+   * Each send still needs the patient's own opt-in and the weekly cap.
+   */
+  proactiveOutreach: "BUDDY_PROACTIVE_OUTREACH",
 } as const;
 
 /** Open conversation calls per patient per South African day, when cheap AI is on. */

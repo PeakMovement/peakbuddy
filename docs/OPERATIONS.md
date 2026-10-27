@@ -139,5 +139,9 @@ Patient-facing switches stay off until the env var is exactly `1`:
 - `BUDDY_PHONE_AMBIGUOUS`
 - `BUDDY_DISCHARGE`
 - `BUDDY_DATA_EXPORT_SEND`
+- `BUDDY_CONVERSATIONAL_PATIENT` (patient dialogue: one bubble, asides, corrections)
+- `BUDDY_PROACTIVE_OUTREACH` (opt in templates that can reopen the 24 hour window)
 
-No new Meta template. The morning note keeps its three buttons. Discharge, a data-copy link, and an ambiguous-phone line go out only inside the existing 24 hour window.
+Apply `drizzle/migrations/0045_conversation_layer.sql` before turning outreach on. Do not copy it into `supabase/migrations/`. `0042` on main is the client-archive migration, so this one is `0045`, after `0044`.
+
+Outreach templates, created in Meta and named by env var: `WHATSAPP_TEMPLATE_DAY_AFTER`, `WHATSAPP_TEMPLATE_FLARE`, `WHATSAPP_TEMPLATE_MILESTONE`, `WHATSAPP_TEMPLATE_DISCHARGE_CHECK`. Language `en`. If the env var is unset, Buddy skips that send outside the 24 hour window. The morning note still keeps its three buttons. Discharge, a data-copy link, and an ambiguous-phone line go out only inside the existing 24 hour window.

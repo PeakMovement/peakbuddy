@@ -51,6 +51,11 @@ export const AGENT_TOOLS = [
   "discharge_client",
   "reopen_episode",
   "prepare_data_copy",
+  "explain_client",
+  "caseload_query",
+  "summarise_thread",
+  "pause_buddy",
+  "resume_buddy",
   "clarify",
 ] as const;
 
@@ -238,10 +243,16 @@ export function validDecision(raw: unknown): AgentDecision | null {
   const idleDays =
     typeof rawIdle === "number" && rawIdle >= 1 && rawIdle <= 730 ? Math.round(rawIdle) : null;
   if (
-    (tool === "discharge_client" || tool === "reopen_episode" || tool === "prepare_data_copy") &&
+    (tool === "discharge_client" ||
+      tool === "reopen_episode" ||
+      tool === "prepare_data_copy" ||
+      tool === "explain_client" ||
+      tool === "pause_buddy" ||
+      tool === "resume_buddy") &&
     names.length === 0
   )
     return null;
+  if (tool === "caseload_query" && !question) return null;
   if (tool === "set_morning_checkin" && enabled == null) return null;
   if (tool === "set_goal" && !goal) return null;
   if (tool === "set_programme_reminder" && programmeDays.length === 0) return null;
@@ -482,6 +493,39 @@ export function practitionerToolSchemas(heidiEnabled: boolean): unknown[] {
       required: [],
     },
     {
+      name: "explain_client",
+      description:
+        "Why a stored score moved. Uses only the stored risk breakdown and the last check-in. names is the client.",
+      properties: { names: strArray },
+      required: ["names"],
+    },
+    {
+      name: "caseload_query",
+      description:
+        "A question about the whole list, answered only from stored check-ins. Put their question in question. Do not invent patients.",
+      properties: { question: { type: "string" } },
+      required: ["question"],
+    },
+    {
+      name: "summarise_thread",
+      description: "A short recap of this chat stretch, using only the stored turns.",
+      properties: {},
+      required: [],
+    },
+    {
+      name: "pause_buddy",
+      description:
+        "The practitioner is taking this patient's WhatsApp thread. Buddy pauses. names is the client.",
+      properties: { names: strArray },
+      required: ["names"],
+    },
+    {
+      name: "resume_buddy",
+      description: "Hand the patient thread back to Buddy. names is the client.",
+      properties: { names: strArray },
+      required: ["names"],
+    },
+    {
       name: "clarify",
       description:
         "One short question when the request is unclear. options are up to 3 button labels, each under 20 characters. Do not state any client fact.",
@@ -569,6 +613,7 @@ If you are unsure, call clarify with one short question and up to 3 button label
 Scheduled updates use schedule_updates. Reception errands use ask_reception. What you can do uses help.
 A case brief is case_brief. Who improved this week is who_improved. Booking or moving an appointment is book_reception. A goal they want stored is set_goal. An outcomes or retention scorecard is outcomes. Agreeing to remind the quiet patients already named is confirm_quiet_nudges. Deleting, removing, clearing out or archiving old or unresponsive clients is archive_clients: named clients, or names ["inactive"] with idleDays when they give a period ("not responded in 3 months" is idleDays 90). Bringing someone back is unarchive_clients. Home programme reminder days are set_programme_reminder. days uses 0 for Sunday through 6 for Saturday. optedIn is true only when they say the patient already agreed. Do not message the patient from that tool.
 Stopping reminders after discharge is discharge_client. Opening the episode again is reopen_episode. A copy of the record for them to review, then a one-time link, is prepare_data_copy. Each needs a name and waits for confirmation. Do not invent clinical advice. Do not use these for everyone at once.
+"Why" or "why is she up" is explain_client for the last client. Answer only from stored scores. A question about the whole list ("who hasn't done exercises", "which ACL patients are improving") is caseload_query with the question in their words. "Summarise" is summarise_thread. "I'll take over with Lauren" or "pause buddy for Lauren" is pause_buddy. "Hand it back" or "resume buddy for Lauren" is resume_buddy. Do not invent a patient, a number, or a diagnosis.
 A weekday morning note asks whether they want a patient update or reception to check in with anyone. "Patient update" or agreeing to the update is client_status with names ["all"]. Naming patients for reception to check in with is ask_reception, task "Check in with" those names. "Reception check-in" with no names is clarify asking who, with no client facts. "Not today" is dismiss_morning. "Stop morning check-ins" is set_morning_checkin with enabled false. "Start morning check-ins" is set_morning_checkin with enabled true. "Update me every morning" is schedule_updates, not the morning note.
 ${input.canSeeAllPractitioners ? "This person is an owner or admin and can see the whole practice." : "This person sees only their own clients, and only themselves in the practitioner list."}
 ${input.heidiEnabled ? "Heidi is connected. heidi_read needs a first and last name." : "Heidi is not connected. Do not call heidi_read."}
@@ -669,8 +714,18 @@ export function checkinPreview(practiceName: string, note: string | null): strin
   return practitionerCheckinText("<name>", practiceName, extraCheckinNote(note, practiceName));
 }
 
-export function checkinBody(firstName: string, practiceName: string, note: string | null): string {
-  return practitionerCheckinText(firstName, practiceName, extraCheckinNote(note, practiceName));
+export function checkinBody(
+  firstName: string,
+  practiceName: string,
+  note: string | null,
+  vary?: { clientId?: string; now?: Date } | null,
+): string {
+  return practitionerCheckinText(
+    firstName,
+    practiceName,
+    extraCheckinNote(note, practiceName),
+    vary,
+  );
 }
 
 /** "Cayla Rosenblatt, Michaela Geldhof, Steven and Vicki-Leigh Atkinson" */
