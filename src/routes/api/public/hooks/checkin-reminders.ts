@@ -37,6 +37,7 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
 
         let sent = 0;
         let skipped = 0;
+        let undelivered = 0;
         const now = new Date();
 
         for (const r of reminders ?? []) {
@@ -154,6 +155,7 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
                 }),
             });
             if (outcome === "sent") sent++;
+            else if (outcome === "undelivered") undelivered++;
             else skipped++;
           } catch (e) {
             log.warn("checkin-reminders failed", { id: r.id, error: e });
@@ -172,7 +174,21 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
           });
         }
 
-        return new Response(JSON.stringify({ ok: true, sent, skipped }), {
+        if (undelivered > 0 && sent === 0) {
+          const { alertUndeliveredCheckins } =
+            await import("@/lib/whatsapp/checkin-delivery.server");
+          await alertUndeliveredCheckins(supabaseAdmin, {
+            undelivered,
+            delivered: sent,
+            now,
+          }).catch((e) =>
+            log.warn("check-in delivery alert failed", {
+              error: e instanceof Error ? e.message : "unknown",
+            }),
+          );
+        }
+
+        return new Response(JSON.stringify({ ok: true, sent, skipped, undelivered }), {
           headers: { "Content-Type": "application/json" },
         });
       }),

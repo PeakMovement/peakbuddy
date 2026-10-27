@@ -1326,6 +1326,22 @@ async function handleStatusIntent(
     await handleMessageIntent(adminIn, prac, intent, deps, mem);
     return;
   }
+  if (intent.kind === "checkin_delivery") {
+    const { data: prof } = await (adminIn as unknown as Db)
+      .from("profiles")
+      .select("role")
+      .eq("id", prac.userId)
+      .maybeSingle();
+    if ((prof as { role?: string } | null)?.role !== "super_admin") {
+      await text1("Only the admin account can see whether check-ins went out.");
+      return;
+    }
+    const { loadDeliverySummary } = await import("./checkin-delivery.server");
+    const { formatDeliveryReply } = await import("./checkin-delivery");
+    const summary = await loadDeliverySummary(adminIn, deps.now);
+    await text1(formatDeliveryReply(summary));
+    return;
+  }
   if (intent.kind === "admin") {
     const { adminAnswer } = await import("./practitioner-admin.server");
     const body = await adminAnswer(adminIn, prac.userId, intent.topic, deps.now);

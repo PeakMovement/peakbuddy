@@ -4,6 +4,7 @@ import { template as practitionerContactTemplate } from "./practitioner-contact"
 import { template as practitionerCheckinTemplate } from "./practitioner-checkin";
 import { template as practitionerAlertTemplate } from "./practitioner-alert";
 import { template as jobHealthTemplate } from "./job-health";
+import { template as checkinDeliveryTemplate } from "./checkin-delivery";
 import { template as practitionerNewPatientTemplate } from "./practitioner-new-patient";
 
 export interface TemplateEntry {
@@ -21,5 +22,6 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   "practitioner-checkin": practitionerCheckinTemplate,
   "practitioner-alert": practitionerAlertTemplate,
   "job-health": jobHealthTemplate,
+  "checkin-delivery": checkinDeliveryTemplate,
   "practitioner-new-patient": practitionerNewPatientTemplate,
 };

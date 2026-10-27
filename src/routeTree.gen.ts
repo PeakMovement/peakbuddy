@@ -32,6 +32,7 @@ import { Route as PractitionerOnboardingRouteImport } from './routes/practitione
 import { Route as PractitionerPendingRouteImport } from './routes/practitioner.pending'
 import { Route as PractitionerSignupRouteImport } from './routes/practitioner.signup'
 import { Route as AdminAppAlertsRouteImport } from './routes/admin.app.alerts'
+import { Route as AdminAppCheckinsRouteImport } from './routes/admin.app.checkins'
 import { Route as AdminAppClientsRouteImport } from './routes/admin.app.clients'
 import { Route as AdminAppDashboardRouteImport } from './routes/admin.app.dashboard'
 import { Route as AdminAppDataHubRouteImport } from './routes/admin.app.data-hub'
@@ -195,6 +196,11 @@ const PractitionerSignupRoute = PractitionerSignupRouteImport.update({
 const AdminAppAlertsRoute = AdminAppAlertsRouteImport.update({
   id: '/alerts',
   path: '/alerts',
+  getParentRoute: () => AdminAppRoute,
+} as any)
+const AdminAppCheckinsRoute = AdminAppCheckinsRouteImport.update({
+  id: '/checkins',
+  path: '/checkins',
   getParentRoute: () => AdminAppRoute,
 } as any)
 const AdminAppClientsRoute = AdminAppClientsRouteImport.update({
@@ -490,6 +496,7 @@ export interface FileRoutesByFullPath {
   '/practitioner/pending': typeof PractitionerPendingRoute
   '/practitioner/signup': typeof PractitionerSignupRoute
   '/admin/app/alerts': typeof AdminAppAlertsRoute
+  '/admin/app/checkins': typeof AdminAppCheckinsRoute
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
   '/admin/app/data-hub': typeof AdminAppDataHubRoute
@@ -563,6 +570,7 @@ export interface FileRoutesByTo {
   '/practitioner/pending': typeof PractitionerPendingRoute
   '/practitioner/signup': typeof PractitionerSignupRoute
   '/admin/app/alerts': typeof AdminAppAlertsRoute
+  '/admin/app/checkins': typeof AdminAppCheckinsRoute
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
   '/admin/app/data-hub': typeof AdminAppDataHubRoute
@@ -638,6 +646,7 @@ export interface FileRoutesById {
   '/practitioner/pending': typeof PractitionerPendingRoute
   '/practitioner/signup': typeof PractitionerSignupRoute
   '/admin/app/alerts': typeof AdminAppAlertsRoute
+  '/admin/app/checkins': typeof AdminAppCheckinsRoute
   '/admin/app/clients': typeof AdminAppClientsRoute
   '/admin/app/dashboard': typeof AdminAppDashboardRoute
   '/admin/app/data-hub': typeof AdminAppDataHubRoute
@@ -714,6 +723,7 @@ export interface FileRouteTypes {
     | '/practitioner/pending'
     | '/practitioner/signup'
     | '/admin/app/alerts'
+    | '/admin/app/checkins'
     | '/admin/app/clients'
     | '/admin/app/dashboard'
     | '/admin/app/data-hub'
@@ -787,6 +797,7 @@ export interface FileRouteTypes {
     | '/practitioner/pending'
     | '/practitioner/signup'
     | '/admin/app/alerts'
+    | '/admin/app/checkins'
     | '/admin/app/clients'
     | '/admin/app/dashboard'
     | '/admin/app/data-hub'
@@ -861,6 +872,7 @@ export interface FileRouteTypes {
     | '/practitioner/pending'
     | '/practitioner/signup'
     | '/admin/app/alerts'
+    | '/admin/app/checkins'
     | '/admin/app/clients'
     | '/admin/app/dashboard'
     | '/admin/app/data-hub'
@@ -1121,6 +1133,13 @@ declare module '@tanstack/react-router' {
       path: '/alerts'
       fullPath: '/admin/app/alerts'
       preLoaderRoute: typeof AdminAppAlertsRouteImport
+      parentRoute: typeof AdminAppRoute
+    }
+    '/admin/app/checkins': {
+      id: '/admin/app/checkins'
+      path: '/checkins'
+      fullPath: '/admin/app/checkins'
+      preLoaderRoute: typeof AdminAppCheckinsRouteImport
       parentRoute: typeof AdminAppRoute
     }
     '/admin/app/clients': {
@@ -1471,6 +1490,7 @@ declare module '@tanstack/react-router' {
 
 interface AdminAppRouteChildren {
   AdminAppAlertsRoute: typeof AdminAppAlertsRoute
+  AdminAppCheckinsRoute: typeof AdminAppCheckinsRoute
   AdminAppClientsRoute: typeof AdminAppClientsRoute
   AdminAppDashboardRoute: typeof AdminAppDashboardRoute
   AdminAppDataHubRoute: typeof AdminAppDataHubRoute
@@ -1485,6 +1505,7 @@ interface AdminAppRouteChildren {
 
 const AdminAppRouteChildren: AdminAppRouteChildren = {
   AdminAppAlertsRoute: AdminAppAlertsRoute,
+  AdminAppCheckinsRoute: AdminAppCheckinsRoute,
   AdminAppClientsRoute: AdminAppClientsRoute,
   AdminAppDashboardRoute: AdminAppDashboardRoute,
   AdminAppDataHubRoute: AdminAppDataHubRoute,
