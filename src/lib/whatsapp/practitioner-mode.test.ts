@@ -13,6 +13,7 @@ import {
   practitionerByPhone,
   resetPractitionerCache,
 } from "./practitioner-mode.server";
+import { currentConsent } from "@/lib/consent/wording";
 
 const NOW = new Date("2026-10-09T10:00:00Z");
 const ID1 = "11111111-1111-1111-1111-111111111111";
@@ -27,6 +28,7 @@ function fakeDb(t: Record<string, Row[]>) {
     const api: any = {
       select: () => api,
       eq: (k: string, v: unknown) => (f.push((r) => r[k] === v), api),
+      is: (k: string, v: unknown) => (f.push((r) => (r[k] ?? null) === v), api),
       in: (k: string, v: unknown[]) => (f.push((r) => v.includes(r[k])), api),
       order: () => api,
       limit: () => (patch ? api : Promise.resolve({ data: rows() })),
@@ -51,6 +53,16 @@ function fakeDb(t: Record<string, Row[]>) {
 }
 
 const PRAC = { userId: "zoe", firstName: "Zoe" };
+
+function consentFor(clientId: string) {
+  return (["popia_core", "whatsapp_checkins"] as const).map((t) => ({
+    client_id: clientId,
+    consent_type: t,
+    version: currentConsent(t).version,
+    withdrawn_at: null,
+    superseded_by: null,
+  }));
+}
 
 function setup(extra: Record<string, Row[]> = {}) {
   const sent: any[] = [];
@@ -93,6 +105,7 @@ function setup(extra: Record<string, Row[]> = {}) {
     ],
     whatsapp_inbound: [{ from_phone: "+27820000001", received_at: "2026-10-09T08:00:00Z" }],
     whatsapp_outbound: [],
+    consent_records: [...consentFor(ID1), ...consentFor(ID2)],
     ...extra,
   });
   const deps = {
@@ -108,6 +121,7 @@ function setup(extra: Record<string, Row[]> = {}) {
 }
 
 afterEach(() => {
+  push.mockClear();
   delete process.env.WHATSAPP_PROGRAMME_TEMPLATE;
   delete process.env.HEIDI_API_KEY;
   delete process.env.HEIDI_REGION;
@@ -204,6 +218,61 @@ describe("practitioner mode", () => {
     );
     expect(sent).toHaveLength(0);
     expect(replies[0].body).toBe(PRAC_MSG.cantReachYet("Sam"));
+  });
+
+  it("does not WhatsApp, push, or queue a programme notice without current consent", async () => {
+    const conv = {
+      id: "c1",
+      client_id: ID1,
+      phone: "27820000001",
+      opted_out_at: null,
+      state: "idle",
+      draft: {} as Row,
+    };
+    const { db, deps, sent, replies } = setup({
+      consent_records: [],
+      whatsapp_conversations: [conv],
+      whatsapp_inbound: [{ from_phone: "+27820000001", received_at: "2026-10-07T08:00:00Z" }],
+    });
+    await handlePractitionerMessage(
+      db,
+      PRAC,
+      { text: "sent Sam Kruger his programme", replyId: null },
+      deps,
+    );
+    expect(sent).toHaveLength(0);
+    expect(push).not.toHaveBeenCalled();
+    expect(conv.draft.pendingNotice).toBeUndefined();
+    expect(replies[0].body).toBe(PRAC_MSG.needsConsent("Sam"));
+  });
+
+  it("does not push a programme notice when WhatsApp consent was withdrawn", async () => {
+    const { db, deps, replies } = setup({
+      consent_records: [
+        {
+          client_id: ID2,
+          consent_type: "popia_core",
+          version: currentConsent("popia_core").version,
+          withdrawn_at: null,
+          superseded_by: null,
+        },
+        {
+          client_id: ID2,
+          consent_type: "whatsapp_checkins",
+          version: currentConsent("whatsapp_checkins").version,
+          withdrawn_at: "2026-10-08T10:00:00Z",
+          superseded_by: null,
+        },
+      ],
+    });
+    await handlePractitionerMessage(
+      db,
+      PRAC,
+      { text: "sent Sam Petersen his programme", replyId: null },
+      deps,
+    );
+    expect(push).not.toHaveBeenCalled();
+    expect(replies[0].body).toBe(PRAC_MSG.needsConsent("Sam"));
   });
 
   it("window shut with the template on: sends the template", async () => {

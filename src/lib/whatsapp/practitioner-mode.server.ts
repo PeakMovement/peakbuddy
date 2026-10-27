@@ -222,6 +222,8 @@ export const PRAC_MSG = {
     `Done. ${patient} hasn't messaged in the last day, so I sent the programme template.`,
   notRegistered: (patient: string) =>
     `Sorry, ${patient} isn't registered on Buddy yet, so I can't let them know. If you'd like them to join, forward them this link:\n\n${JOIN_LINK}`,
+  needsConsent: (patient: string) =>
+    `${patient} hasn't signed the current consent form, so I won't message them until they have.`,
   cantReachYet: (patient: string) =>
     `${patient} is on Buddy, but hasn't messaged in the last day, so WhatsApp won't let me message them first right now. I'll pass it on as soon as they next check in.`,
   checkinAsked: (patient: string) =>
@@ -751,14 +753,23 @@ export async function handlePractitionerMessage(
           ? PRAC_MSG.toldInApp(name)
           : result === "not_registered"
             ? PRAC_MSG.notRegistered(name)
-            : result === "later"
-              ? PRAC_MSG.cantReachYet(name)
-              : PRAC_MSG.failed(name);
+            : result === "needs_consent"
+              ? PRAC_MSG.needsConsent(name)
+              : result === "later"
+                ? PRAC_MSG.cantReachYet(name)
+                : PRAC_MSG.failed(name);
   await deps.reply({ kind: "text", body });
   return true;
 }
 
-type TellResult = "whatsapp" | "template" | "app" | "not_registered" | "later" | "failed";
+type TellResult =
+  | "whatsapp"
+  | "template"
+  | "app"
+  | "not_registered"
+  | "needs_consent"
+  | "later"
+  | "failed";
 
 /** Programme notice for one patient. Used by the phrase matcher and the agent. */
 export async function notifyProgrammeSent(
@@ -788,9 +799,13 @@ async function tellPatient(
     .select("auth_user_id")
     .eq("id", patient.id)
     .maybeSingle();
-  const onWhatsApp = conv && !conv.opted_out_at && conv.state !== "opted_out";
+  const onWhatsApp = Boolean(conv && !conv.opted_out_at && conv.state !== "opted_out");
+  const hasApp = Boolean(client?.auth_user_id);
+  if (!onWhatsApp && !hasApp) return "not_registered";
+  const { hasCurrentRequiredConsent } = await import("./onboarding.server");
+  if (!(await hasCurrentRequiredConsent(adminIn, patient.id))) return "needs_consent";
 
-  if (onWhatsApp) {
+  if (onWhatsApp && conv) {
     const { data: last } = await admin
       .from("whatsapp_inbound")
       .select("received_at")

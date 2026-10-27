@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { log } from "@/lib/log";
-import { currentConsent, renderConsentText } from "@/lib/consent/wording";
 import { toSast } from "./clinic-hours";
 import {
   decide,
@@ -36,6 +35,7 @@ import {
   createSelfSignupClient,
   currentConsentTypes,
   findInvite,
+  hasCurrentRequiredConsent,
   mintConsentLink,
   practiceName as practiceNameOf,
   practiceRoster,
@@ -951,31 +951,21 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   }
   if (!client && signup && code) state = "new"; // a fresh tap on the practice link restarts sign-up
 
-  const [legacyConsent, today, prevPain] = client
-    ? await Promise.all([
-        hasCurrentConsent(admin, client.id),
-        checkedInToday(admin, client.id, now),
-        previousPain(admin, client.id),
-      ])
-    : [false, false, null];
+  const [today, prevPain] = client
+    ? await Promise.all([checkedInToday(admin, client.id, now), previousPain(admin, client.id)])
+    : [false, null];
 
-  // Consent is cross-checked on every message: POPIA and WhatsApp check-ins,
-  // current wording. Missing either means a personal link to the consent page.
-  // If links can't be made yet (migration 0016 not applied), fall back to the
-  // in-chat WhatsApp consent so nothing breaks.
-  let consent = legacyConsent;
+  // Consent is checked on every message: POPIA and WhatsApp check-ins, current
+  // wording. Missing either means a personal link. If that link cannot be
+  // minted, fail closed — do not collect a check-in on an older WhatsApp-only
+  // flag, and do not treat an in-chat "I agree" as consent.
+  let consent = false;
   let consentUrl: string | undefined;
   if (client) {
-    const signed = await currentConsentTypes(admin, client.id).catch(() => null);
-    const strict = signed !== null && signed.has("popia_core") && signed.has("whatsapp_checkins");
-    if (!strict) {
+    consent = await hasCurrentRequiredConsent(admin, client.id);
+    if (!consent) {
       const url = await mintConsentLink(admin, client.id, phone).catch(() => null);
-      if (url) {
-        consent = false;
-        consentUrl = url;
-      }
-    } else {
-      consent = true;
+      if (url) consentUrl = url;
     }
   }
 
@@ -1151,8 +1141,10 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   let replies = decision.replies;
   if (questionStep && !answerOnly) replies = [...replies, ...questionStep.replies];
   // A message a practitioner asked Buddy to pass on while the window was shut.
+  // Hold it until both current consents exist. Delivering it here is the send.
   const pendingNotice = (conv.draft as { pendingNotice?: string } | null)?.pendingNotice;
-  if (client && pendingNotice) replies = [{ kind: "text", body: pendingNotice }, ...replies];
+  const deliverNotice = Boolean(client && pendingNotice && consent);
+  if (deliverNotice && pendingNotice) replies = [{ kind: "text", body: pendingNotice }, ...replies];
   // A practitioner's question that waited for this patient's window. Only
   // once the conversation is idle (never mid check-in) and never next to a
   // red flag, so the next message can be read as its answer.
@@ -1279,6 +1271,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
         ...Object.fromEntries(
           Object.entries(decision.next.draft ?? {}).filter(([k]) => k !== "pendingNotice"),
         ),
+        ...(pendingNotice && !deliverNotice ? { pendingNotice } : {}),
         appliedInboundId: row.id,
       },
       checkin_started_at: decision.next.checkinStartedAt?.toISOString() ?? null,
@@ -1513,20 +1506,8 @@ async function applyEffects(
   const { admin } = env;
   let redFlagAlertId: string | null = null;
 
-  if (decision.recordConsent) {
-    const v = currentConsent("whatsapp_checkins");
-    const { error } = await admin.from("consent_records").insert({
-      client_id: client.id,
-      consent_type: "whatsapp_checkins",
-      version: v.version,
-      wording_snapshot: renderConsentText(v),
-      channel: "whatsapp",
-      evidence: { provider: row.provider, provider_message_id: row.provider_message_id },
-    });
-    if (error) throw new Error(`consent insert failed: ${error.code ?? "unknown"}`);
-    // Everyone starts on a daily check-in.
-    await ensureDailyReminder(admin, client.id, true);
-  }
+  // Consent is recorded only on the consent page (POPIA and WhatsApp together).
+  // An in-chat "I agree" does not set recordConsent and is not written here.
 
   if (decision.optOut) {
     await admin

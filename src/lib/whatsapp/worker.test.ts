@@ -39,6 +39,7 @@ afterEach(() => {
 import type { OutboundMessage, WhatsAppProvider } from "./provider";
 import { IDS, MSG } from "./conversation";
 import { acceptConsentLink } from "./onboarding.server";
+import { ONBOARD_MSG } from "./onboarding";
 import { currentConsent } from "@/lib/consent/wording";
 
 const CONSENTED = () =>
@@ -558,6 +559,103 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     // POPIA consent to their treatment record is untouched by a WhatsApp opt-out.
     const popia = db.tables.consent_records.find((r) => r.consent_type === "popia_core");
     expect(popia?.withdrawn_at).toBeNull();
+  });
+
+  it("does not collect a check-in when the consent link cannot be minted", async () => {
+    const db = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [inbound("I agree", IDS.consentYes)],
+      whatsapp_conversations: [
+        {
+          id: "c1",
+          phone: "27820000001",
+          client_id: "client-1",
+          state: "awaiting_consent",
+          draft: {},
+        },
+      ],
+      consent_records: [
+        {
+          id: "old-wa",
+          client_id: "client-1",
+          consent_type: "whatsapp_checkins",
+          version: currentConsent("whatsapp_checkins").version,
+          withdrawn_at: null,
+          superseded_by: null,
+        },
+      ],
+      check_ins: [],
+    });
+    const realFrom = db.admin.from.bind(db.admin);
+    db.admin.from = (table: string) => {
+      if (table !== "consent_links") return realFrom(table);
+      return {
+        insert: () => ({
+          then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
+            Promise.resolve({ data: null, error: { code: "42P01" } }).then(resolve, reject),
+        }),
+      };
+    };
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.check_ins).toHaveLength(0);
+    expect(db.tables.consent_records).toHaveLength(1);
+    expect(db.tables.whatsapp_conversations[0].state).toBe("awaiting_consent");
+    expect(sent[0]).toMatchObject({ kind: "text", body: ONBOARD_MSG.consentPageOnly("Test") });
+  });
+
+  it("delivers a queued programme notice only after both consents are current", async () => {
+    const notice = "Hi Test, Zoe has sent you your exercise programme.";
+    const held = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [inbound("hi")],
+      whatsapp_conversations: [
+        {
+          id: "c1",
+          phone: "27820000001",
+          client_id: "client-1",
+          state: "idle",
+          draft: { pendingNotice: notice },
+        },
+      ],
+      consent_records: [],
+      check_ins: [],
+    });
+    const heldSend = fakeProvider();
+    await processPendingInbound({
+      admin: held.admin,
+      provider: heldSend.provider,
+      secrets: SECRETS,
+      now: NOW,
+    });
+    expect(JSON.stringify(heldSend.sent)).not.toContain("exercise programme");
+    expect(held.tables.check_ins).toHaveLength(0);
+    expect(held.tables.whatsapp_conversations[0].draft.pendingNotice).toBe(notice);
+
+    const ready = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [inbound("thanks")],
+      whatsapp_conversations: [
+        {
+          id: "c1",
+          phone: "27820000001",
+          client_id: "client-1",
+          state: "idle",
+          draft: { pendingNotice: notice },
+        },
+      ],
+      consent_records: CONSENTED(),
+      check_ins: [],
+    });
+    const readySend = fakeProvider();
+    await processPendingInbound({
+      admin: ready.admin,
+      provider: readySend.provider,
+      secrets: SECRETS,
+      now: NOW,
+    });
+    expect(JSON.stringify(readySend.sent)).toContain(notice);
+    expect(ready.tables.whatsapp_conversations[0].draft.pendingNotice).toBeUndefined();
   });
 
   it("a red flag raises an alert on the profile and the patient gets the safety message", async () => {

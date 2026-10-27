@@ -69,6 +69,19 @@ export async function currentConsentTypes(
   return out;
 }
 
+/**
+ * Both current consents, or false. A lookup failure is false: callers must
+ * not message or collect a check-in when this cannot be shown.
+ */
+export async function hasCurrentRequiredConsent(admin: Admin, clientId: string): Promise<boolean> {
+  try {
+    const signed = await currentConsentTypes(admin, clientId);
+    return REQUIRED_CONSENTS.every((type) => signed.has(type));
+  } catch {
+    return false;
+  }
+}
+
 /** A personal, single-use link to the consent page. Null if it can't be made. */
 export async function mintConsentLink(
   admin: Admin,

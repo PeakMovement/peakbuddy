@@ -1,12 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { log } from "@/lib/log";
 import { hasAiConsent } from "@/lib/ai-consent";
-import {
-  applyCombinationFloor,
-  applyKeywordFloor,
-  type RedFlagCategory,
-  type UrgencyTier,
-} from "@/lib/yves";
+import { applySafetyFloors, type RedFlagCategory, type UrgencyTier } from "@/lib/yves";
 import {
   extractAndFirstPass,
   formatExtractionForPrompt,
@@ -1212,36 +1207,3 @@ export const Route = createFileRoute("/api/public/triage-query")({
     },
   },
 });
-
-// Apply the keyword + combination safety floors on top of the model output.
-// Floors can only ESCALATE, never downgrade — that invariant is preserved by
-// the underlying applyKeywordFloor / applyCombinationFloor implementations.
-function applySafetyFloors(
-  queryText: string,
-  ai: TriageOutput,
-): TriageOutput & { _floor_terms?: string[]; _combo_terms?: string[] } {
-  if (ai.negation_detected || ai.attribution_detected) return ai;
-
-  const floor = applyKeywordFloor(queryText, ai.urgency, ai.severity);
-  const combo = applyCombinationFloor(queryText, floor.urgency, floor.severity);
-
-  const escalated = floor.escalated || combo.escalated;
-  if (!escalated) return { ...ai, _floor_terms: [], _combo_terms: [] };
-
-  const cluster = combo.matched.length > 0 ? ` Cluster: ${combo.matched.join(", ")}.` : "";
-  return {
-    ...ai,
-    urgency: combo.urgency,
-    severity: combo.severity,
-    red_flag_category: ai.red_flag_category ?? combo.topCategory ?? floor.topCategory,
-    should_notify_practitioner: combo.severity >= 6,
-    red_flags: [...(ai.red_flags ?? []), ...floor.matchedTerms, ...combo.matched],
-    rationale:
-      (ai.rationale ?? "") +
-      (cluster
-        ? ` Safety floor escalated based on detected cluster.${cluster}`
-        : " Safety floor escalated based on detected terms."),
-    _floor_terms: floor.matchedTerms,
-    _combo_terms: combo.matched,
-  };
-}

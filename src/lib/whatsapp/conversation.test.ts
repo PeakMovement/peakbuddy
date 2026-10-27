@@ -16,6 +16,7 @@ import {
 import { runRedFlagRules } from "./red-flag-rules";
 import { OPT_OUT_CONFIRMATION, CONTACT_ACKNOWLEDGEMENT } from "./intent";
 import { matchPhone, samePhone, toE164Digits, maskPhone } from "./phone";
+import { ONBOARD_MSG } from "./onboarding";
 
 // Synthetic only. No real patient words anywhere in this file.
 const NOW = new Date("2026-10-05T08:00:00Z");
@@ -102,13 +103,15 @@ describe("unknown numbers", () => {
 });
 
 describe("consent", () => {
-  it("asks for consent before collecting anything", () => {
+  it("does not collect a check-in when the consent link is missing", () => {
     const d = decide(ctx({ message: msg("hi"), hasConsent: false, conversation: snap("new") }));
     expect(d.next.state).toBe("awaiting_consent");
-    expect(d.replies[0].kind).toBe("buttons");
+    expect(d.replies[0].kind).toBe("text");
+    expect(bodies(d)).toEqual([ONBOARD_MSG.consentPageOnly("Test")]);
     expect(d.saveCheckin).toBeUndefined();
+    expect(d.recordConsent).toBeUndefined();
   });
-  it("records consent on I agree and goes straight into the check-in", () => {
+  it("an in-chat I agree does not record consent or start a check-in", () => {
     const d = decide(
       ctx({
         message: msg("I agree", IDS.consentYes),
@@ -116,15 +119,19 @@ describe("consent", () => {
         conversation: snap("awaiting_consent"),
       }),
     );
-    expect(d.recordConsent).toBe(true);
-    expect(d.next.state).toBe("awaiting_pain");
-    expect(bodies(d)).toContain(MSG.askPain);
+    expect(d.recordConsent).toBeUndefined();
+    expect(d.saveCheckin).toBeUndefined();
+    expect(d.next.state).toBe("awaiting_consent");
+    expect(bodies(d)).toEqual([ONBOARD_MSG.consentPageOnly("Test")]);
+    expect(bodies(d).join("\n")).not.toContain(MSG.askPain);
   });
-  it("accepts a typed yes", () => {
+  it("a typed yes does not record consent", () => {
     const d = decide(
       ctx({ message: msg("Yes"), hasConsent: false, conversation: snap("awaiting_consent") }),
     );
-    expect(d.recordConsent).toBe(true);
+    expect(d.recordConsent).toBeUndefined();
+    expect(d.saveCheckin).toBeUndefined();
+    expect(d.next.state).toBe("awaiting_consent");
   });
   it("No thanks opts out and records nothing", () => {
     const d = decide(
@@ -138,7 +145,7 @@ describe("consent", () => {
     expect(d.recordConsent).toBeUndefined();
     expect(bodies(d)).toEqual([MSG.consentDeclined]);
   });
-  it("anything else re-asks", () => {
+  it("anything else still waits and does not collect", () => {
     const d = decide(
       ctx({
         message: msg("what is this"),
@@ -148,6 +155,8 @@ describe("consent", () => {
     );
     expect(d.next.state).toBe("awaiting_consent");
     expect(d.recordConsent).toBeUndefined();
+    expect(d.saveCheckin).toBeUndefined();
+    expect(bodies(d)[0]).toContain("secure page");
   });
 });
 
@@ -265,10 +274,13 @@ describe("opt out and contact", () => {
     expect(d.replies).toEqual([]);
     expect(d.next.state).toBe("opted_out");
   });
-  it("START brings them back through consent", () => {
+  it("START brings them back through the consent page, not an in-chat yes", () => {
     const d = decide(ctx({ message: msg("START"), conversation: snap("opted_out") }));
     expect(d.optIn).toBe(true);
     expect(d.next.state).toBe("awaiting_consent");
+    expect(d.recordConsent).toBeUndefined();
+    expect(d.replies[0].kind).toBe("text");
+    expect(bodies(d)).toEqual([ONBOARD_MSG.consentPageOnly("Test")]);
   });
   it("call me raises a contact request and keeps the check-in where it was", () => {
     const conv = snap("awaiting_sleep", { pain: 3 }, NOW);

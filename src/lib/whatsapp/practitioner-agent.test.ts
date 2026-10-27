@@ -10,6 +10,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
 const push = vi.fn(async () => ({}));
 vi.mock("@/lib/push.functions", () => ({ sendPushCore: push }));
 
+import { currentConsent } from "@/lib/consent/wording";
 import { HEIDI_MSG } from "./heidi";
 import { decidePractitionerTurn } from "./ai.server";
 import {
@@ -215,6 +216,15 @@ function baseTables(extraStevens = false): Record<string, Row[]> {
       { from_phone: "+27822222222", received_at: "2026-10-08T10:00:00Z" },
     ],
     whatsapp_outbound: [],
+    consent_records: [CAYLA, MICHAELA, STEVEN, STEVEN2, VICKI, LAUREN].flatMap((clientId) =>
+      (["popia_core", "whatsapp_checkins"] as const).map((type) => ({
+        client_id: clientId,
+        consent_type: type,
+        version: currentConsent(type).version,
+        withdrawn_at: null,
+        superseded_by: null,
+      })),
+    ),
     check_ins: [
       {
         client_id: CAYLA,

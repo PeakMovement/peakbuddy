@@ -834,6 +834,8 @@ const REACH_LINE: Record<string, (name: string) => string> = {
   unreachable: (name) =>
     `${name}: hasn't messaged in over a day and isn't on the app, so I couldn't reach them. A message from you may get them going.`,
   not_registered: (name) => `${name}: isn't on Buddy yet, so I couldn't message them.`,
+  needs_consent: (name) =>
+    `${name}: hasn't signed the current consent form, so I won't message them until they have.`,
   failed: (name) => `${name}: something went wrong sending that. Please try again in a minute.`,
 };
 

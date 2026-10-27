@@ -135,6 +135,8 @@ export const ONBOARD_MSG = {
     `Hi ${firstName}, we've updated our consent form. Please have a quick read and sign it so we can carry on with your check-ins:\n\n${url}`,
   consentReminder: (url: string) =>
     `I just need your signed consent before we can carry on. Here's your link again:\n\n${url}`,
+  consentPageOnly: (firstName: string) =>
+    `Before we start, ${firstName}, consent is signed on a secure page, not in this chat. I couldn't open your link just now. Please message me again in a few minutes and I'll send it. I won't start a check-in until it's signed.`,
   consentDone: (firstName: string) =>
     `Thank you ${firstName}, your consent is signed and saved to your profile. Let's do your first check-in.`,
   appOffer:

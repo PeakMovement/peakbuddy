@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { checkHardOverride, applyKeywordFloor, analyzeRealTime, evaluateCheckIn } from "./yves";
+import {
+  checkHardOverride,
+  applyKeywordFloor,
+  applySafetyFloors,
+  analyzeRealTime,
+  evaluateCheckIn,
+} from "./yves";
 
 describe("checkHardOverride", () => {
   it("triggers on emergency phrases", () => {
@@ -235,5 +241,66 @@ describe("Afrikaans / SA red-flag coverage", () => {
 
   it("routes an Afrikaans emergency through evaluateCheckIn", () => {
     expect(evaluateCheckIn(3, "ek kan nie asemhaal nie").urgency).toBe("emergency");
+  });
+});
+
+describe("applySafetyFloors", () => {
+  it("escalates a real symptom even when the model flagged negation and attribution", () => {
+    const r = applySafetyFloors("numbness in my foot", {
+      urgency: "routine",
+      severity: 0,
+      negation_detected: true,
+      attribution_detected: true,
+      red_flags: [],
+      rationale: "model treated this as negated",
+    });
+    expect(r.urgency).toBe("soon");
+    expect(r.severity).toBeGreaterThanOrEqual(5);
+    expect(r._floor_terms).toContain("numbness");
+    expect(r.rationale).toContain("Safety floor escalated");
+  });
+
+  it("escalates a cardiac cluster the model called attributed", () => {
+    const r = applySafetyFloors("chest tightness with jaw pain", {
+      urgency: "routine",
+      severity: 1,
+      negation_detected: false,
+      attribution_detected: true,
+      red_flags: [],
+      rationale: "",
+    });
+    expect(r.urgency).toBe("urgent");
+    expect(r.severity).toBeGreaterThanOrEqual(8);
+    expect(r._combo_terms.length).toBeGreaterThan(0);
+  });
+
+  it("does not escalate a phrase that is actually negated", () => {
+    const r = applySafetyFloors("there is no numbness anywhere", {
+      urgency: "routine",
+      severity: 0,
+      negation_detected: true,
+      attribution_detected: false,
+      red_flags: [],
+      rationale: "",
+    });
+    expect(r.urgency).toBe("routine");
+    expect(r.severity).toBe(0);
+    expect(r._floor_terms).toEqual([]);
+  });
+
+  it("never downgrades a higher model urgency or severity", () => {
+    const r = applySafetyFloors("numbness in my foot", {
+      urgency: "emergency",
+      severity: 10,
+      negation_detected: true,
+      attribution_detected: true,
+      should_notify_practitioner: true,
+      red_flags: ["model flag"],
+      rationale: "already emergency",
+    });
+    expect(r.urgency).toBe("emergency");
+    expect(r.severity).toBe(10);
+    expect(r.should_notify_practitioner).toBe(true);
+    expect(r.red_flags).toContain("model flag");
   });
 });

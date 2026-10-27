@@ -51,6 +51,7 @@ export async function runProgrammeReminders(
       return;
     }
     const { windowOpen, sendLogged } = await import("./practitioner-status.server");
+    const { hasCurrentRequiredConsent } = await import("./onboarding.server");
     const template = process.env.WHATSAPP_PROGRAMME_REMINDER_TEMPLATE?.trim() || "";
     for (const client of rows<{
       id: string;
@@ -60,11 +61,20 @@ export async function runProgrammeReminders(
     }>(data)) {
       const { data: conv } = await admin
         .from("whatsapp_conversations")
-        .select("phone")
+        .select("phone, opted_out_at, state")
         .eq("client_id", client.id)
         .limit(1);
-      const phone = rows<{ phone?: string }>(conv)[0]?.phone;
+      const conversation = rows<{
+        phone?: string;
+        opted_out_at?: string | null;
+        state?: string | null;
+      }>(conv)[0];
+      const phone = conversation?.phone;
       if (!phone) continue;
+      // STOP opts the conversation out. Do not send, and do not mint a consent
+      // link from this cron — skip until they message again.
+      if (conversation?.opted_out_at || conversation?.state === "opted_out") continue;
+      if (!(await hasCurrentRequiredConsent(adminIn, client.id))) continue;
       const open = await windowOpen(adminIn, phone, now);
       const decision = programmeReminderDecision({
         featureEnabled: true,

@@ -9,6 +9,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
 const push = vi.fn(async () => ({}));
 vi.mock("@/lib/push.functions", () => ({ sendPushCore: push }));
 
+import { currentConsent } from "@/lib/consent/wording";
 import { HEIDI_MSG } from "./heidi";
 import { handlePractitionerMessage, PRAC_MSG, smallTalk } from "./practitioner-mode.server";
 import { practitionerIntent } from "./practitioner-status.server";
@@ -344,38 +345,51 @@ function fakeDb(t: Record<string, Row[]>) {
 
 const daysAgo = (d: number) => new Date(NOW.getTime() - d * 86_400_000).toISOString();
 
+function consentRows(ids: string[]) {
+  return ids.flatMap((clientId) =>
+    (["popia_core", "whatsapp_checkins"] as const).map((type) => ({
+      client_id: clientId,
+      consent_type: type,
+      version: currentConsent(type).version,
+      withdrawn_at: null,
+      superseded_by: null,
+    })),
+  );
+}
+
 function world(extraClients: Row[] = []) {
+  const clients: Row[] = [
+    {
+      id: SAM,
+      full_name: "Sam Kruger",
+      practitioner_id: "zoe",
+      practice_id: "pm",
+      created_at: daysAgo(20),
+      auth_user_id: null,
+    },
+    {
+      id: LEE,
+      full_name: "Lee Adams",
+      practitioner_id: "zoe",
+      practice_id: "pm",
+      created_at: daysAgo(20),
+      auth_user_id: null,
+    },
+    {
+      id: THEA,
+      full_name: "Thea Nkosi",
+      practitioner_id: "zoe",
+      practice_id: "pm",
+      created_at: daysAgo(20),
+      auth_user_id: null,
+    },
+    ...extraClients,
+  ];
   return fakeDb({
     practices: [],
     practice_members: [],
     profiles: [{ id: "zoe", full_name: "Zoe Test", role: "practitioner" }],
-    clients: [
-      {
-        id: SAM,
-        full_name: "Sam Kruger",
-        practitioner_id: "zoe",
-        practice_id: "pm",
-        created_at: daysAgo(20),
-        auth_user_id: null,
-      },
-      {
-        id: LEE,
-        full_name: "Lee Adams",
-        practitioner_id: "zoe",
-        practice_id: "pm",
-        created_at: daysAgo(20),
-        auth_user_id: null,
-      },
-      {
-        id: THEA,
-        full_name: "Thea Nkosi",
-        practitioner_id: "zoe",
-        practice_id: "pm",
-        created_at: daysAgo(20),
-        auth_user_id: null,
-      },
-      ...extraClients,
-    ],
+    clients,
     check_ins: [
       {
         client_id: SAM,
@@ -423,6 +437,7 @@ function world(extraClients: Row[] = []) {
     reception_requests: [],
     practitioner_update_prefs: [],
     practitioner_checkin_requests: [],
+    consent_records: consentRows(clients.map((c) => String(c.id))),
   });
 }
 
