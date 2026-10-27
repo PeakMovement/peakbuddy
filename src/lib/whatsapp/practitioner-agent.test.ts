@@ -1325,6 +1325,14 @@ describe("archiving clients who stopped responding (22 Oct)", () => {
 
     await say("", "prac_ag_yes");
     expect(replyText(replies)).toContain("Done. Archived Vicki-Leigh Atkinson.");
+    expect(db.t.client_admin_audit).toEqual([
+      expect.objectContaining({
+        client_id: VICKI,
+        action: "archive",
+        channel: "whatsapp",
+        actor_id: "justin",
+      }),
+    ]);
     expect(db.t.clients.find((c) => c.id === VICKI)).toMatchObject({
       archived_at: NOW.toISOString(),
       archived_by: "justin",
