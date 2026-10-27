@@ -48,6 +48,9 @@ export const AGENT_TOOLS = [
   "set_programme_reminder",
   "archive_clients",
   "unarchive_clients",
+  "discharge_client",
+  "reopen_episode",
+  "prepare_data_copy",
   "clarify",
 ] as const;
 
@@ -120,6 +123,25 @@ const EXACT_COMMANDS = new Set([
   "how many clients are using buddy",
   "practice overview",
 ]);
+
+const CARE_DISCHARGE = /^(?:please\s+)?discharge\s+(.+)$/i;
+const CARE_REOPEN =
+  /^(?:please\s+)?(?:re-?open|open)\s+(?:the\s+)?episode(?:\s+again)?(?:\s+for\s+|\s+)(.+)$/i;
+const CARE_COPY = /^(?:please\s+)?prepare(?:\s+a)?\s+copy(?:\s+for\s+|\s+)(.+)$/i;
+
+/** Exact discharge, reopen, or copy request. Used when the model is down. */
+export function carePhrase(
+  text: string,
+): { tool: "discharge_client" | "reopen_episode" | "prepare_data_copy"; name: string } | null {
+  const t = String(text ?? "").replace(/\s+/g, " ").trim();
+  const matched =
+    t.match(CARE_DISCHARGE) ?? t.match(CARE_REOPEN) ?? t.match(CARE_COPY);
+  const name = matched?.[1]?.replace(/[.?!]+$/, "").trim() ?? "";
+  if (name.length < 2 || name.length > 80) return null;
+  if (CARE_DISCHARGE.test(t)) return { tool: "discharge_client", name };
+  if (CARE_REOPEN.test(t)) return { tool: "reopen_episode", name };
+  return { tool: "prepare_data_copy", name };
+}
 
 export function isExactShortcut(text: string, replyId?: string | null): boolean {
   if (replyId && !isAgentButton(replyId) && !replyId.startsWith("prac_cl_")) return true;
@@ -211,9 +233,15 @@ export function validDecision(raw: unknown): AgentDecision | null {
         ].join(" "),
       );
   const programmeOptIn = row.optedIn === true;
+  const names = asNames(row.names);
   const rawIdle = row.idleDays ?? row.idle_days;
   const idleDays =
     typeof rawIdle === "number" && rawIdle >= 1 && rawIdle <= 730 ? Math.round(rawIdle) : null;
+  if (
+    (tool === "discharge_client" || tool === "reopen_episode" || tool === "prepare_data_copy") &&
+    names.length === 0
+  )
+    return null;
   if (tool === "set_morning_checkin" && enabled == null) return null;
   if (tool === "set_goal" && !goal) return null;
   if (tool === "set_programme_reminder" && programmeDays.length === 0) return null;
@@ -224,7 +252,7 @@ export function validDecision(raw: unknown): AgentDecision | null {
     return null;
   return {
     tool: tool as AgentTool,
-    names: asNames(row.names),
+    names,
     note: note || null,
     task: task || null,
     question: question || null,
@@ -414,6 +442,27 @@ export function practitionerToolSchemas(heidiEnabled: boolean): unknown[] {
       required: ["names"],
     },
     {
+      name: "discharge_client",
+      description:
+        "Stop check-in reminders, programme reminders and quiet nudges for named clients. Confirmation first. Does not delete the chart. Does not send until they confirm.",
+      properties: { names: strArray },
+      required: ["names"],
+    },
+    {
+      name: "reopen_episode",
+      description:
+        "Open a discharged client's episode again so reminders can resume. Confirmation first. Does not message the patient.",
+      properties: { names: strArray },
+      required: ["names"],
+    },
+    {
+      name: "prepare_data_copy",
+      description:
+        "Prepare a copy of what Buddy holds for named clients and, after confirmation, send a one-time link if their WhatsApp window is open. No clinical interpretation.",
+      properties: { names: strArray },
+      required: ["names"],
+    },
+    {
       name: "help",
       description: "They asked what Buddy can do. No client facts.",
       properties: {},
@@ -519,6 +568,7 @@ If something is waiting to be sent and they agree ("yes", "ye do it", "all", "ðŸ
 If you are unsure, call clarify with one short question and up to 3 button labels under 20 characters. No client facts in that question.
 Scheduled updates use schedule_updates. Reception errands use ask_reception. What you can do uses help.
 A case brief is case_brief. Who improved this week is who_improved. Booking or moving an appointment is book_reception. A goal they want stored is set_goal. An outcomes or retention scorecard is outcomes. Agreeing to remind the quiet patients already named is confirm_quiet_nudges. Deleting, removing, clearing out or archiving old or unresponsive clients is archive_clients: named clients, or names ["inactive"] with idleDays when they give a period ("not responded in 3 months" is idleDays 90). Bringing someone back is unarchive_clients. Home programme reminder days are set_programme_reminder. days uses 0 for Sunday through 6 for Saturday. optedIn is true only when they say the patient already agreed. Do not message the patient from that tool.
+Stopping reminders after discharge is discharge_client. Opening the episode again is reopen_episode. A copy of the record for them to review, then a one-time link, is prepare_data_copy. Each needs a name and waits for confirmation. Do not invent clinical advice. Do not use these for everyone at once.
 A weekday morning note asks whether they want a patient update or reception to check in with anyone. "Patient update" or agreeing to the update is client_status with names ["all"]. Naming patients for reception to check in with is ask_reception, task "Check in with" those names. "Reception check-in" with no names is clarify asking who, with no client facts. "Not today" is dismiss_morning. "Stop morning check-ins" is set_morning_checkin with enabled false. "Start morning check-ins" is set_morning_checkin with enabled true. "Update me every morning" is schedule_updates, not the morning note.
 ${input.canSeeAllPractitioners ? "This person is an owner or admin and can see the whole practice." : "This person sees only their own clients, and only themselves in the practitioner list."}
 ${input.heidiEnabled ? "Heidi is connected. heidi_read needs a first and last name." : "Heidi is not connected. Do not call heidi_read."}

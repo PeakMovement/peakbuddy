@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ClientSchedulePanel } from "@/components/ClientSchedulePanel";
 import { ClientRewardsSection } from "@/components/ClientRewardsSection";
 import { RequestCheckInButton } from "@/components/RequestCheckInButton";
+import { ClientCareActions } from "@/components/ClientCareActions";
 import { ClientWearablesCard } from "@/components/ClientWearablesCard";
 import { ClientPatternsCard } from "@/components/ClientPatternsCard";
 import { ClientBetweenSessions } from "@/components/ClientBetweenSessions";
@@ -363,6 +364,11 @@ function ClientDetail() {
         phone={(client as unknown as { phone?: string | null }).phone ?? null}
       />
       <RequestCheckInButton clientId={client.id} />
+      <ClientCareActions
+        clientId={client.id}
+        clientName={client.full_name ?? "This client"}
+        dischargedAt={client.discharged_at}
+      />
       <ClientRewardsSection clientId={client.id} />
 
       <section

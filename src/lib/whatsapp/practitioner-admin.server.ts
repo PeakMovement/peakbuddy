@@ -299,11 +299,20 @@ export async function adminAnswer(
     scope.clients.map((c) => c.id),
     now,
   );
+  const { openErrandLine } = await import("./reception.server");
+  const errands = await openErrandLine(
+    adminIn,
+    [...scope.names.keys(), userId],
+    now,
+  );
   return clip(
     [
       formatRedFlags(scope, flags, now, true),
       formatUsage(scope, statuses, now, true),
       formatQuiet(scope, statuses, now, true),
-    ].join("\n\n"),
+      errands,
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
   );
 }

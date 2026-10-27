@@ -1363,7 +1363,10 @@ async function handleStatusIntent(
   if (intent.kind === "status_all") {
     const list = await st.loadClientList(adminIn, prac.userId, intent.practice);
     const statuses = await st.loadStatuses(adminIn, list, deps.now);
-    await text1(st.formatStatusAll(prac.firstName, statuses, deps.now, intent.practice));
+    const body = st.formatStatusAll(prac.firstName, statuses, deps.now, intent.practice);
+    const rc = await import("./reception.server");
+    const errands = await rc.openErrandLine(adminIn, [prac.userId], deps.now);
+    await text1(errands ? `${body}\n\n${errands}` : body);
     return;
   }
   if (intent.kind === "messages" || intent.kind === "review" || intent.kind === "checked_in") {

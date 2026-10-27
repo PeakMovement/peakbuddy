@@ -64,6 +64,8 @@ export interface Client {
   yves_ai_consent_at: string | null;
   created_at: string;
   goal?: string | null;
+  discharged_at?: string | null;
+  phone_e164?: string | null;
 }
 
 export interface CheckIn {

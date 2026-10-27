@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getClientId, clearClientId } from "@/lib/client-session";
+import { exportMyData } from "@/lib/data-export.functions";
 import type { CheckIn, Client } from "@/lib/types";
 import {
   getMyProgram,
@@ -243,10 +244,14 @@ function ClientProfile() {
   };
 
   const signOut = async () => {
+    const { confirmOfflineSignOut } = await import("@/lib/offline-queue");
+    const ok = await confirmOfflineSignOut();
+    if (!ok) return;
     await supabase.auth.signOut();
     clearClientId();
     navigate({ to: "/client/login" });
   };
+
 
   const deleteAccount = useServerFn(deleteMyAccount);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -254,6 +259,7 @@ function ClientProfile() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const savePhone = useServerFn(updateClientPhone);
+  const downloadCopy = useServerFn(exportMyData);
   const [phoneEdit, setPhoneEdit] = useState(false);
   const [phoneValue, setPhoneValue] = useState("");
   const [phoneBusy, setPhoneBusy] = useState(false);
@@ -777,6 +783,38 @@ function ClientProfile() {
         <QuickCodeManager />
         <ChangePasswordCard />
       </div>
+
+      <button
+        type="button"
+        onClick={async () => {
+          const r = await downloadCopy();
+          if (!r.ok) return;
+          const blob = new Blob([JSON.stringify(r.export, null, 2)], {
+            type: "application/json",
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "buddy-record.json";
+          a.click();
+          URL.revokeObjectURL(url);
+        }}
+        style={{
+          marginTop: 32,
+          minHeight: 48,
+          width: "100%",
+          background: "transparent",
+          color: "var(--white)",
+          border: "1px solid var(--navy-border)",
+          borderRadius: 8,
+          fontFamily: "var(--font-ui)",
+          fontWeight: 600,
+          fontSize: 14,
+          cursor: "pointer",
+        }}
+      >
+        Download my data
+      </button>
 
       <button
         type="button"

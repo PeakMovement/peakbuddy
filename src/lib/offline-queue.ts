@@ -13,6 +13,80 @@ import { log } from "@/lib/log";
 const QUEUE_KEY = "buddy.offline_checkins";
 const CLIENT_CACHE_KEY = "buddy.client_cache";
 
+let boundUserId: string | null = null;
+
+export function offlineQueueKey(userId: string): string {
+  return `${QUEUE_KEY}.${userId}`;
+}
+
+export function offlineCacheKey(userId: string): string {
+  return `${CLIENT_CACHE_KEY}.${userId}`;
+}
+
+function activeQueueKey(): string {
+  return boundUserId ? offlineQueueKey(boundUserId) : QUEUE_KEY;
+}
+
+function activeCacheKey(): string {
+  return boundUserId ? offlineCacheKey(boundUserId) : CLIENT_CACHE_KEY;
+}
+
+/** Remember who is signed in so a shared device does not mix two queues. */
+export function bindOfflineUser(userId: string | null): void {
+  boundUserId = userId;
+  if (!userId || typeof window === "undefined") return;
+  try {
+    const legacy = window.localStorage.getItem(QUEUE_KEY);
+    const mine = offlineQueueKey(userId);
+    if (legacy && !window.localStorage.getItem(mine)) {
+      window.localStorage.setItem(mine, legacy);
+      window.localStorage.removeItem(QUEUE_KEY);
+    }
+    const legacyClient = window.localStorage.getItem(CLIENT_CACHE_KEY);
+    const myClient = offlineCacheKey(userId);
+    if (legacyClient && !window.localStorage.getItem(myClient)) {
+      window.localStorage.setItem(myClient, legacyClient);
+      window.localStorage.removeItem(CLIENT_CACHE_KEY);
+    }
+  } catch {
+    /* storage disabled */
+  }
+}
+
+/** Drop this user's queued check-ins and the cached client record. */
+export function clearOfflineStore(): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (boundUserId) {
+      window.localStorage.removeItem(offlineQueueKey(boundUserId));
+      window.localStorage.removeItem(offlineCacheKey(boundUserId));
+    }
+    window.localStorage.removeItem(QUEUE_KEY);
+    window.localStorage.removeItem(CLIENT_CACHE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Flush when the network is up. If rows are still here, ask before they
+ * are removed. Returns false when the person chose to stay signed in.
+ */
+export async function confirmOfflineSignOut(): Promise<boolean> {
+  if (typeof navigator === "undefined" || navigator.onLine) {
+    await flushQueue().catch(() => undefined);
+  }
+  const left = queueLength();
+  if (left > 0 && typeof window !== "undefined" && typeof window.confirm === "function") {
+    const ok = window.confirm(
+      `You have ${left} check-in${left === 1 ? "" : "s"} still on this device. Signing out will remove them. Continue?`,
+    );
+    if (!ok) return false;
+  }
+  clearOfflineStore();
+  return true;
+}
+
 export interface QueuedCheckIn {
   queued_at: string;
   client_id: string;
@@ -33,14 +107,14 @@ export interface QueuedCheckIn {
 export function getQueue(): QueuedCheckIn[] {
   if (typeof window === "undefined") return [];
   try {
-    return JSON.parse(window.localStorage.getItem(QUEUE_KEY) ?? "[]") as QueuedCheckIn[];
+    return JSON.parse(window.localStorage.getItem(activeQueueKey()) ?? "[]") as QueuedCheckIn[];
   } catch {
     return [];
   }
 }
 
 function setQueue(items: QueuedCheckIn[]) {
-  window.localStorage.setItem(QUEUE_KEY, JSON.stringify(items));
+  window.localStorage.setItem(activeQueueKey(), JSON.stringify(items));
 }
 
 export function queueCheckIn(item: QueuedCheckIn) {
@@ -54,7 +128,7 @@ export function queueLength(): number {
 // Cache the client record so the check-in form can render while offline.
 export function cacheClient(client: unknown) {
   try {
-    window.localStorage.setItem(CLIENT_CACHE_KEY, JSON.stringify(client));
+    window.localStorage.setItem(activeCacheKey(), JSON.stringify(client));
   } catch {
     /* storage full — non-fatal */
   }
@@ -63,7 +137,7 @@ export function cacheClient(client: unknown) {
 export function getCachedClient<T>(): T | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(CLIENT_CACHE_KEY);
+    const raw = window.localStorage.getItem(activeCacheKey());
     return raw ? (JSON.parse(raw) as T) : null;
   } catch {
     return null;

@@ -107,6 +107,20 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
               skipped++;
               continue;
             }
+            // A missing column must not skip the whole reminder run.
+            const loose = supabaseAdmin as unknown as { from: (table: string) => any };
+            const episode = await loose
+              .from("clients")
+              .select("discharged_at")
+              .eq("id", client.id)
+              .maybeSingle();
+            if (
+              !episode.error &&
+              (episode.data as { discharged_at?: string | null } | null)?.discharged_at
+            ) {
+              skipped++;
+              continue;
+            }
 
             // Skip if a check-in already exists today (local date).
             // Local midnight in the reminder's own timezone, as a UTC instant.
@@ -159,6 +173,7 @@ export const Route = createFileRoute("/api/public/hooks/checkin-reminders")({
             else skipped++;
           } catch (e) {
             log.warn("checkin-reminders failed", { id: r.id, error: e });
+            skipped++;
           }
         }
 
