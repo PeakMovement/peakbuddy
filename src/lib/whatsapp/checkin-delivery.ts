@@ -134,11 +134,9 @@ export function summariseDelivery(input: {
     const messages = outBy.get(reminder.clientId) ?? [];
     const fromSend = outcomeOf(messages);
     const past = input.minuteOfDay >= minutes(reminder.time);
-    const outcome: DeliveryOutcome =
-      fromSend ?? (past || reminder.lastSentOn === input.date ? "waiting" : "waiting");
-    if (outcome === "sent") summary.sent += 1;
-    else if (outcome === "failed") summary.failed += 1;
-    else if (outcome === "window_closed") summary.windowClosed += 1;
+    if (fromSend === "sent") summary.sent += 1;
+    else if (fromSend === "failed") summary.failed += 1;
+    else if (fromSend === "window_closed") summary.windowClosed += 1;
     else if (past) summary.waiting += 1;
     const didReply = replied.has(reminder.clientId);
     if (didReply) summary.replied += 1;
