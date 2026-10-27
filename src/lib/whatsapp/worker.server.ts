@@ -36,6 +36,7 @@ import {
   SCHEDULE_CONFIRM_MARKER,
   scheduleConfirmText,
 } from "./schedule";
+import { CHECKIN_NOTE_FAILED, CHECKIN_NOTE_WINDOW } from "./checkin-delivery";
 import {
   createSelfSignupClient,
   currentConsentTypes,
@@ -2561,7 +2562,10 @@ export async function sendWhatsAppReminder(
     const signed = await currentConsentTypes(admin, clientId).catch(() => null);
     if (signed && !(signed.has("popia_core") && signed.has("whatsapp_checkins"))) {
       const url = await mintConsentLink(admin, clientId, conv.phone).catch(() => null);
-      if (!url) return "failed";
+      if (!url) {
+        await log1("text", CHECKIN_NOTE_FAILED, null, false);
+        return "failed";
+      }
       const body = ONBOARD_MSG.consentUpdated(firstName, url);
       let id: string | null = null;
       let ok = false;
@@ -2702,6 +2706,7 @@ export async function sendWhatsAppReminder(
   log.info("whatsapp reminder skipped: outside the 24h window", {
     to: maskPhone(conv.phone),
   });
+  await log1("text", CHECKIN_NOTE_WINDOW, null, false);
   // Buddy can't reach a patient who hasn't written in for a day and has no
   // app login either. Tell the practitioner, at most once every 3 days.
   if (clientRow && !clientRow.auth_user_id && clientRow.practitioner_id) {

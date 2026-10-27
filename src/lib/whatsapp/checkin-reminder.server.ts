@@ -34,7 +34,7 @@ export async function claimAndDeliverCheckinReminder(
     sendWhatsApp: () => Promise<string>;
     sendPush: (userId: string) => Promise<{ delivered?: number } | void>;
   },
-): Promise<"sent" | "skipped"> {
+): Promise<"sent" | "skipped" | "undelivered"> {
   const admin = adminIn as unknown as ReminderDb;
   const release = async () => {
     await admin
@@ -68,7 +68,7 @@ export async function claimAndDeliverCheckinReminder(
     }
 
     await release();
-    return "skipped";
+    return "undelivered";
   } catch (e) {
     await release().catch(() => undefined);
     log.warn("checkin-reminders failed", { id: input.reminderId, error: e });

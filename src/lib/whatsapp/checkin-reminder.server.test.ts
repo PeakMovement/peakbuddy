@@ -66,7 +66,7 @@ describe("check-in reminder claim", () => {
       sendWhatsApp: async () => "window_closed",
       sendPush: async () => ({ delivered: 0 }),
     });
-    expect(outcome).toBe("skipped");
+    expect(outcome).toBe("undelivered");
     expect(db.row.last_sent_on).toBeNull();
   });
 
@@ -96,7 +96,7 @@ describe("check-in reminder claim", () => {
         throw new Error("push down");
       },
     });
-    expect(outcome).toBe("skipped");
+    expect(outcome).toBe("undelivered");
     expect(db.row.last_sent_on).toBe("2026-10-19");
   });
 

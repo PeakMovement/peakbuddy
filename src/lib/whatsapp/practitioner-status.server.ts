@@ -23,6 +23,7 @@ import { readPatientMessage, type PatientMessageRequest } from "./patient-messag
 import { CHECKED_IN, wantsMessages } from "./practitioner-inbox-text";
 import { toSast } from "./clinic-hours";
 import { morningPhrase } from "./morning-checkin";
+import { isCheckinDeliveryAsk } from "./checkin-delivery";
 import { maskPhone, toE164Digits } from "./phone";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
 import {
@@ -84,6 +85,8 @@ export type PracIntent =
   | { kind: "status_all"; practice: boolean }
   | { kind: "status_one"; clientId: string | null }
   | { kind: "admin"; topic: "overview" | "redflags" | "quiet" | "usage" }
+  /** Super admin: did today's check-ins go out? */
+  | { kind: "checkin_delivery" }
   | { kind: "reception"; task: string }
   /** Phrasing names reception and a task, but not clearly enough to send. */
   | { kind: "reception_confirm"; task: string }
@@ -293,6 +296,13 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
     return { kind: "checkin", clientId: null };
   if (!blocked && looseCheckin(text))
     return { kind: "checkin", clientId: null, confidence: "medium" };
+  if (
+    r === "prac_checkin_delivery" ||
+    isCheckinDeliveryAsk(text) ||
+    isCheckinDeliveryAsk(normalized)
+  )
+    return { kind: "checkin_delivery" };
+
   const topic = adminTopicOf(text) ?? adminTopicOf(normalized);
   if (topic) return { kind: "admin", topic };
   const practice = /\b(practice|everyone|everybody|whole team|all (the )?(clients|patients))\b/i;

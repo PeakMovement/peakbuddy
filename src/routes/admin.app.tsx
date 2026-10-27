@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   Database,
   GraduationCap,
+  MessageSquare,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { SetQuickCodePrompt } from "@/components/SetQuickCodePrompt";
@@ -23,6 +24,7 @@ const tabs: Tab[] = [
   { to: "/admin/app/dashboard", label: "Dashboard", Icon: Activity },
   { to: "/admin/app/practitioners", label: "Practitioners", Icon: Users },
   { to: "/admin/app/clients", label: "Clients", Icon: User },
+  { to: "/admin/app/checkins", label: "Check-ins", Icon: MessageSquare },
   { to: "/admin/app/data-hub", label: "Data Hub", Icon: Database },
   { to: "/admin/app/yves-teach", label: "Teach Yves", Icon: GraduationCap },
   { to: "/admin/app/programs", label: "Programs", Icon: Sparkles },
