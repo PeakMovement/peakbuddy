@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { cadenceDays, summarizeCheckIns, windowCompliance } from "./roster-summary";
+import {
+  cadenceDays,
+  countScheduledDays,
+  frequencyFromDays,
+  programmeCompliance,
+  summarizeCheckIns,
+  windowCompliance,
+} from "./roster-summary";
 import { fetchAllPages } from "./paged-select";
 
 const DAY = 86_400_000;
@@ -52,6 +59,43 @@ describe("windowCompliance", () => {
     expect(windowCompliance({ created_at: iso(5), check_in_frequency: "as_needed" }, 0, NOW)).toBe(
       100,
     );
+  });
+
+  it("scores a Monday-only patient on Mondays, not as if they were daily", () => {
+    // NOW is Thursday 8 Oct 2026 14:00 SAST. Joined Monday 28 Sep. Mondays: 28 Sep and 5 Oct.
+    const client = {
+      created_at: iso(10),
+      tracking_duration_weeks: 8,
+      check_in_frequency: "daily",
+      days_of_week: [1],
+    };
+    expect(countScheduledDays(Date.parse(iso(10)), NOW, [1])).toBe(2);
+    expect(windowCompliance(client, 1, NOW)).toBe(50);
+    expect(windowCompliance({ ...client, days_of_week: [0, 1, 2, 3, 4, 5, 6] }, 5, NOW)).toBe(50);
+  });
+});
+
+describe("frequencyFromDays", () => {
+  it("maps a full week, one day, none, and a mix", () => {
+    expect(frequencyFromDays([0, 1, 2, 3, 4, 5, 6])).toBe("daily");
+    expect(frequencyFromDays([1])).toBe("weekly");
+    expect(frequencyFromDays([])).toBe("as_needed");
+    expect(frequencyFromDays([1, 3, 5])).toBe("custom");
+  });
+});
+
+describe("programmeCompliance", () => {
+  it("uses scheduled weekdays and leaves as-needed at 100", () => {
+    const client = {
+      created_at: iso(10),
+      tracking_duration_weeks: 8,
+      check_in_frequency: "custom",
+      days_of_week: [1],
+    };
+    expect(programmeCompliance(client, 1, NOW)).toBe(50);
+    expect(
+      programmeCompliance({ created_at: iso(10), check_in_frequency: "as_needed" }, 0, NOW),
+    ).toBe(100);
   });
 });
 

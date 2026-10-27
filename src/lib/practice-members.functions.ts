@@ -430,6 +430,7 @@ export const getPractitionerClientBundle = createServerFn({ method: "POST" })
       { count: checkInTotal },
       { data: sessions },
       { data: patterns },
+      { data: reminder },
     ] = await Promise.all([
       supabaseAdmin.from("clients").select("*").eq("id", data.clientId).maybeSingle(),
       // Newest page only; older ones come from getPractitionerClientCheckIns.
@@ -456,6 +457,11 @@ export const getPractitionerClientBundle = createServerFn({ method: "POST" })
         .eq("active", true)
         .order("confidence", { ascending: false })
         .limit(4),
+      supabaseAdmin
+        .from("checkin_reminders")
+        .select("days_of_week, enabled")
+        .eq("client_id", data.clientId)
+        .maybeSingle(),
     ]);
     // A thrown error reaches the page as "couldn't load, retry" rather than
     // being mistaken for "client not found".
@@ -470,6 +476,12 @@ export const getPractitionerClientBundle = createServerFn({ method: "POST" })
       checkInTotal: checkInTotal ?? rows.length,
       wearableSessions: sessions ?? [],
       patterns: patterns ?? [],
+      reminderDays:
+        reminder && (reminder as { enabled?: boolean }).enabled !== false
+          ? (((reminder as { days_of_week?: number[] | null }).days_of_week ?? null) as
+              | number[]
+              | null)
+          : null,
     };
   });
 

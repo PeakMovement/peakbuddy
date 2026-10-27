@@ -27,13 +27,14 @@ export const getPractitionerRoster = createServerFn({ method: "GET" })
       return {
         clients: [],
         checkInSummary: {} as Record<string, CheckInSummary>,
+        schedules: {} as Record<string, number[]>,
         windowDays: ROSTER_WINDOW_DAYS,
         unreadAlerts: count ?? 0,
       };
     }
     // Recent window only, paged past PostgREST's silent 1000-row cap.
     const since = new Date(Date.now() - ROSTER_WINDOW_DAYS * 86_400_000).toISOString();
-    const [recent, { count }, { count: unmatchedUnread }] = await Promise.all([
+    const [recent, { count }, { count: unmatchedUnread }, { data: reminders }] = await Promise.all([
       fetchAllPages<{ client_id: string; created_at: string }>((from, to) =>
         supabaseAdmin
           .from("check_ins")
@@ -55,9 +56,22 @@ export const getPractitionerRoster = createServerFn({ method: "GET" })
         .is("client_id", null)
         .eq("practitioner_id", context.userId)
         .eq("is_read", false),
+      supabaseAdmin
+        .from("checkin_reminders")
+        .select("client_id, days_of_week, enabled")
+        .in("client_id", ids),
     ]);
     if (recent.error) throw new Error("Could not load check-ins");
     const checkInSummary = summarizeCheckIns(recent.rows);
+    const schedules: Record<string, number[]> = {};
+    for (const r of (reminders ?? []) as Array<{
+      client_id: string;
+      days_of_week: number[] | null;
+      enabled: boolean | null;
+    }>) {
+      if (r.enabled === false) continue;
+      if (Array.isArray(r.days_of_week)) schedules[r.client_id] = r.days_of_week;
+    }
 
     // Clients quiet for the whole window: look up their last check-in on its
     // own so the dashboard says "12 Mar" rather than "Never".
@@ -84,6 +98,7 @@ export const getPractitionerRoster = createServerFn({ method: "GET" })
     return {
       clients,
       checkInSummary,
+      schedules,
       windowDays: ROSTER_WINDOW_DAYS,
       unreadAlerts: (count ?? 0) + (unmatchedUnread ?? 0),
     };

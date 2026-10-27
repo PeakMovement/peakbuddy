@@ -16,6 +16,7 @@ import { getMyWearableSnapshot, type WearableSnapshot } from "@/lib/wearables/sn
 import { WearableTiles } from "@/components/wearables/WearableTiles";
 import { ClientSchedulePanel } from "@/components/ClientSchedulePanel";
 import { getClientId } from "@/lib/client-session";
+import { programmeCompliance } from "@/lib/roster-summary";
 import type { CheckIn, Client } from "@/lib/types";
 
 export const Route = createFileRoute("/client/app/progress")({
@@ -91,6 +92,7 @@ function ProgressScreen() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState<WearableSnapshot | null>(null);
+  const [reminderDays, setReminderDays] = useState<number[] | null>(null);
   const loadSnapshot = useServerFn(getMyWearableSnapshot);
 
   useEffect(() => {
@@ -100,7 +102,7 @@ function ProgressScreen() {
       // Newest 120 only (an unbounded read is silently cut at 1000 rows, and
       // from the oldest end), then oldest first for the charts. The total
       // count keeps compliance honest beyond that window.
-      const [{ data: c }, { data: ci }, { count }] = await Promise.all([
+      const [{ data: c }, { data: ci }, { count }, { data: reminder }] = await Promise.all([
         supabase.from("clients").select("*").eq("id", id).maybeSingle(),
         supabase
           .from("check_ins")
@@ -109,11 +111,18 @@ function ProgressScreen() {
           .order("created_at", { ascending: false })
           .limit(PROGRESS_CHECKIN_LIMIT),
         supabase.from("check_ins").select("id", { count: "exact", head: true }).eq("client_id", id),
+        supabase
+          .from("checkin_reminders")
+          .select("days_of_week, enabled")
+          .eq("client_id", id)
+          .maybeSingle(),
       ]);
       const rows = ((ci as CheckIn[]) ?? []).slice().reverse();
       setClient(c as Client | null);
       setItems(rows);
       setTotal(count ?? rows.length);
+      const rem = reminder as { days_of_week?: number[] | null; enabled?: boolean } | null;
+      setReminderDays(rem && rem.enabled !== false ? (rem.days_of_week ?? null) : null);
       setLoading(false);
       loadSnapshot()
         .then(setSnapshot)
@@ -149,27 +158,8 @@ function ProgressScreen() {
 
   const compliancePct = useMemo(() => {
     if (!client) return 0;
-    const weeks = client.tracking_duration_weeks ?? 8;
-    // Expected cadence in days, per the client's actual frequency (was: daily
-    // vs "everything else = weekly", which overstated compliance for
-    // every_2_days / every_3_days clients).
-    const intervalDays =
-      client.check_in_frequency === "every_2_days"
-        ? 2
-        : client.check_in_frequency === "every_3_days"
-          ? 3
-          : client.check_in_frequency === "weekly"
-            ? 7
-            : client.check_in_frequency === "as_needed"
-              ? 0
-              : 1; // daily
-    if (intervalDays === 0) return 100; // no fixed schedule to comply with
-    const start = new Date(client.created_at).getTime();
-    const elapsed = Math.max(1, Math.ceil((Date.now() - start) / (1000 * 60 * 60 * 24)));
-    const expected = Math.ceil((weeks * 7) / intervalDays);
-    const expectedSoFar = Math.min(Math.ceil(elapsed / intervalDays), expected);
-    return Math.min(100, Math.round((total / Math.max(1, expectedSoFar)) * 100));
-  }, [client, total]);
+    return programmeCompliance({ ...client, days_of_week: reminderDays }, total);
+  }, [client, total, reminderDays]);
 
   const trend = useMemo(() => {
     const pains = items.filter((i) => i.pain_level != null).map((i) => i.pain_level as number);

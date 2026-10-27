@@ -22,6 +22,7 @@ import { readPatientQuestion } from "./patient-question-text";
 import { readPatientMessage, type PatientMessageRequest } from "./patient-message-text";
 import { CHECKED_IN, wantsMessages } from "./practitioner-inbox-text";
 import { toSast } from "./clinic-hours";
+import { missedLatestScheduledDay, sastDayKey } from "./missed-checkins";
 import { morningPhrase } from "./morning-checkin";
 import { isCheckinDeliveryAsk } from "./checkin-delivery";
 import { maskPhone, toE164Digits } from "./phone";
@@ -50,7 +51,7 @@ const WINDOW_MS = DAY - 2 * 60 * 1000;
 /** A client counts as current with a check-in in this window, or joined recently. */
 const ACTIVE_DAYS = 60;
 const NEW_DAYS = 30;
-/** No check-in for this many days: gone quiet. */
+/** No check-in for this many days: gone quiet, when the reminder is every day. */
 const QUIET_DAYS = 4;
 /** Check-in requests wait this long for an answer. */
 const REQUEST_TTL_MS = 2 * DAY;
@@ -331,6 +332,11 @@ export interface ClientStatus {
   }>;
   openAlerts: Array<{ type: string; urgency: string; at: string; kind?: AlertKind }>;
   channel: "whatsapp" | "app" | "none";
+  /**
+   * checkin_reminders.days_of_week (0 = Sunday … 6 = Saturday) when a partial
+   * week is enabled. Missing or a full week keeps the 4-day quiet rule.
+   */
+  scheduledDays?: number[] | null;
 }
 
 export type Bucket = "attention" | "quiet" | "well" | "inactive";
@@ -348,7 +354,15 @@ export function bucketOf(c: ClientStatus, now: Date): Bucket {
     if (pain != null && pain >= 7) return "attention";
     if (pain != null && prev != null && pain - prev >= 2) return "attention";
   }
-  if (lastMs > QUIET_DAYS * DAY && joinedMs > 2 * DAY) return "quiet";
+  const scheduled = (c.scheduledDays ?? []).filter((d) => d >= 0 && d <= 6);
+  const partial = scheduled.length > 0 && scheduled.length < 7;
+  if (joinedMs > 2 * DAY) {
+    if (partial) {
+      const keys = c.checkins.map((x) => sastDayKey(new Date(x.at)));
+      const joinedKey = c.joinedAt ? sastDayKey(new Date(c.joinedAt)) : null;
+      if (missedLatestScheduledDay(scheduled, keys, now, joinedKey)) return "quiet";
+    } else if (lastMs > QUIET_DAYS * DAY) return "quiet";
+  }
   return "well";
 }
 
@@ -604,7 +618,7 @@ export async function loadStatuses(
   const ids = clients.map((c) => c.id);
   const since = new Date(now.getTime() - ACTIVE_DAYS * DAY).toISOString();
   const alertSince = new Date(now.getTime() - 14 * DAY).toISOString();
-  const [{ data: cis }, { data: alerts }, { data: convs }] = await Promise.all([
+  const [{ data: cis }, { data: alerts }, { data: convs }, { data: reminders }] = await Promise.all([
     admin
       .from("check_ins")
       .select("client_id, pain_level, sleep_quality, energy_level, notes, created_at")
@@ -623,7 +637,22 @@ export async function loadStatuses(
       .select("client_id, opted_out_at, state")
       .in("client_id", ids)
       .limit(2000),
+    admin
+      .from("checkin_reminders")
+      .select("client_id, days_of_week, enabled")
+      .in("client_id", ids)
+      .limit(2000),
   ]);
+  const scheduledByClient = new Map<string, number[]>();
+  for (const r of (reminders ?? []) as Array<{
+    client_id: string;
+    days_of_week: number[] | null;
+    enabled: boolean | null;
+  }>) {
+    if (r.enabled === false) continue;
+    const days = Array.isArray(r.days_of_week) ? r.days_of_week : [];
+    if (days.length > 0 && days.length < 7) scheduledByClient.set(r.client_id, days);
+  }
   const onWa = new Set(
     ((convs ?? []) as Array<{ client_id: string; opted_out_at: string | null; state: string }>)
       .filter((c) => !c.opted_out_at && c.state !== "opted_out")
@@ -638,6 +667,7 @@ export async function loadStatuses(
       checkins: [],
       openAlerts: [],
       channel: onWa.has(c.id) ? "whatsapp" : c.auth_user_id ? "app" : "none",
+      scheduledDays: scheduledByClient.get(c.id) ?? null,
     });
   }
   const rows = ((cis ?? []) as Array<Record<string, any>>).sort(

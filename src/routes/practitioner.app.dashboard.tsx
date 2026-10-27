@@ -100,7 +100,10 @@ function Dashboard() {
         return {
           ...c,
           _lastCheckIn: last,
-          _compliance: windowCompliance(c, s?.windowCount ?? 0),
+          _compliance: windowCompliance(
+            { ...c, days_of_week: roster.schedules?.[c.id] ?? null },
+            s?.windowCount ?? 0,
+          ),
           _activeToday: !!last && isSameDay(last, today),
           _wearables: (wmap as Record<string, string[]>)[c.id] ?? [],
         };

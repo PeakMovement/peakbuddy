@@ -31,6 +31,7 @@ import {
   getPractitionerClientCheckIns,
 } from "@/lib/practice-members.functions";
 import { getClientProgramForPractitioner, type ProgramLite } from "@/lib/client-program.functions";
+import { programmeCompliance } from "@/lib/roster-summary";
 
 export const Route = createFileRoute("/practitioner/app/client-detail/$clientId")({
   head: () => ({ meta: [{ title: "Client — Buddy" }] }),
@@ -72,6 +73,7 @@ function ClientDetail() {
   const loadOlder = useServerFn(getPractitionerClientCheckIns);
   const [wearSessions, setWearSessions] = useState<Record<string, unknown>[]>([]);
   const [patternRows, setPatternRows] = useState<Record<string, unknown>[]>([]);
+  const [reminderDays, setReminderDays] = useState<number[] | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -102,6 +104,7 @@ function ClientDetail() {
         setCheckInTotal(bundle.checkInTotal ?? rows.length);
         setWearSessions((bundle.wearableSessions as Record<string, unknown>[]) ?? []);
         setPatternRows((bundle.patterns as Record<string, unknown>[]) ?? []);
+        setReminderDays(bundle.reminderDays ?? null);
       } else {
         setClient(null);
         setLoadError("denied");
@@ -178,21 +181,9 @@ function ClientDetail() {
 
   const compliance = useMemo(() => {
     if (!client) return 0;
-    const weeks = client.tracking_duration_weeks ?? 8;
-    const start = new Date(client.created_at).getTime();
-    const elapsed = Math.max(1, Math.ceil((Date.now() - start) / (1000 * 60 * 60 * 24)));
-    const expectedSoFar =
-      client.check_in_frequency === "daily"
-        ? Math.min(elapsed, weeks * 7)
-        : client.check_in_frequency === "weekly"
-          ? Math.min(Math.ceil(elapsed / 7), weeks)
-          : Math.min(
-              Math.ceil(elapsed / (client.check_in_frequency === "every_3_days" ? 3 : 2)),
-              weeks * 4,
-            );
     // Total from the server: the page only holds the newest check-ins.
-    return Math.min(100, Math.round((checkInTotal / Math.max(1, expectedSoFar)) * 100));
-  }, [client, checkInTotal]);
+    return programmeCompliance({ ...client, days_of_week: reminderDays }, checkInTotal);
+  }, [client, checkInTotal, reminderDays]);
 
   const trendUp = useMemo(() => {
     const pains = [...items]
@@ -1103,6 +1094,8 @@ function EditClientSheet({
             <option value="every_2_days">Every 2 Days</option>
             <option value="every_3_days">Every 3 Days</option>
             <option value="weekly">Weekly</option>
+            <option value="as_needed">As needed</option>
+            <option value="custom">Specific days</option>
           </select>
           {error && <div style={{ color: "var(--red)", fontSize: 13 }}>{error}</div>}
           <button
