@@ -6,6 +6,9 @@ import type { CheckIn, Client, Profile } from "@/lib/types";
 import { SkeletonList, ErrorCard, EmptyState } from "@/components/UIStates";
 import { log } from "@/lib/log";
 import { adminDeleteClient } from "@/lib/admin-delete.functions";
+import { programmeCompliance } from "@/lib/roster-summary";
+import { listSchedulesForAdmin } from "@/lib/checkin-reminders.functions";
+import { useServerFn } from "@tanstack/react-start";
 
 export const Route = createFileRoute("/admin/app/clients")({
   head: () => ({ meta: [{ title: "All Clients — Buddy Admin" }] }),
@@ -20,6 +23,7 @@ type Row = Client & {
 
 function AllClients() {
   const navigate = useNavigate();
+  const loadSchedules = useServerFn(listSchedulesForAdmin);
   const [rows, setRows] = useState<Row[]>([]);
   const [practs, setPracts] = useState<Profile[]>([]);
   const [filter, setFilter] = useState("all");
@@ -35,10 +39,12 @@ function AllClients() {
         { data: clients, error: e1 },
         { data: profs, error: e2 },
         { data: checkIns, error: e3 },
+        schedules,
       ] = await Promise.all([
         supabase.from("clients").select("*").order("created_at", { ascending: false }),
         supabase.from("profiles").select("*").eq("role", "practitioner"),
         supabase.from("check_ins").select("*").order("created_at", { ascending: false }),
+        loadSchedules().catch(() => ({ schedules: {} as Record<string, number[]> })),
       ]);
       if (e1 || e2 || e3) throw e1 || e2 || e3;
       const profileMap = new Map<string, Profile>();
@@ -53,21 +59,9 @@ function AllClients() {
       const out: Row[] = ((clients as Client[]) ?? []).map((c) => {
         const ci = ciMap.get(c.id) ?? [];
         const last = ci[0]?.created_at ?? null;
-        const weeks = c.tracking_duration_weeks ?? 8;
-        const start = new Date(c.created_at).getTime();
-        const elapsed = Math.max(1, Math.ceil((Date.now() - start) / (1000 * 60 * 60 * 24)));
-        const expectedSoFar =
-          c.check_in_frequency === "daily"
-            ? Math.min(elapsed, weeks * 7)
-            : c.check_in_frequency === "weekly"
-              ? Math.min(Math.ceil(elapsed / 7), weeks)
-              : Math.min(
-                  Math.ceil(elapsed / (c.check_in_frequency === "every_3_days" ? 3 : 2)),
-                  weeks * 4,
-                );
-        const compliance = Math.min(
-          100,
-          Math.round((ci.length / Math.max(1, expectedSoFar)) * 100),
+        const compliance = programmeCompliance(
+          { ...c, days_of_week: schedules.schedules[c.id] ?? null },
+          ci.length,
         );
         return {
           ...c,

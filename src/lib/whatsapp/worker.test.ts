@@ -912,6 +912,7 @@ describe("WhatsApp worker, end to end against a fake database", () => {
       time_of_day: "18:00",
       enabled: true,
     });
+    expect(db.tables.clients[0].check_in_frequency).toBe("custom");
 
     db.tables.whatsapp_inbound.push(inbound("only on Tuesdays and Thursdays"));
     await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
@@ -928,6 +929,7 @@ describe("WhatsApp worker, end to end against a fake database", () => {
       days_of_week: [0, 1, 2, 3, 4, 5, 6],
       time_of_day: "08:00",
     });
+    expect(db.tables.clients[0].check_in_frequency).toBe("daily");
   });
 
   it("asks once about the default daily row, and does not change it until they say so", async () => {

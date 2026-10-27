@@ -1,13 +1,22 @@
 // Frequency-aware check-in streak logic for client gamification.
 // Pure + dependency-free so it is unit-testable.
 
-export type CheckInFrequency = "daily" | "every_2_days" | "every_3_days" | "weekly" | "as_needed";
+export type CheckInFrequency =
+  | "daily"
+  | "every_2_days"
+  | "every_3_days"
+  | "weekly"
+  | "as_needed"
+  | "custom";
 
 const INTERVAL_DAYS: Record<Exclude<CheckInFrequency, "as_needed">, number> = {
   daily: 1,
   every_2_days: 2,
   every_3_days: 3,
   weekly: 7,
+  // A few named days a week. Grace of 6 days keeps Mon/Thu and Mon/Wed/Fri
+  // streaks intact. Once-a-week is stored as "weekly", not "custom".
+  custom: 3,
 };
 
 export const STREAK_MILESTONES = [3, 7, 14, 30] as const;

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { frequencyFromDays } from "@/lib/roster-summary";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const FREQUENCIES = ["daily", "morning", "evening", "custom"] as const;
@@ -63,7 +64,36 @@ export const upsertMyReminder = createServerFn({ method: "POST" })
       { onConflict: "client_id" },
     );
     if (error) throw new Error(error.message);
+    // The roster, streaks, and progress screens read this column. It has to
+    // match the weekdays just saved, or a Monday-only patient still looks daily.
+    await db
+      .from("clients")
+      .update({ check_in_frequency: frequencyFromDays(data.days_of_week) })
+      .eq("id", clientId);
     return { ok: true as const };
+  });
+
+/** Super-admin client list. Browser RLS hides other practices' reminder rows. */
+export const listSchedulesForAdmin = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase.rpc("is_super_admin", { _uid: context.userId });
+    if (error || !data) return { schedules: {} as Record<string, number[]> };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows } = await supabaseAdmin
+      .from("checkin_reminders")
+      .select("client_id, days_of_week, enabled")
+      .limit(5000);
+    const schedules: Record<string, number[]> = {};
+    for (const r of (rows ?? []) as Array<{
+      client_id: string;
+      days_of_week: number[] | null;
+      enabled: boolean | null;
+    }>) {
+      if (r.enabled === false) continue;
+      schedules[r.client_id] = Array.isArray(r.days_of_week) ? r.days_of_week : [];
+    }
+    return { schedules };
   });
 
 export const disableMyReminder = createServerFn({ method: "POST" })

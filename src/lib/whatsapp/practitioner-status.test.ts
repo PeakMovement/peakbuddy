@@ -256,6 +256,34 @@ describe("status", () => {
         NOW,
       ),
     ).toBe("well");
+    // Monday-only. Checked in Monday morning; Friday is more than 4 days later,
+    // which used to look quiet. The scheduled Monday was kept, so they are well.
+    expect(
+      bucketOf(
+        mk({
+          joinedAt: daysAgo(30),
+          scheduledDays: [1],
+          checkins: [
+            { at: "2026-10-05T06:00:00Z", pain: 2, sleep: null, energy: null, notes: null },
+          ],
+        }),
+        NOW,
+      ),
+    ).toBe("well");
+    // Tuesday, Monday was the day they were due, and the last check-in was Sunday.
+    const tuesday = new Date("2026-10-06T10:00:00Z");
+    expect(
+      bucketOf(
+        mk({
+          joinedAt: daysAgo(30),
+          scheduledDays: [1],
+          checkins: [
+            { at: "2026-10-04T10:00:00Z", pain: 2, sleep: null, energy: null, notes: null },
+          ],
+        }),
+        tuesday,
+      ),
+    ).toBe("quiet");
     expect(bucketOf(mk({ joinedAt: daysAgo(200) }), NOW)).toBe("inactive");
     expect(
       bucketOf(mk({ openAlerts: [{ type: "red_flag", urgency: "urgent", at: daysAgo(1) }] }), NOW),

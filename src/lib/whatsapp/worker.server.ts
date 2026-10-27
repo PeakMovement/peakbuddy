@@ -37,6 +37,7 @@ import {
   scheduleConfirmText,
 } from "./schedule";
 import { CHECKIN_NOTE_FAILED, CHECKIN_NOTE_WINDOW } from "./checkin-delivery";
+import { frequencyFromDays } from "@/lib/roster-summary";
 import {
   createSelfSignupClient,
   currentConsentTypes,
@@ -1668,6 +1669,7 @@ async function applyEffects(
       frequency: string | null;
       time_of_day: string | null;
     } | null;
+    const days = decision.setSchedule?.days ?? row?.days_of_week ?? [0, 1, 2, 3, 4, 5, 6];
     await admin
       .from("checkin_reminders")
       .upsert(
@@ -1680,13 +1682,20 @@ async function applyEffects(
             decision.setReminderTime ??
             row?.time_of_day ??
             DEFAULT_REMINDER_TIME,
-          days_of_week: decision.setSchedule?.days ?? row?.days_of_week ?? [0, 1, 2, 3, 4, 5, 6],
+          days_of_week: days,
           timezone: "Africa/Johannesburg",
         },
         { onConflict: "client_id" },
       )
       .then(
-        () => undefined,
+        (saved) => {
+          // A time-only change keeps the days, and the frequency label, as they were.
+          if (!decision.setSchedule || saved?.error) return undefined;
+          return admin
+            .from("clients")
+            .update({ check_in_frequency: frequencyFromDays(days) })
+            .eq("id", client.id);
+        },
         () => undefined,
       );
   }
