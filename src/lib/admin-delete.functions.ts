@@ -22,14 +22,28 @@ export const adminDeleteClient = createServerFn({ method: "POST" })
 
     const { data: client, error: cErr } = await supabaseAdmin
       .from("clients")
-      .select("id, auth_user_id, email")
+      .select("id, auth_user_id, email, phone")
       .eq("id", data.id)
       .maybeSingle();
     if (cErr) return { ok: false as const, error: cErr.message };
     if (!client) return { ok: false as const, error: "Client not found." };
 
+    const { deleteWhatsAppForPatient } = await import("@/lib/retention.server");
+    await deleteWhatsAppForPatient(supabaseAdmin, { id: client.id, phone: client.phone });
+
     const { error: delErr } = await supabaseAdmin.from("clients").delete().eq("id", data.id);
     if (delErr) return { ok: false as const, error: delErr.message };
+
+    const { error: auditErr } = await supabaseAdmin.from("client_admin_audit" as never).insert({
+      client_id: client.id,
+      action: "erase",
+      channel: "admin",
+      actor_id: context.userId,
+    } as never);
+    if (auditErr) {
+      const { log } = await import("@/lib/log");
+      log.warn("client erase audit failed", { code: auditErr.code });
+    }
 
     let authUserId: string | null = client.auth_user_id ?? null;
     if (!authUserId && client.email) {

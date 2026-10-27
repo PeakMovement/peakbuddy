@@ -86,7 +86,9 @@ export async function archiveClients(
     log.warn("archive clients failed", { code: error.code, missing: archiveColumnMissing(error) });
     return { ok: false, count: 0 };
   }
-  return { ok: true, count: ((data ?? []) as unknown[]).length };
+  const archived = ((data ?? []) as Array<{ id: string }>).map((row) => row.id);
+  await writeAudit(admin, archived, "archive", "whatsapp", byUserId);
+  return { ok: true, count: archived.length };
 }
 
 export async function unarchiveClients(
@@ -105,7 +107,35 @@ export async function unarchiveClients(
     log.warn("unarchive clients failed", { code: error.code });
     return { ok: false, count: 0 };
   }
-  return { ok: true, count: ((data ?? []) as unknown[]).length };
+  const restored = ((data ?? []) as Array<{ id: string }>).map((row) => row.id);
+  await writeAudit(admin, restored, "unarchive", "whatsapp", null);
+  return { ok: true, count: restored.length };
+}
+
+async function writeAudit(
+  admin: Db,
+  ids: string[],
+  action: "archive" | "unarchive" | "erase",
+  channel: "whatsapp" | "admin",
+  actorId: string | null,
+): Promise<void> {
+  if (!ids.length) return;
+  try {
+    const { error } = await admin.from("client_admin_audit").insert(
+      ids.map((client_id) => ({
+        client_id,
+        action,
+        channel,
+        actor_id: actorId,
+      })),
+    );
+    if (error) log.warn("client admin audit failed", { code: error.code, action });
+  } catch (e) {
+    log.warn("client admin audit failed", {
+      action,
+      error: e instanceof Error ? e.message : "unknown",
+    });
+  }
 }
 
 /** An archived client wrote in: they're back. Best effort, never throws. */

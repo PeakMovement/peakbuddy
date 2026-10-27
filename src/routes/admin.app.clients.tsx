@@ -183,6 +183,12 @@ function ClientRow({
       )
     )
       return;
+    if (
+      !window.confirm(
+        `Second confirmation. Clinical records and WhatsApp messages for ${r.full_name} will be deleted and cannot be restored. Consent says those records are kept for as long as clinical records must be kept. Remove anyway?`,
+      )
+    )
+      return;
     setBusy(true);
     setErr(null);
     try {
