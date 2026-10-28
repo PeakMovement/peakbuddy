@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { findAuthUserIdByEmail } from "@/lib/find-auth-user";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -28,30 +27,18 @@ export const adminDeleteClient = createServerFn({ method: "POST" })
     if (cErr) return { ok: false as const, error: cErr.message };
     if (!client) return { ok: false as const, error: "Client not found." };
 
-    const { deleteWhatsAppForPatient } = await import("@/lib/retention.server");
-    await deleteWhatsAppForPatient(supabaseAdmin, { id: client.id, phone: client.phone });
-
-    const { error: delErr } = await supabaseAdmin.from("clients").delete().eq("id", data.id);
-    if (delErr) return { ok: false as const, error: delErr.message };
-
-    const { error: auditErr } = await supabaseAdmin.from("client_admin_audit" as never).insert({
-      client_id: client.id,
-      action: "erase",
-      channel: "admin",
-      actor_id: context.userId,
-    } as never);
-    if (auditErr) {
-      const { log } = await import("@/lib/log");
-      log.warn("client erase audit failed", { code: auditErr.code });
-    }
-
-    let authUserId: string | null = client.auth_user_id ?? null;
-    if (!authUserId && client.email) {
-      authUserId = await findAuthUserIdByEmail(supabaseAdmin, client.email);
-    }
-    if (authUserId) {
-      await supabaseAdmin.auth.admin.deleteUser(authUserId);
-    }
+    const { eraseClientRecord } = await import("@/lib/retention.server");
+    const erased = await eraseClientRecord(
+      supabaseAdmin,
+      {
+        id: client.id,
+        phone: client.phone,
+        auth_user_id: client.auth_user_id,
+        email: client.email,
+      },
+      { channel: "admin", actorId: context.userId },
+    );
+    if (!erased.ok) return { ok: false as const, error: erased.error };
     return { ok: true as const };
   });
 

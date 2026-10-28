@@ -63,12 +63,35 @@ export interface Practitioner {
 
 let cache: { at: number; map: Map<string, Practitioner> } | null = null;
 
+/** Buddy admin outranks a practitioner login that shares the same mobile. */
+export function pickStaffLogin<T extends { role?: string | null }>(rows: T[]): T | null {
+  if (!rows.length) return null;
+  const rank = (role: string | null | undefined) => {
+    const value = String(role ?? "").toLowerCase();
+    if (value === "super_admin") return 3;
+    if (value === "admin") return 2;
+    if (value === "practitioner") return 1;
+    return 0;
+  };
+  return [...rows].sort((a, b) => rank(b.role) - rank(a.role))[0] ?? null;
+}
+
+function loginPhone(user: {
+  phone?: string | null;
+  user_metadata?: { phone?: unknown } | null;
+}): string | null {
+  const meta = user.user_metadata?.phone;
+  return toE164Digits(user.phone ?? (typeof meta === "string" ? meta : null));
+}
+
 /** Registered practitioner mobiles, by E.164 digits. Cached for 10 minutes. */
 export async function practitionerByPhone(
   adminIn: Admin,
   phone: string,
   now = Date.now(),
 ): Promise<Practitioner | null> {
+  const key = toE164Digits(phone);
+  if (!key) return null;
   if (!cache || now - cache.at > CACHE_MS) {
     const admin = adminIn as unknown as Db;
     const map = new Map<string, Practitioner>();
@@ -79,30 +102,81 @@ export async function practitionerByPhone(
         // Owners and super admins (Justin) are recognised too.
         .in("role", ["practitioner", "super_admin", "admin"])
         .limit(500);
-      const names = new Map(
-        ((profs ?? []) as Array<{ id: string; full_name: string | null }>).map((p) => [
+      const people = new Map(
+        (
+          (profs ?? []) as Array<{ id: string; full_name: string | null; role?: string | null }>
+        ).map((p) => [
           p.id,
-          String(p.full_name ?? "")
-            .trim()
-            .split(/\s+/)[0] || "there",
+          {
+            firstName:
+              String(p.full_name ?? "")
+                .trim()
+                .split(/\s+/)[0] || "there",
+            role: String(p.role ?? ""),
+          },
         ]),
       );
+      const grouped = new Map<string, Array<{ userId: string; firstName: string; role: string }>>();
       for (let page = 1; page <= 10; page++) {
         const { data } = await adminIn.auth.admin.listUsers({ page, perPage: 1000 });
         const users = data?.users ?? [];
         for (const u of users) {
-          const digits = toE164Digits(u.phone ?? null);
-          if (digits && names.has(u.id))
-            map.set(digits, { userId: u.id, firstName: names.get(u.id)! });
+          const digits = loginPhone(u);
+          const person = digits ? people.get(u.id) : undefined;
+          if (!digits || !person) continue;
+          const list = grouped.get(digits) ?? [];
+          list.push({ userId: u.id, firstName: person.firstName, role: person.role });
+          grouped.set(digits, list);
         }
         if (users.length < 1000) break;
+      }
+      for (const [digits, list] of grouped) {
+        const best = pickStaffLogin(list);
+        if (best) map.set(digits, { userId: best.userId, firstName: best.firstName });
       }
     } catch (e) {
       log.warn("practitioner lookup failed", { error: e instanceof Error ? e.message : "unknown" });
     }
     cache = { at: now, map };
   }
-  return cache.map.get(phone) ?? null;
+  return cache.map.get(key) ?? null;
+}
+
+/**
+ * The Buddy admin is the super_admin profile. A practice owner or a profile
+ * role of "admin" is not enough. When two logins share a mobile, the
+ * super_admin one counts even if the chat was matched to the other.
+ * Phones are compared as E.164, not as typed.
+ */
+export async function buddyAdminActor(adminIn: Admin, userId: string): Promise<string | null> {
+  const admin = adminIn as unknown as Db;
+  const roleOf = async (id: string) => {
+    const { data } = await admin.from("profiles").select("role").eq("id", id).maybeSingle();
+    return String((data as { role?: string } | null)?.role ?? "").toLowerCase();
+  };
+  if ((await roleOf(userId)) === "super_admin") return userId;
+  let phone: string | null = null;
+  try {
+    const { data } = await adminIn.auth.admin.getUserById(userId);
+    phone = loginPhone(data?.user ?? {});
+  } catch {
+    phone = null;
+  }
+  if (!phone) return null;
+  try {
+    for (let page = 1; page <= 10; page++) {
+      const { data } = await adminIn.auth.admin.listUsers({ page, perPage: 1000 });
+      const users = data?.users ?? [];
+      for (const u of users) {
+        if (loginPhone(u) !== phone) continue;
+        if ((await roleOf(u.id)) === "super_admin") return u.id;
+      }
+      if (users.length < 1000) break;
+    }
+  } catch (e) {
+    log.warn("buddy admin lookup failed", { error: e instanceof Error ? e.message : "unknown" });
+  }
+  return null;
 }
 
 /** For tests. */

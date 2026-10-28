@@ -299,7 +299,7 @@ describe("status", () => {
       ],
     });
     const all = formatStatusAll("Zoe", [sam, mk({ name: "Old", joinedAt: daysAgo(200) })], NOW);
-    expect(all).toContain("1 current: 1 needs a look.");
+    expect(all).toContain("1 current, your clients only: 1 needs a look.");
     expect(all).toContain("Sam Kruger: pain 7, up from 4, last check-in yesterday");
     expect(all).toContain('Ask "how is Sam doing?"');
     expect(all).not.toContain("Old");
@@ -322,7 +322,7 @@ describe("practitioner conversation", () => {
     );
     const body = replies[0].body as string;
     expect(body).toContain(
-      "Here's how your clients are doing, Zoe. 2 current: 1 needs a look and 1 gone quiet.",
+      "Here's how your clients are doing, Zoe. 2 current, your clients only: 1 needs a look and 1 gone quiet.",
     );
     expect(body).toContain("Needs a look (1)");
     expect(body).toContain("Sam Kruger");
@@ -519,7 +519,7 @@ describe("practice owner view", () => {
       d,
     );
     expect(replies[0].body).toContain("Buddy usage, Peak Movement");
-    expect(replies[0].body).toContain("3 clients on Buddy, 2 current");
+    expect(replies[0].body).toContain("3 clients on Buddy, 2 current (whole practice (Peak Movement))");
     expect(replies[0].body).toContain("1 on WhatsApp, 1 on the app only, 1 not set up yet");
     expect(replies[0].body).toContain("Zoe 2");
     await handlePractitionerMessage(db, JUSTIN, { text: "who has gone quiet?", replyId: null }, d);
@@ -555,6 +555,7 @@ describe("practice owner view", () => {
       d,
     );
     expect(replies[0].body).toContain("Buddy usage, your clients");
+    expect(replies[0].body).toContain("your clients only");
     expect(replies[0].body).toContain("3 clients on Buddy");
   });
 });

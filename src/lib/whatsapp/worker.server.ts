@@ -1489,6 +1489,17 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   const pendingNotice = (conv.draft as { pendingNotice?: string } | null)?.pendingNotice;
   const deliverNotice = Boolean(client && pendingNotice && consent);
   if (deliverNotice && pendingNotice) replies = [{ kind: "text", body: pendingNotice }, ...replies];
+  // Custom check-in wording queued because the 24 hour window was closed.
+  // The practitioner already confirmed it. Red flags on this message come
+  // first: the wording stays queued. Consent is required. This is the
+  // practitioner's own text, not an AI reply.
+  const pendingCustom = (conv.draft as { pendingCustomCheckin?: string } | null)
+    ?.pendingCustomCheckin;
+  const deliverCustom = Boolean(
+    client && pendingCustom && consent && !redFlags.triggered,
+  );
+  if (deliverCustom && pendingCustom)
+    replies = [{ kind: "text", body: pendingCustom }, ...replies];
   // A practitioner's question that waited for this patient's window. Only
   // once the conversation is idle (never mid check-in) and never next to a
   // red flag, so the next message can be read as its answer.
@@ -1628,9 +1639,12 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
       // question (9 Oct: "8" for pain was re-read as a sleep answer).
       draft: {
         ...Object.fromEntries(
-          Object.entries(decision.next.draft ?? {}).filter(([k]) => k !== "pendingNotice"),
+          Object.entries(decision.next.draft ?? {}).filter(
+            ([k]) => k !== "pendingNotice" && k !== "pendingCustomCheckin",
+          ),
         ),
         ...(pendingNotice && !deliverNotice ? { pendingNotice } : {}),
+        ...(pendingCustom && !deliverCustom ? { pendingCustomCheckin: pendingCustom } : {}),
         appliedInboundId: row.id,
         aiDay: sastDay,
         aiCount,

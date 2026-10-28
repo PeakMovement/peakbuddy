@@ -734,6 +734,7 @@ export type PracPending =
         | "programme"
         | "heidi"
         | "archive"
+        | "erase"
         | "discharge"
         | "reopen"
         | "data_copy";
@@ -750,6 +751,7 @@ export type PracPending =
         | "programme"
         | "reception"
         | "archive"
+        | "erase"
         | "discharge"
         | "reopen"
         | "data_copy"
@@ -761,6 +763,12 @@ export type PracPending =
       note: string | null;
       task: string | null;
       editing: boolean;
+      /** Edit replaced the check-in opener. The note is the whole message. */
+      verbatim?: boolean;
+      /** Window and mid-check-in notes shown before Send. */
+      aside?: string | null;
+      /** Super-admin id when the chat was matched to a lesser login on the same phone. */
+      actorId?: string | null;
       at: number;
     };
 
@@ -824,6 +832,8 @@ const CHOOSE_ACTIONS = new Set([
   "checkin",
   "programme",
   "heidi",
+  "archive",
+  "erase",
   "discharge",
   "reopen",
   "data_copy",
@@ -832,6 +842,8 @@ const OUTBOUND_ACTIONS = new Set([
   "checkin",
   "programme",
   "reception",
+  "archive",
+  "erase",
   "discharge",
   "reopen",
   "data_copy",
@@ -871,13 +883,16 @@ function cleanPending(raw: unknown): PracPending | null {
   }
   if (p.kind === "outbound" && OUTBOUND_ACTIONS.has(String(p.action))) {
     const clientIds = Array.isArray(p.clientIds)
-      ? p.clientIds.map(String).filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+      ? p.clientIds
+          .map(String)
+          .filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+          .slice(0, 50)
       : [];
     const names = Array.isArray(p.names)
       ? p.names
           .map((n) => String(n).trim())
           .filter(Boolean)
-          .slice(0, 15)
+          .slice(0, 50)
       : [];
     if (p.action !== "reception" && !clientIds.length) return null;
     if ((p.action === "reception" || p.action === "appointment") && typeof p.task !== "string")
@@ -891,6 +906,10 @@ function cleanPending(raw: unknown): PracPending | null {
       note: typeof p.note === "string" ? p.note.slice(0, 280) : null,
       task: typeof p.task === "string" ? p.task.slice(0, 600) : null,
       editing: Boolean(p.editing),
+      verbatim: p.verbatim === true,
+      aside: typeof p.aside === "string" ? p.aside.slice(0, 800) : null,
+      actorId:
+        typeof p.actorId === "string" && /^[0-9a-z-]{1,80}$/i.test(p.actorId) ? p.actorId : null,
       at,
     };
   }
