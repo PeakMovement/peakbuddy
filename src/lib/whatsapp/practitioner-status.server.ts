@@ -18,6 +18,7 @@
  */
 import { log } from "@/lib/log";
 import { isDailyReportAsk } from "./daily-report.server";
+import { isWeekAsk } from "./weekly-summary.server";
 import { withoutArchived } from "@/lib/client-archive.server";
 import { readPatientQuestion } from "./patient-question-text";
 import { readPatientMessage, type PatientMessageRequest } from "./patient-message-text";
@@ -91,6 +92,8 @@ export type PracIntent =
   | { kind: "checkin_delivery" }
   /** Super admin: the daily Buddy report, now. */
   | { kind: "daily_report" }
+  /** The Monday summary of their own patients, now. */
+  | { kind: "weekly_summary" }
   | { kind: "reception"; task: string }
   /** Phrasing names reception and a task, but not clearly enough to send. */
   | { kind: "reception_confirm"; task: string }
@@ -302,6 +305,8 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
     return { kind: "checkin", clientId: null, confidence: "medium" };
   if (r === "prac_daily_report" || isDailyReportAsk(text) || isDailyReportAsk(normalized))
     return { kind: "daily_report" };
+  if (r === "prac_weekly_summary" || isWeekAsk(text) || isWeekAsk(normalized))
+    return { kind: "weekly_summary" };
   if (
     r === "prac_checkin_delivery" ||
     isCheckinDeliveryAsk(text) ||
@@ -344,6 +349,10 @@ export interface ClientStatus {
   scheduledDays?: number[] | null;
   /** Set after a confirmed discharge. Open alerts still surface. */
   discharged?: boolean;
+  /** "NPRS 6 → 3, PSFS 3.0 → 6.7 (since 14 Oct)", when scores exist. */
+  outcomes?: string | null;
+  /** Quiet trend signal for the physio (trends.ts), when one is showing. */
+  signal?: string | null;
 }
 
 export type Bucket = "attention" | "quiet" | "well" | "inactive";
@@ -544,6 +553,8 @@ export function formatStatusOne(c: ClientStatus, now: Date): string {
     } else {
       lines.push("No check-ins in the past 7 days.");
     }
+    if (c.signal) lines.push(`Worth a look: ${c.signal}`);
+    if (c.outcomes) lines.push(`Outcome scores: ${c.outcomes}.`);
     const note = c.checkins.find((x) => x.notes && x.notes.trim())?.notes?.trim();
     if (note) lines.push(`Latest note: "${note.length > 160 ? `${note.slice(0, 157)}...` : note}"`);
   }
@@ -714,6 +725,21 @@ export async function loadStatuses(
       at: a.created_at,
       kind: alertKind(a.alert_type, a.message),
     });
+  }
+  // Outcome scores and trend signals only for a short list (one client's
+  // status, a handful named): one read each, not for the whole caseload.
+  if (out.size <= 5) {
+    const { loadOutcomes } = await import("./outcomes.server");
+    const { outcomeSummary } = await import("./outcomes");
+    const { trendSignal } = await import("./trends");
+    for (const c of out.values()) {
+      c.outcomes = outcomeSummary(await loadOutcomes(adminIn, c.id));
+      c.signal =
+        trendSignal(
+          c.checkins.map((x) => ({ at: x.at, pain: x.pain, sleep: x.sleep, energy: x.energy })),
+          now,
+        )?.text ?? null;
+    }
   }
   return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -991,6 +1017,22 @@ export async function runPractitionerJobs(
     log.warn("morning check-in failed", {
       error: e instanceof Error ? e.message : "unknown",
     });
+  }
+
+  // 8. Monday summary for each practitioner, 07:45 SAST.
+  try {
+    const { runWeeklySummaries } = await import("./weekly-summary.server");
+    await runWeeklySummaries(adminIn as never, env, now);
+  } catch (e) {
+    log.warn("weekly summary failed", { error: e instanceof Error ? e.message : "unknown" });
+  }
+
+  // 7. Red flags nobody has opened after 2 hours go to the practice owner.
+  try {
+    const { runRedFlagEscalation } = await import("./escalation.server");
+    await runRedFlagEscalation(adminIn as never, env, now);
+  } catch (e) {
+    log.warn("red flag escalation failed", { error: e instanceof Error ? e.message : "unknown" });
   }
 
   // 6. The daily Buddy report to the admin, 19:30 SAST.

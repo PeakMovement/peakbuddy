@@ -1357,6 +1357,20 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   // An answer with a red flag in it gets Buddy's full safety reply, not just
   // "thanks": the answer is already saved, the thanks goes after.
   const answerOnly = questionStep && !redFlags.triggered ? questionStep : null;
+
+  // An open outcome score set (NPRS / PSFS, outcomes.ts) takes the message
+  // while idle. A red flag, a practitioner's question, or anything that isn't
+  // an answer drops it and the normal conversation carries on.
+  const ocDraft = (conv.draft as { outcome?: import("./outcomes").OutcomeDraft } | null)?.outcome;
+  let outcomeHandled: import("./outcomes").OutcomeStep | null = null;
+  if (client && consent && ocDraft && !answerOnly && !redFlags.triggered && state === "idle") {
+    const oc = await import("./outcomes");
+    if (now.getTime() - new Date(ocDraft.at).getTime() <= oc.OUTCOME_LAPSE_MS) {
+      const { previousActivities } = await import("./outcomes.server");
+      const prev = ocDraft.step === "nprs" ? await previousActivities(admin, client.id) : [];
+      outcomeHandled = oc.outcomeStep(ocDraft, message.text ?? "", row.reply_id, prev);
+    }
+  }
   let quotedText: string | null = null;
   let tone: "warm" | "concise" | "sa" = "warm";
   let memories: string[] = [];
@@ -1441,25 +1455,34 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     conversational === false && (row.reply_id === "react_yes" || row.reply_id === "react_no");
   const dialogueDecision =
     conversational && !answerOnly && !reacted ? runDialogue(decisionInput) : null;
-  const decision: Decision = answerOnly
+  const decision: Decision = outcomeHandled
     ? {
-        replies: answerOnly.replies,
+        replies: outcomeHandled.replies as Decision["replies"],
         next: {
           state,
-          draft: conv.draft ?? {},
+          draft: { ...(conv.draft ?? {}), outcome: outcomeHandled.next ?? undefined },
           checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
         },
       }
-    : reacted
+    : answerOnly
       ? {
-          replies: [],
+          replies: answerOnly.replies,
           next: {
             state,
             draft: conv.draft ?? {},
             checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
           },
         }
-      : (dialogueDecision ?? decide(decisionInput));
+      : reacted
+        ? {
+            replies: [],
+            next: {
+              state,
+              draft: conv.draft ?? {},
+              checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
+            },
+          }
+        : (dialogueDecision ?? decide(decisionInput));
 
   // Unknown numbers are told once a day, not on every message.
   let replies = decision.replies;
@@ -1504,6 +1527,16 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     const line = await scheduleConfirmIfDue(admin, client.id, state).catch(() => null);
     if (line) replies = [...replies, { kind: "text" as const, body: line }];
   }
+  // An outcome set that this message wasn't part of is dropped.
+  if (ocDraft && !outcomeHandled && decision.next.draft) {
+    const { outcome: _dropped, ...rest } = decision.next.draft as Record<string, unknown>;
+    decision.next.draft = rest as typeof decision.next.draft;
+  }
+  if (outcomeHandled?.result && client) {
+    const { saveOutcome } = await import("./outcomes.server");
+    await saveOutcome(admin, client, outcomeHandled.result, now).catch(() => false);
+  }
+
   // A finished check-in may get a short look back, once a week.
   if (client && consent && !redFlags.triggered && decision.saveCheckin?.pain != null) {
     const { weeklyProgressLine } = await import("./progress-note.server");
@@ -1511,6 +1544,27 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
       () => null,
     );
     if (line) replies = [...replies, { kind: "text" as const, body: line }];
+  }
+  // Outcome scores, at the end of a finished check-in when due (intake,
+  // every 2 weeks, discharge). Never next to a red flag.
+  if (
+    client &&
+    consent &&
+    !redFlags.triggered &&
+    !outcomeHandled &&
+    decision.saveCheckin &&
+    decision.next.state === "idle"
+  ) {
+    const { outcomeDue } = await import("./outcomes.server");
+    const timepoint = await outcomeDue(admin, client, now).catch(() => null);
+    if (timepoint) {
+      const { outcomeOffer } = await import("./outcomes");
+      replies = [...replies, outcomeOffer(timepoint) as (typeof replies)[number]];
+      decision.next.draft = {
+        ...(decision.next.draft ?? {}),
+        outcome: { step: "offer", timepoint, at: now.toISOString() },
+      } as typeof decision.next.draft;
+    }
   }
   // A message a practitioner asked Buddy to pass on while the window was shut.
   // Hold it until both current consents exist. Delivering it here is the send.

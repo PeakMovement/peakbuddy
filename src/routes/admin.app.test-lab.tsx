@@ -275,7 +275,9 @@ function ChatTab() {
         {(
           [
             ["1h", "+1 hour"],
+            ["2h", "+2 hours"],
             ["reminder", "To 6pm reminders"],
+            ["evening", "To 7:30pm report"],
             ["morning", "To 8am"],
             ["1d", "+1 day"],
             ["7d", "+7 days"],

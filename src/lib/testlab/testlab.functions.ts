@@ -52,7 +52,7 @@ const actInput = z.object({
     }),
     z.object({
       kind: z.literal("advance"),
-      jump: z.enum(["1h", "reminder", "morning", "1d", "7d"]),
+      jump: z.enum(["1h", "2h", "reminder", "morning", "evening", "1d", "7d"]),
     }),
   ]),
 });

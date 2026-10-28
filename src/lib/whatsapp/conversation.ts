@@ -94,6 +94,8 @@ export type ConversationState =
   | "unmatched";
 
 export interface CheckinDraft {
+  /** An open outcome score set (outcomes.ts). */
+  outcome?: import("./outcomes").OutcomeDraft;
   /** An app-login email waiting for the patient's YES before anything is created. */
   pendingEmail?: string;
   pain?: number;

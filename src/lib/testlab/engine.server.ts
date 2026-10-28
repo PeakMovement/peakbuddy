@@ -11,7 +11,7 @@
 import type { OutboundMessage, WhatsAppProvider } from "@/lib/whatsapp/provider";
 import { memoryDb, type MemoryUser, type Tables } from "./memory-db";
 import { runInSandbox, type SandboxEvent } from "./sandbox";
-import { LAB_PEOPLE, labSeed } from "./seed";
+import { LAB_PEOPLE, LAB_USER_KEYS, labSeed } from "./seed";
 
 export interface LabLine {
   at: string;
@@ -113,7 +113,8 @@ function eventLine(e: SandboxEvent): LabLine {
     alert_whatsapp: "Practitioner alert",
     job_note: "Job health note",
   };
-  return { at: e.at, dir: "event", who: e.to, text: `${label[e.kind]}: ${e.summary}` };
+  const named = LAB_USER_KEYS[e.to] ?? e.to;
+  return { at: e.at, dir: "event", who: named, text: `${label[e.kind]}: ${e.summary}` };
 }
 
 async function withLab<T>(
@@ -188,7 +189,7 @@ export async function labSend(state: LabState, msg: LabMessage) {
   });
 }
 
-export type LabJump = "1h" | "reminder" | "morning" | "1d" | "7d";
+export type LabJump = "1h" | "2h" | "reminder" | "morning" | "evening" | "1d" | "7d";
 
 /** The next time (after now) that it is hh:mm in South Africa. */
 function nextSast(now: Date, hh: number, mm: number): Date {
@@ -210,13 +211,17 @@ export async function labAdvance(state: LabState, jump: LabJump) {
   const target =
     jump === "1h"
       ? new Date(now.getTime() + 3600_000)
-      : jump === "1d"
-        ? new Date(now.getTime() + 24 * 3600_000)
-        : jump === "7d"
-          ? new Date(now.getTime() + 7 * 24 * 3600_000)
-          : jump === "reminder"
-            ? nextSast(now, 18, 1)
-            : nextSast(now, 8, 1);
+      : jump === "2h"
+        ? new Date(now.getTime() + 2 * 3600_000 + 60_000)
+        : jump === "evening"
+          ? nextSast(now, 19, 31)
+          : jump === "1d"
+            ? new Date(now.getTime() + 24 * 3600_000)
+            : jump === "7d"
+              ? new Date(now.getTime() + 7 * 24 * 3600_000)
+              : jump === "reminder"
+                ? nextSast(now, 18, 1)
+                : nextSast(now, 8, 1);
   const moved: LabState = {
     ...state,
     clockOffsetMs: state.clockOffsetMs + (target.getTime() - now.getTime()),
@@ -232,28 +237,21 @@ export async function labAdvance(state: LabState, jump: LabJump) {
   };
   return withLab(moved, async ({ admin, now: clock }) => {
     const ran: string[] = [];
-    if (jump === "reminder" || jump === "1h" || jump === "1d") {
-      const { runCheckinReminderTick } =
-        await import("@/lib/whatsapp/checkin-reminder-tick.server");
-      const r = await runCheckinReminderTick(admin, clock());
-      ran.push(`reminders: ${r.sent} sent, ${r.undelivered} undelivered`);
-    }
-    if (jump === "morning") {
-      try {
-        const mod = (await import("@/lib/whatsapp/morning-checkin.server")) as Record<
-          string,
-          unknown
-        >;
-        const run = (mod.runMorningCheckins ?? mod.runMorningCheckin) as
-          ((a: unknown, cfg: unknown, now: Date) => Promise<unknown>) | undefined;
-        if (run) {
-          const { whatsappConfigFromEnv } = await import("@/lib/whatsapp/worker.server");
-          await run(admin, whatsappConfigFromEnv(), clock());
-          ran.push("morning practitioner check-in");
-        }
-      } catch (e) {
-        ran.push(`morning job failed: ${e instanceof Error ? e.message : "unknown"}`);
+    const { runCheckinReminderTick } = await import("@/lib/whatsapp/checkin-reminder-tick.server");
+    const r = await runCheckinReminderTick(admin, clock());
+    ran.push(`reminders: ${r.sent} sent, ${r.undelivered} undelivered`);
+    // The every-minute jobs: morning note, red flag escalation, daily
+    // report, scheduled practitioner updates, Monday summary.
+    try {
+      const { runPractitionerJobs } = await import("@/lib/whatsapp/practitioner-status.server");
+      const { whatsappConfigFromEnv } = await import("@/lib/whatsapp/worker.server");
+      const cfg = whatsappConfigFromEnv();
+      if (cfg) {
+        await runPractitionerJobs(admin, cfg, clock());
+        ran.push("minute jobs");
       }
+    } catch (e) {
+      ran.push(`minute jobs failed: ${e instanceof Error ? e.message : "unknown"}`);
     }
     return ran;
   });

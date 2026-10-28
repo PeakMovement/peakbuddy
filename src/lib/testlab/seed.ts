@@ -26,6 +26,12 @@ const P = {
   alex: "1ab00000-0000-4000-8000-0000000000c5",
 };
 
+/** Lab user ids to person keys, so captured pushes read "owner", not a uuid. */
+export const LAB_USER_KEYS: Record<string, string> = {
+  [P.owner]: "owner",
+  [P.physio]: "physio",
+};
+
 export const LAB_PEOPLE: LabPerson[] = [
   {
     key: "owner",
@@ -162,6 +168,9 @@ export function labSeed(now: Date): { tables: Tables; users: MemoryUser[] } {
     state: "idle",
     draft: {},
     updated_at: day(now, 1),
+    // Existing patients have already had the one-off app and watch offers.
+    wearable_offer_at: day(now, 20),
+    app_offer_at: day(now, 20),
   });
 
   const tables: Tables = {

@@ -280,6 +280,31 @@ export const SCENARIOS: Scenario[] = [
     ],
   },
   {
+    id: "red-flag-escalation",
+    area: "Safety",
+    title: "Red flag nobody opens for 2 hours",
+    why: "If the physio doesn't open a red flag, the practice owner hears about it.",
+    steps: [
+      { send: { from: "lerato", text: "my legs are going numb and i can't control my bladder" } },
+      { advance: "2h" },
+    ],
+    checks: [
+      {
+        label: "The owner was told (push, WhatsApp or alert)",
+        pass: ({ lines }) =>
+          lines.some(
+            (l) =>
+              (l.who === "owner" && /hasn't been opened|still hasn't|not opened/i.test(l.text)) ||
+              (l.dir === "event" && /Unopened red flag|Not opened after 2 hours/i.test(l.text)),
+          ),
+      },
+      {
+        label: "It was marked so it only happens once",
+        pass: ({ state }) => (state.tables.alerts ?? []).some((a) => a.escalation_fired === true),
+      },
+    ],
+  },
+  {
     id: "booking",
     area: "Patient",
     title: "Asking for an appointment",
@@ -319,6 +344,43 @@ export const SCENARIOS: Scenario[] = [
     ],
   },
   {
+    id: "outcome-intake",
+    area: "Patient",
+    title: "First outcome scores after a check-in",
+    why: "NPRS and PSFS at intake: offered once the check-in is done, a few taps, saved for the physio.",
+    steps: [
+      { send: { from: "lerato", text: "hi" } },
+      { send: { from: "lerato", text: "5" } },
+      { tap: { from: "lerato", title: /^3/ } },
+      { tap: { from: "lerato", title: /^3/ } },
+      { tap: { from: "lerato", title: /^3/ } },
+      { tap: { from: "lerato", title: /most|some|all/i } },
+      { tap: { from: "lerato", title: /nothing/i } },
+      { tap: { from: "lerato", title: /yes, go/i } },
+      { send: { from: "lerato", text: "5" } },
+      { send: { from: "lerato", text: "sitting at my desk, bending to tie shoes" } },
+      { send: { from: "lerato", text: "4" } },
+      { send: { from: "lerato", text: "6" } },
+    ],
+    checks: [
+      {
+        label: "Check-in saved first",
+        pass: ({ state }) => checkinsOf(state, "lerato").length === 4,
+      },
+      {
+        label: "NPRS and PSFS saved",
+        pass: ({ state }) => {
+          const c = clientOf(state, "lerato");
+          const rows = (state.tables.outcome_measures ?? []).filter((r) => r.client_id === c?.id);
+          return (
+            rows.some((r) => r.measure === "nprs" && r.score === 5) &&
+            rows.some((r) => r.measure === "psfs" && r.score === 5 && (r.items ?? []).length === 2)
+          );
+        },
+      },
+    ],
+  },
+  {
     id: "physio-status",
     area: "Practitioner",
     title: '"How is Sam?"',
@@ -329,6 +391,40 @@ export const SCENARIOS: Scenario[] = [
       {
         label: "Reply has numbers from the check-ins",
         pass: ({ lines }) => /\d/.test(textTo(lines, "physio")),
+      },
+    ],
+  },
+  {
+    id: "physio-my-week",
+    area: "Practitioner",
+    title: '"My week"',
+    why: "The Monday summary on demand: who's improving, stuck, quiet or worth a look.",
+    steps: [{ send: { from: "physio", text: "send me my week" } }],
+    checks: [
+      {
+        label: "Summary came back",
+        pass: ({ lines }) => /Your Buddy week/i.test(textTo(lines, "physio")),
+      },
+      {
+        label: "Pieter flagged as worth a look",
+        pass: ({ lines }) => /Worth a look[\s\S]*Pieter/i.test(textTo(lines, "physio")),
+      },
+      {
+        label: "Sam shown as improving",
+        pass: ({ lines }) => /Improving[\s\S]*Sam/i.test(textTo(lines, "physio")),
+      },
+    ],
+  },
+  {
+    id: "physio-status-signal",
+    area: "Practitioner",
+    title: "Status shows the trend signal",
+    why: "Asking about Pieter should mention his rising pain as worth a look.",
+    steps: [{ send: { from: "physio", text: "how is pieter doing" } }],
+    checks: [
+      {
+        label: "Rising pain mentioned",
+        pass: ({ lines }) => /worth a look|gone up/i.test(textTo(lines, "physio")),
       },
     ],
   },

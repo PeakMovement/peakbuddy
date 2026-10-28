@@ -1326,6 +1326,11 @@ async function handleStatusIntent(
     await handleMessageIntent(adminIn, prac, intent, deps, mem);
     return;
   }
+  if (intent.kind === "weekly_summary") {
+    const { buildWeekText } = await import("./weekly-summary.server");
+    await text1(await buildWeekText(adminIn as never, prac.userId, deps.now));
+    return;
+  }
   if (intent.kind === "daily_report") {
     const { data: prof } = await (adminIn as unknown as Db)
       .from("profiles")

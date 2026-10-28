@@ -23,6 +23,22 @@ export interface MemoryDb {
   admin: any;
 }
 
+/** Column defaults the live database fills in that Buddy filters on. */
+const DEFAULTS: Record<string, Row> = {
+  alerts: {
+    is_read: false,
+    escalation_fired: false,
+    push_fired: false,
+    email_fired: false,
+    whatsapp_fired: false,
+    webhook_fired: false,
+    reviewed_at: null,
+    outcome: null,
+  },
+  clients: { archived_at: null, discharged_at: null },
+  checkin_reminders: { enabled: true, last_sent_on: null },
+};
+
 /** Unique keys the live database enforces that Buddy relies on. */
 const UNIQUE_KEYS: Record<string, string[][]> = {
   buddy_job_claims: [["job", "key", "run_on"]],
@@ -122,6 +138,7 @@ export function memoryDb(tables: Tables, users: MemoryUser[] = []): MemoryDb {
           const list = (Array.isArray(r) ? r : [r]).map((x) => ({
             id: newId(),
             created_at: new Date().toISOString(),
+            ...(DEFAULTS[table] ?? {}),
             ...structuredClone(x),
           }));
           for (const row of list) {
