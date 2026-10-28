@@ -247,6 +247,33 @@ export type Database = {
           },
         ]
       }
+      client_admin_audit: {
+        Row: {
+          action: string
+          actor_id: string | null
+          channel: string
+          client_id: string | null
+          created_at: string
+          id: number
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          channel: string
+          client_id?: string | null
+          created_at?: string
+          id?: never
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          channel?: string
+          client_id?: string | null
+          created_at?: string
+          id?: never
+        }
+        Relationships: []
+      }
       client_baselines: {
         Row: {
           client_id: string
@@ -503,6 +530,7 @@ export type Database = {
           calendar_feed_token: string | null
           check_in_frequency: string
           created_at: string
+          discharged_at: string | null
           email: string | null
           first_login_at: string | null
           full_name: string
@@ -510,11 +538,13 @@ export type Database = {
           id: string
           library_intro_seen_at: string | null
           login_code: string
+          next_appointment: string | null
           notes: string | null
           onboarding_library_nudge_sent_at: string | null
           onboarding_source: string | null
           passive_monitoring_enabled: boolean
           phone: string | null
+          phone_e164: string | null
           popia_accepted: boolean
           popia_accepted_at: string | null
           practice_id: string | null
@@ -546,6 +576,7 @@ export type Database = {
           calendar_feed_token?: string | null
           check_in_frequency?: string
           created_at?: string
+          discharged_at?: string | null
           email?: string | null
           first_login_at?: string | null
           full_name: string
@@ -553,11 +584,13 @@ export type Database = {
           id?: string
           library_intro_seen_at?: string | null
           login_code: string
+          next_appointment?: string | null
           notes?: string | null
           onboarding_library_nudge_sent_at?: string | null
           onboarding_source?: string | null
           passive_monitoring_enabled?: boolean
           phone?: string | null
+          phone_e164?: string | null
           popia_accepted?: boolean
           popia_accepted_at?: string | null
           practice_id?: string | null
@@ -589,6 +622,7 @@ export type Database = {
           calendar_feed_token?: string | null
           check_in_frequency?: string
           created_at?: string
+          discharged_at?: string | null
           email?: string | null
           first_login_at?: string | null
           full_name?: string
@@ -596,11 +630,13 @@ export type Database = {
           id?: string
           library_intro_seen_at?: string | null
           login_code?: string
+          next_appointment?: string | null
           notes?: string | null
           onboarding_library_nudge_sent_at?: string | null
           onboarding_source?: string | null
           passive_monitoring_enabled?: boolean
           phone?: string | null
+          phone_e164?: string | null
           popia_accepted?: boolean
           popia_accepted_at?: string | null
           practice_id?: string | null
@@ -730,6 +766,44 @@ export type Database = {
             columns: ["superseded_by"]
             isOneToOne: false
             referencedRelation: "consent_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_export_links: {
+        Row: {
+          client_id: string
+          created_at: string
+          downloaded_at: string | null
+          expires_at: string
+          id: string
+          practitioner_id: string
+          token_hash: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          downloaded_at?: string | null
+          expires_at: string
+          id?: string
+          practitioner_id: string
+          token_hash: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          downloaded_at?: string | null
+          expires_at?: string
+          id?: string
+          practitioner_id?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_export_links_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]

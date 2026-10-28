@@ -274,6 +274,27 @@
       "when": 1792985084876,
       "tag": "0040_apply_client_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793156950521,
+      "tag": "0041_apply_client_care_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793156953927,
+      "tag": "0042_apply_data_export_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793156956399,
+      "tag": "0043_apply_client_admin_audit",
+      "breakpoints": true
     }
   ]
 }
