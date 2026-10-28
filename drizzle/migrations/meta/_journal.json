@@ -295,6 +295,13 @@
       "when": 1793156956399,
       "tag": "0043_apply_client_admin_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793156981689,
+      "tag": "0044_apply_checkin_one_per_sast_day",
+      "breakpoints": true
     }
   ]
 }
