@@ -256,7 +256,7 @@ export interface PractitionerDeps {
   ) => Promise<"sent" | "not_whatsapp" | "busy" | "window_closed" | "failed">;
   /**
    * Tool choice for the practitioner agent. Tests pass a mock. When omitted,
-   * Buddy calls Gemini through the Lovable gateway if LOVABLE_API_KEY is set,
+   * Buddy calls Claude, with Lovable's Gemini as the fallback (ai-chat.server),
    * and otherwise leaves the phrase matcher to answer.
    */
   understand?: (input: AgentTurnInput) => Promise<unknown>;

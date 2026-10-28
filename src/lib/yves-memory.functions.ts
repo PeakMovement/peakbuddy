@@ -2,18 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { aiChat } from "@/lib/ai-chat.server";
 
 const MODEL = "google/gemini-3.1-pro-preview";
 
 export type YvesMemoryScope =
-  | "global"
-  | "insight"
-  | "triage"
-  | "pain_symptoms"
-  | "sleep"
-  | "stress"
-  | "wearable"
-  | "risk";
+  "global" | "insight" | "triage" | "pain_symptoms" | "sleep" | "stress" | "wearable" | "risk";
 
 const RULE_TYPES = ["reasoning", "phrasing", "safety", "escalation", "style"] as const;
 
@@ -56,17 +50,16 @@ function extractJson(raw: string): unknown {
 
 async function chat(key: string, system: string, user: string): Promise<string> {
   const call = () =>
-    fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-      body: JSON.stringify({
+    aiChat(
+      {
         model: MODEL,
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
         ],
-      }),
-    });
+      },
+      { label: "yves-memory" },
+    );
   let res = await call();
   if (res.status === 429 || res.status >= 500) {
     await new Promise((r) => setTimeout(r, 2000));
@@ -183,8 +176,9 @@ export const publishYvesRule = createServerFn({ method: "POST" })
       supersededId: string | null;
     }> => {
       await assertSuperAdmin(context.supabase, context.userId);
-      const key = process.env.LOVABLE_API_KEY;
-      if (!key) throw new Error("AI is not configured (missing LOVABLE_API_KEY).");
+      const key = process.env.ANTHROPIC_API_KEY || process.env.LOVABLE_API_KEY;
+      if (!key)
+        throw new Error("AI is not configured (missing ANTHROPIC_API_KEY and LOVABLE_API_KEY).");
 
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const db = supabaseAdmin as unknown as SupabaseClient;

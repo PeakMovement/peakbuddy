@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { INSIGHT_SYSTEM_PROMPT, buildInsightPayload } from "@/lib/data-hub-insight.prompt";
 import { buildYvesSystemPrompt, type YvesScope } from "@/lib/yves-identity";
+import { aiChat } from "@/lib/ai-chat.server";
 
 const MODEL = "google/gemini-3.1-pro-preview";
 
@@ -54,8 +55,9 @@ export const askYves = createServerFn({ method: "POST" })
     }> => {
       await assertSuperAdmin(context.supabase, context.userId);
 
-      const key = process.env.LOVABLE_API_KEY;
-      if (!key) throw new Error("AI is not configured (missing LOVABLE_API_KEY).");
+      const key = process.env.ANTHROPIC_API_KEY || process.env.LOVABLE_API_KEY;
+      if (!key)
+        throw new Error("AI is not configured (missing ANTHROPIC_API_KEY and LOVABLE_API_KEY).");
 
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const db = supabaseAdmin as unknown as SupabaseClient;
@@ -188,17 +190,16 @@ export const askYves = createServerFn({ method: "POST" })
       });
 
       const call = () =>
-        fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-          body: JSON.stringify({
+        aiChat(
+          {
             model: MODEL,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: userMsg },
             ],
-          }),
-        });
+          },
+          { label: "yves-teach" },
+        );
 
       let res = await call();
       if (res.status === 429 || res.status >= 500) {
@@ -398,17 +399,16 @@ type DraftRule = {
 
 async function chat(key: string, system: string, user: string): Promise<string> {
   const call = () =>
-    fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-      body: JSON.stringify({
+    aiChat(
+      {
         model: MODEL,
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
         ],
-      }),
-    });
+      },
+      { label: "yves-teach" },
+    );
   let res = await call();
   if (res.status === 429 || res.status >= 500) {
     await new Promise((r) => setTimeout(r, 2000));
@@ -466,8 +466,9 @@ export const proposeYvesRule = createServerFn({ method: "POST" })
     }> => {
       await assertSuperAdmin(context.supabase, context.userId);
 
-      const key = process.env.LOVABLE_API_KEY;
-      if (!key) throw new Error("AI is not configured (missing LOVABLE_API_KEY).");
+      const key = process.env.ANTHROPIC_API_KEY || process.env.LOVABLE_API_KEY;
+      if (!key)
+        throw new Error("AI is not configured (missing ANTHROPIC_API_KEY and LOVABLE_API_KEY).");
 
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const db = supabaseAdmin as unknown as SupabaseClient;

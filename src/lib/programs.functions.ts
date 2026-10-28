@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { hasAiConsent } from "@/lib/ai-consent";
+import { aiChat } from "@/lib/ai-chat.server";
 
 const InputSchema = z.object({
   pain: z.number().min(0).max(10),
@@ -85,7 +86,7 @@ async function aiFallback(
   programs: ProgramRow[],
   input: z.infer<typeof InputSchema>,
 ): Promise<{ program: ProgramRow; reason: string } | null> {
-  const key = process.env.LOVABLE_API_KEY;
+  const key = process.env.ANTHROPIC_API_KEY || process.env.LOVABLE_API_KEY;
   if (!key || programs.length === 0) return null;
 
   const list = programs.map((p) => ({
@@ -109,18 +110,14 @@ Programs: ${JSON.stringify(list)}
 Respond ONLY with strict JSON: {"program_id": "<id or null>", "reason": "<one short sentence>"}`;
 
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Lovable-API-Key": key,
-      },
-      body: JSON.stringify({
+    const res = await aiChat(
+      {
         model: "google/gemini-3-flash-preview",
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
-      }),
-    });
+      },
+      { label: "programmes" },
+    );
     if (!res.ok) return null;
     const json = (await res.json()) as {
       choices?: { message?: { content?: string } }[];

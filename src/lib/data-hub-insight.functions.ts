@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { INSIGHT_SYSTEM_PROMPT, buildInsightPayload } from "@/lib/data-hub-insight.prompt";
 import { buildYvesSystemPrompt, type YvesScope } from "@/lib/yves-identity";
 import { hasAiConsent } from "@/lib/ai-consent";
+import { aiChat, CLAUDE_MODEL } from "@/lib/ai-chat.server";
 
 const Input = z.object({
   clientId: z.string().uuid(),
@@ -69,24 +70,40 @@ export async function callInsightModel(
   system: string,
   user: string,
 ): Promise<{ text: string; model: string }> {
+  // Claude first (28 Oct 2026), then Google's own Gemini, then Lovable's gateway.
+  if (process.env.ANTHROPIC_API_KEY) {
+    const res = await aiChat(
+      {
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      },
+      { label: "data-hub", claudeOnly: true },
+    );
+    if (res.ok) {
+      const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const text = j.choices?.[0]?.message?.content?.trim() ?? "";
+      if (text) return { text, model: CLAUDE_MODEL };
+    }
+  }
   const gk = process.env.GEMINI_API_KEY;
   if (gk) {
     const direct = await callGeminiDirect(gk, system, user);
     if (direct) return direct;
   }
-  const key = process.env.LOVABLE_API_KEY;
+  const key = process.env.ANTHROPIC_API_KEY || process.env.LOVABLE_API_KEY;
   if (!key) throw new Error("Yves is not configured (set GEMINI_API_KEY or LOVABLE_API_KEY).");
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-    body: JSON.stringify({
+  const res = await aiChat(
+    {
       model: MODEL,
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-    }),
-  });
+    },
+    { label: "data-hub" },
+  );
   if (res.status === 429) throw new Error("Yves is busy right now — please try again in a minute.");
   if (res.status === 402)
     throw new Error("AI credits exhausted. Add credits in workspace billing.");

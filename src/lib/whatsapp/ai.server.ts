@@ -32,7 +32,14 @@ const ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929";
 const FLASH_MODEL = "google/gemini-2.5-flash";
 const TIMEOUT_MS = 12_000;
 
-function usageOf(json: { usage?: { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number } }): {
+function usageOf(json: {
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    prompt_tokens?: number;
+    completion_tokens?: number;
+  };
+}): {
   inputTokens: number;
   outputTokens: number;
 } {
@@ -43,7 +50,18 @@ function usageOf(json: { usage?: { input_tokens?: number; output_tokens?: number
   };
 }
 
-function noteStatus(model: string, status: number, json?: { usage?: { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number } }): void {
+function noteStatus(
+  model: string,
+  status: number,
+  json?: {
+    usage?: {
+      input_tokens?: number;
+      output_tokens?: number;
+      prompt_tokens?: number;
+      completion_tokens?: number;
+    };
+  },
+): void {
   log.warn("ai call", { model, status });
   const tokens = json ? usageOf(json) : { inputTokens: 0, outputTokens: 0 };
   noteAiCall({ model, status, ...tokens });
@@ -143,11 +161,16 @@ Rules:
 export async function readAnswerWithAi(field: AnswerField, reply: string): Promise<number | null> {
   if (!reply.trim()) return null;
   if (patientFlag(BUDDY_FLAGS.cheapAi)) {
-    const args = await flashTool(SYSTEM, `Question: ${QUESTION[field]}\nPatient's reply: ${reply.slice(0, 1000)}`, ANSWER_TOOL.name, {
-      type: "object",
-      properties: ANSWER_TOOL.input_schema.properties,
-      required: [...ANSWER_TOOL.input_schema.required],
-    });
+    const args = await flashTool(
+      SYSTEM,
+      `Question: ${QUESTION[field]}\nPatient's reply: ${reply.slice(0, 1000)}`,
+      ANSWER_TOOL.name,
+      {
+        type: "object",
+        properties: ANSWER_TOOL.input_schema.properties,
+        required: [...ANSWER_TOOL.input_schema.required],
+      },
+    );
     return validAnswer(field, args?.value);
   }
   return readAnswerWithSonnet(field, reply);
@@ -228,10 +251,19 @@ export async function transcribeVoiceNote(
   mimeType: string,
 ): Promise<string | null> {
   const key = process.env.LOVABLE_API_KEY;
-  if (!key || audio.byteLength === 0 || audio.byteLength > 10 * 1024 * 1024) return null;
+  const gk = process.env.GEMINI_API_KEY;
+  if ((!key && !gk) || audio.byteLength === 0 || audio.byteLength > 10 * 1024 * 1024) return null;
   const b64 = toBase64(audio);
   const mime = mimeType.split(";")[0].trim() || "audio/ogg";
   const format = mime.split("/")[1] || "ogg";
+
+  // Claude doesn't take audio. Google's own Gemini API first (no Lovable
+  // spending cap), Lovable's gateway only if that fails (28 Oct 2026).
+  if (gk) {
+    const text = await transcribeWithGemini(gk, b64, mime);
+    if (text) return text;
+  }
+  if (!key) return null;
 
   const shapes: unknown[] = [
     { type: "input_audio", input_audio: { data: b64, format } },
@@ -258,6 +290,42 @@ export async function transcribeVoiceNote(
     }
   }
   return null;
+}
+
+async function transcribeWithGemini(
+  key: string,
+  b64: string,
+  mime: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: TRANSCRIBE_PROMPT }, { inline_data: { mime_type: mime, data: b64 } }],
+            },
+          ],
+        }),
+        signal: AbortSignal.timeout(20_000),
+      },
+    );
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const text = (json.candidates?.[0]?.content?.parts ?? [])
+      .map((p) => p.text ?? "")
+      .join("")
+      .trim();
+    return text ? text.slice(0, 4000) : null;
+  } catch {
+    return null;
+  }
 }
 
 function toBase64(bytes: Uint8Array): string {
@@ -552,7 +620,7 @@ export interface PractitionerModelInput {
 }
 
 /**
- * One Gemini Flash call through the Lovable AI gateway. Returns every tool
+ * One Claude call (Lovable's Gemini Flash as the fallback). Returns every tool
  * the model chose, or null when the key is missing or the call fails.
  * The caller answers from tool results. A failed call never sends a message.
  *
@@ -563,24 +631,26 @@ export interface PractitionerModelInput {
 export async function decidePractitionerTurn(
   input: PractitionerModelInput,
 ): Promise<unknown | null> {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key || !input.messages.length) return null;
+  const { aiChat, aiConfigured } = await import("@/lib/ai-chat.server");
+  if (!aiConfigured() || !input.messages.length) return null;
   const bodies = [{ tool_choice: "required" as const }, { tool_choice: "auto" as const }];
   for (const extra of bodies) {
     try {
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-        body: JSON.stringify({
+      // Claude first, Lovable's Flash only if Claude fails (28 Oct 2026).
+      const res = await aiChat(
+        {
           model: "google/gemini-2.5-flash",
           temperature: 0,
           max_tokens: 800,
-          messages: [{ role: "system", content: input.system }, ...input.messages],
-          tools: input.tools,
+          messages: [
+            { role: "system", content: input.system },
+            ...(input.messages as Array<{ role: "user" | "assistant"; content: string }>),
+          ],
+          tools: input.tools as never,
           ...extra,
-        }),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
+        },
+        { timeoutMs: 15_000, label: "practitioner-agent" },
+      );
       if (res.status === 400 && extra.tool_choice === "required") continue;
       if (!res.ok) return null;
       const json = (await res.json()) as unknown;

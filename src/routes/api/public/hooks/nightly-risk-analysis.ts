@@ -3,6 +3,7 @@ import { trackedJob } from "@/lib/job-runs.server";
 import { log } from "@/lib/log";
 import { hasAiConsent } from "@/lib/ai-consent";
 import { authorizeCronRequest } from "@/lib/cron-auth";
+import { aiChat } from "@/lib/ai-chat.server";
 
 const BATCH_SIZE = 50;
 const DRAFT_THRESHOLD = 60;
@@ -199,7 +200,7 @@ async function aiDraft(args: {
   computed: ReturnType<typeof computeRisk>;
   programs: ProgramRow[];
 }): Promise<{ title: string; body: string; program_id?: string; reason?: string } | null> {
-  const key = process.env.LOVABLE_API_KEY;
+  const key = process.env.ANTHROPIC_API_KEY || process.env.LOVABLE_API_KEY;
   if (!key || !hasAiConsent(args.client)) return null;
   const programsList = args.programs.map((p) => ({
     id: p.id,
@@ -219,15 +220,14 @@ Draft a SHORT note (max 3 sentences) for the practitioner explaining what's tren
 Respond ONLY with strict JSON:
 {"title":"<<= 60 chars>","body":"<<= 300 chars>","program_id":"<id or null>","reason":"<one short sentence or null>"}`;
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-      body: JSON.stringify({
+    const res = await aiChat(
+      {
         model: "google/gemini-3-flash-preview",
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
-      }),
-    });
+      },
+      { label: "nightly-risk" },
+    );
     if (!res.ok) return null;
     const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     const content = json.choices?.[0]?.message?.content ?? "";
