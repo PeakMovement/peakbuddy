@@ -17,6 +17,7 @@
  * update") opens the window and the tap brings the full update.
  */
 import { log } from "@/lib/log";
+import { isDailyReportAsk } from "./daily-report.server";
 import { withoutArchived } from "@/lib/client-archive.server";
 import { readPatientQuestion } from "./patient-question-text";
 import { readPatientMessage, type PatientMessageRequest } from "./patient-message-text";
@@ -88,6 +89,8 @@ export type PracIntent =
   | { kind: "admin"; topic: "overview" | "redflags" | "quiet" | "usage" }
   /** Super admin: did today's check-ins go out? */
   | { kind: "checkin_delivery" }
+  /** Super admin: the daily Buddy report, now. */
+  | { kind: "daily_report" }
   | { kind: "reception"; task: string }
   /** Phrasing names reception and a task, but not clearly enough to send. */
   | { kind: "reception_confirm"; task: string }
@@ -297,6 +300,8 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
     return { kind: "checkin", clientId: null };
   if (!blocked && looseCheckin(text))
     return { kind: "checkin", clientId: null, confidence: "medium" };
+  if (r === "prac_daily_report" || isDailyReportAsk(text) || isDailyReportAsk(normalized))
+    return { kind: "daily_report" };
   if (
     r === "prac_checkin_delivery" ||
     isCheckinDeliveryAsk(text) ||
@@ -622,31 +627,33 @@ export async function loadStatuses(
   const ids = clients.map((c) => c.id);
   const since = new Date(now.getTime() - ACTIVE_DAYS * DAY).toISOString();
   const alertSince = new Date(now.getTime() - 14 * DAY).toISOString();
-  const [{ data: cis }, { data: alerts }, { data: convs }, { data: reminders }] = await Promise.all([
-    admin
-      .from("check_ins")
-      .select("client_id, pain_level, sleep_quality, energy_level, notes, created_at")
-      .in("client_id", ids)
-      .gte("created_at", since)
-      .order("created_at", { ascending: false })
-      .limit(5000),
-    admin
-      .from("alerts")
-      .select("client_id, alert_type, urgency, created_at, is_read, reviewed_at, message")
-      .in("client_id", ids)
-      .gte("created_at", alertSince)
-      .limit(2000),
-    admin
-      .from("whatsapp_conversations")
-      .select("client_id, opted_out_at, state")
-      .in("client_id", ids)
-      .limit(2000),
-    admin
-      .from("checkin_reminders")
-      .select("client_id, days_of_week, enabled")
-      .in("client_id", ids)
-      .limit(2000),
-  ]);
+  const [{ data: cis }, { data: alerts }, { data: convs }, { data: reminders }] = await Promise.all(
+    [
+      admin
+        .from("check_ins")
+        .select("client_id, pain_level, sleep_quality, energy_level, notes, created_at")
+        .in("client_id", ids)
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(5000),
+      admin
+        .from("alerts")
+        .select("client_id, alert_type, urgency, created_at, is_read, reviewed_at, message")
+        .in("client_id", ids)
+        .gte("created_at", alertSince)
+        .limit(2000),
+      admin
+        .from("whatsapp_conversations")
+        .select("client_id, opted_out_at, state")
+        .in("client_id", ids)
+        .limit(2000),
+      admin
+        .from("checkin_reminders")
+        .select("client_id, days_of_week, enabled")
+        .in("client_id", ids)
+        .limit(2000),
+    ],
+  );
   const scheduledByClient = new Map<string, number[]>();
   for (const r of (reminders ?? []) as Array<{
     client_id: string;
@@ -660,7 +667,10 @@ export async function loadStatuses(
   const discharged = new Set<string>();
   const episode = await admin.from("clients").select("id, discharged_at").in("id", ids).limit(2000);
   if (!episode.error) {
-    for (const row of (episode.data ?? []) as Array<{ id: string; discharged_at?: string | null }>) {
+    for (const row of (episode.data ?? []) as Array<{
+      id: string;
+      discharged_at?: string | null;
+    }>) {
       if (row.discharged_at) discharged.add(row.id);
     }
   }
@@ -981,6 +991,14 @@ export async function runPractitionerJobs(
     log.warn("morning check-in failed", {
       error: e instanceof Error ? e.message : "unknown",
     });
+  }
+
+  // 6. The daily Buddy report to the admin, 19:30 SAST.
+  try {
+    const { runDailyReport } = await import("./daily-report.server");
+    await runDailyReport(adminIn as never, env, now);
+  } catch (e) {
+    log.warn("daily report failed", { error: e instanceof Error ? e.message : "unknown" });
   }
 
   // 5. Quiet patients. Off unless QUIET_PATIENT_NUDGE=1. The patient message

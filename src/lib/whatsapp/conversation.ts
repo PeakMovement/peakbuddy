@@ -1,3 +1,4 @@
+import { appBaseUrl } from "@/lib/app-url";
 import type { OutboundMessage } from "./provider";
 import { extractDeterministic } from "./extraction";
 import { classifyIntent, CONTACT_ACKNOWLEDGEMENT, OPT_OUT_CONFIRMATION } from "./intent";
@@ -43,7 +44,13 @@ import {
   type AssistRoute,
 } from "./assistant";
 import { EXERCISE_MEDIA, LIBRARY_COMING_SOON } from "@/lib/feature-flags";
-import { appointmentAnswer, bookingAsk, bookingSent, bookingTask, programmeAnswer } from "@/lib/capabilities";
+import {
+  appointmentAnswer,
+  bookingAsk,
+  bookingSent,
+  bookingTask,
+  programmeAnswer,
+} from "@/lib/capabilities";
 
 /**
  * The WhatsApp check-in conversation, as a pure function.
@@ -279,7 +286,10 @@ export interface Decision {
   /** Patient asked for, or declined, template outreach between sessions. */
   setOutreachOptIn?: boolean;
   /** Codes only. Never the patient's words. */
-  analytics?: { kind: "understood" | "fallback" | "saved" | "deferred" | "dropoff"; detail?: string };
+  analytics?: {
+    kind: "understood" | "fallback" | "saved" | "deferred" | "dropoff";
+    detail?: string;
+  };
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -315,7 +325,7 @@ const PRACTICE_PHONE = "067 369 0593";
  * from WhatsApp asks the patient to sign in first, then lands them on the
  * Wearables section, opened.
  */
-export const WEARABLE_CONNECT_URL = "https://peakbuddy.lovable.app/client/app/profile#wearables";
+export const WEARABLE_CONNECT_URL = `${appBaseUrl()}/client/app/profile#wearables`;
 
 /* ------------------------------------------------------------------ */
 /* Wording                                                             */
@@ -329,7 +339,7 @@ export const MSG = {
   consentIntro: (firstName: string) => {
     const v = currentConsent("whatsapp_checkins");
     const body = v.sections.map((s) => s.body).join("\n\n");
-    return `Hi ${firstName}, this is Buddy from Peak Movement.\n\n${body}\n\n${v.affirmation}\n\nFull details: https://peakbuddy.lovable.app/consent`;
+    return `Hi ${firstName}, this is Buddy from Peak Movement.\n\n${body}\n\n${v.affirmation}\n\nFull details: ${appBaseUrl()}/consent`;
   },
   consentThanks: "Thank you, that's recorded.",
   consentDeclined:
@@ -380,8 +390,7 @@ export const MSG = {
     "Great. Tap this link, sign in to Buddy if it asks, and choose your device under Wearables:\n\n" +
     WEARABLE_CONNECT_URL +
     "\n\nIt only takes a minute. Garmin, Oura and Polar are supported.",
-  appAlready:
-    "You already have a Buddy app login. Open the app and sign in with your email: https://peakbuddy.lovable.app/client/login",
+  appAlready: `You already have a Buddy app login. Open the app and sign in with your email: ${appBaseUrl()}/client/login`,
   wearableLinkDirect: (url: string) =>
     "Great. Tap this link and pick your device. You'll sign in with your Garmin, Oura or Polar account, not Buddy:\n\n" +
     url +
@@ -618,7 +627,10 @@ function readAdherence(msg: InboundForDecision): "all" | "most" | "some" | "none
   if (id === IDS.adherence.most) return "most";
   if (id === IDS.adherence.some) return "some";
   if (id === IDS.adherence.none) return "none";
-  const key = msg.text.trim().toLowerCase().replace(/[.!]+$/g, "");
+  const key = msg.text
+    .trim()
+    .toLowerCase()
+    .replace(/[.!]+$/g, "");
   return ADHERENCE_TEXT[key] ?? null;
 }
 
@@ -630,7 +642,11 @@ function readGoal(text: string): string | null {
 function readProgrammeOptIn(text: string): boolean | null {
   const t = text.trim().toLowerCase();
   if (/^stop programme reminders?$/.test(t)) return false;
-  if (/^(?:yes[, ]+)?(?:please )?remind me (?:about|of) (?:my )?(?:programme|program|exercises|home programme)$/.test(t)) {
+  if (
+    /^(?:yes[, ]+)?(?:please )?remind me (?:about|of) (?:my )?(?:programme|program|exercises|home programme)$/.test(
+      t,
+    )
+  ) {
     return true;
   }
   return null;
@@ -1177,11 +1193,7 @@ export function decide(ctx: DecisionContext): Decision {
     );
   }
 
-  if (
-    EXERCISE_MEDIA &&
-    (msg.mediaType === "image" || msg.mediaType === "video") &&
-    ctx.client
-  ) {
+  if (EXERCISE_MEDIA && (msg.mediaType === "image" || msg.mediaType === "video") && ctx.client) {
     return withSafety(
       {
         replies: [text(MSG.exerciseMediaSaved)],
@@ -1498,7 +1510,10 @@ export function decide(ctx: DecisionContext): Decision {
         if ((draft.misses ?? 0) >= 1) {
           return withSafety(
             {
-              replies: [text(MSG.skipQuestion), ctx.voice ? askNotes(afterEnergy(vc(ctx))) : askNotes()],
+              replies: [
+                text(MSG.skipQuestion),
+                ctx.voice ? askNotes(afterEnergy(vc(ctx))) : askNotes(),
+              ],
               next: keep({ notes, misses: 0 }, "awaiting_notes"),
             },
             ctx,
@@ -1783,7 +1798,10 @@ export function decide(ctx: DecisionContext): Decision {
         }
         case "appointment":
           return withSafety(
-            { replies: [text(appointmentAnswer(ctx.appointmentAt ?? null)), ...nudge], next: IDLE() },
+            {
+              replies: [text(appointmentAnswer(ctx.appointmentAt ?? null)), ...nudge],
+              next: IDLE(),
+            },
             ctx,
           );
         case "practice_info":

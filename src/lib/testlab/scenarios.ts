@@ -336,6 +336,36 @@ export const SCENARIOS: Scenario[] = [
     ],
   },
   {
+    id: "admin-daily-report",
+    area: "Admin",
+    title: '"Buddy report"',
+    why: "You can ask Buddy any time whether check-ins are going out and what's broken.",
+    steps: [{ send: { from: "owner", text: "buddy report" } }],
+    checks: [
+      {
+        label: "Report came back",
+        pass: ({ lines }) => /Check-ins:/i.test(textTo(lines, "owner")),
+      },
+      {
+        label: "It has red flags and AI lines",
+        pass: ({ lines }) => /Red flags:[\s\S]*AI:/i.test(textTo(lines, "owner")),
+      },
+    ],
+  },
+  {
+    id: "physio-no-report",
+    area: "Admin",
+    title: "A physio asks for the Buddy report",
+    why: "The system report is for the admin only.",
+    steps: [{ send: { from: "physio", text: "buddy report" } }],
+    checks: [
+      {
+        label: "No report sent",
+        pass: ({ lines }) => !/Check-ins:/i.test(textTo(lines, "physio")),
+      },
+    ],
+  },
+  {
     id: "reminder-days-respected",
     area: "Schedule",
     title: "Reminder time: only the right people",

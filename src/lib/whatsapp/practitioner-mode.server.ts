@@ -1326,6 +1326,20 @@ async function handleStatusIntent(
     await handleMessageIntent(adminIn, prac, intent, deps, mem);
     return;
   }
+  if (intent.kind === "daily_report") {
+    const { data: prof } = await (adminIn as unknown as Db)
+      .from("profiles")
+      .select("role")
+      .eq("id", prac.userId)
+      .maybeSingle();
+    if ((prof as { role?: string } | null)?.role !== "super_admin") {
+      await text1("Only the admin account gets the Buddy report.");
+      return;
+    }
+    const { buildDailyReport, formatDailyReport } = await import("./daily-report.server");
+    await text1(formatDailyReport(await buildDailyReport(adminIn as never, deps.now)));
+    return;
+  }
   if (intent.kind === "checkin_delivery") {
     const { data: prof } = await (adminIn as unknown as Db)
       .from("profiles")

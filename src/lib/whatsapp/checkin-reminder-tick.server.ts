@@ -16,6 +16,21 @@ export interface ReminderTickResult {
   undelivered: number;
 }
 
+export const RETRY_AFTER_MIN = 120;
+const LATEST_RETRY_MIN = 21 * 60 + 30;
+
+/**
+ * Which send this tick is, given local minutes. 0..6 minutes past the target
+ * is the first try (5 minute cron). 120..126 past it is the one retry.
+ */
+export function reminderSlot(nowMin: number, targetMin: number): "first" | "retry" | null {
+  const diff = nowMin - targetMin;
+  if (diff >= 0 && diff <= 6) return "first";
+  if (diff >= RETRY_AFTER_MIN && diff <= RETRY_AFTER_MIN + 6 && nowMin <= LATEST_RETRY_MIN)
+    return "retry";
+  return null;
+}
+
 export async function runCheckinReminderTick(
   supabaseAdmin: Admin,
   now: Date,
@@ -80,9 +95,10 @@ export async function runCheckinReminderTick(
         .map((x) => parseInt(x, 10));
       const nowMin = hour * 60 + minute;
       const targetMin = tH * 60 + tM;
-      const diff = nowMin - targetMin;
-      // fire if we're within 0..6 minutes past the target (5-min cron cadence)
-      if (diff < 0 || diff > 6) {
+      // First try at the patient's time. If that one didn't go out (the
+      // claim is put back on failure, so last_sent_on is still old), one
+      // retry two hours later, never after 21:30 local.
+      if (!reminderSlot(nowMin, targetMin)) {
         skipped++;
         continue;
       }

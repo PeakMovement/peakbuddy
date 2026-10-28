@@ -316,6 +316,13 @@
       "when": 1793157055439,
       "tag": "0046_testlab_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793157115439,
+      "tag": "0047_buddy_job_claims",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,7 @@
  * This file is pure. The model call lives in ai.server.ts.
  */
 
+import { appBaseUrl, LEGACY_APP_ORIGIN, CANONICAL_APP_ORIGIN } from "@/lib/app-url";
 import { BOOKING_URL, LIBRARY_URL, PRACTICE_WHATSAPP_LINK } from "./assistant";
 
 export const CONVERSE_ACTIONS = [
@@ -59,7 +60,9 @@ const OUR_URLS = [
   PRACTICE_WHATSAPP_LINK,
   BOOKING_URL,
   LIBRARY_URL,
-  "https://peakbuddy.lovable.app",
+  appBaseUrl(),
+  LEGACY_APP_ORIGIN,
+  CANONICAL_APP_ORIGIN,
 ];
 
 /**

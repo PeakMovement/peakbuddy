@@ -24,7 +24,9 @@ export interface MemoryDb {
 }
 
 /** Unique keys the live database enforces that Buddy relies on. */
-const UNIQUE_KEYS: Record<string, string[][]> = {};
+const UNIQUE_KEYS: Record<string, string[][]> = {
+  buddy_job_claims: [["job", "key", "run_on"]],
+};
 
 export function memoryDb(tables: Tables, users: MemoryUser[] = []): MemoryDb {
   let idSeq = Object.values(tables).reduce((n, rows) => n + rows.length, 0);

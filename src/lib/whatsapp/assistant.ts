@@ -16,6 +16,7 @@
  * consent only) or from `routeByKeywords` here, which is the fallback and the
  * whole of it for patients without AI consent.
  */
+import { appBaseUrl } from "@/lib/app-url";
 
 export type AssistIntent =
   | "log_change"
@@ -51,7 +52,7 @@ export interface AssistRoute {
 export const PRACTICE_WHATSAPP = "+27 67 369 0593";
 export const PRACTICE_WHATSAPP_LINK = "https://wa.me/27673690593";
 export const BOOKING_URL = "https://www.peakmovement.co.za/book-online";
-export const LIBRARY_URL = "https://peakbuddy.lovable.app/client/app/library";
+export const LIBRARY_URL = `${appBaseUrl()}/client/app/library`;
 
 /**
  * The only facts Buddy may state about the practice. Checked against the
@@ -199,7 +200,9 @@ export function routeByKeywords(text: string): AssistRoute {
   ) {
     return { intent: "log_change" };
   }
-  if (/\b(what time|when) is my (appointment|session)\b|\bmy next (appointment|session)\b/.test(t)) {
+  if (
+    /\b(what time|when) is my (appointment|session)\b|\bmy next (appointment|session)\b/.test(t)
+  ) {
     return { intent: "appointment" };
   }
   if (
