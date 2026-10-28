@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { log } from "@/lib/log";
+import { sandboxState } from "@/lib/testlab/sandbox";
 import { toSast } from "./clinic-hours";
 import {
   decide,
@@ -173,6 +174,13 @@ export function whatsappConfigFromEnv(): {
   provider: WhatsAppProvider;
   secrets: ProviderSecrets;
 } | null {
+  const sb = sandboxState();
+  if (sb) {
+    // Test Lab: sends are captured, never delivered.
+    return (
+      (sb.whatsapp as { provider: WhatsAppProvider; secrets: ProviderSecrets } | undefined) ?? null
+    );
+  }
   const id = process.env.WHATSAPP_PROVIDER;
   if (id !== "meta" && id !== "twilio") return null;
   const signingSecret = id === "meta" ? process.env.META_APP_SECRET : process.env.TWILIO_AUTH_TOKEN;
@@ -244,7 +252,10 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
       .select("id, failure_reason")
       .eq("status", "failed")
       .limit(20);
-    for (const failed of (failedRows ?? []) as Array<{ id: string; failure_reason?: string | null }>) {
+    for (const failed of (failedRows ?? []) as Array<{
+      id: string;
+      failure_reason?: string | null;
+    }>) {
       if (!canRetry(failed.failure_reason)) continue;
       await admin
         .from("whatsapp_inbound")
@@ -292,7 +303,9 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
       !voiceStillRaw &&
       !runRedFlagRules({ text: row.body ?? "" }).triggered
     ) {
-      const saved = await saveStalePartial(admin, row, new Date(nowMs)).catch(() => "failed" as const);
+      const saved = await saveStalePartial(admin, row, new Date(nowMs)).catch(
+        () => "failed" as const,
+      );
       if (saved === "saved") staleSaved++;
       else staleUnsaved++;
       await admin
@@ -538,7 +551,11 @@ async function loadLinkedClient(admin: Admin, clientId: string): Promise<ClientR
   return loaded.client;
 }
 
-async function noteInboundHealth(admin: Admin, staleSaved: number, staleUnsaved: number): Promise<void> {
+async function noteInboundHealth(
+  admin: Admin,
+  staleSaved: number,
+  staleUnsaved: number,
+): Promise<void> {
   const { data } = await admin
     .from("whatsapp_inbound")
     .select("failure_reason")
@@ -631,7 +648,8 @@ async function saveDayCheckIn(
     .lt("created_at", dayEnd)
     .order("created_at", { ascending: true })
     .limit(1);
-  const current = (existing as DayCheckIn[] | null)?.[0] as (DayCheckIn & { id: string }) | undefined;
+  const current = (existing as DayCheckIn[] | null)?.[0] as
+    (DayCheckIn & { id: string }) | undefined;
   if (!current?.id) throw new Error("check-in insert failed: 23505");
   const merged = mergeDayCheckIn(current, {
     pain: incoming.pain,
@@ -1271,8 +1289,13 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     isPostOperative: postOp.isPostOperative,
     consecutiveMissedCheckins: postOp.consecutiveMissedCheckins,
   }).triggered;
-  const dataCopy =
-    Boolean(client && consent && patientFlag(BUDDY_FLAGS.dataExportSend) && isDataCopyRequest(typed) && !flaggedText);
+  const dataCopy = Boolean(
+    client &&
+    consent &&
+    patientFlag(BUDDY_FLAGS.dataExportSend) &&
+    isDataCopyRequest(typed) &&
+    !flaggedText,
+  );
   const sastDay = toSast(now).date;
   const aiSoFar =
     (conv.draft as { aiDay?: string; aiCount?: number } | null)?.aiDay === sastDay
@@ -1383,40 +1406,39 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     memories = memoryRows.map((m) => m.fact ?? "").filter(Boolean);
   }
   const decisionInput = {
-        message,
-        conversation: {
-          state,
-          draft: conv.draft ?? {},
-          checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
-        },
-        client: client ? { firstName: firstNameOf(client.full_name) } : null,
-        hasConsent: consent,
-        checkedInToday: today,
-        redFlags,
-        now,
-        hasWearable: clientHasWearable,
-        converse,
-        route,
-        progressText,
-        wearableOffered: Boolean(conv.wearable_offer_at),
-        assist,
-        consentUrl,
-        inviteWelcome: client ? inviteWelcome : undefined,
-        inviteInvalid: !client && inviteInvalid,
-        signup,
-        hasAppAccount: Boolean(client?.auth_user_id),
-        watchUrl,
-        appOfferDue: Boolean(client && !client.auth_user_id && !conv.app_offer_at),
-        voice: client ? await voiceStats(admin, client, now).catch(() => undefined) : undefined,
-        appointmentAt: client?.next_appointment ?? null,
-        aiConsent: aiAllowed,
-        tone,
-        quotedText,
-        memories,
-      };
+    message,
+    conversation: {
+      state,
+      draft: conv.draft ?? {},
+      checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
+    },
+    client: client ? { firstName: firstNameOf(client.full_name) } : null,
+    hasConsent: consent,
+    checkedInToday: today,
+    redFlags,
+    now,
+    hasWearable: clientHasWearable,
+    converse,
+    route,
+    progressText,
+    wearableOffered: Boolean(conv.wearable_offer_at),
+    assist,
+    consentUrl,
+    inviteWelcome: client ? inviteWelcome : undefined,
+    inviteInvalid: !client && inviteInvalid,
+    signup,
+    hasAppAccount: Boolean(client?.auth_user_id),
+    watchUrl,
+    appOfferDue: Boolean(client && !client.auth_user_id && !conv.app_offer_at),
+    voice: client ? await voiceStats(admin, client, now).catch(() => undefined) : undefined,
+    appointmentAt: client?.next_appointment ?? null,
+    aiConsent: aiAllowed,
+    tone,
+    quotedText,
+    memories,
+  };
   const reacted =
-    conversational === false &&
-    (row.reply_id === "react_yes" || row.reply_id === "react_no");
+    conversational === false && (row.reply_id === "react_yes" || row.reply_id === "react_no");
   const dialogueDecision =
     conversational && !answerOnly && !reacted ? runDialogue(decisionInput) : null;
   const decision: Decision = answerOnly
@@ -1447,9 +1469,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     decision.createClient = undefined;
     signup = undefined;
     const safety = redFlags.triggered ? replies : [];
-    replies = clashWindow
-      ? [...safety, { kind: "text", body: PHONE_CLASH_PATIENT }]
-      : safety;
+    replies = clashWindow ? [...safety, { kind: "text", body: PHONE_CLASH_PATIENT }] : safety;
     decision.next = { state: "unmatched", draft: conv.draft ?? {}, checkinStartedAt: null };
     await notifyPhoneClash(admin, phoneClash).catch(() => undefined);
   }

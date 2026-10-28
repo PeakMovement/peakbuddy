@@ -39,6 +39,10 @@ export async function sendPushCore(
     sentBy?: string | null;
   },
 ): Promise<PushResult> {
+  const { captureOutbound } = await import("@/lib/testlab/sandbox");
+  if (captureOutbound({ kind: "push", to: args.userId, summary: `${args.title}: ${args.body}` })) {
+    return { ok: true, simulated: true, attempted: 0, delivered: 0, failures: [] };
+  }
   const failures: { token_id: string; reason: string }[] = [];
   const logRow = {
     recipient_user_id: args.userId,

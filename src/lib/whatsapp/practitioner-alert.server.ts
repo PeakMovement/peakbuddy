@@ -102,6 +102,16 @@ export async function sendPractitionerWhatsAppAlert(
   patientName?: string | null,
   reason?: string | null,
 ): Promise<number> {
+  const { captureOutbound } = await import("@/lib/testlab/sandbox");
+  if (
+    captureOutbound({
+      kind: "alert_whatsapp",
+      to: userIds.join(", "),
+      summary: `Red flag WhatsApp alert (${urgency ?? "urgent"}) for ${patientName ?? "a patient"}: ${alertReason(reason)}`,
+    })
+  ) {
+    return userIds.length;
+  }
   const why = alertReason(reason);
   const name =
     String(patientName ?? "")

@@ -52,6 +52,15 @@ export async function recordJobRun(
   job: string,
   run: { ok: boolean; status: number; durationMs: number; detail?: string },
 ): Promise<void> {
+  const { captureOutbound } = await import("@/lib/testlab/sandbox");
+  if (
+    captureOutbound({
+      kind: "job_note",
+      to: job,
+      summary: run.detail ?? (run.ok ? "ok" : "failed"),
+    })
+  )
+    return;
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.from("job_runs" as never).insert({

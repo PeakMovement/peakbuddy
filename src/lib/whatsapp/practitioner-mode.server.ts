@@ -69,7 +69,11 @@ export async function practitionerByPhone(
   phone: string,
   now = Date.now(),
 ): Promise<Practitioner | null> {
-  if (!cache || now - cache.at > CACHE_MS) {
+  // A Test Lab run keeps its own map, so it never replaces the live one.
+  const { sandboxState } = await import("@/lib/testlab/sandbox");
+  const sb = sandboxState();
+  let current = sb ? ((sb.practitionerCache as typeof cache) ?? null) : cache;
+  if (!current || now - current.at > CACHE_MS) {
     const admin = adminIn as unknown as Db;
     const map = new Map<string, Practitioner>();
     try {
@@ -100,9 +104,11 @@ export async function practitionerByPhone(
     } catch (e) {
       log.warn("practitioner lookup failed", { error: e instanceof Error ? e.message : "unknown" });
     }
-    cache = { at: now, map };
+    current = { at: now, map };
+    if (sb) sb.practitionerCache = current;
+    else cache = current;
   }
-  return cache.map.get(phone) ?? null;
+  return current.map.get(phone) ?? null;
 }
 
 /** For tests. */
