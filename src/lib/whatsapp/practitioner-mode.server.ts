@@ -211,7 +211,7 @@ export const PRAC_MSG = {
     `• "Ask reception to book Sam for Thursday" and I'll pass it to reception\n` +
     `• "Who are the practitioners?" and I'll list them. You can message several clients at once, in your own words\n` +
     `• "What's open with reception?" to see what's still waiting. Just "reception" and I'll ask what to pass on\n\n` +
-    `Practice owners can also ask "practice overview", "any red flags?", "who's gone quiet?" or "how many clients are using Buddy?", and "archive everyone who hasn't responded in 60 days" (records are kept, "unarchive Sam" brings them back)`,
+    `Practice owners can also ask "practice overview", "any red flags?", "who's gone quiet?" or "how many clients are using Buddy?", and "archive everyone who hasn't responded in 60 days" (records are kept, "unarchive Sam" brings them back). The Buddy admin can also say "delete Sam Smith" to erase someone for good`,
   notFound: (name: string) =>
     `I couldn't find a patient matching that on your list, ${name}. Try their first and last name, for example "I've sent Sam Kruger his programme".`,
   which: "I found more than one patient with that name. Which one did you mean?",
@@ -763,13 +763,7 @@ export async function handlePractitionerMessage(
 }
 
 type TellResult =
-  | "whatsapp"
-  | "template"
-  | "app"
-  | "not_registered"
-  | "needs_consent"
-  | "later"
-  | "failed";
+  "whatsapp" | "template" | "app" | "not_registered" | "needs_consent" | "later" | "failed";
 
 /** Programme notice for one patient. Used by the phrase matcher and the agent. */
 export async function notifyProgrammeSent(

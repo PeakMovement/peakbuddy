@@ -331,6 +331,7 @@ function outboundBody(pending: Extract<PracPending, { kind: "outbound" }>): stri
     return `I'll tell ${joinNames(pending.names)} their programme is ready. Send?`;
   }
   if (pending.action === "archive") return archiveConfirmBody(pending);
+  if (pending.action === "erase") return eraseConfirmBody(pending);
   if (pending.action === "discharge") return dischargeConfirm(joinNames(pending.names));
   if (pending.action === "reopen") return reopenConfirm(joinNames(pending.names));
   if (pending.action === "data_copy") {
@@ -358,6 +359,30 @@ function archiveConfirmBody(pending: Extract<PracPending, { kind: "outbound" }>)
   ].join("\n");
 }
 
+function eraseConfirmBody(pending: Extract<PracPending, { kind: "outbound" }>): string {
+  const n = pending.names.length;
+  return [
+    `Permanently delete ${n === 1 ? "this client" : `these ${n} clients`}?`,
+    ...pending.names.map((name) => `• ${name}`),
+    "",
+    "This erases their profile, check-ins, alerts, programmes and WhatsApp history, and removes their login. It can't be undone. If you might need the records later (HPCSA retention), archive instead.",
+    ...(pending.note ? ["", pending.note] : []),
+  ].join("\n");
+}
+
+function eraseButtons(): Array<{ id: string; title: string }> {
+  return [
+    { id: "prac_ag_yes", title: "Yes, delete" },
+    { id: "prac_ag_no", title: "Cancel" },
+  ];
+}
+
+function confirmButtons(action: string): Array<{ id: string; title: string }> {
+  if (action === "archive") return archiveButtons();
+  if (action === "erase") return eraseButtons();
+  return agentButtons();
+}
+
 function archiveButtons(): Array<{ id: string; title: string }> {
   return [
     { id: "prac_ag_yes", title: "Yes, archive" },
@@ -380,7 +405,7 @@ async function showOutbound(
   await ctx.deps.reply({
     kind: "buttons",
     body: `${lead ? `${lead}\n\n` : ""}${outboundBody(pending)}${tail}`,
-    buttons: pending.action === "archive" ? archiveButtons() : agentButtons(),
+    buttons: confirmButtons(pending.action),
   });
 }
 
@@ -871,7 +896,15 @@ async function finishChoice(ctx: AgentContext, ids: string[]): Promise<void> {
     await proposeArchive(ctx, clients, [], null);
     return;
   }
-  if (pending.action === "discharge" || pending.action === "reopen" || pending.action === "data_copy") {
+  if (pending.action === "erase") {
+    await proposeErase(ctx, clients);
+    return;
+  }
+  if (
+    pending.action === "discharge" ||
+    pending.action === "reopen" ||
+    pending.action === "data_copy"
+  ) {
     await proposeCare(ctx, pending.action, clients);
     return;
   }
@@ -972,6 +1005,89 @@ async function executeArchive(ctx: AgentContext, ids: string[]): Promise<void> {
   );
 }
 
+async function eraseTool(ctx: AgentContext, decision: AgentDecision): Promise<void> {
+  const er = await import("@/lib/client-erase.server");
+  if (!(await er.isSuperAdmin(ctx.adminIn, ctx.prac.userId))) {
+    const ar = await import("@/lib/client-archive.server");
+    if (await ar.canArchive(ctx.adminIn, ctx.prac.userId)) {
+      await replyText(
+        ctx,
+        'Only the Buddy admin can permanently delete clients. I can archive them instead: their records are kept and Buddy stops contacting them. Say "archive" and the names.',
+      );
+    } else {
+      await replyText(ctx, "Only the Buddy admin can delete clients.");
+    }
+    return;
+  }
+  const names = decision.names.filter((n) => n.trim() && !IDLE_WORDS.test(n.trim()));
+  if (!names.length) {
+    await replyText(
+      ctx,
+      `Tell me who by name, up to ${er.MAX_ERASE} at a time. For everyone who's gone quiet, "archive the inactive ones" keeps their records.`,
+    );
+    return;
+  }
+  const clients = await prepareClients(ctx, "erase", names, null);
+  if (clients?.length) await proposeErase(ctx, clients);
+}
+
+async function proposeErase(ctx: AgentContext, clients: ScopedClient[]): Promise<void> {
+  const er = await import("@/lib/client-erase.server");
+  const capped = clients.slice(0, er.MAX_ERASE);
+  const extra = clients.length - capped.length;
+  const counts = await er.checkinCounts(
+    ctx.adminIn,
+    capped.map((c) => c.id),
+  );
+  await showOutbound(ctx, {
+    kind: "outbound",
+    action: "erase",
+    clientIds: capped.map((c) => c.id),
+    names: capped.map((c) => {
+      const name = String(c.full_name ?? "").trim() || "A client";
+      const n = counts.get(c.id) ?? 0;
+      return `${name} (${n} check-in${n === 1 ? "" : "s"})`;
+    }),
+    preview: "",
+    note: extra > 0 ? `That's the first ${er.MAX_ERASE}. Ask again for the other ${extra}.` : null,
+    task: null,
+    editing: false,
+    at: ctx.deps.now.getTime(),
+  });
+}
+
+async function executeErase(ctx: AgentContext, ids: string[]): Promise<void> {
+  const er = await import("@/lib/client-erase.server");
+  ctx.mem.pending = null;
+  if (!(await er.isSuperAdmin(ctx.adminIn, ctx.prac.userId))) {
+    await replyText(ctx, "Only the Buddy admin can delete clients.");
+    return;
+  }
+  const inScope = ids.filter((id) => ctx.scopeClients.some((c) => c.id === id));
+  const done: string[] = [];
+  const failed: string[] = [];
+  const erased = new Set<string>();
+  for (const id of inScope) {
+    const r = await er.eraseClient(ctx.adminIn, id, ctx.prac.userId, "whatsapp");
+    if (r.ok) erased.add(id);
+    (r.ok ? done : failed).push(nameOf(ctx.scopeClients, id));
+  }
+  log.info("practitioner agent erase", { count: done.length, failed: failed.length });
+  ctx.mem.focus = null;
+  ctx.scopeClients = ctx.scopeClients.filter((c) => !erased.has(c.id));
+  const parts: string[] = [];
+  if (done.length)
+    parts.push(
+      `Deleted ${joinNames(done)}. Everything Buddy held on ${done.length === 1 ? "them" : "them all"} is gone.`,
+    );
+  if (failed.length)
+    parts.push(
+      `I couldn't delete ${joinNames(failed)} just now. Try again, or use the admin site.`,
+    );
+  if (!parts.length) parts.push("I couldn't find them any more. They may already be gone.");
+  await replyText(ctx, parts.join(" "));
+}
+
 async function unarchiveTool(ctx: AgentContext, decision: AgentDecision): Promise<void> {
   const ar = await import("@/lib/client-archive.server");
   if (!(await ar.canArchive(ctx.adminIn, ctx.prac.userId))) {
@@ -1053,6 +1169,7 @@ const OUTBOUND_TOOLS = new Set<AgentTool>([
   "programme_sent",
   "ask_reception",
   "archive_clients",
+  "delete_clients",
   "discharge_client",
   "reopen_episode",
   "prepare_data_copy",
@@ -1141,6 +1258,10 @@ async function applyDecision(ctx: AgentContext, decision: AgentDecision): Promis
   }
   if (tool === "unarchive_clients") {
     await unarchiveTool(ctx, decision);
+    return;
+  }
+  if (tool === "delete_clients") {
+    await eraseTool(ctx, decision);
     return;
   }
   if (tool === "list_practitioners") {
@@ -1371,7 +1492,11 @@ async function applyDecision(ctx: AgentContext, decision: AgentDecision): Promis
       return;
     }
     const action =
-      tool === "discharge_client" ? "discharge" : tool === "reopen_episode" ? "reopen" : "data_copy";
+      tool === "discharge_client"
+        ? "discharge"
+        : tool === "reopen_episode"
+          ? "reopen"
+          : "data_copy";
     const clients = await prepareClients(ctx, action, decision.names, null);
     if (clients) await proposeCare(ctx, action, clients);
   }
@@ -1390,6 +1515,10 @@ async function confirmPending(ctx: AgentContext): Promise<void> {
   }
   if (pending.action === "archive") {
     await executeArchive(ctx, pending.clientIds);
+    return;
+  }
+  if (pending.action === "erase") {
+    await executeErase(ctx, pending.clientIds);
     return;
   }
   if (pending.action === "discharge" || pending.action === "reopen") {
@@ -1505,7 +1634,10 @@ async function executeAppointment(
     await replyText(ctx, "I could not match that visit to one client, so I did not store a time.");
     return;
   }
-  const { error } = await ctx.admin.from("clients").update({ next_appointment: iso }).eq("id", clientId);
+  const { error } = await ctx.admin
+    .from("clients")
+    .update({ next_appointment: iso })
+    .eq("id", clientId);
   if (error) {
     log.warn("next appointment save failed", { code: (error as { code?: string }).code });
     await replyText(ctx, "I could not store that time just now.");
@@ -1546,7 +1678,11 @@ async function repropose(
     await proposeProgramme(ctx, clients);
     return;
   }
-  if (pending.action === "discharge" || pending.action === "reopen" || pending.action === "data_copy") {
+  if (
+    pending.action === "discharge" ||
+    pending.action === "reopen" ||
+    pending.action === "data_copy"
+  ) {
     await proposeCare(ctx, pending.action, clients);
     return;
   }
@@ -1599,7 +1735,9 @@ async function dropRecipient(
       return full !== needle && first !== needle && !full.startsWith(`${needle} `);
     });
   }
-  const clients = ids.map((id) => ctx.scopeClients.find((c) => c.id === id)).filter((c): c is ScopedClient => Boolean(c));
+  const clients = ids
+    .map((id) => ctx.scopeClients.find((c) => c.id === id))
+    .filter((c): c is ScopedClient => Boolean(c));
   await repropose(ctx, pending, clients);
 }
 
@@ -1619,11 +1757,20 @@ async function explainClient(ctx: AgentContext, client: ScopedClient): Promise<s
     .order("created_at", { ascending: false })
     .limit(1);
   const check = ((checks ?? []) as Array<Record<string, unknown>>)[0];
-  const breakdown = Array.isArray((risk?.delta_vs_baseline as { breakdown?: unknown } | undefined)?.breakdown)
-    ? ((risk?.delta_vs_baseline as { breakdown: Array<{ metric?: string; direction?: string }> }).breakdown)
+  const breakdown = Array.isArray(
+    (risk?.delta_vs_baseline as { breakdown?: unknown } | undefined)?.breakdown,
+  )
+    ? (risk?.delta_vs_baseline as { breakdown: Array<{ metric?: string; direction?: string }> })
+        .breakdown
     : [];
-  const worse = breakdown.filter((b) => b.direction === "worse").map((b) => String(b.metric ?? "")).filter(Boolean);
-  const better = breakdown.filter((b) => b.direction === "better").map((b) => String(b.metric ?? "")).filter(Boolean);
+  const worse = breakdown
+    .filter((b) => b.direction === "worse")
+    .map((b) => String(b.metric ?? ""))
+    .filter(Boolean);
+  const better = breakdown
+    .filter((b) => b.direction === "better")
+    .map((b) => String(b.metric ?? ""))
+    .filter(Boolean);
   const line = explainFromStored({
     name,
     riskScore: typeof risk?.risk_score === "number" ? risk.risk_score : null,
@@ -1680,13 +1827,21 @@ async function caseloadAnswer(ctx: AgentContext, question: string): Promise<stri
       pain: typeof latest?.pain_level === "number" ? latest.pain_level : null,
       previousPain: typeof previous?.pain_level === "number" ? previous.pain_level : null,
       sleep: typeof latest?.sleep_quality === "number" ? latest.sleep_quality : null,
-      checkedInThisWeek: list.some((row) => new Date(String(row.created_at ?? 0)).getTime() >= weekAgo),
+      checkedInThisWeek: list.some(
+        (row) => new Date(String(row.created_at ?? 0)).getTime() >= weekAgo,
+      ),
     };
   });
-  return answerCaseload(question, rows) ?? "Nobody on your list matches that from the stored check ins.";
+  return (
+    answerCaseload(question, rows) ?? "Nobody on your list matches that from the stored check ins."
+  );
 }
 
-async function setBuddyPaused(ctx: AgentContext, clientId: string, paused: boolean): Promise<boolean> {
+async function setBuddyPaused(
+  ctx: AgentContext,
+  clientId: string,
+  paused: boolean,
+): Promise<boolean> {
   const { data } = await ctx.admin
     .from("whatsapp_conversations")
     .select("id, draft")
@@ -1721,7 +1876,10 @@ async function setBuddyPaused(ctx: AgentContext, clientId: string, paused: boole
   return true;
 }
 
-async function answerFollowUp(ctx: AgentContext, follow: ReturnType<typeof followUpOf>): Promise<boolean> {
+async function answerFollowUp(
+  ctx: AgentContext,
+  follow: ReturnType<typeof followUpOf>,
+): Promise<boolean> {
   if (!follow) return false;
   if (follow === "summary") {
     await replyText(ctx, summariseThread(ctx.mem.turns ?? []));
@@ -1784,7 +1942,11 @@ async function handlePending(
     await replyText(ctx, "Okay, I won't.");
     return true;
   }
-  if (pending.kind === "outbound" && pending.action === "archive" && pending.editing) {
+  if (
+    pending.kind === "outbound" &&
+    (pending.action === "archive" || pending.action === "erase") &&
+    pending.editing
+  ) {
     pending.editing = false;
   }
   if (pending.kind === "outbound" && pending.editing) {
@@ -1811,6 +1973,7 @@ async function handlePending(
   if (
     pending.kind === "outbound" &&
     pending.action !== "archive" &&
+    pending.action !== "erase" &&
     (replyId === "prac_ag_edit" || /^edit$/i.test(text.trim()))
   ) {
     if (
@@ -1850,7 +2013,11 @@ async function handlePending(
       return true;
     }
   }
-  if (pending.kind === "outbound" && pending.action !== "reception" && pending.action !== "appointment") {
+  if (
+    pending.kind === "outbound" &&
+    pending.action !== "reception" &&
+    pending.action !== "appointment"
+  ) {
     const replacement = replacedName(text);
     if (replacement) {
       await swapRecipients(ctx, pending, replacement);
@@ -2048,7 +2215,10 @@ export async function runPractitionerAgent(
   }
 
   if (answerCaseload(msg.text, []) != null && !/\b(message|send|ask reception)\b/i.test(msg.text)) {
-    await applyDecision(ctx, { ...blankDecision("caseload_query", []), question: msg.text.slice(0, 300) });
+    await applyDecision(ctx, {
+      ...blankDecision("caseload_query", []),
+      question: msg.text.slice(0, 300),
+    });
     return true;
   }
 
@@ -2083,7 +2253,7 @@ export async function runPractitionerAgent(
       await ctx.deps.reply({
         kind: "buttons",
         body: outboundBody(mem.pending),
-        buttons: mem.pending.action === "archive" ? archiveButtons() : agentButtons(),
+        buttons: confirmButtons(mem.pending.action),
       });
       return true;
     }

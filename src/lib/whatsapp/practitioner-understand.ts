@@ -734,6 +734,7 @@ export type PracPending =
         | "programme"
         | "heidi"
         | "archive"
+        | "erase"
         | "discharge"
         | "reopen"
         | "data_copy";
@@ -750,6 +751,7 @@ export type PracPending =
         | "programme"
         | "reception"
         | "archive"
+        | "erase"
         | "discharge"
         | "reopen"
         | "data_copy"
