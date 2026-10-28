@@ -305,6 +305,28 @@ export const SCENARIOS: Scenario[] = [
     ],
   },
   {
+    id: "grade-red-flag",
+    area: "Safety",
+    title: "Physio grades a red flag with one tap",
+    why: "Grades are how Buddy learns which alerts matter. It should ask once, and one tap should save it.",
+    steps: [
+      { send: { from: "physio", text: "morning buddy" } },
+      { send: { from: "lerato", text: "my legs are going numb and i can't control my bladder" } },
+      { advance: "1h" },
+      { tap: { from: "physio", title: /false alarm/i } },
+    ],
+    checks: [
+      {
+        label: "Physio was asked",
+        pass: ({ lines }) => /real concern\?/i.test(textTo(lines, "physio")),
+      },
+      {
+        label: "Alert saved as a false alarm",
+        pass: ({ state }) => (state.tables.alerts ?? []).some((a) => a.outcome === "false_alarm"),
+      },
+    ],
+  },
+  {
     id: "booking",
     area: "Patient",
     title: "Asking for an appointment",

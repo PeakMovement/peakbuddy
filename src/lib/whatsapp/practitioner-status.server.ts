@@ -19,6 +19,7 @@
 import { log } from "@/lib/log";
 import { isDailyReportAsk } from "./daily-report.server";
 import { isWeekAsk } from "./weekly-summary.server";
+import { readGradeButton } from "./alert-grading.server";
 import { withoutArchived } from "@/lib/client-archive.server";
 import { readPatientQuestion } from "./patient-question-text";
 import { readPatientMessage, type PatientMessageRequest } from "./patient-message-text";
@@ -94,6 +95,8 @@ export type PracIntent =
   | { kind: "daily_report" }
   /** The Monday summary of their own patients, now. */
   | { kind: "weekly_summary" }
+  /** A tap grading a red flag (alert-grading.server.ts). */
+  | { kind: "grade_alert"; alertId: string; grade: "confirmed" | "false_alarm" | "already_aware" }
   | { kind: "reception"; task: string }
   /** Phrasing names reception and a task, but not clearly enough to send. */
   | { kind: "reception_confirm"; task: string }
@@ -303,6 +306,8 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
     return { kind: "checkin", clientId: null };
   if (!blocked && looseCheckin(text))
     return { kind: "checkin", clientId: null, confidence: "medium" };
+  const graded = readGradeButton(r);
+  if (graded) return { kind: "grade_alert", ...graded };
   if (r === "prac_daily_report" || isDailyReportAsk(text) || isDailyReportAsk(normalized))
     return { kind: "daily_report" };
   if (r === "prac_weekly_summary" || isWeekAsk(text) || isWeekAsk(normalized))
@@ -1017,6 +1022,14 @@ export async function runPractitionerJobs(
     log.warn("morning check-in failed", {
       error: e instanceof Error ? e.message : "unknown",
     });
+  }
+
+  // 9. Ask the treating practitioner to grade a recent red flag (one tap).
+  try {
+    const { runGradeAsks } = await import("./alert-grading.server");
+    await runGradeAsks(adminIn as never, env, now);
+  } catch (e) {
+    log.warn("grade asks failed", { error: e instanceof Error ? e.message : "unknown" });
   }
 
   // 8. Monday summary for each practitioner, 07:45 SAST.

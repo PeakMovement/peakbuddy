@@ -42,6 +42,8 @@ export interface DailyReport {
   aiCalls: number;
   aiFailed: number;
   problems: Array<{ label: string; problem: string }>;
+  /** Grading coverage and any noisy red flag category (alert-grading). */
+  detection?: string | null;
 }
 
 function sastStart(date: string): string {
@@ -111,6 +113,9 @@ export async function buildDailyReport(adminIn: Admin, now: Date): Promise<Daily
     aiCalls: usage.calls,
     aiFailed: usage.failed,
     problems: (health?.problems ?? []).map((p) => ({ label: p.label, problem: p.problem })),
+    detection: await import("./alert-grading.server")
+      .then((m) => m.detectionReviewLine(adminIn, now))
+      .catch(() => null),
   };
 }
 
@@ -133,6 +138,7 @@ export function formatDailyReport(r: DailyReport): string {
     `Messages in: ${r.inbound}${r.inboundFailed ? `, ${r.inboundFailed} Buddy couldn't handle` : ""}.`,
     `AI: ${plural(r.aiCalls, "call")}${r.aiFailed ? `, ${r.aiFailed} failed` : ""}.`,
   ];
+  if (r.detection) lines.push(r.detection);
   if (r.problems.length) {
     lines.push("", "Needs a look:");
     for (const p of r.problems.slice(0, 6)) lines.push(`• ${p.label}: ${p.problem}`);

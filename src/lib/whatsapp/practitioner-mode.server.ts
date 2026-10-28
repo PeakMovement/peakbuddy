@@ -1326,6 +1326,18 @@ async function handleStatusIntent(
     await handleMessageIntent(adminIn, prac, intent, deps, mem);
     return;
   }
+  if (intent.kind === "grade_alert") {
+    const { applyGrade, GRADE_THANKS } = await import("./alert-grading.server");
+    const r = await applyGrade(adminIn as never, prac.userId, intent, deps.now);
+    await text1(
+      r === "saved"
+        ? GRADE_THANKS[intent.grade]
+        : r === "not_yours"
+          ? "That alert belongs to another practitioner, so I've left it."
+          : "I couldn't find that alert any more.",
+    );
+    return;
+  }
   if (intent.kind === "weekly_summary") {
     const { buildWeekText } = await import("./weekly-summary.server");
     await text1(await buildWeekText(adminIn as never, prac.userId, deps.now));
