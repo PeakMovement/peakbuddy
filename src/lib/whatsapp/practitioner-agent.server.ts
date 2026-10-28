@@ -67,6 +67,18 @@ import {
   summariseThread,
 } from "./practitioner-talk";
 import {
+  CONTACT_INTRO_TEMPLATE_ENV,
+  contactDigits,
+  contactOptedOut,
+  contactPreview,
+  contactTemplateMissing,
+  contactWindowAside,
+  promotePreview,
+  readContactMessage,
+  readPromoteContact,
+} from "./contact-message";
+import {
+  fixPractitionerTypos,
   isCancel,
   isYes,
   type PracMemory,
@@ -346,6 +358,15 @@ function outboundBody(pending: Extract<PracPending, { kind: "outbound" }>): stri
     return `Prepare a copy of what Buddy holds for ${joinNames(pending.names)} and send a one-time link if their WhatsApp window is open? I will not add any interpretation.`;
   }
   if (pending.action === "appointment") return pending.preview;
+  if (pending.action === "contact") {
+    return contactPreview(
+      pending.names[0] ?? "them",
+      pending.task ?? "",
+      pending.preview,
+      pending.aside ?? null,
+    );
+  }
+  if (pending.action === "promote_contact") return pending.preview;
   return confirmOutbound(pending.names, pending.preview, pending.aside);
 }
 
@@ -1975,6 +1996,14 @@ async function confirmPending(ctx: AgentContext): Promise<void> {
     await executeAppointment(ctx, pending.clientIds[0], pending.task, pending.names[0]);
     return;
   }
+  if (pending.action === "contact") {
+    await executeContactMessage(ctx, pending);
+    return;
+  }
+  if (pending.action === "promote_contact") {
+    await executePromoteContact(ctx, pending);
+    return;
+  }
   await executeCheckins(ctx, pending.clientIds, pending.note, pending.verbatim === true);
 }
 
@@ -2401,6 +2430,20 @@ async function handlePending(
   ) {
     pending.editing = false;
   }
+  if (pending.kind === "outbound" && pending.editing && pending.action === "contact") {
+    const typed = text.replace(/\s+/g, " ").trim().slice(0, 1000);
+    if (!typed) {
+      await replyText(ctx, "What should I say instead?");
+      return true;
+    }
+    await proposeContact(ctx, {
+      id: pending.clientIds[0] ?? "",
+      name: pending.names[0] ?? "them",
+      phone: pending.task ?? "",
+      text: typed,
+    });
+    return true;
+  }
   if (pending.kind === "outbound" && pending.editing) {
     const typed = text.replace(/\s+/g, " ").trim().slice(0, 500);
     if (!typed) {
@@ -2479,7 +2522,8 @@ async function handlePending(
       pending.action === "discharge" ||
       pending.action === "reopen" ||
       pending.action === "data_copy" ||
-      pending.action === "appointment"
+      pending.action === "appointment" ||
+      pending.action === "promote_contact"
     ) {
       await replyText(ctx, "Reply Yes to go ahead, or Cancel.");
       return true;
@@ -2693,6 +2737,199 @@ export function plainAdminDecision(text: string): AgentDecision | null {
  * True when the agent answered. False means the caller should use the
  * phrase matcher, including when the model is down.
  */
+async function proposeContact(
+  ctx: AgentContext,
+  input: { id: string; name: string; phone: string; text: string },
+): Promise<void> {
+  const digits = contactDigits(input.phone);
+  const { windowOpen } = await import("./practitioner-status.server");
+  const open = digits ? await windowOpen(ctx.adminIn, digits, ctx.deps.now) : false;
+  const template = process.env[CONTACT_INTRO_TEMPLATE_ENV]?.trim();
+  if (!open && !template) {
+    ctx.mem.pending = null;
+    await replyText(ctx, contactTemplateMissing(input.name));
+    return;
+  }
+  await showOutbound(ctx, {
+    kind: "outbound",
+    action: "contact",
+    clientIds: [input.id],
+    names: [input.name],
+    preview: input.text,
+    note: null,
+    task: input.phone,
+    editing: false,
+    aside: open ? null : contactWindowAside(input.name),
+    at: ctx.deps.now.getTime(),
+  });
+}
+
+async function offerExistingPatientMessage(
+  ctx: AgentContext,
+  clientId: string,
+  fullName: string | null,
+  text: string,
+): Promise<void> {
+  const pq = await import("./patient-questions.server");
+  const id = await pq.saveDraft(ctx.adminIn, {
+    practitionerId: ctx.prac.userId,
+    question: text,
+    clientId,
+    now: ctx.deps.now,
+  });
+  const name = String(fullName ?? "").trim() || "them";
+  if (!id) {
+    await replyText(ctx, pq.QUESTION_MSG.failed(name));
+    return;
+  }
+  ctx.mem.pending = null;
+  await ctx.deps.reply({
+    kind: "buttons",
+    body: pq.MESSAGE_MSG.confirm(name, text),
+    buttons: [
+      { id: `pq_pick_${id}_${clientId}`, title: "Send" },
+      { id: `pq_cancel_${id}`, title: "Don't send" },
+    ],
+  });
+}
+
+async function handleContactCommand(ctx: AgentContext, text: string): Promise<boolean> {
+  const fixed = fixPractitionerTypos(text);
+  const parsed = readContactMessage(text) ?? (fixed !== text ? readContactMessage(fixed) : null);
+  if (!parsed) return false;
+  const { lookupPatientByPhone, prepareContact } = await import("./contact-message.server");
+  const patient = await lookupPatientByPhone(ctx.admin, parsed.phone);
+  if (patient) {
+    if (!ctx.scopeClients.some((c) => c.id === patient.id)) {
+      await replyText(
+        ctx,
+        `That number already belongs to a patient (${patient.full_name ?? "on another list"}), so I won't message them as a contact.`,
+      );
+      return true;
+    }
+    await offerExistingPatientMessage(ctx, patient.id, patient.full_name, parsed.text);
+    return true;
+  }
+  const prepared = await prepareContact(ctx.admin, {
+    name: parsed.name,
+    phone: parsed.phone,
+    practitionerId: ctx.prac.userId,
+  });
+  if (prepared.kind === "opted_out") {
+    await replyText(ctx, contactOptedOut(prepared.name));
+    return true;
+  }
+  await proposeContact(ctx, {
+    id: prepared.id,
+    name: prepared.name,
+    phone: prepared.phone,
+    text: parsed.text,
+  });
+  return true;
+}
+
+async function handlePromoteCommand(ctx: AgentContext, text: string): Promise<boolean> {
+  const fixed = fixPractitionerTypos(text);
+  const parsed = readPromoteContact(text) ?? (fixed !== text ? readPromoteContact(fixed) : null);
+  if (!parsed) return false;
+  const { findContactsToPromote } = await import("./contact-message.server");
+  const found = await findContactsToPromote(ctx.admin, {
+    name: parsed.name,
+    phone: parsed.phone,
+    practitionerId: ctx.prac.userId,
+    privileged: ctx.privileged,
+  });
+  if (found.kind === "none") {
+    await replyText(
+      ctx,
+      `I don't have a contact called ${parsed.name}. Message them with their number first.`,
+    );
+    return true;
+  }
+  if (found.kind === "many") {
+    const lines = found.contacts.map((c) => `${c.name} (${c.phone})`).join(", ");
+    await replyText(
+      ctx,
+      `I found more than one contact called ${parsed.name}: ${lines}. Say "promote ${parsed.name} on <number> to patient".`,
+    );
+    return true;
+  }
+  if (found.contact.opted_out) {
+    await replyText(
+      ctx,
+      `${found.contact.name} asked not to be messaged, so I haven't added them as a patient or sent anything.`,
+    );
+    return true;
+  }
+  await showOutbound(ctx, {
+    kind: "outbound",
+    action: "promote_contact",
+    clientIds: [found.contact.id],
+    names: [found.contact.name],
+    preview: promotePreview(found.contact.name, found.contact.phone),
+    note: null,
+    task: found.contact.phone,
+    editing: false,
+    at: ctx.deps.now.getTime(),
+  });
+  return true;
+}
+
+async function executeContactMessage(
+  ctx: AgentContext,
+  pending: Extract<PracPending, { kind: "outbound" }>,
+): Promise<void> {
+  ctx.mem.pending = null;
+  const { sendContactMessage, lookupPatientByPhone } = await import("./contact-message.server");
+  const phone = pending.task ?? "";
+  const text = pending.preview.trim();
+  const patient = await lookupPatientByPhone(ctx.admin, phone);
+  if (patient) {
+    if (ctx.scopeClients.some((c) => c.id === patient.id)) {
+      await offerExistingPatientMessage(ctx, patient.id, patient.full_name, text);
+      return;
+    }
+    await replyText(
+      ctx,
+      `That number already belongs to a patient (${patient.full_name ?? "on another list"}), so I didn't send anything.`,
+    );
+    return;
+  }
+  const result = await sendContactMessage(
+    ctx.admin,
+    { provider: ctx.deps.provider, secrets: ctx.deps.secrets },
+    {
+      id: pending.clientIds[0] ?? crypto.randomUUID(),
+      name: pending.names[0] ?? "them",
+      phone,
+      text,
+      practitionerId: ctx.prac.userId,
+      practitionerName: ctx.prac.firstName,
+      now: ctx.deps.now,
+    },
+  );
+  await replyText(ctx, result.reply);
+}
+
+async function executePromoteContact(
+  ctx: AgentContext,
+  pending: Extract<PracPending, { kind: "outbound" }>,
+): Promise<void> {
+  ctx.mem.pending = null;
+  const { promoteContact } = await import("./contact-message.server");
+  const result = await promoteContact(
+    ctx.admin,
+    { provider: ctx.deps.provider, secrets: ctx.deps.secrets },
+    {
+      contactId: pending.clientIds[0] ?? "",
+      practitionerId: ctx.prac.userId,
+      practitionerName: ctx.prac.firstName,
+      now: ctx.deps.now,
+    },
+  );
+  await replyText(ctx, result.reply);
+}
+
 export async function runPractitionerAgent(
   adminIn: Admin,
   prac: { userId: string; firstName: string },
@@ -2739,6 +2976,8 @@ export async function runPractitionerAgent(
   }
 
   if (await handlePending(ctx, msg.text, msg.replyId)) return true;
+  if (await handleContactCommand(ctx, msg.text)) return true;
+  if (await handlePromoteCommand(ctx, msg.text)) return true;
 
   if (isClientListAsk(msg.text)) {
     ctx.mem.pending = null;

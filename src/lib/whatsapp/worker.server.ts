@@ -981,6 +981,28 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     }
   }
 
+  // A number the practitioner added as a contact, not a patient. No AI, no
+  // check-in. Red flags still run inside the handler. A real patient wins.
+  if (!conv.client_id) {
+    const { handleContactInbound } = await import("./contact-message.server");
+    const owned = await handleContactInbound(
+      admin,
+      { provider: env.provider, secrets: env.secrets },
+      {
+        phone,
+        text: row.body || row.reply_title || "",
+        now,
+        receivedAt: row.received_at,
+      },
+    ).catch((e) => {
+      log.warn("whatsapp contact inbound failed", {
+        error: e instanceof Error ? e.message.slice(0, 120) : "unknown",
+      });
+      return false;
+    });
+    if (owned) return null;
+  }
+
   // Already applied: a previous run saved this message's step and was cut off
   // while replying. Re-ask where we are instead of deciding again.
   if ((conv.draft as { appliedInboundId?: string } | null)?.appliedInboundId === row.id) {

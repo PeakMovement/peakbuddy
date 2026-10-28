@@ -23,6 +23,7 @@ import { readGradeButton } from "./alert-grading.server";
 import { withoutArchived } from "@/lib/client-archive.server";
 import { readPatientQuestion } from "./patient-question-text";
 import { readPatientMessage, type PatientMessageRequest } from "./patient-message-text";
+import { readContactMessage, readPromoteContact } from "./contact-message";
 import { CHECKED_IN, wantsMessages } from "./practitioner-inbox-text";
 import { toSast } from "./clinic-hours";
 import { missedLatestScheduledDay, sastDayKey } from "./missed-checkins";
@@ -269,6 +270,15 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
   if (morning === "reception") return { kind: "morning_reception" };
   if (morning === "skip") return { kind: "morning_skip" };
   if (morning === "update") return { kind: "status_all", practice: false };
+
+  // A number that isn't a patient is the contact flow, including Edit and Yes.
+  // It must not be read as "message <name> saying …" for a client.
+  if (
+    readContactMessage(text) ||
+    readPromoteContact(text) ||
+    (fixed !== text && (readContactMessage(fixed) || readPromoteContact(fixed)))
+  )
+    return { kind: "other" };
 
   // Errands for reception come first: "ask reception to remind Sam to
   // check in" is for reception, not a check-in request.

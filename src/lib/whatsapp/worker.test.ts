@@ -1636,3 +1636,155 @@ describe("answers to a practitioner's question", () => {
     expect(bodies).toMatch(/physiotherapist|emergency|10177|112/i);
   });
 });
+
+describe("whatsapp contacts are not patients", () => {
+  const PHONE = "27821234567";
+  const CONTACT = {
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    name: "Sarah",
+    phone: "+27821234567",
+    created_by: "prac-1",
+    opted_out: false,
+    opted_out_at: null,
+    promoted_client_id: null,
+  };
+
+  function seed(extra: Row = {}) {
+    const db = fakeDb({
+      clients: [],
+      profiles: [{ id: "prac-1", full_name: "Justin Owner", role: "practitioner" }],
+      whatsapp_contacts: [{ ...CONTACT }],
+      whatsapp_conversations: [
+        {
+          id: "conv-c",
+          phone: PHONE,
+          client_id: null,
+          state: "idle",
+          draft: extra.draft ?? {},
+          opted_out_at: null,
+        },
+      ],
+      whatsapp_inbound: extra.inbound ?? [],
+      whatsapp_outbound: [],
+      alerts: [],
+      check_ins: [],
+      consent_records: [],
+    });
+    (db.admin as { auth?: unknown }).auth = {
+      admin: {
+        getUserById: async () => ({ data: { user: { phone: "+27820000077" } } }),
+      },
+    };
+    return db;
+  }
+
+  it("relays an inbound message and does not run AI, a check-in, or create a patient", async () => {
+    const ai = await import("./ai.server");
+    const converse = vi.spyOn(ai, "converseWithAi");
+    const route = vi.spyOn(ai, "routeWithAi");
+    const answer = vi.spyOn(ai, "readAnswerWithAi");
+    const db = seed({
+      inbound: [
+        {
+          id: "prac-window",
+          from_phone: "+27820000077",
+          body: "hi",
+          status: "processed",
+          received_at: "2026-10-05T06:00:00.000Z",
+          kind: "text",
+        },
+        inbound("Running late", undefined, PHONE),
+      ],
+    });
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.clients).toHaveLength(0);
+    expect(db.tables.check_ins).toHaveLength(0);
+    expect(db.tables.whatsapp_conversations[0].client_id).toBeNull();
+    const bodies = sent.map((m) => (m.kind === "text" ? m.body : ""));
+    expect(bodies.join("\n")).toContain("Running late");
+    expect(bodies.join("\n")).not.toMatch(/check-in|can't find this number/i);
+    expect(sent.some((m) => m.kind === "text" && m.to === "27820000077")).toBe(true);
+    expect(sent.some((m) => m.kind === "text" && m.to === PHONE)).toBe(false);
+    expect(db.tables.alerts.some((a) => String(a.message).includes("Running late"))).toBe(true);
+    expect(db.tables.whatsapp_outbound.some((r) => String(r.body).includes("Running late"))).toBe(
+      true,
+    );
+    expect(converse).not.toHaveBeenCalled();
+    expect(route).not.toHaveBeenCalled();
+    expect(answer).not.toHaveBeenCalled();
+    converse.mockRestore();
+    route.mockRestore();
+    answer.mockRestore();
+  });
+
+  it("STOP opts the contact out, confirms it, and blocks a later send", async () => {
+    const db = seed();
+    db.tables.whatsapp_inbound.push(inbound("STOP", undefined, PHONE));
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.whatsapp_contacts[0]).toMatchObject({ opted_out: true });
+    expect(db.tables.whatsapp_contacts[0].opted_out_at).toBeTruthy();
+    const body = sent.map((m) => (m.kind === "text" ? m.body : "")).join("\n");
+    expect(body).toBe(
+      "Done. I won't message this number again. If you need the practice, phone 067 369 0593. In an emergency phone 10177, or 112 from any cellphone.",
+    );
+    expect(body).not.toMatch(/START|check-in/i);
+    expect(db.tables.whatsapp_outbound.some((r) => String(r.body).includes("won't message"))).toBe(
+      true,
+    );
+    expect(db.tables.clients).toHaveLength(0);
+
+    sent.length = 0;
+    db.tables.whatsapp_inbound.push(inbound("Please call me", undefined, PHONE));
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(sent.filter((m) => m.kind === "text" && m.to === PHONE)).toHaveLength(0);
+  });
+
+  it("a red flag sends emergency advice, tells the practitioner, and holds queued wording", async () => {
+    const wording = "Please call the practice about Thursday.";
+    const db = seed({ draft: { pendingContactMessage: wording } });
+    db.tables.whatsapp_inbound.push(inbound("I have chest pain", undefined, PHONE));
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    const toContact = sent.filter((m) => m.kind === "text" && m.to === PHONE);
+    expect(toContact.map((m) => (m.kind === "text" ? m.body : "")).join("\n")).toMatch(/10177/);
+    expect(JSON.stringify(sent)).not.toContain(wording);
+    expect(db.tables.whatsapp_conversations[0].draft.pendingContactMessage).toBe(wording);
+    expect(db.tables.alerts.some((a) => a.alert_type === "red_flag")).toBe(true);
+    expect(db.tables.alerts.some((a) => String(a.message).includes("chest pain"))).toBe(true);
+    expect(db.tables.clients).toHaveLength(0);
+    expect(db.tables.check_ins).toHaveLength(0);
+  });
+
+  it("sends queued wording when they reply and the reply is not a red flag", async () => {
+    const wording = "Please call the practice about Thursday.";
+    const db = seed({ draft: { pendingContactMessage: wording } });
+    db.tables.whatsapp_inbound.push(inbound("Thursday works", undefined, PHONE));
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    const toContact = sent.find((m) => m.kind === "text" && m.to === PHONE);
+    expect(toContact && toContact.kind === "text" ? toContact.body : "").toBe(wording);
+    expect(db.tables.whatsapp_conversations[0].draft.pendingContactMessage).toBeUndefined();
+    expect(db.tables.whatsapp_outbound.some((r) => r.body === wording)).toBe(true);
+    expect(db.tables.clients).toHaveLength(0);
+  });
+
+  it("a number that belongs to a patient stays on the patient path", async () => {
+    const db = seed();
+    db.tables.clients.push({
+      id: "client-sarah",
+      full_name: "Sarah Patient",
+      practitioner_id: "prac-1",
+      phone: "082 123 4567",
+    });
+    db.tables.whatsapp_inbound.push(inbound("Hi", undefined, PHONE));
+    const { provider, sent } = fakeProvider();
+    await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+    expect(db.tables.whatsapp_conversations[0].client_id).toBe("client-sarah");
+    const bodies = sent.map((m) => (m.kind === "text" ? m.body : "")).join("\n");
+    expect(bodies).toMatch(/consent/i);
+    expect(bodies).not.toMatch(/Sarah replied/);
+    expect(db.tables.whatsapp_contacts[0].opted_out).toBe(false);
+  });
+});

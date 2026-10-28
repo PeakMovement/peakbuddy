@@ -755,7 +755,9 @@ export type PracPending =
         | "discharge"
         | "reopen"
         | "data_copy"
-        | "appointment";
+        | "appointment"
+        | "contact"
+        | "promote_contact";
       clientIds: string[];
       names: string[];
       /** The sentence they are confirming. Check-ins keep the literal "<name>". */
@@ -850,6 +852,8 @@ const OUTBOUND_ACTIONS = new Set([
   "reopen",
   "data_copy",
   "appointment",
+  "contact",
+  "promote_contact",
   "archive",
   "erase",
 ]);
@@ -899,14 +903,20 @@ function cleanPending(raw: unknown): PracPending | null {
           .slice(0, 50)
       : [];
     if (p.action !== "reception" && !clientIds.length) return null;
-    if ((p.action === "reception" || p.action === "appointment") && typeof p.task !== "string")
+    if (
+      (p.action === "reception" ||
+        p.action === "appointment" ||
+        p.action === "contact" ||
+        p.action === "promote_contact") &&
+      typeof p.task !== "string"
+    )
       return null;
     return {
       kind: "outbound",
       action: p.action as Extract<PracPending, { kind: "outbound" }>["action"],
       clientIds,
       names,
-      preview: String(p.preview ?? "").slice(0, 500),
+      preview: String(p.preview ?? "").slice(0, p.action === "contact" ? 1000 : 500),
       note: typeof p.note === "string" ? p.note.slice(0, 280) : null,
       task: typeof p.task === "string" ? p.task.slice(0, 600) : null,
       editing: Boolean(p.editing),
