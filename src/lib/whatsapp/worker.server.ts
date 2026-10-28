@@ -1504,6 +1504,14 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     const line = await scheduleConfirmIfDue(admin, client.id, state).catch(() => null);
     if (line) replies = [...replies, { kind: "text" as const, body: line }];
   }
+  // A finished check-in may get a short look back, once a week.
+  if (client && consent && !redFlags.triggered && decision.saveCheckin?.pain != null) {
+    const { weeklyProgressLine } = await import("./progress-note.server");
+    const line = await weeklyProgressLine(admin, client.id, decision.saveCheckin.pain, now).catch(
+      () => null,
+    );
+    if (line) replies = [...replies, { kind: "text" as const, body: line }];
+  }
   // A message a practitioner asked Buddy to pass on while the window was shut.
   // Hold it until both current consents exist. Delivering it here is the send.
   const pendingNotice = (conv.draft as { pendingNotice?: string } | null)?.pendingNotice;
@@ -1683,6 +1691,22 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   }
 
   replies = withSafetyClaim(replies, redFlags, Boolean(redFlagAlertId));
+
+  // The patient's language (migration 0048). Translated just before sending,
+  // English kept under anything next to a red flag. AI consent only.
+  if (client && aiAllowed && replies.length) {
+    const lang = await import("./language.server");
+    const saved = await lang.loadLanguage(admin, client.id);
+    const pick = lang.chooseLanguage(saved, message.text);
+    if (pick.save && pick.save !== (saved ?? "en")) {
+      await lang.saveLanguage(admin, client.id, pick.save);
+    }
+    if (pick.lang !== "en") {
+      replies = await lang.translateReplies(replies, pick.lang, {
+        keepEnglish: redFlags.triggered,
+      });
+    }
+  }
 
   let sent = 0;
   for (const reply of replies) {
@@ -2034,6 +2058,23 @@ async function applyEffects(
         () => undefined,
         () => undefined,
       );
+    // Keep the file itself: WhatsApp media ids expire. It lands in the
+    // patient's reports, where the physio already looks (28 Oct 2026).
+    if (decision.saveExerciseMedia.mediaId) {
+      const { keepWhatsAppMedia } = await import("./media-keep.server");
+      await keepWhatsAppMedia(admin as never, env, {
+        client: {
+          id: client.id,
+          practitioner_id: client.practitioner_id,
+          practice_id: (client as { practice_id?: string | null }).practice_id ?? null,
+          full_name: client.full_name,
+        },
+        mediaId: decision.saveExerciseMedia.mediaId,
+        kind: decision.saveExerciseMedia.kind,
+        caption: decision.saveExerciseMedia.caption,
+        now,
+      }).catch(() => undefined);
+    }
   }
 
   if (decision.receptionErrand) {

@@ -163,6 +163,58 @@ export const SCENARIOS: Scenario[] = [
     ],
   },
   {
+    id: "schedule-time-loose",
+    area: "Schedule",
+    title: '"Message me in the evenings around 8"',
+    why: "People don't say 20:00. Buddy should still get the time.",
+    steps: [{ send: { from: "sam", text: "can you message me in the evenings around 8" } }],
+    checks: [
+      {
+        label: "Reminder time saved as 20:00",
+        pass: ({ state }) =>
+          String(reminderOf(state, "sam")?.time_of_day ?? "").startsWith("20:00"),
+      },
+    ],
+  },
+  {
+    id: "language-switch",
+    area: "Patient",
+    title: '"Kan jy in Afrikaans praat?"',
+    why: "Asking for Afrikaans should stick for the rest of the chat.",
+    feature: "Replies in the patient's language",
+    steps: [
+      { send: { from: "sam", text: "kan jy asseblief in Afrikaans praat" } },
+      { send: { from: "sam", text: "hi" } },
+    ],
+    checks: [
+      {
+        label: "Language saved as Afrikaans",
+        pass: ({ state }) => clientOf(state, "sam")?.preferred_language === "af",
+      },
+      {
+        label: "The next reply is in Afrikaans",
+        pass: ({ lines }) =>
+          /\b(jou|jy|hoe|pyn|vandag)\b/i.test(sentTo(lines, "sam").at(-1)?.text ?? ""),
+      },
+    ],
+  },
+  {
+    id: "progress-note",
+    area: "Patient",
+    title: "Weekly look back after a check-in",
+    why: "Sam has improved from 6 to 2. After today's check-in Buddy should tell him.",
+    steps: [
+      { send: { from: "sam", text: "hi" } },
+      { send: { from: "sam", text: "pain 1, slept 4, energy 4, stress 1, did all my exercises" } },
+    ],
+    checks: [
+      {
+        label: "Sam got a look back with his numbers",
+        pass: ({ lines }) => /look back|gone from|progress/i.test(textTo(lines, "sam")),
+      },
+    ],
+  },
+  {
     id: "afrikaans-pain",
     area: "Patient",
     title: "Afrikaans check-in",

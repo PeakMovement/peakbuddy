@@ -669,20 +669,86 @@ const WEARABLE_REQUEST =
   /^(watch|wearable|smartwatch|garmin|oura|polar)[.!]*$|\b(connect|link|add|sync|koppel)\b.{0,25}\b(watch|wearable|smartwatch|garmin|oura|polar|ring|horlosie)\b/i;
 
 /**
- * "remind me at 7am", "check in at 18:30", "change my check-in time to 6pm".
- * Returns "HH:MM" or null. Hours outside a day, or ambiguous text, give null.
+ * "remind me at 7am", "check in at 18:30", "change my check-in time to 6pm",
+ * "message me in the evenings around 8", "remind me at half past six",
+ * "around 9 at night", "send it at 19:30". Returns "HH:MM" or null.
+ *
+ * No am/pm and no part of the day: 1 to 6 means the evening (nobody asks for
+ * a 3am check-in), 7 to 11 the morning. Buddy always says the time back, so
+ * a wrong guess is one reply away from fixed.
  */
 export function readReminderTime(text: string): string | null {
-  const m = text.match(
-    /\b(?:remind|reminder|check[\s-]?in|message|text|herinner)\b.{0,30}?\b(?:at|to|for|om)\s*(\d{1,2})(?:[:h.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?/i,
+  const t = text.toLowerCase();
+  const verb =
+    /\b(?:remind|reminder|check[\s-]?ins?|message|text|ping|send|whatsapp|contact|herinner|stuur)\b/;
+  if (!verb.test(t)) return null;
+  const words: Record<string, number> = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+    eleven: 11,
+    twelve: 12,
+    een: 1,
+    twee: 2,
+    drie: 3,
+    vier: 4,
+    vyf: 5,
+    ses: 6,
+    sewe: 7,
+    agt: 8,
+    nege: 9,
+    tien: 10,
+    elf: 11,
+    twaalf: 12,
+  };
+  const num =
+    "(\\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|een|twee|drie|vier|vyf|ses|sewe|agt|nege|tien|elf|twaalf)";
+  const hourOf = (v: string) => (/^\d+$/.test(v) ? Number(v) : (words[v] ?? NaN));
+  let h: number | null = null;
+  let min = 0;
+  let ap = "";
+  const past = t.match(new RegExp(`\\b(half|quarter)\\s+(past|to|after)\\s+${num}\\b`));
+  const clock = t.match(
+    new RegExp(
+      `\\b(?:at|to|for|om|around|about|by|like|before|after|from|round)\\s*(?:about\\s+|around\\s+)?${num}(?:[:h.](\\d{2}))?\\s*(am|pm|a\\.m\\.|p\\.m\\.)?`,
+    ),
   );
-  if (!m) return null;
-  let h = Number(m[1]);
-  const min = m[2] ? Number(m[2]) : 0;
-  const ap = (m[3] ?? "").toLowerCase().replace(/\./g, "");
+  const bare = t.match(/\b(\d{1,2})(?:[:h.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)\b/);
+  if (past) {
+    h = hourOf(past[3]);
+    if (past[1] === "half") min = 30;
+    else if (past[2] === "to") {
+      h -= 1;
+      min = 45;
+    } else min = 15;
+  } else if (clock) {
+    h = hourOf(clock[1]);
+    min = clock[2] ? Number(clock[2]) : 0;
+    ap = (clock[3] ?? "").replace(/\./g, "");
+  } else if (bare) {
+    h = Number(bare[1]);
+    min = bare[2] ? Number(bare[2]) : 0;
+    ap = bare[3].replace(/\./g, "");
+  }
+  if (h == null || Number.isNaN(h)) return null;
+  const evening = /\b(evenings?|tonight|at night|night|afternoons?|after work|aand|middag)\b/.test(
+    t,
+  );
+  const morning = /\b(mornings?|before work|breakfast|oggend|môre)\b/.test(t) && !evening;
   if (ap === "pm" && h < 12) h += 12;
-  if (ap === "am" && h === 12) h = 0;
-  if (h > 23 || min > 59) return null;
+  else if (ap === "am" && h === 12) h = 0;
+  else if (!ap && h < 12) {
+    if (evening) h += 12;
+    else if (!morning && h >= 1 && h <= 6) h += 12;
+  }
+  if (h > 23 || min > 59 || h < 0) return null;
   return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 

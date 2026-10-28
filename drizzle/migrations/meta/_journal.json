@@ -323,6 +323,13 @@
       "when": 1793157115439,
       "tag": "0047_buddy_job_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793157175439,
+      "tag": "0048_client_language",
+      "breakpoints": true
     }
   ]
 }
