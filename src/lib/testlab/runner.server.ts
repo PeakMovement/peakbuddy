@@ -10,6 +10,7 @@ export interface ScenarioResult {
   title: string;
   why: string;
   feature: string | null;
+  needsAi: boolean;
   passed: boolean;
   checks: Array<{ label: string; pass: boolean }>;
   transcript: LabLine[];
@@ -72,6 +73,7 @@ export async function runScenario(s: Scenario): Promise<ScenarioResult> {
     title: s.title,
     why: s.why,
     feature: s.feature ?? null,
+    needsAi: Boolean(s.needsAi),
     passed: !error && checks.every((c) => c.pass),
     checks,
     transcript: state.transcript.slice(1),

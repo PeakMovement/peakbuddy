@@ -87,6 +87,7 @@ export const labScenarios = createServerFn({ method: "GET" })
       title: s.title,
       why: s.why,
       feature: s.feature ?? null,
+      needsAi: Boolean(s.needsAi),
       checks: s.checks.map((c) => c.label),
     }));
   });

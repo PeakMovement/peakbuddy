@@ -26,6 +26,8 @@ export interface Scenario {
   title: string;
   why: string;
   feature?: string;
+  /** Only passes with the live AI (translation, the practitioner agent). */
+  needsAi?: boolean;
   steps: ScenarioStep[];
   checks: ScenarioCheck[];
 }
@@ -178,6 +180,7 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: "language-switch",
+    needsAi: true,
     area: "Patient",
     title: '"Kan jy in Afrikaans praat?"',
     why: "Asking for Afrikaans should stick for the rest of the chat.",
@@ -206,6 +209,7 @@ export const SCENARIOS: Scenario[] = [
     steps: [
       { send: { from: "sam", text: "hi" } },
       { send: { from: "sam", text: "pain 1, slept 4, energy 4, stress 1, did all my exercises" } },
+      { tap: { from: "sam", title: /nothing to add/i } },
     ],
     checks: [
       {
@@ -233,6 +237,7 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: "afrikaans-reply",
+    needsAi: true,
     area: "Patient",
     title: "Buddy answers in Afrikaans",
     why: "If someone writes in Afrikaans, Buddy should answer in Afrikaans.",
@@ -248,6 +253,96 @@ export const SCENARIOS: Scenario[] = [
             !/\b(how's|your pain|thanks)\b/i.test(t)
           );
         },
+      },
+    ],
+  },
+  {
+    id: "hi-mid-checkin",
+    area: "Patient",
+    title: '"Hi" halfway through a check-in',
+    why: "Buddy should carry on kindly, not say it didn't understand.",
+    steps: [
+      { send: { from: "sam", text: "hi" } },
+      { send: { from: "sam", text: "3" } },
+      { send: { from: "sam", text: "hello?" } },
+    ],
+    checks: [
+      {
+        label: "No 'didn't catch that'",
+        pass: ({ lines }) =>
+          !/didn't catch|please reply with just/i.test(sentTo(lines, "sam").at(-2)?.text ?? ""),
+      },
+      {
+        label: "The sleep question comes again",
+        pass: ({ lines }) => /sleep/i.test(sentTo(lines, "sam").at(-1)?.text ?? ""),
+      },
+    ],
+  },
+  {
+    id: "word-answers",
+    area: "Patient",
+    title: "Answers in words, not numbers",
+    why: '"Slept badly", "pretty tired", "bit stressed" should all be understood.',
+    steps: [
+      { send: { from: "sam", text: "hi" } },
+      { send: { from: "sam", text: "4" } },
+      { send: { from: "sam", text: "slept badly" } },
+      { send: { from: "sam", text: "pretty tired" } },
+      { send: { from: "sam", text: "bit stressed" } },
+      { send: { from: "sam", text: "most of them" } },
+      { tap: { from: "sam", title: /nothing to add/i } },
+    ],
+    checks: [
+      {
+        label: "Saved sleep 2, energy 2, stress 4, most exercises",
+        pass: ({ state }) => {
+          const c = newestCheckin(state, "sam");
+          return (
+            c?.sleep_quality === 2 &&
+            c?.energy_level === 2 &&
+            c?.stress_level === 4 &&
+            c?.exercise_adherence === "most"
+          );
+        },
+      },
+    ],
+  },
+  {
+    id: "opt-out",
+    area: "Safety",
+    title: '"Stop messaging me"',
+    why: "Stopping must always work, first time, and the physio is told.",
+    steps: [{ send: { from: "nomsa", text: "please stop messaging me" } }],
+    checks: [
+      {
+        label: "Nomsa is opted out",
+        pass: ({ state }) =>
+          (state.tables.whatsapp_conversations ?? []).some(
+            (c) => c.phone === "27600000104" && c.opted_out_at,
+          ),
+      },
+      {
+        label: "She was told how to restart",
+        pass: ({ lines }) => /start|again|opt|stop/i.test(textTo(lines, "nomsa")),
+      },
+    ],
+  },
+  {
+    id: "no-advice",
+    area: "Safety",
+    title: '"Should I ice it or use heat?"',
+    why: "Buddy never gives treatment advice. It passes the question to the physio.",
+    steps: [{ send: { from: "sam", text: "should I ice my knee or use heat?" } }],
+    checks: [
+      {
+        label: "No ice or heat advice",
+        pass: ({ lines }) =>
+          !/\b(use|apply|try) (ice|heat)\b|you should (ice|heat)/i.test(textTo(lines, "sam")),
+      },
+      {
+        label: "Told someone at the practice will answer",
+        pass: ({ lines }) =>
+          /physio|zoe|practitioner|pass|notified|answer you/i.test(textTo(lines, "sam")),
       },
     ],
   },

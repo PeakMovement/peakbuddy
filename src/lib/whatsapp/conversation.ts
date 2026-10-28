@@ -45,6 +45,15 @@ import {
 } from "./assistant";
 import { EXERCISE_MEDIA, LIBRARY_COMING_SOON } from "@/lib/feature-flags";
 import {
+  adherenceFromWords,
+  describeMulti,
+  isGreeting,
+  multiCount,
+  readMulti,
+  scaleFromWords,
+} from "./answer-words";
+import { explicitLanguage } from "./language.server";
+import {
   appointmentAnswer,
   bookingAsk,
   bookingSent,
@@ -533,7 +542,10 @@ export function readScale(
     return Number.isInteger(n) && n >= 1 && n <= 5 ? n : null;
   }
   const m = msg.text.trim().match(/^([1-5])(?:\s*\/\s*5)?[.!]*$/);
-  return m ? Number(m[1]) : null;
+  if (m) return Number(m[1]);
+  // "slept well", "low", "pretty stressed" (answer-words.ts).
+  const kind = prefix === "wsleep_" ? "sleep" : prefix === "wenergy_" ? "energy" : "stress";
+  return scaleFromWords(msg.text, kind);
 }
 
 /* ------------------------------------------------------------------ */
@@ -633,7 +645,7 @@ function readAdherence(msg: InboundForDecision): "all" | "most" | "some" | "none
     .trim()
     .toLowerCase()
     .replace(/[.!]+$/g, "");
-  return ADHERENCE_TEXT[key] ?? null;
+  return ADHERENCE_TEXT[key] ?? adherenceFromWords(msg.text);
 }
 
 function readGoal(text: string): string | null {
@@ -1406,6 +1418,81 @@ export function decide(ctx: DecisionContext): Decision {
     draft: { ...draft, ...next },
     checkinStartedAt: conv.checkinStartedAt ?? ctx.now,
   });
+
+  const inCheckin =
+    state === "awaiting_pain" ||
+    state === "awaiting_sleep" ||
+    state === "awaiting_energy" ||
+    state === "awaiting_stress" ||
+    state === "awaiting_adherence";
+
+  // "Afrikaans asseblief" / "English please": say yes, carry on where we
+  // were. The worker saves the preference and translates (language.server).
+  const askedLang = msg.replyId ? null : explicitLanguage(raw);
+  if (askedLang) {
+    const names = { en: "English", af: "Afrikaans", xh: "isiXhosa", zu: "isiZulu" } as const;
+    const again = inCheckin ? pendingQuestionReply(state, draft) : null;
+    return withSafety(
+      {
+        replies: [
+          text(
+            askedLang === "en"
+              ? "Sure, back to English."
+              : `Sure, I'll reply in ${names[askedLang]} from now on. Say "English please" any time to switch back.`,
+          ),
+          ...(again ? [again] : []),
+        ],
+        next: conv,
+      },
+      ctx,
+    );
+  }
+
+  // "hi" in the middle of a check-in: carry on, without counting it as a miss.
+  if (inCheckin && !msg.replyId && isGreeting(raw)) {
+    const again = pendingQuestionReply(state, draft);
+    if (again) {
+      return withSafety(
+        { replies: [text("Hi! We're partway through today's check-in."), again], next: conv },
+        ctx,
+      );
+    }
+  }
+
+  // Several answers in one message: "pain 1, slept 4, energy ok, stress low,
+  // did all my exercises". Take them all and ask only what's left.
+  if (inCheckin && !msg.replyId && !draft.update) {
+    const multi = readMulti(raw);
+    const answers = multiCount(multi);
+    const hasPain = multi.pain !== undefined || draft.pain !== undefined;
+    if (answers >= 2 && hasPain) {
+      const merged: Partial<CheckinDraft> = {
+        pain: multi.pain ?? draft.pain,
+        sleep: multi.sleep ?? draft.sleep,
+        energy: multi.energy ?? draft.energy,
+        stress: multi.stress ?? draft.stress,
+        adherence: multi.adherence ?? draft.adherence,
+        misses: 0,
+      };
+      const order: Array<[keyof CheckinDraft, ConversationState, () => Reply]> = [
+        ["sleep", "awaiting_sleep", () => askSleep()],
+        ["energy", "awaiting_energy", () => askEnergy()],
+        ["stress", "awaiting_stress", () => askStress()],
+        ["adherence", "awaiting_adherence", () => askAdherence()],
+      ];
+      const missing = order.find(([k]) => merged[k] === undefined);
+      return withSafety(
+        {
+          replies: [
+            text(`Thanks, got ${describeMulti(multi)}.`),
+            missing ? missing[2]() : askNotes(),
+          ],
+          next: keep(merged, missing ? missing[1] : "awaiting_notes"),
+        },
+        ctx,
+      );
+    }
+  }
 
   switch (state) {
     case "awaiting_pain": {

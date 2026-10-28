@@ -2154,6 +2154,41 @@ async function applyMany(ctx: AgentContext, decisions: AgentDecision[]): Promise
   if (!OUTBOUND_TOOLS.has(use[0].tool)) await drainQueue(ctx);
 }
 
+/** "delete Sam Smith", "erase her", "archive Nomsa": the tool, without the model. */
+export function plainAdminDecision(text: string): AgentDecision | null {
+  const m = String(text ?? "")
+    .trim()
+    .match(
+      /^(?:please\s+|pls\s+|can you\s+)?(delete|erase|permanently delete|remove|archive|unarchive)\s+(.{2,80}?)(?:\s+(?:from|off)\s+buddy)?[.!]*$/i,
+    );
+  if (!m) return null;
+  const verb = m[1].toLowerCase();
+  const names = m[2]
+    .split(/\s*(?:,|\band\b|&)\s*/i)
+    .map((n) => n.trim())
+    .filter(Boolean);
+  if (!names.length) return null;
+  const tool: AgentTool =
+    verb === "unarchive"
+      ? "unarchive_clients"
+      : verb === "archive" || verb === "remove"
+        ? "archive_clients"
+        : "delete_clients";
+  return {
+    tool,
+    names,
+    note: null,
+    task: null,
+    question: null,
+    options: [],
+    frequency: null,
+    weekday: null,
+    time: null,
+    enabled: null,
+    goal: null,
+  };
+}
+
 /**
  * True when the agent answered. False means the caller should use the
  * phrase matcher, including when the model is down.
@@ -2240,7 +2275,14 @@ export async function runPractitionerAgent(
     return true;
   }
 
-  const decisions = await understand(ctx, msg.text);
+  let decisions = await understand(ctx, msg.text);
+  // With the model down, "delete Sam Smith" must not fall through to the
+  // phrase matcher and be read as "how is Sam". Plain fallback, same
+  // confirmation and permission checks as the model's tool call.
+  if (!decisions.length) {
+    const plain = plainAdminDecision(msg.text);
+    if (plain) decisions = [plain];
+  }
   if (!decisions.length) {
     if (mem.pending?.kind === "choose") {
       await replyText(

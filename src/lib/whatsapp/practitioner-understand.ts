@@ -829,6 +829,8 @@ const CHOOSE_ACTIONS = new Set([
   "discharge",
   "reopen",
   "data_copy",
+  "archive",
+  "erase",
 ]);
 const OUTBOUND_ACTIONS = new Set([
   "checkin",
@@ -838,6 +840,8 @@ const OUTBOUND_ACTIONS = new Set([
   "reopen",
   "data_copy",
   "appointment",
+  "archive",
+  "erase",
 ]);
 
 function cleanPending(raw: unknown): PracPending | null {

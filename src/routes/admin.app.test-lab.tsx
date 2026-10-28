@@ -40,6 +40,7 @@ type ScenarioInfo = {
   title: string;
   why: string;
   feature: string | null;
+  needsAi?: boolean;
   checks: string[];
 };
 type ScenarioResult = {
@@ -492,6 +493,12 @@ function ScenariosTab() {
                       <div>
                         {r ? (r.passed ? "✅ " : "❌ ") : ""}
                         <strong>{s.title}</strong>
+                        {s.needsAi && (
+                          <span style={{ color: "var(--white-muted)", fontSize: 12 }}>
+                            {" "}
+                            · uses the AI
+                          </span>
+                        )}
                         {s.feature && (
                           <span style={{ color: "var(--white-muted)", fontSize: 12 }}>
                             {" "}

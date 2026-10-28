@@ -826,3 +826,34 @@ describe("reception's own commands stay reception's", () => {
     expect(replies[1].body).not.toContain("Second errand");
   });
 });
+
+describe("waiting confirmations survive being saved between messages (28 Oct)", () => {
+  it("archive and erase are kept, so the Yes tap still works", async () => {
+    const { readPracMemory, writePracMemory } = await import("./practitioner-understand");
+    const now = Date.now();
+    for (const action of ["archive", "erase"] as const) {
+      const draft = writePracMemory(
+        {},
+        {
+          pending: {
+            kind: "outbound",
+            action,
+            clientIds: ["00000000-0000-4000-8000-0000000000c4"],
+            names: ["Nomsa Fakename (3 check-ins)"],
+            preview: "",
+            note: null,
+            task: null,
+            editing: false,
+            at: now,
+          },
+        },
+      );
+      const back = readPracMemory(JSON.parse(JSON.stringify(draft)), now);
+      expect(back.pending).toMatchObject({
+        kind: "outbound",
+        action,
+        clientIds: ["00000000-0000-4000-8000-0000000000c4"],
+      });
+    }
+  });
+});
