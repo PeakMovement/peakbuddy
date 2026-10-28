@@ -25,23 +25,31 @@ import {
   carePhrase,
   checkinBody,
   checkinPreview,
+  checkinReachWarning,
   choiceBody,
   clarifyButtons,
   confirmOutbound,
   conversationContext,
   decisionsFromGateway,
+  deleteRosterAsk,
+  dropNamedClients,
+  exclusionNames,
   expandReferences,
   extraCheckinNote,
+  formatClientList,
   formatPractitionerList,
   isAgentButton,
   joinNames,
   needsPractitionerAgent,
   pendingSummary,
   practitionerToolSchemas,
+  isClientListAsk,
   resolveChoice,
   resolveNames,
   sendReport,
+  typedEraseConfirm,
   validDecision,
+  withPractitioner,
   type AgentDecision,
   type AgentTool,
   type AgentTurnInput,
@@ -338,7 +346,7 @@ function outboundBody(pending: Extract<PracPending, { kind: "outbound" }>): stri
     return `Prepare a copy of what Buddy holds for ${joinNames(pending.names)} and send a one-time link if their WhatsApp window is open? I will not add any interpretation.`;
   }
   if (pending.action === "appointment") return pending.preview;
-  return confirmOutbound(pending.names, pending.preview);
+  return confirmOutbound(pending.names, pending.preview, pending.aside);
 }
 
 const ARCHIVE_LIST_MAX = 25;
@@ -361,6 +369,17 @@ function archiveConfirmBody(pending: Extract<PracPending, { kind: "outbound" }>)
 
 function eraseConfirmBody(pending: Extract<PracPending, { kind: "outbound" }>): string {
   const n = pending.names.length;
+  if (pending.preview === "typed") {
+    const shown = pending.names.slice(0, ARCHIVE_LIST_MAX).map((name) => `• ${name}`);
+    if (n > ARCHIVE_LIST_MAX) shown.push(`• ...and ${n - ARCHIVE_LIST_MAX} more`);
+    return [
+      `This permanently deletes ${n === 1 ? "this client" : `these ${n} clients`} and their WhatsApp messages. It cannot be undone.`,
+      ...shown,
+      ...(pending.note ? ["", pending.note] : []),
+      "",
+      `Reply exactly: DELETE ${n}`,
+    ].join("\n");
+  }
   return [
     `Permanently delete ${n === 1 ? "this client" : `these ${n} clients`}?`,
     ...pending.names.map((name) => `• ${name}`),
@@ -370,16 +389,17 @@ function eraseConfirmBody(pending: Extract<PracPending, { kind: "outbound" }>): 
   ].join("\n");
 }
 
-function eraseButtons(): Array<{ id: string; title: string }> {
+function eraseButtons(typed = false): Array<{ id: string; title: string }> {
+  if (typed) return [{ id: "prac_ag_no", title: "Cancel" }];
   return [
     { id: "prac_ag_yes", title: "Yes, delete" },
     { id: "prac_ag_no", title: "Cancel" },
   ];
 }
 
-function confirmButtons(action: string): Array<{ id: string; title: string }> {
+function confirmButtons(action: string, preview?: string | null): Array<{ id: string; title: string }> {
   if (action === "archive") return archiveButtons();
-  if (action === "erase") return eraseButtons();
+  if (action === "erase") return eraseButtons(preview === "typed");
   return agentButtons();
 }
 
@@ -405,7 +425,7 @@ async function showOutbound(
   await ctx.deps.reply({
     kind: "buttons",
     body: `${lead ? `${lead}\n\n` : ""}${outboundBody(pending)}${tail}`,
-    buttons: confirmButtons(pending.action),
+    buttons: confirmButtons(pending.action, pending.preview),
   });
 }
 
@@ -441,7 +461,7 @@ function clientsFromHits(hits: NameHit[]): {
   return { resolved, ambiguous, missing };
 }
 
-async function quietClientNames(ctx: AgentContext): Promise<string[]> {
+async function quietClients(ctx: AgentContext): Promise<ScopedClient[]> {
   const st = await import("./practitioner-status.server");
   const ids = ctx.scopeClients.map((c) => c.id);
   if (!ids.length) return [];
@@ -456,8 +476,65 @@ async function quietClientNames(ctx: AgentContext): Promise<string[]> {
     created_at: string | null;
     auth_user_id: string | null;
   }>;
-  const statuses = await st.loadStatuses(ctx.adminIn, rows, ctx.deps.now);
-  return statuses.filter((s) => st.bucketOf(s, ctx.deps.now) === "quiet").map((s) => s.name);
+  const statuses = await st.loadStatuses(ctx.adminIn, rows.length ? rows : ctx.scopeClients.map((c) => ({
+    id: c.id,
+    full_name: c.full_name,
+    created_at: null,
+    auth_user_id: null,
+  })), ctx.deps.now);
+  const quiet = new Set(
+    statuses.filter((s) => st.bucketOf(s, ctx.deps.now) === "quiet").map((s) => s.id),
+  );
+  return ctx.scopeClients.filter((c) => quiet.has(c.id));
+}
+
+async function quietClientNames(ctx: AgentContext): Promise<string[]> {
+  return (await quietClients(ctx))
+    .map((c) => String(c.full_name ?? "").trim())
+    .filter(Boolean);
+}
+
+async function practitionerLabels(
+  ctx: AgentContext,
+  ids: string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (!ids.length) return out;
+  const { data } = await ctx.admin
+    .from("clients")
+    .select("id, practitioner_id")
+    .in("id", ids)
+    .limit(1000);
+  const rows = (data ?? []) as Array<{ id: string; practitioner_id: string | null }>;
+  const pracIds = [...new Set(rows.map((row) => row.practitioner_id).filter(Boolean))] as string[];
+  const names = new Map<string, string>();
+  if (pracIds.length) {
+    const { data: profs } = await ctx.admin
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", pracIds)
+      .limit(200);
+    for (const prof of (profs ?? []) as Array<{ id: string; full_name: string | null }>) {
+      names.set(
+        prof.id,
+        String(prof.full_name ?? "")
+          .trim()
+          .split(/\s+/)[0] || "Unknown",
+      );
+    }
+  }
+  for (const row of rows) {
+    if (row.practitioner_id) out.set(row.id, names.get(row.practitioner_id) || "Unknown");
+  }
+  return out;
+}
+
+function scopeLabel(ctx: AgentContext): string {
+  return ctx.privileged
+    ? ctx.practiceName && ctx.practiceName !== "your clients"
+      ? `whole practice (${ctx.practiceName})`
+      : "whole practice"
+    : "your clients only";
 }
 
 async function askClarify(ctx: AgentContext, decision: AgentDecision): Promise<void> {
@@ -562,19 +639,58 @@ async function proposeCheckin(
   ctx: AgentContext,
   clients: ScopedClient[],
   note: string | null,
+  opts?: { verbatim?: boolean },
 ): Promise<void> {
+  const verbatim = opts?.verbatim === true;
   const names = clients.map((c) => String(c.full_name ?? "").trim() || "A client");
+  const hasCustom = verbatim
+    ? Boolean(note?.trim())
+    : Boolean(extraCheckinNote(note, ctx.practiceName));
+  const reach = await previewCheckinReach(ctx, clients);
+  const aside = checkinReachWarning(reach, hasCustom) || null;
   await showOutbound(ctx, {
     kind: "outbound",
     action: "checkin",
     clientIds: clients.map((c) => c.id),
     names,
-    preview: checkinPreview(ctx.practiceName, note),
+    preview: checkinPreview(ctx.practiceName, note, verbatim),
     note,
     task: null,
     editing: false,
+    verbatim,
+    aside,
     at: ctx.deps.now.getTime(),
   });
+}
+
+async function previewCheckinReach(
+  ctx: AgentContext,
+  clients: ScopedClient[],
+): Promise<Array<{ name: string; reach: "open" | "template" | "busy" | "other" }>> {
+  const { windowOpen } = await import("./practitioner-status.server");
+  const out: Array<{ name: string; reach: "open" | "template" | "busy" | "other" }> = [];
+  for (const client of clients) {
+    const name = String(client.full_name ?? "").trim() || "A client";
+    const { data: convs } = await ctx.admin
+      .from("whatsapp_conversations")
+      .select("phone, opted_out_at, state")
+      .eq("client_id", client.id)
+      .limit(1);
+    const conv = (
+      (convs ?? []) as Array<{ phone: string; opted_out_at: string | null; state: string }>
+    )[0];
+    if (!conv || conv.opted_out_at || conv.state === "opted_out") {
+      out.push({ name, reach: "other" });
+      continue;
+    }
+    if (conv.state !== "idle") {
+      out.push({ name, reach: "busy" });
+      continue;
+    }
+    const open = await windowOpen(ctx.adminIn, conv.phone, ctx.deps.now);
+    out.push({ name, reach: open ? "open" : "template" });
+  }
+  return out;
 }
 
 async function proposeProgramme(ctx: AgentContext, clients: ScopedClient[]): Promise<void> {
@@ -676,6 +792,7 @@ async function readMessages(ctx: AgentContext, clients: ScopedClient[]): Promise
 type Reach =
   | "whatsapp"
   | "template"
+  | "template_queued"
   | "push"
   | "busy"
   | "queued"
@@ -687,6 +804,7 @@ async function deliverCheckin(
   ctx: AgentContext,
   client: ScopedClient,
   note: string | null,
+  verbatim = false,
 ): Promise<Reach> {
   const { data: convs } = await ctx.admin
     .from("whatsapp_conversations")
@@ -708,10 +826,16 @@ async function deliverCheckin(
     .maybeSingle();
   const clientRow = row as { auth_user_id: string | null; full_name: string | null } | null;
   const full = String(clientRow?.full_name ?? client.full_name ?? "").trim();
-  const body = checkinBody(firstOf(full), ctx.practiceName, note, {
-    clientId: client.id,
-    now: ctx.deps.now,
-  });
+  const body = checkinBody(
+    firstOf(full),
+    ctx.practiceName,
+    note,
+    { clientId: client.id, now: ctx.deps.now },
+    verbatim,
+  );
+  const hasCustom = verbatim
+    ? Boolean(note?.trim())
+    : Boolean(extraCheckinNote(note, ctx.practiceName));
   const onWhatsApp = Boolean(conv && !conv.opted_out_at && conv.state !== "opted_out");
 
   if (onWhatsApp && conv) {
@@ -742,13 +866,43 @@ async function deliverCheckin(
         },
         `[check-in template ${template}]`,
       );
-      if (ok) return "template";
+      if (ok) {
+        if (hasCustom) {
+          const saved = await queueCustomCheckin(ctx, conv.id, body);
+          if (saved) return "template_queued";
+        }
+        return "template";
+      }
     }
     if (clientRow?.auth_user_id) return pushCheckin(ctx, clientRow.auth_user_id, body);
     return "unreachable";
   }
   if (clientRow?.auth_user_id) return pushCheckin(ctx, clientRow.auth_user_id, body);
   return onWhatsApp ? "failed" : "not_registered";
+}
+
+/** Practitioner wording waits until the patient replies. Red flags are handled first, in the worker. */
+async function queueCustomCheckin(
+  ctx: AgentContext,
+  conversationId: string,
+  body: string,
+): Promise<boolean> {
+  const { data } = await ctx.admin
+    .from("whatsapp_conversations")
+    .select("id, draft")
+    .eq("id", conversationId)
+    .limit(1);
+  const row = ((data ?? []) as Array<{ id: string; draft: Record<string, unknown> | null }>)[0];
+  if (!row?.id) return false;
+  const saved = await ctx.admin
+    .from("whatsapp_conversations")
+    .update({ draft: { ...(row.draft ?? {}), pendingCustomCheckin: body } })
+    .eq("id", row.id)
+    .then(
+      () => true,
+      () => false,
+    );
+  return saved;
 }
 
 async function pushCheckin(ctx: AgentContext, userId: string, body: string): Promise<Reach> {
@@ -774,13 +928,14 @@ async function executeCheckins(
   ctx: AgentContext,
   ids: string[],
   note: string | null,
+  verbatim = false,
 ): Promise<void> {
   const { recordCheckinRequest } = await import("./practitioner-status.server");
   const rows: Array<{ name: string; how: string }> = [];
   for (const id of ids) {
     if (!ctx.scopeClients.some((c) => c.id === id)) continue;
     const client = ctx.scopeClients.find((c) => c.id === id)!;
-    const how = await deliverCheckin(ctx, client, note);
+    const how = await deliverCheckin(ctx, client, note, verbatim);
     if (how === "whatsapp" || how === "template" || how === "push") {
       await recordCheckinRequest(ctx.adminIn, id, ctx.prac.userId, ctx.deps.now);
     }
@@ -893,7 +1048,7 @@ async function finishChoice(ctx: AgentContext, ids: string[]): Promise<void> {
     return;
   }
   if (pending.action === "archive") {
-    await proposeArchive(ctx, clients, [], null);
+    await proposeArchive(ctx, clients, [], null, null, null);
     return;
   }
   if (pending.action === "erase") {
@@ -911,8 +1066,10 @@ async function finishChoice(ctx: AgentContext, ids: string[]): Promise<void> {
   await proposeCheckin(ctx, clients, pending.note);
 }
 
+const QUIET_WORDS =
+  /^(?:quiet|the quiet ones?|gone quiet|quiet clients?|quiet patients?)$/i;
 const IDLE_WORDS =
-  /^(?:all|everyone|everybody|quiet|inactive|old|idle|unresponsive|not responding|the quiet ones?)$/i;
+  /^(?:all|everyone|everybody|inactive|old|idle|unresponsive|not responding)$/i;
 
 async function archiveTool(ctx: AgentContext, decision: AgentDecision): Promise<void> {
   const ar = await import("@/lib/client-archive.server");
@@ -924,11 +1081,23 @@ async function archiveTool(ctx: AgentContext, decision: AgentDecision): Promise<
     return;
   }
   const names = decision.names.filter((n) => n.trim());
+  const exclude = decision.exclude ?? [];
+  if (names.some((n) => QUIET_WORDS.test(n.trim()))) {
+    await proposeExcluded(
+      ctx,
+      "archive",
+      await quietClients(ctx),
+      exclude,
+      "gone quiet, no check-in for 4 days or more",
+      null,
+    );
+    return;
+  }
   const idleMode =
     decision.idleDays != null || !names.length || names.every((n) => IDLE_WORDS.test(n.trim()));
   if (!idleMode) {
     const clients = await prepareClients(ctx, "archive", names, null);
-    if (clients?.length) await proposeArchive(ctx, clients, [], null);
+    if (clients?.length) await proposeExcluded(ctx, "archive", clients, exclude, null, null);
     return;
   }
   const days = decision.idleDays ?? ar.DEFAULT_IDLE_DAYS;
@@ -946,7 +1115,17 @@ async function archiveTool(ctx: AgentContext, decision: AgentDecision): Promise<
     );
     return;
   }
-  await proposeArchive(ctx, idle, held, days);
+  await proposeArchive(ctx, idle, held, days, null, null);
+}
+
+async function labelledNames(ctx: AgentContext, clients: ScopedClient[]): Promise<string[]> {
+  const labels = await practitionerLabels(
+    ctx,
+    clients.map((c) => c.id),
+  );
+  return clients.map((c) =>
+    withPractitioner(String(c.full_name ?? "").trim() || "A client", labels.get(c.id)),
+  );
 }
 
 async function proposeArchive(
@@ -954,6 +1133,8 @@ async function proposeArchive(
   clients: ScopedClient[],
   heldBack: string[],
   days: number | null,
+  reason: string | null,
+  extraNote: string | null,
 ): Promise<void> {
   const ar = await import("@/lib/client-archive.server");
   const capped = clients.slice(0, ar.MAX_ARCHIVE);
@@ -965,17 +1146,260 @@ async function proposeArchive(
     );
   if (extra > 0)
     notes.push(`That's the first ${ar.MAX_ARCHIVE}. Ask again for the other ${extra}.`);
+  if (extraNote) notes.push(extraNote);
+  notes.push(`Scope: ${scopeLabel(ctx)}.`);
   await showOutbound(ctx, {
     kind: "outbound",
     action: "archive",
     clientIds: capped.map((c) => c.id),
-    names: capped.map((c) => String(c.full_name ?? "").trim() || "A client"),
-    preview: days ? `no check-in or message from them in ${days} days` : "",
+    names: await labelledNames(ctx, capped),
+    preview: reason || (days ? `no check-in or message from them in ${days} days` : ""),
     note: notes.join(" ") || null,
     task: null,
     editing: false,
     at: ctx.deps.now.getTime(),
   });
+}
+
+async function proposeTypedErase(
+  ctx: AgentContext,
+  clients: ScopedClient[],
+  extraNote: string | null,
+  actorId: string | null,
+): Promise<void> {
+  if (!clients.length) {
+    await replyText(ctx, "That leaves nobody. Nothing has been deleted.");
+    return;
+  }
+  const capped = clients.slice(0, 50);
+  const notes = [`Scope: ${scopeLabel(ctx)}.`, extraNote].filter(Boolean).join(" ");
+  await showOutbound(ctx, {
+    kind: "outbound",
+    action: "erase",
+    clientIds: capped.map((c) => c.id),
+    names: await labelledNames(ctx, capped),
+    preview: "typed",
+    note: notes || null,
+    task: null,
+    editing: false,
+    actorId,
+    at: ctx.deps.now.getTime(),
+  });
+}
+
+async function proposeExcluded(
+  ctx: AgentContext,
+  action: "archive" | "erase",
+  clients: ScopedClient[],
+  exclusions: string[],
+  reason: string | null,
+  actorId: string | null,
+): Promise<void> {
+  const { kept, unmatched } = dropNamedClients(clients, exclusions);
+  if (!clients.length) {
+    await replyText(
+      ctx,
+      action === "erase"
+        ? "Nobody on that list matches. Nothing has been deleted."
+        : "Nobody on your list has gone quiet.",
+    );
+    return;
+  }
+  if (!kept.length) {
+    await replyText(ctx, "That leaves nobody. I won't delete anyone.");
+    return;
+  }
+  const note = unmatched.length
+    ? `Nobody on that list matched ${joinNames(unmatched)}, so I didn't take anyone off for that name.`
+    : null;
+  if (action === "erase") await proposeTypedErase(ctx, kept, note, actorId);
+  else await proposeArchive(ctx, kept, [], null, reason, note);
+}
+
+const ADMIN_ONLY_ERASE =
+  "Only the Buddy admin can permanently delete clients. I can archive them instead, and their records stay.";
+
+async function typedEraseTool(ctx: AgentContext, decision: AgentDecision): Promise<void> {
+  const { buddyAdminActor } = await import("./practitioner-mode.server");
+  const actor = await buddyAdminActor(ctx.adminIn, ctx.prac.userId);
+  if (!actor) {
+    await replyText(ctx, ADMIN_ONLY_ERASE);
+    return;
+  }
+  const names = decision.names.filter((n) => n.trim());
+  const exclude = decision.exclude ?? [];
+  if (names.some((n) => QUIET_WORDS.test(n.trim()))) {
+    await proposeExcluded(ctx, "erase", await quietClients(ctx), exclude, null, actor);
+    return;
+  }
+  const concrete = names.filter((n) => !QUIET_WORDS.test(n.trim()) && !IDLE_WORDS.test(n.trim()));
+  if (!concrete.length) {
+    await replyText(ctx, 'Who should I permanently delete? Name them, or say "the gone quiet clients".');
+    return;
+  }
+  const clients = await prepareClients(ctx, "erase", concrete, null);
+  if (clients?.length) await proposeExcluded(ctx, "erase", clients, exclude, null, actor);
+}
+
+async function executeTypedErase(
+  ctx: AgentContext,
+  ids: string[],
+  actorId: string | null,
+): Promise<void> {
+  const { buddyAdminActor } = await import("./practitioner-mode.server");
+  const actor = actorId || (await buddyAdminActor(ctx.adminIn, ctx.prac.userId));
+  ctx.mem.pending = null;
+  if (!actor) {
+    await replyText(ctx, ADMIN_ONLY_ERASE);
+    return;
+  }
+  const inScope = ids.filter((id) => ctx.scopeClients.some((c) => c.id === id));
+  if (!inScope.length) {
+    await replyText(ctx, "Those clients aren't on your list. Nothing has been deleted.");
+    return;
+  }
+  const { data } = await ctx.admin
+    .from("clients")
+    .select("id, phone, auth_user_id, email, full_name")
+    .in("id", inScope)
+    .limit(50);
+  const rows = (data ?? []) as Array<{
+    id: string;
+    phone: string | null;
+    auth_user_id: string | null;
+    email: string | null;
+    full_name: string | null;
+  }>;
+  const { eraseClientRecord } = await import("@/lib/retention.server");
+  const gone: string[] = [];
+  for (const row of rows) {
+    const result = await eraseClientRecord(
+      ctx.adminIn,
+      row,
+      { channel: "whatsapp", actorId: actor },
+    );
+    if (result.ok) gone.push(String(row.full_name ?? "").trim() || "A client");
+  }
+  log.info("practitioner agent erase", { count: gone.length });
+  ctx.mem.focus = null;
+  await replyText(
+    ctx,
+    gone.length
+      ? `Permanently deleted ${gone.length === 1 ? gone[0] : `${gone.length} clients`} (${joinNames(gone)}). Their WhatsApp messages went with the records.`
+      : "Sorry, I couldn't delete them just now. Nothing was removed.",
+  );
+}
+
+async function replyClientList(ctx: AgentContext): Promise<void> {
+  const st = await import("./practitioner-status.server");
+  const ids = ctx.scopeClients.map((c) => c.id);
+  const { data } = ids.length
+    ? await ctx.admin
+        .from("clients")
+        .select("id, full_name, created_at, auth_user_id")
+        .in("id", ids)
+        .limit(1000)
+    : { data: [] };
+  const rows = (data ?? []) as Array<{
+    id: string;
+    full_name: string | null;
+    created_at: string | null;
+    auth_user_id: string | null;
+  }>;
+  const statuses = rows.length ? await st.loadStatuses(ctx.adminIn, rows, ctx.deps.now) : [];
+  const current = statuses.filter((s) => st.bucketOf(s, ctx.deps.now) !== "inactive").length;
+  const labels = await practitionerLabels(ctx, ids);
+  const people = [...ctx.scopeClients]
+    .map((c) => ({
+      name: String(c.full_name ?? "").trim() || "A client",
+      practitioner: labels.get(c.id) ?? null,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  if (ctx.scopeClients.length) rememberFocus(ctx, ctx.scopeClients);
+  await replyText(
+    ctx,
+    formatClientList({ scopeLabel: scopeLabel(ctx), people, current }),
+  );
+}
+
+function clientsFromFocus(ctx: AgentContext): ScopedClient[] {
+  const focus = liveFocus(ctx);
+  return (focus?.list ?? [])
+    .map((item) => ctx.scopeClients.find((c) => c.id === item.id))
+    .filter((c): c is ScopedClient => Boolean(c));
+}
+
+async function handleDeleteRoster(ctx: AgentContext, text: string): Promise<boolean> {
+  const ask = deleteRosterAsk(text);
+  if (!ask) return false;
+  if (ask.permanent) {
+    const { buddyAdminActor } = await import("./practitioner-mode.server");
+    const actor = await buddyAdminActor(ctx.adminIn, ctx.prac.userId);
+    if (!actor) {
+      await replyText(ctx, ADMIN_ONLY_ERASE);
+      return true;
+    }
+    if (ask.quiet) {
+      await proposeExcluded(ctx, "erase", await quietClients(ctx), ask.exclusions, null, actor);
+      return true;
+    }
+    if (ask.them) {
+      const base = clientsFromFocus(ctx);
+      if (!base.length) {
+        await replyText(
+          ctx,
+          "I don't have a list to take those from. Ask who's gone quiet, or name the clients.",
+        );
+        return true;
+      }
+      await proposeExcluded(ctx, "erase", base, ask.exclusions, null, actor);
+      return true;
+    }
+    if (ask.all) {
+      await proposeExcluded(ctx, "erase", ctx.scopeClients, ask.exclusions, null, actor);
+      return true;
+    }
+    if (!ask.names.length) {
+      await replyText(
+        ctx,
+        'Who should I permanently delete? Name them, or say "the gone quiet clients".',
+      );
+      return true;
+    }
+    const clients = await prepareClients(ctx, "erase", ask.names, null);
+    if (clients?.length) await proposeExcluded(ctx, "erase", clients, ask.exclusions, null, actor);
+    return true;
+  }
+  const ar = await import("@/lib/client-archive.server");
+  if (!(await ar.canArchive(ctx.adminIn, ctx.prac.userId))) {
+    await replyText(
+      ctx,
+      "Only the practice owner can archive clients. Ask them if someone should come off the list.",
+    );
+    return true;
+  }
+  const reason = ask.quiet ? "gone quiet, no check-in for 4 days or more" : null;
+  if (ask.quiet) {
+    await proposeExcluded(ctx, "archive", await quietClients(ctx), ask.exclusions, reason, null);
+    return true;
+  }
+  if (ask.them) {
+    const base = clientsFromFocus(ctx);
+    if (!base.length) {
+      await replyText(
+        ctx,
+        "I don't have a list to take those from. Ask who's gone quiet, or name the clients.",
+      );
+      return true;
+    }
+    await proposeExcluded(ctx, "archive", base, ask.exclusions, reason, null);
+    return true;
+  }
+  if (ask.all && ask.exclusions.length) {
+    await proposeExcluded(ctx, "archive", ctx.scopeClients, ask.exclusions, reason, null);
+    return true;
+  }
+  return false;
 }
 
 async function executeArchive(ctx: AgentContext, ids: string[]): Promise<void> {
@@ -1007,7 +1431,8 @@ async function executeArchive(ctx: AgentContext, ids: string[]): Promise<void> {
 
 async function eraseTool(ctx: AgentContext, decision: AgentDecision): Promise<void> {
   const er = await import("@/lib/client-erase.server");
-  if (!(await er.isSuperAdmin(ctx.adminIn, ctx.prac.userId))) {
+  const { buddyAdminActor } = await import("./practitioner-mode.server");
+  if (!(await buddyAdminActor(ctx.adminIn, ctx.prac.userId))) {
     const ar = await import("@/lib/client-archive.server");
     if (await ar.canArchive(ctx.adminIn, ctx.prac.userId)) {
       await replyText(
@@ -1058,8 +1483,10 @@ async function proposeErase(ctx: AgentContext, clients: ScopedClient[]): Promise
 
 async function executeErase(ctx: AgentContext, ids: string[]): Promise<void> {
   const er = await import("@/lib/client-erase.server");
+  const { buddyAdminActor } = await import("./practitioner-mode.server");
   ctx.mem.pending = null;
-  if (!(await er.isSuperAdmin(ctx.adminIn, ctx.prac.userId))) {
+  const actor = await buddyAdminActor(ctx.adminIn, ctx.prac.userId);
+  if (!actor) {
     await replyText(ctx, "Only the Buddy admin can delete clients.");
     return;
   }
@@ -1068,7 +1495,7 @@ async function executeErase(ctx: AgentContext, ids: string[]): Promise<void> {
   const failed: string[] = [];
   const erased = new Set<string>();
   for (const id of inScope) {
-    const r = await er.eraseClient(ctx.adminIn, id, ctx.prac.userId, "whatsapp");
+    const r = await er.eraseClient(ctx.adminIn, id, actor, "whatsapp");
     if (r.ok) erased.add(id);
     (r.ok ? done : failed).push(nameOf(ctx.scopeClients, id));
   }
@@ -1169,6 +1596,7 @@ const OUTBOUND_TOOLS = new Set<AgentTool>([
   "programme_sent",
   "ask_reception",
   "archive_clients",
+  "erase_clients",
   "delete_clients",
   "discharge_client",
   "reopen_episode",
@@ -1256,6 +1684,14 @@ async function applyDecision(ctx: AgentContext, decision: AgentDecision): Promis
     await archiveTool(ctx, decision);
     return;
   }
+  if (tool === "erase_clients") {
+    await typedEraseTool(ctx, decision);
+    return;
+  }
+  if (tool === "list_clients") {
+    await replyClientList(ctx);
+    return;
+  }
   if (tool === "unarchive_clients") {
     await unarchiveTool(ctx, decision);
     return;
@@ -1265,6 +1701,10 @@ async function applyDecision(ctx: AgentContext, decision: AgentDecision): Promis
     return;
   }
   if (tool === "list_practitioners") {
+    if (isClientListAsk(ctx.inboundText)) {
+      await replyClientList(ctx);
+      return;
+    }
     const people = await listRoster(ctx);
     await replyText(
       ctx,
@@ -1518,7 +1958,9 @@ async function confirmPending(ctx: AgentContext): Promise<void> {
     return;
   }
   if (pending.action === "erase") {
-    await executeErase(ctx, pending.clientIds);
+    if (pending.preview === "typed") {
+      await executeTypedErase(ctx, pending.clientIds, pending.actorId ?? null);
+    } else await executeErase(ctx, pending.clientIds);
     return;
   }
   if (pending.action === "discharge" || pending.action === "reopen") {
@@ -1533,7 +1975,7 @@ async function confirmPending(ctx: AgentContext): Promise<void> {
     await executeAppointment(ctx, pending.clientIds[0], pending.task, pending.names[0]);
     return;
   }
-  await executeCheckins(ctx, pending.clientIds, pending.note);
+  await executeCheckins(ctx, pending.clientIds, pending.note, pending.verbatim === true);
 }
 
 function scopedIds(ctx: AgentContext, ids: string[]): string[] {
@@ -1678,6 +2120,16 @@ async function repropose(
     await proposeProgramme(ctx, clients);
     return;
   }
+  if (pending.action === "archive") {
+    await proposeArchive(ctx, clients, [], null, pending.preview || null, null);
+    return;
+  }
+  if (pending.action === "erase") {
+    if (pending.preview === "typed") {
+      await proposeTypedErase(ctx, clients, null, pending.actorId ?? null);
+    } else await proposeErase(ctx, clients);
+    return;
+  }
   if (
     pending.action === "discharge" ||
     pending.action === "reopen" ||
@@ -1686,7 +2138,7 @@ async function repropose(
     await proposeCare(ctx, pending.action, clients);
     return;
   }
-  await proposeCheckin(ctx, clients, pending.note);
+  await proposeCheckin(ctx, clients, pending.note, { verbatim: pending.verbatim === true });
 }
 
 async function swapRecipients(
@@ -1950,25 +2402,72 @@ async function handlePending(
     pending.editing = false;
   }
   if (pending.kind === "outbound" && pending.editing) {
-    if (needsPractitionerAgent(text) && !extraCheckinNote(text, ctx.practiceName)) return false;
-    const note = extraCheckinNote(text, ctx.practiceName) ?? text.trim().slice(0, 240);
+    const typed = text.replace(/\s+/g, " ").trim().slice(0, 500);
+    if (!typed) {
+      await replyText(ctx, "What should I say instead?");
+      return true;
+    }
+    const clients = pending.clientIds
+      .map((id) => ctx.scopeClients.find((c) => c.id === id))
+      .filter((c): c is ScopedClient => Boolean(c));
     if (pending.action === "reception") {
-      await proposeReception(ctx, note);
+      await proposeReception(ctx, typed);
       return true;
     }
     if (pending.action === "programme") {
-      await proposeProgramme(
+      await proposeProgramme(ctx, clients);
+      return true;
+    }
+    await proposeCheckin(ctx, clients, typed, { verbatim: true });
+    return true;
+  }
+  if (
+    pending.kind === "outbound" &&
+    (pending.action === "archive" || pending.action === "erase" || pending.action === "checkin")
+  ) {
+    const exclusions = exclusionNames(text);
+    if (exclusions.length) {
+      const current = pending.clientIds
+        .map((id) => ctx.scopeClients.find((c) => c.id === id))
+        .filter((c): c is ScopedClient => Boolean(c));
+      if (pending.action === "checkin") {
+        const { kept, unmatched } = dropNamedClients(current, exclusions);
+        if (unmatched.length) {
+          await replyText(
+            ctx,
+            `Nobody on that list matched ${joinNames(unmatched)}, so I didn't take anyone off for that name.`,
+          );
+        }
+        if (!kept.length) {
+          ctx.mem.pending = null;
+          await replyText(ctx, "That leaves nobody. I won't message anyone.");
+          return true;
+        }
+        await proposeCheckin(ctx, kept, pending.note, { verbatim: pending.verbatim === true });
+        return true;
+      }
+      await proposeExcluded(
         ctx,
-        pending.clientIds.map((id) => ctx.scopeClients.find((c) => c.id === id)!).filter(Boolean),
+        pending.action,
+        current,
+        exclusions,
+        pending.action === "archive" ? pending.preview || null : null,
+        pending.actorId ?? null,
       );
       return true;
     }
-    await proposeCheckin(
-      ctx,
-      pending.clientIds.map((id) => ctx.scopeClients.find((c) => c.id === id)!).filter(Boolean),
-      note,
-    );
-    return true;
+  }
+  if (pending.kind === "outbound" && pending.action === "erase" && pending.preview === "typed") {
+    const count = pending.clientIds.length || pending.names.length;
+    if (!replyId && typedEraseConfirm(text, count)) {
+      await confirmPending(ctx);
+      await drainQueue(ctx);
+      return true;
+    }
+    if (replyId === "prac_ag_yes" || (!replyId && isYes(text))) {
+      await replyText(ctx, `Nothing has been deleted. Reply exactly: DELETE ${count}`);
+      return true;
+    }
   }
   if (
     pending.kind === "outbound" &&
@@ -1997,6 +2496,7 @@ async function handlePending(
   }
   if (
     pending.kind === "outbound" &&
+    !(pending.action === "erase" && pending.preview === "typed") &&
     (replyId === "prac_ag_yes" ||
       (!replyId &&
         (isYes(text) || acceptsAll(text, pending.clientIds.length || pending.names.length))))
@@ -2240,6 +2740,14 @@ export async function runPractitionerAgent(
 
   if (await handlePending(ctx, msg.text, msg.replyId)) return true;
 
+  if (isClientListAsk(msg.text)) {
+    ctx.mem.pending = null;
+    await replyClientList(ctx);
+    return true;
+  }
+
+  if (await handleDeleteRoster(ctx, msg.text)) return true;
+
   const follow = followUpOf(msg.text);
   if (follow && (await answerFollowUp(ctx, follow))) return true;
 
@@ -2295,7 +2803,7 @@ export async function runPractitionerAgent(
       await ctx.deps.reply({
         kind: "buttons",
         body: outboundBody(mem.pending),
-        buttons: confirmButtons(mem.pending.action),
+        buttons: confirmButtons(mem.pending.action, mem.pending.preview),
       });
       return true;
     }

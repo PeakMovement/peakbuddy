@@ -53,6 +53,16 @@ const DAY = 86_400_000;
 const WINDOW_MS = DAY - 2 * 60 * 1000;
 /** A client counts as current with a check-in in this window, or joined recently. */
 const ACTIVE_DAYS = 60;
+
+/** The words that sit next to a count, so "your clients" and the practice are not mixed up. */
+export function scopeCountLabel(practice: boolean, practiceName?: string | null): string {
+  if (!practice) return "your clients only";
+  const name = String(practiceName ?? "").trim();
+  if (name && name !== "your clients" && name !== "all practices" && name !== "the practice") {
+    return `whole practice (${name})`;
+  }
+  return "whole practice";
+}
 const NEW_DAYS = 30;
 /** No check-in for this many days: gone quiet, when the reminder is every day. */
 const QUIET_DAYS = 4;
@@ -486,10 +496,11 @@ export function formatStatusAll(
     by.quiet.length ? `${by.quiet.length} gone quiet` : null,
     by.well.length ? `${by.well.length} doing well` : null,
   ].filter(Boolean) as string[];
+  const scope = scopeCountLabel(practice);
   const lines: string[] = [
     practice
-      ? `Here's how the practice's clients are doing, ${name}. ${active} current: ${andList(counts)}.`
-      : `Here's how your clients are doing, ${name}. ${active} current: ${andList(counts)}.`,
+      ? `Here's how the practice's clients are doing, ${name}. ${active} current, ${scope}: ${andList(counts)}.`
+      : `Here's how your clients are doing, ${name}. ${active} current, ${scope}: ${andList(counts)}.`,
   ];
   if (by.attention.length) {
     lines.push("", `*Needs a look (${by.attention.length})*`);

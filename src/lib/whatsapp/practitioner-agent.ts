@@ -18,7 +18,7 @@ import type {
   PracPending,
   PracTurn,
 } from "./practitioner-understand";
-import { practitionerCheckinText, practitionerConfirmSend } from "./voice";
+import { practitionerCheckinText, practitionerConfirmSend, verbatimCheckinText } from "./voice";
 import { parseProgrammeDays } from "@/lib/capabilities";
 
 export const AGENT_TOOLS = [
@@ -47,6 +47,8 @@ export const AGENT_TOOLS = [
   "confirm_quiet_nudges",
   "set_programme_reminder",
   "archive_clients",
+  "erase_clients",
+  "list_clients",
   "unarchive_clients",
   "delete_clients",
   "discharge_client",
@@ -84,6 +86,8 @@ export interface AgentDecision {
   programmeOptIn?: boolean;
   /** archive_clients: no check-in or message for this many days. */
   idleDays?: number | null;
+  /** Names to take off the set. Every match goes, including duplicate names. */
+  exclude?: string[];
 }
 
 export interface AgentTurnInput {
@@ -241,6 +245,7 @@ export function validDecision(raw: unknown): AgentDecision | null {
       );
   const programmeOptIn = row.optedIn === true;
   const names = asNames(row.names);
+  const exclude = asNames(row.exclude ?? row.exclusions);
   const rawIdle = row.idleDays ?? row.idle_days;
   const idleDays =
     typeof rawIdle === "number" && rawIdle >= 1 && rawIdle <= 730 ? Math.round(rawIdle) : null;
@@ -278,6 +283,7 @@ export function validDecision(raw: unknown): AgentDecision | null {
     programmeDays,
     programmeOptIn,
     idleDays,
+    exclude,
   };
 }
 
@@ -443,8 +449,22 @@ export function practitionerToolSchemas(heidiEnabled: boolean): unknown[] {
     {
       name: "archive_clients",
       description:
-        'Archive clients who have stopped responding (practice owner only). Records are kept; they come off lists and get no more reminders. Named clients, or names ["inactive"] for everyone with no check-in or message for idleDays days (default 60). "Remove", "clear out" or "archive" old clients means this. A confirmation is shown first.',
-      properties: { names: strArray, idleDays: { type: "integer" } },
+        'Archive clients who have stopped responding (practice owner only). Records are kept; they come off lists and get no more reminders. Named clients, names ["quiet"] for the gone-quiet list (no check-in for 4 days), or names ["inactive"] for everyone with no check-in or message for idleDays days (default 60). "Remove", "clear out" or "archive" old clients means this. Put "except Yianna" in exclude. Every person with that name is excluded. A confirmation is shown first.',
+      properties: { names: strArray, exclude: strArray, idleDays: { type: "integer" } },
+      required: [],
+    },
+    {
+      name: "erase_clients",
+      description:
+        'Permanently delete the gone-quiet list, or that list minus exclusions. Buddy admin only. names ["quiet"]. Put "except Yianna" in exclude. Every person with that name is excluded. A typed confirmation that lists the names is shown first. A single named delete ("delete Sam") is delete_clients, not this.',
+      properties: { names: strArray, exclude: strArray },
+      required: [],
+    },
+    {
+      name: "list_clients",
+      description:
+        'List the clients (not the practitioners). "all clients", "list clients", "who is all clients", "who are my clients". The count says whether it is this practitioner\'s clients or the whole practice.',
+      properties: {},
       required: [],
     },
     {
@@ -620,7 +640,7 @@ A wording they want included ("say you're with ${input.practiceName}", "mention 
 If something is waiting to be sent and they agree ("yes", "ye do it", "all", "👍"), call confirm_pending. If they decline, call cancel_pending.
 If you are unsure, call clarify with one short question and up to 3 button labels under 20 characters. No client facts in that question.
 Scheduled updates use schedule_updates. Reception errands use ask_reception. What you can do uses help.
-A case brief is case_brief. Who improved this week is who_improved. Booking or moving an appointment is book_reception. A goal they want stored is set_goal. An outcomes or retention scorecard is outcomes. Agreeing to remind the quiet patients already named is confirm_quiet_nudges. Deleting or erasing named clients ("delete Sam Smith", "erase her") is delete_clients. Removing, clearing out or archiving old or unresponsive clients is archive_clients: named clients, or names ["inactive"] with idleDays when they give a period ("not responded in 3 months" is idleDays 90). Bringing someone back is unarchive_clients. Home programme reminder days are set_programme_reminder. days uses 0 for Sunday through 6 for Saturday. optedIn is true only when they say the patient already agreed. Do not message the patient from that tool.
+A case brief is case_brief. Who improved this week is who_improved. Booking or moving an appointment is book_reception. A goal they want stored is set_goal. An outcomes or retention scorecard is outcomes. Agreeing to remind the quiet patients already named is confirm_quiet_nudges. Deleting or erasing named clients ("delete Sam Smith", "erase her") is delete_clients. It waits for Yes and is never everyone at once. Permanently deleting the gone-quiet list, or "except Yianna", is erase_clients: names ["quiet"] and the exclusions in exclude. Every person with that name is excluded. Do not ask which one. Removing, clearing out or archiving old or unresponsive clients is archive_clients: named clients, names ["quiet"] for who has gone quiet, or names ["inactive"] with idleDays when they give a period ("not responded in 3 months" is idleDays 90). "except" on an archive also goes in exclude. Bringing someone back is unarchive_clients. "all clients", "list clients" and "who is all clients" are list_clients, not list_practitioners. Home programme reminder days are set_programme_reminder. days uses 0 for Sunday through 6 for Saturday. optedIn is true only when they say the patient already agreed. Do not message the patient from that tool.
 Stopping reminders after discharge is discharge_client. Opening the episode again is reopen_episode. A copy of the record for them to review, then a one-time link, is prepare_data_copy. Each needs a name and waits for confirmation. Do not invent clinical advice. Do not use these for everyone at once.
 "Why" or "why is she up" is explain_client for the last client. Answer only from stored scores. A question about the whole list ("who hasn't done exercises", "which ACL patients are improving") is caseload_query with the question in their words. "Summarise" is summarise_thread. "I'll take over with Lauren" or "pause buddy for Lauren" is pause_buddy. "Hand it back" or "resume buddy for Lauren" is resume_buddy. Do not invent a patient, a number, or a diagnosis.
 A weekday morning note asks whether they want a patient update or reception to check in with anyone. "Patient update" or agreeing to the update is client_status with names ["all"]. Naming patients for reception to check in with is ask_reception, task "Check in with" those names. "Reception check-in" with no names is clarify asking who, with no client facts. "Not today" is dismiss_morning. "Stop morning check-ins" is set_morning_checkin with enabled false. "Start morning check-ins" is set_morning_checkin with enabled true. "Update me every morning" is schedule_updates, not the morning note.
@@ -719,7 +739,15 @@ export function extraCheckinNote(
   return clipped.charAt(0).toUpperCase() + clipped.slice(1);
 }
 
-export function checkinPreview(practiceName: string, note: string | null): string {
+export function checkinPreview(
+  practiceName: string,
+  note: string | null,
+  verbatim = false,
+): string {
+  if (verbatim) {
+    const text = String(note ?? "").replace(/\s+/g, " ").trim();
+    return text || practitionerCheckinText("<name>", practiceName, null);
+  }
   return practitionerCheckinText("<name>", practiceName, extraCheckinNote(note, practiceName));
 }
 
@@ -728,7 +756,9 @@ export function checkinBody(
   practiceName: string,
   note: string | null,
   vary?: { clientId?: string; now?: Date } | null,
+  verbatim = false,
 ): string {
+  if (verbatim) return verbatimCheckinText(firstName, String(note ?? ""));
   return practitionerCheckinText(
     firstName,
     practiceName,
@@ -745,8 +775,180 @@ export function joinNames(names: string[]): string {
   return `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`;
 }
 
-export function confirmOutbound(names: string[], preview: string): string {
-  return practitionerConfirmSend(joinNames(names), preview);
+export function confirmOutbound(names: string[], preview: string, notes?: string | null): string {
+  return practitionerConfirmSend(joinNames(names), preview, notes);
+}
+
+export type CheckinReachKind = "open" | "template" | "busy" | "other";
+
+/** What the admin should see before they confirm a check-in send. */
+export function checkinReachWarning(
+  rows: Array<{ name: string; reach: CheckinReachKind }>,
+  hasCustom: boolean,
+): string {
+  const lines: string[] = [];
+  const busy = rows.filter((row) => row.reach === "busy");
+  const template = rows.filter((row) => row.reach === "template");
+  if (busy.length) {
+    const who = joinNames(busy.map((row) => row.name));
+    const be = busy.length === 1 ? "is" : "are";
+    lines.push(
+      `${who} ${be} already mid check-in, so I'll leave them to finish and won't message them now.`,
+    );
+  }
+  if (template.length) {
+    const who = joinNames(template.map((row) => row.name));
+    const be = template.length === 1 ? "is" : "are";
+    lines.push(
+      hasCustom
+        ? `${who} ${be} outside the 24 hour window, so they'll only get the check-in template, without this wording. I'll queue this wording and send it automatically once they reply and the window reopens.`
+        : `${who} ${be} outside the 24 hour window, so they'll only get the check-in template.`,
+    );
+  }
+  return lines.join("\n");
+}
+
+const DELETE_VERB = /\b(delete|remove|archive|erase|wipe)\b/;
+
+/** "except yianna and michaela" — every match, never a disambiguation. */
+export function exclusionNames(text: string): string[] {
+  const n = normalizePractitionerText(text);
+  const matched = n.match(/\b(?:except|excluding|apart from|other than|but not)\s+(.+)$/);
+  if (!matched) return [];
+  return matched[1]
+    .split(/\s*(?:,|&|\band\b)\s*/)
+    .map((part) => part.replace(/^(?:the|a|for|from)\s+/, "").trim())
+    .filter(
+      (part) =>
+        part.length >= 2 &&
+        !/^(please|thanks|them|those|all|everyone|everybody|clients|patients|ones)$/.test(part),
+    );
+}
+
+/** "all clients", "list clients", "who is all clients" — a roster, not practitioners. */
+export function isClientListAsk(text: string): boolean {
+  const n = normalizePractitionerText(text);
+  if (!n || n.length > 80) return false;
+  if (/\b(delete|remove|archive|erase|wipe|message|check|practitioner|how|doing|quiet|flag)\b/.test(n))
+    return false;
+  return (
+    /^(?:who(?: is| are| s)?|list|show(?: me)?|give me|what are|name)\s+(?:me\s+)?(?:all\s+)?(?:of\s+(?:the|my|our)\s+)?(?:the\s+|my\s+|our\s+)?(?:all\s+)?clients$/.test(
+      n,
+    ) ||
+    /^(?:all|the|my|our)\s+clients$/.test(n) ||
+    /^clients$/.test(n)
+  );
+}
+
+export interface DeleteRosterAsk {
+  permanent: boolean;
+  quiet: boolean;
+  them: boolean;
+  all: boolean;
+  exclusions: string[];
+  names: string[];
+}
+
+/**
+ * A delete of a set: gone quiet, "them", or "except these names".
+ * A plain "archive Sam" stays with the model. Permanent delete of one name
+ * is included so the admin path does not depend on the model.
+ */
+export function deleteRosterAsk(text: string): DeleteRosterAsk | null {
+  const n = normalizePractitionerText(text);
+  if (!DELETE_VERB.test(n)) return null;
+  if (/\b(appointment|booking|my account|the account)\b/.test(n)) return null;
+  const exclusions = exclusionNames(text);
+  const permanent = /\b(permanently|permanent|forever|erase|wipe)\b/.test(n);
+  const quiet =
+    /\bgone quiet\b/.test(n) ||
+    /\bquiet (?:clients|patients|ones)\b/.test(n) ||
+    (/\bquiet\b/.test(n) && /\b(clients|patients|ones|them|all|everyone)\b/.test(n));
+  const them = /\b(them|those|these)\b/.test(n);
+  const all = /\b(all|everyone|everybody)\b/.test(n);
+  if (!(quiet || them || exclusions.length || permanent)) return null;
+  const names = permanent && !quiet && !them && !all ? namesAfterDelete(n) : [];
+  return { permanent, quiet, them, all, exclusions, names };
+}
+
+function namesAfterDelete(n: string): string[] {
+  const matched = n.match(/\b(?:delete|erase|wipe|remove)\s+(.+)$/);
+  if (!matched) return [];
+  let rest = matched[1]
+    .replace(/\b(?:except|excluding|apart from|other than|but not)\b[\s\S]*$/, "")
+    .trim();
+  rest = rest
+    .replace(
+      /^(?:all\s+)?(?:the\s+)?(?:gone\s+quiet\s+|quiet\s+)?(?:clients|patients|ones)?\s*/,
+      "",
+    )
+    .trim();
+  if (!rest || /^(clients|patients|ones|them|those|all|everyone|everybody)$/.test(rest)) return [];
+  return rest
+    .split(/\s*(?:,|&|\band\b)\s*/)
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 2 && !/^(please|thanks|clients|patients)$/.test(part));
+}
+
+/** The typed line that confirms a permanent delete. "Yes" is not enough. */
+export function typedEraseConfirm(text: string, count: number): boolean {
+  if (!Number.isInteger(count) || count < 1) return false;
+  return normalizePractitionerText(text) === `delete ${count}`;
+}
+
+/**
+ * Take every matching record off a list. Duplicate names are all removed.
+ * Nothing here is an "include", and nothing asks which person they meant.
+ */
+export function dropNamedClients(
+  clients: ScopedClient[],
+  queries: string[],
+): { kept: ScopedClient[]; removed: ScopedClient[]; unmatched: string[] } {
+  const remove = new Set<string>();
+  const unmatched: string[] = [];
+  for (const query of queries) {
+    const hits = spokenNameHits(query, clients);
+    if (!hits.length) unmatched.push(query);
+    else for (const hit of hits) remove.add(hit.id);
+  }
+  return {
+    kept: clients.filter((client) => !remove.has(client.id)),
+    removed: clients.filter((client) => remove.has(client.id)),
+    unmatched,
+  };
+}
+
+export function formatClientList(input: {
+  scopeLabel: string;
+  people: Array<{ name: string; practitioner: string | null }>;
+  current: number;
+}): string {
+  const count = input.people.length;
+  const lines = [
+    "*All clients*",
+    `Scope: ${input.scopeLabel}. ${count} on Buddy, ${input.current} current (${input.scopeLabel}).`,
+  ];
+  if (!count) {
+    lines.push("Nobody is on this list yet.");
+    return lines.join("\n");
+  }
+  const firsts = input.people.map((person) => person.name.split(/\s+/)[0]?.toLowerCase() ?? "");
+  const duplicated = new Set(
+    firsts.filter((name, index) => firsts.indexOf(name) !== index || firsts.lastIndexOf(name) !== index),
+  );
+  const practiceWide = input.scopeLabel.startsWith("whole practice");
+  for (const person of input.people) {
+    const first = person.name.split(/\s+/)[0]?.toLowerCase() ?? "";
+    const practitioner = person.practitioner?.trim();
+    const show = Boolean(practitioner && (practiceWide || duplicated.has(first)));
+    lines.push(`• ${person.name}${show ? ` (${practitioner})` : ""}`);
+  }
+  return lines.join("\n");
+}
+
+export function withPractitioner(name: string, practitioner: string | null | undefined): string {
+  const who = practitioner?.trim();
+  return who ? `${name} (${who})` : name;
 }
 
 const WORD_NUM: Record<string, number> = {
@@ -941,6 +1143,8 @@ const REACH_LINE: Record<string, (name: string) => string> = {
   whatsapp: (name) => `${name}: messaged on WhatsApp.`,
   template: (name) =>
     `${name}: outside the 24 hour window, so I sent the check-in template. The personal wording isn't in that template.`,
+  template_queued: (name) =>
+    `${name}: outside the 24 hour window, so I sent the check-in template without this wording. I'll send the wording automatically once they reply and the window reopens.`,
   push: (name) => `${name}: not on WhatsApp with me, so I sent a notification in the Buddy app.`,
   busy: (name) => `${name}: already in a check-in with me, so I've left them to finish.`,
   queued: (name) =>

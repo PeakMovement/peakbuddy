@@ -10,6 +10,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CLINICAL_RECORD_RETENTION } from "@/lib/consent/wording";
+import { log } from "@/lib/log";
 import { toE164Digits } from "@/lib/whatsapp/phone";
 
 export const WHATSAPP_ORPHAN_AFTER_MS = 24 * 60 * 60 * 1000;
@@ -86,4 +87,53 @@ export async function deleteWhatsAppForPatient(
     await admin.from("whatsapp_outbound").delete().eq("phone", key);
     await admin.from("whatsapp_conversations").delete().eq("phone", key);
   }
+}
+
+export interface EraseClientInput {
+  id: string;
+  phone: string | null;
+  auth_user_id?: string | null;
+  email?: string | null;
+}
+
+/**
+ * The admin erase path (PR 330): WhatsApp rows go first, then the client,
+ * then an audit row that keeps the id after the client is gone. The auth
+ * user goes last. A failed audit does not bring the client back.
+ */
+export async function eraseClientRecord(
+  admin: Admin,
+  client: EraseClientInput,
+  audit: { channel: "whatsapp" | "admin"; actorId: string | null },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await deleteWhatsAppForPatient(admin, { id: client.id, phone: client.phone });
+  const { error } = await admin.from("clients").delete().eq("id", client.id);
+  if (error) return { ok: false, error: error.message ?? "client delete failed" };
+  const { error: auditErr } = await admin.from("client_admin_audit").insert({
+    client_id: client.id,
+    action: "erase",
+    channel: audit.channel,
+    actor_id: audit.actorId,
+  });
+  if (auditErr) log.warn("client erase audit failed", { code: auditErr.code });
+  let authUserId = client.auth_user_id ?? null;
+  if (!authUserId && client.email) {
+    const { findAuthUserIdByEmail } = await import("@/lib/find-auth-user");
+    authUserId = await findAuthUserIdByEmail(admin, client.email);
+  }
+  const deleteUser = (
+    admin as {
+      auth?: { admin?: { deleteUser?: (id: string) => Promise<unknown> } };
+    }
+  ).auth?.admin?.deleteUser;
+  if (authUserId && deleteUser) {
+    try {
+      await deleteUser(authUserId);
+    } catch (e) {
+      log.warn("client erase auth delete failed", {
+        error: e instanceof Error ? e.message : "unknown",
+      });
+    }
+  }
+  return { ok: true };
 }

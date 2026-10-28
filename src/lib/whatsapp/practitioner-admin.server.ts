@@ -11,7 +11,13 @@
  * own clients only.
  */
 import { alertReason } from "./practitioner-alert.server";
-import { ago, bucketOf, loadStatuses, type ClientStatus } from "./practitioner-status.server";
+import {
+  ago,
+  bucketOf,
+  loadStatuses,
+  scopeCountLabel,
+  type ClientStatus,
+} from "./practitioner-status.server";
 
 type Admin = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 type Db = { from: (t: string) => any };
@@ -182,7 +188,7 @@ export function formatUsage(
 
   const lines = [
     `*Buddy usage, ${scope.label}*`,
-    `• ${statuses.length} client${statuses.length === 1 ? "" : "s"} on Buddy, ${current.length} current`,
+    `• ${statuses.length} client${statuses.length === 1 ? "" : "s"} on Buddy, ${current.length} current (${scope.practice ? scopeCountLabel(true, scope.label) : "your clients only"})`,
     `• ${checkedThisWeek} checked in this week, ${joinedThisWeek} joined this week`,
     `• ${wa} on WhatsApp, ${app} on the app only, ${none} not set up yet`,
   ];

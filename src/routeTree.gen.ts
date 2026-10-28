@@ -40,6 +40,7 @@ import { Route as AdminAppGradingRouteImport } from './routes/admin.app.grading'
 import { Route as AdminAppPractitionersRouteImport } from './routes/admin.app.practitioners'
 import { Route as AdminAppProgramsRouteImport } from './routes/admin.app.programs'
 import { Route as AdminAppSettingsRouteImport } from './routes/admin.app.settings'
+import { Route as AdminAppTestLabRouteImport } from './routes/admin.app.test-lab'
 import { Route as AdminAppYvesTeachRouteImport } from './routes/admin.app.yves-teach'
 import { Route as ApiPublicTriageQueryRouteImport } from './routes/api/public/triage-query'
 import { Route as ClientAppIndexRouteImport } from './routes/client.app.index'
@@ -237,6 +238,11 @@ const AdminAppProgramsRoute = AdminAppProgramsRouteImport.update({
 const AdminAppSettingsRoute = AdminAppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AdminAppRoute,
+} as any)
+const AdminAppTestLabRoute = AdminAppTestLabRouteImport.update({
+  id: '/test-lab',
+  path: '/test-lab',
   getParentRoute: () => AdminAppRoute,
 } as any)
 const AdminAppYvesTeachRoute = AdminAppYvesTeachRouteImport.update({
@@ -511,6 +517,7 @@ export interface FileRoutesByFullPath {
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
   '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
+  '/admin/app/test-lab': typeof AdminAppTestLabRoute
   '/admin/app/yves-teach': typeof AdminAppYvesTeachRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
@@ -586,6 +593,7 @@ export interface FileRoutesByTo {
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
   '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
+  '/admin/app/test-lab': typeof AdminAppTestLabRoute
   '/admin/app/yves-teach': typeof AdminAppYvesTeachRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
@@ -663,6 +671,7 @@ export interface FileRoutesById {
   '/admin/app/practitioners': typeof AdminAppPractitionersRoute
   '/admin/app/programs': typeof AdminAppProgramsRoute
   '/admin/app/settings': typeof AdminAppSettingsRoute
+  '/admin/app/test-lab': typeof AdminAppTestLabRoute
   '/admin/app/yves-teach': typeof AdminAppYvesTeachRoute
   '/api/public/triage-query': typeof ApiPublicTriageQueryRoute
   '/client/app/checkin': typeof ClientAppCheckinRoute
@@ -741,6 +750,7 @@ export interface FileRouteTypes {
     | '/admin/app/practitioners'
     | '/admin/app/programs'
     | '/admin/app/settings'
+    | '/admin/app/test-lab'
     | '/admin/app/yves-teach'
     | '/api/public/triage-query'
     | '/client/app/checkin'
@@ -816,6 +826,7 @@ export interface FileRouteTypes {
     | '/admin/app/practitioners'
     | '/admin/app/programs'
     | '/admin/app/settings'
+    | '/admin/app/test-lab'
     | '/admin/app/yves-teach'
     | '/api/public/triage-query'
     | '/client/app/checkin'
@@ -892,6 +903,7 @@ export interface FileRouteTypes {
     | '/admin/app/practitioners'
     | '/admin/app/programs'
     | '/admin/app/settings'
+    | '/admin/app/test-lab'
     | '/admin/app/yves-teach'
     | '/api/public/triage-query'
     | '/client/app/checkin'
@@ -1203,6 +1215,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/admin/app/settings'
       preLoaderRoute: typeof AdminAppSettingsRouteImport
+      parentRoute: typeof AdminAppRoute
+    }
+    '/admin/app/test-lab': {
+      id: '/admin/app/test-lab'
+      path: '/test-lab'
+      fullPath: '/admin/app/test-lab'
+      preLoaderRoute: typeof AdminAppTestLabRouteImport
       parentRoute: typeof AdminAppRoute
     }
     '/admin/app/yves-teach': {
@@ -1519,6 +1538,7 @@ interface AdminAppRouteChildren {
   AdminAppPractitionersRoute: typeof AdminAppPractitionersRoute
   AdminAppProgramsRoute: typeof AdminAppProgramsRoute
   AdminAppSettingsRoute: typeof AdminAppSettingsRoute
+  AdminAppTestLabRoute: typeof AdminAppTestLabRoute
   AdminAppYvesTeachRoute: typeof AdminAppYvesTeachRoute
   AdminAppClientDetailClientIdRoute: typeof AdminAppClientDetailClientIdRoute
   AdminAppPractitionerPractitionerIdRoute: typeof AdminAppPractitionerPractitionerIdRoute
@@ -1534,6 +1554,7 @@ const AdminAppRouteChildren: AdminAppRouteChildren = {
   AdminAppPractitionersRoute: AdminAppPractitionersRoute,
   AdminAppProgramsRoute: AdminAppProgramsRoute,
   AdminAppSettingsRoute: AdminAppSettingsRoute,
+  AdminAppTestLabRoute: AdminAppTestLabRoute,
   AdminAppYvesTeachRoute: AdminAppYvesTeachRoute,
   AdminAppClientDetailClientIdRoute: AdminAppClientDetailClientIdRoute,
   AdminAppPractitionerPractitionerIdRoute:

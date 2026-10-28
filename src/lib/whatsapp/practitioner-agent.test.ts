@@ -16,10 +16,16 @@ import { decidePractitionerTurn } from "./ai.server";
 import {
   addedNames,
   checkinPreview,
+  checkinReachWarning,
   decisionFromGateway,
   decisionsFromGateway,
+  deleteRosterAsk,
+  dropNamedClients,
   expandReferences,
+  exclusionNames,
   extraCheckinNote,
+  isClientListAsk,
+  typedEraseConfirm,
   isExactShortcut,
   joinNames,
   needsPractitionerAgent,
@@ -119,9 +125,11 @@ function fakeDb(tables: Record<string, Row[]>) {
       },
       then: (res, rej) => {
         const hit = rows();
-        if (patch) for (const r of hit) Object.assign(r, patch);
-        if (remove) tables[table] = (tables[table] ?? []).filter((r) => !hit.includes(r));
-        return Promise.resolve({ data: hit, error: null }).then(res, rej);
+        if (remove) {
+          const drop = new Set(hit);
+          tables[table] = (tables[table] ?? []).filter((r) => !drop.has(r));
+        } else if (patch) for (const r of hit) Object.assign(r, patch);
+        return Promise.resolve({ data: hit, error: null, count: hit.length }).then(res, rej);
       },
     };
     return api;
@@ -573,9 +581,12 @@ describe("Justin's 11 Oct chat", () => {
     );
     expect(sent).toHaveLength(0);
     expect(push).not.toHaveBeenCalled();
-    expect(replies[0].body).toBe(
-      `I'll message Cayla Rosenblatt, Michaela Geldhof, Steven Jacobs and Vicki-Leigh Atkinson: "${PREVIEW}" Send?`,
+    expect(replies[0].body).toContain(`I'll message Cayla Rosenblatt, Michaela Geldhof, Steven Jacobs and Vicki-Leigh Atkinson: "${PREVIEW}"`);
+    expect(replies[0].body).toContain(
+      "Michaela Geldhof is outside the 24 hour window, so they'll only get the check-in template.",
     );
+    expect(replies[0].body).toContain("Send?");
+    expect(replies[0].body).not.toContain("without this wording");
     expect(replies[0]?.buttons?.map((b) => b.id)).toEqual([
       "prac_ag_yes",
       "prac_ag_edit",
@@ -654,6 +665,7 @@ describe("Justin's 11 Oct chat", () => {
   });
 
   it("the Yes button sends, Cancel sends nothing, Edit changes the wording", async () => {
+    process.env.WHATSAPP_REMINDER_TEMPLATE = "buddy_checkin_reminder";
     const { db, deps, replies, sent } = harness({ understand: async () => CHECKIN_FOUR });
     const memory: PracMemory = {};
     await handlePractitionerMessage(
@@ -689,14 +701,19 @@ describe("Justin's 11 Oct chat", () => {
       again,
     );
     expect(replyText(replies)).toBe("What should I say instead?");
+    const typed = "Hope the knee is easing. Reply when you can.";
     await handlePractitionerMessage(
       asAdmin(db),
       JUSTIN,
-      { text: "mention that the race is on Saturday", replyId: null },
+      { text: typed, replyId: null },
       deps,
       again,
     );
-    expect(replyText(replies)).toContain("The race is on Saturday");
+    const edited = replyText(replies);
+    expect(edited).toContain(typed);
+    expect(edited).not.toContain("checking in on how you're doing");
+    expect(edited).toContain("without this wording");
+    expect(edited).toContain("I'll queue this wording");
     expect(sent).toHaveLength(0);
     await handlePractitionerMessage(
       asAdmin(db),
@@ -705,7 +722,12 @@ describe("Justin's 11 Oct chat", () => {
       deps,
       again,
     );
-    expect(textSent(sent)).toContain("The race is on Saturday");
+    expect(textSent(sent)).toBe(typed);
+    expect(textSent(sent)).not.toContain("checking in on how you're doing");
+    const queued = db.t.whatsapp_conversations.find((c) => c.id === "c-mich");
+    expect((queued?.draft as { pendingCustomCheckin?: string } | undefined)?.pendingCustomCheckin).toBe(
+      typed,
+    );
   });
 });
 
@@ -1481,6 +1503,225 @@ describe("archiving clients who stopped responding (22 Oct)", () => {
       tool: "archive_clients",
       idleDays: 90,
     });
+  });
+});
+
+describe("client list, erase, and check-in wording", () => {
+  const Y1 = "77777777-7777-4777-8777-777777777777";
+  const Y2 = "88888888-8888-4888-8888-888888888888";
+
+  it("routes all clients to the client list and labels the scope", async () => {
+    let calls = 0;
+    const justin = harness({
+      understand: async () => {
+        calls++;
+        return { tool: "list_practitioners" };
+      },
+    });
+    await handlePractitionerMessage(
+      asAdmin(justin.db),
+      JUSTIN,
+      { text: "who is all clients?", replyId: null },
+      justin.deps,
+    );
+    expect(calls).toBe(0);
+    expect(isClientListAsk("who is all clients?")).toBe(true);
+    expect(isClientListAsk("list clients")).toBe(true);
+    expect(isClientListAsk("who are the practitioners?")).toBe(false);
+    const body = replyText(justin.replies);
+    expect(body).toContain("*All clients*");
+    expect(body).toContain("Scope: whole practice (Peak Movement)");
+    expect(body).toContain("Cayla Rosenblatt (Zoe)");
+    expect(body).toContain("current (whole practice (Peak Movement))");
+    expect(body).not.toContain("Here are the practitioners");
+
+    const zoe = harness({
+      understand: async () => {
+        throw new Error("model should not run");
+      },
+    });
+    await handlePractitionerMessage(
+      asAdmin(zoe.db),
+      ZOE,
+      { text: "list clients", replyId: null },
+      zoe.deps,
+    );
+    const zoeBody = replyText(zoe.replies);
+    expect(zoeBody).toContain("Scope: your clients only");
+    expect(zoeBody).toContain("Cayla Rosenblatt");
+    expect(zoeBody).not.toContain("Steven Jacobs");
+    expect(zoeBody).not.toContain("Here are the practitioners");
+  });
+
+  it("drops every matching name from the gone-quiet list, then requires a typed delete", async () => {
+    let calls = 0;
+    const { db, deps, replies } = harness({
+      understand: async () => {
+        calls++;
+        return { tool: "list_practitioners", names: ["yianna", "michaela"] };
+      },
+    });
+    db.t.profiles.push({ id: "tayla", full_name: "Tayla Field", role: "practitioner" });
+    db.t.clients.push(
+      {
+        id: Y1,
+        full_name: "Yianna Mouyis",
+        practitioner_id: "justin",
+        practice_id: "pm",
+        auth_user_id: null,
+        created_at: "2026-09-01T00:00:00Z",
+        phone: "0820000007",
+      },
+      {
+        id: Y2,
+        full_name: "Yianna Mouyis",
+        practitioner_id: "tayla",
+        practice_id: "pm",
+        auth_user_id: null,
+        created_at: "2026-09-01T00:00:00Z",
+        phone: "0820000008",
+      },
+    );
+    for (const id of [Y1, Y2, VICKI]) {
+      db.t.check_ins.push({
+        client_id: id,
+        pain_level: 2,
+        sleep_quality: 3,
+        energy_level: 3,
+        notes: null,
+        created_at: "2026-10-01T08:00:00Z",
+      });
+    }
+    db.t.whatsapp_conversations.push({
+      id: "c-vicki",
+      client_id: VICKI,
+      phone: "27825555555",
+      opted_out_at: null,
+      state: "idle",
+    });
+    const memory: PracMemory = {};
+    const say = async (text: string, replyId: string | null = null) => {
+      const next = readPracMemory(writePracMemory({}, memory), NOW.getTime());
+      memory.pending = next.pending;
+      memory.focus = next.focus;
+      await handlePractitionerMessage(asAdmin(db), JUSTIN, { text, replyId }, deps, memory);
+    };
+    await say("Permanently delete all the gone quiet clients");
+    expect(calls).toBe(0);
+    const first = replyText(replies);
+    expect(first).toContain("Yianna Mouyis (Justin)");
+    expect(first).toContain("Yianna Mouyis (Tayla)");
+    expect(first).toContain("Michaela Geldhof");
+    expect(first).toContain("Vicki-Leigh Atkinson (Justin)");
+    expect(first).toContain("whole practice");
+    expect(first).toMatch(/Reply exactly: DELETE \d+/);
+
+    await say("Delete them all except yianna and michaela");
+    const second = replyText(replies);
+    expect(second.toLowerCase()).not.toContain("who did you mean");
+    expect(second).not.toContain("I'll include");
+    expect(second).not.toContain("Yianna");
+    expect(second).not.toContain("Michaela");
+    expect(second).toContain("Vicki-Leigh Atkinson (Justin)");
+    expect(second).toContain("Reply exactly: DELETE 1");
+    expect(calls).toBe(0);
+
+    await say("", "prac_ag_yes");
+    expect(replyText(replies)).toContain("Nothing has been deleted");
+    expect(db.t.clients.some((c) => c.id === VICKI)).toBe(true);
+
+    await say("DELETE 1");
+    expect(replyText(replies)).toContain("Permanently deleted Vicki-Leigh Atkinson");
+    expect(db.t.clients.some((c) => c.id === VICKI)).toBe(false);
+    expect(db.t.clients.some((c) => c.id === Y1)).toBe(true);
+    expect(db.t.clients.some((c) => c.id === Y2)).toBe(true);
+    expect(db.t.whatsapp_conversations.some((c) => c.client_id === VICKI)).toBe(false);
+    expect(db.t.client_admin_audit).toEqual([
+      expect.objectContaining({
+        client_id: VICKI,
+        action: "erase",
+        channel: "whatsapp",
+        actor_id: "justin",
+      }),
+    ]);
+  });
+
+  it("refuses permanent delete from anyone who is not the Buddy admin", async () => {
+    const { db, deps, replies } = harness({
+      understand: async () => ({ tool: "erase_clients", names: ["cayla"] }),
+    });
+    await handlePractitionerMessage(
+      asAdmin(db),
+      ZOE,
+      { text: "permanently delete cayla", replyId: null },
+      deps,
+      {},
+    );
+    expect(replyText(replies)).toContain("Only the Buddy admin can permanently delete clients.");
+    expect(db.t.clients.some((c) => c.id === CAYLA)).toBe(true);
+  });
+
+  it("says when a recipient is already mid check-in, before anything is sent", async () => {
+    const { db, deps, replies, sent } = harness({
+      understand: async () => ({ tool: "send_checkin", names: ["cayla"] }),
+    });
+    const cayla = db.t.whatsapp_conversations.find((c) => c.id === "c-cayla");
+    if (cayla) cayla.state = "awaiting_pain";
+    const memory: PracMemory = {};
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "please check in with cayla", replyId: null },
+      deps,
+      memory,
+    );
+    expect(replyText(replies)).toContain("already mid check-in");
+    expect(sent).toHaveLength(0);
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "", replyId: "prac_ag_yes" },
+      deps,
+      memory,
+    );
+    expect(sent.filter((m) => m.kind === "text")).toHaveLength(0);
+    expect(replyText(replies)).toContain("left them to finish");
+  });
+
+  it("parses exclusions and the typed erase line without asking which duplicate", () => {
+    expect(exclusionNames("Delete them all except yianna and michaela")).toEqual([
+      "yianna",
+      "michaela",
+    ]);
+    expect(deleteRosterAsk("Delete all the gone quiet clients")).toMatchObject({
+      quiet: true,
+      permanent: false,
+    });
+    expect(deleteRosterAsk("Permanently delete all the gone quiet clients")?.permanent).toBe(true);
+    expect(typedEraseConfirm("DELETE 2", 2)).toBe(true);
+    expect(typedEraseConfirm("yes", 2)).toBe(false);
+    const clients = [
+      { id: Y1, full_name: "Yianna Mouyis" },
+      { id: Y2, full_name: "Yianna Mouyis" },
+      { id: MICHAELA, full_name: "Michaela Geldhof" },
+      { id: VICKI, full_name: "Vicki-Leigh Atkinson" },
+    ];
+    const dropped = dropNamedClients(clients, ["yianna", "michaela"]);
+    expect(dropped.removed.map((c) => c.id).sort()).toEqual([Y1, Y2, MICHAELA].sort());
+    expect(dropped.kept.map((c) => c.id)).toEqual([VICKI]);
+    expect(dropped.unmatched).toEqual([]);
+    expect(
+      checkinReachWarning(
+        [
+          { name: "Cayla Rosenblatt", reach: "busy" },
+          { name: "Michaela Geldhof", reach: "template" },
+        ],
+        true,
+      ),
+    ).toContain("already mid check-in");
+    expect(
+      checkinReachWarning([{ name: "Michaela Geldhof", reach: "template" }], true),
+    ).toContain("without this wording");
   });
 });
 

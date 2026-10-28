@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CLINICAL_RECORD_RETENTION } from "@/lib/consent/wording";
 import {
   deleteWhatsAppForPatient,
+  eraseClientRecord,
   phoneKeys,
   RETENTION_RULE,
   runWhatsAppRetention,
@@ -29,6 +30,12 @@ function fakeAdmin(seed: Record<string, Row[]>) {
       eq(c: string, v: unknown) {
         filters.push((r) => r[c] === v);
         return api;
+      },
+      insert(row: Row | Row[]) {
+        const list = Array.isArray(row) ? row : [row];
+        rows().push(...list);
+        const result = { data: list, error: null };
+        return { then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => Promise.resolve(result).then(resolve, reject) };
       },
       lt(c: string, v: unknown) {
         filters.push((r) => r[c] != null && (r[c] as string) < (v as string));
@@ -101,5 +108,38 @@ describe("WhatsApp retention", () => {
     expect(db.tables.whatsapp_inbound.map((r) => r.id)).toEqual(["other"]);
     expect(db.tables.whatsapp_outbound).toHaveLength(0);
     expect(db.tables.whatsapp_conversations).toHaveLength(0);
+  });
+
+  it("erases the client after the WhatsApp rows and keeps an audit", async () => {
+    const deleted: string[] = [];
+    const db = fakeAdmin({
+      clients: [{ id: "client-1", phone: "082 000 0001" }],
+      whatsapp_inbound: [{ id: "by-client", client_id: "client-1", from_phone: "+27820000001" }],
+      whatsapp_outbound: [],
+      whatsapp_conversations: [{ id: "c", client_id: "client-1", phone: "27820000001" }],
+      client_admin_audit: [],
+    });
+    const admin = {
+      from: db.admin.from.bind(db.admin),
+      auth: { admin: { deleteUser: async (id: string) => void deleted.push(id) } },
+    };
+    const result = await eraseClientRecord(
+      admin as never,
+      { id: "client-1", phone: "082 000 0001", auth_user_id: "user-1" },
+      { channel: "whatsapp", actorId: "justin" },
+    );
+    expect(result).toEqual({ ok: true });
+    expect(db.tables.clients).toHaveLength(0);
+    expect(db.tables.whatsapp_inbound).toHaveLength(0);
+    expect(db.tables.whatsapp_conversations).toHaveLength(0);
+    expect(db.tables.client_admin_audit).toEqual([
+      expect.objectContaining({
+        client_id: "client-1",
+        action: "erase",
+        channel: "whatsapp",
+        actor_id: "justin",
+      }),
+    ]);
+    expect(deleted).toEqual(["user-1"]);
   });
 });

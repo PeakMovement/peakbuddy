@@ -10,6 +10,8 @@ import {
   PRAC_MSG,
   smallTalk,
   PROGRAMME_SENT,
+  buddyAdminActor,
+  pickStaffLogin,
   practitionerByPhone,
   resetPractitionerCache,
 } from "./practitioner-mode.server";
@@ -139,6 +141,54 @@ describe("practitioner mode", () => {
       firstName: "Zoe",
     });
     expect(await practitionerByPhone(db, "27820000001")).toBeNull();
+  });
+
+  it("prefers the Buddy admin when one mobile is on two logins", async () => {
+    resetPractitionerCache();
+    const db = fakeDb({
+      profiles: [
+        { id: "prac-login", full_name: "Justin Muller", role: "practitioner" },
+        { id: "admin-login", full_name: "Justin Muller", role: "super_admin" },
+      ],
+    });
+    db.auth.admin.listUsers = async () => ({
+      data: {
+        users: [
+          { id: "prac-login", phone: "082 000 1111" },
+          { id: "admin-login", phone: "+27 82 000 1111" },
+        ],
+      },
+    });
+    expect(await practitionerByPhone(db, "27820001111")).toEqual({
+      userId: "admin-login",
+      firstName: "Justin",
+    });
+    expect(pickStaffLogin([
+      { role: "practitioner", userId: "prac-login" },
+      { role: "super_admin", userId: "admin-login" },
+    ])?.userId).toBe("admin-login");
+  });
+
+  it("recognises the Buddy admin from the shared mobile, not the lesser login", async () => {
+    const db = fakeDb({
+      profiles: [
+        { id: "prac-login", full_name: "Justin Muller", role: "practitioner" },
+        { id: "admin-login", full_name: "Justin Muller", role: "super_admin" },
+      ],
+    });
+    db.auth.admin.getUserById = async (id: string) => ({
+      data: { user: { id, phone: "0820001111" } },
+    });
+    db.auth.admin.listUsers = async () => ({
+      data: {
+        users: [
+          { id: "prac-login", phone: "0820001111" },
+          { id: "admin-login", phone: "27820001111" },
+        ],
+      },
+    });
+    expect(await buddyAdminActor(db, "prac-login")).toBe("admin-login");
+    expect(await buddyAdminActor(db, "admin-login")).toBe("admin-login");
   });
 
   it("spots programme messages", () => {

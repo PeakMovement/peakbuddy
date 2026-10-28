@@ -140,9 +140,21 @@ export function practitionerCheckinText(
   return extra ? `${base} ${extra}` : base;
 }
 
+/** The wording typed on Edit. `<name>` is the only substitution. */
+export function verbatimCheckinText(firstName: string, text: string): string {
+  const who = firstName.trim() || "there";
+  return text.replace(/\s+/g, " ").trim().replace(/<name>/gi, who);
+}
+
 /** Confirmation the practitioner sees before anyone is messaged. */
-export function practitionerConfirmSend(who: string, preview: string): string {
-  return `I'll message ${who}: "${preview}" Send?`;
+export function practitionerConfirmSend(
+  who: string,
+  preview: string,
+  notes?: string | null,
+): string {
+  const lead = `I'll message ${who}: "${preview}"`;
+  const extra = notes?.trim();
+  return extra ? `${lead}\n\n${extra}\n\nSend?` : `${lead} Send?`;
 }
 
 export function saved(ctx: VoiceContext): string {

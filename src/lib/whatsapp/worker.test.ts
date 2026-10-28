@@ -658,6 +658,61 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     expect(ready.tables.whatsapp_conversations[0].draft.pendingNotice).toBeUndefined();
   });
 
+  it("sends queued check-in wording once they reply, and holds it on a red flag", async () => {
+    const wording = "Hope the knee is easing. Reply when you can.";
+    const ready = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [inbound("thanks")],
+      whatsapp_conversations: [
+        {
+          id: "c1",
+          phone: "27820000001",
+          client_id: "client-1",
+          state: "idle",
+          draft: { pendingCustomCheckin: wording },
+        },
+      ],
+      consent_records: CONSENTED(),
+      check_ins: [],
+    });
+    const readySend = fakeProvider();
+    await processPendingInbound({
+      admin: ready.admin,
+      provider: readySend.provider,
+      secrets: SECRETS,
+      now: NOW,
+    });
+    expect(JSON.stringify(readySend.sent)).toContain(wording);
+    expect(ready.tables.whatsapp_conversations[0].draft.pendingCustomCheckin).toBeUndefined();
+
+    const flagged = fakeDb({
+      clients: [CLIENT],
+      whatsapp_inbound: [inbound("my calf is swollen and hot and red")],
+      whatsapp_conversations: [
+        {
+          id: "c1",
+          phone: "27820000001",
+          client_id: "client-1",
+          state: "idle",
+          draft: { pendingCustomCheckin: wording },
+        },
+      ],
+      consent_records: CONSENTED(),
+      check_ins: [],
+      alerts: [],
+    });
+    const flaggedSend = fakeProvider();
+    await processPendingInbound({
+      admin: flagged.admin,
+      provider: flaggedSend.provider,
+      secrets: SECRETS,
+      now: NOW,
+    });
+    expect(JSON.stringify(flaggedSend.sent)).not.toContain(wording);
+    expect(JSON.stringify(flaggedSend.sent)).toMatch(/physiotherapist|10177/);
+    expect(flagged.tables.whatsapp_conversations[0].draft.pendingCustomCheckin).toBe(wording);
+  });
+
   it("a red flag raises an alert on the profile and the patient gets the safety message", async () => {
     const db = fakeDb({
       clients: [CLIENT],
