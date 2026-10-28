@@ -52,6 +52,15 @@ export async function recordJobRun(
   job: string,
   run: { ok: boolean; status: number; durationMs: number; detail?: string },
 ): Promise<void> {
+  const { captureOutbound } = await import("@/lib/testlab/sandbox");
+  if (
+    captureOutbound({
+      kind: "job_note",
+      to: job,
+      summary: run.detail ?? (run.ok ? "ok" : "failed"),
+    })
+  )
+    return;
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.from("job_runs" as never).insert({
@@ -224,7 +233,10 @@ function sast(iso: string): string {
 export async function runJobHealthCheck(
   admin: Admin,
   now: Date = new Date(),
+  opts: { email?: boolean; prune?: boolean } = {},
 ): Promise<{ ok: boolean; problems: JobProblem[]; emailed: boolean }> {
+  const email = opts.email !== false;
+  const prune = opts.prune !== false;
   const longest = Math.max(...EXPECTED_JOBS.map((j) => j.windowMs));
   const since = new Date(now.getTime() - longest - DAY).toISOString();
   const table = () =>
@@ -275,16 +287,17 @@ export async function runJobHealthCheck(
   const problems = evaluateJobHealth(rows, now, trackingSince ? new Date(trackingSince) : null);
 
   // Keep two weeks of heartbeats.
-  await table()
-    .delete()
-    .lt("ran_at", new Date(now.getTime() - 14 * DAY).toISOString())
-    .then(
-      () => undefined,
-      () => undefined,
-    );
+  if (prune)
+    await table()
+      .delete()
+      .lt("ran_at", new Date(now.getTime() - 14 * DAY).toISOString())
+      .then(
+        () => undefined,
+        () => undefined,
+      );
 
   let emailed = false;
-  if (problems.length) {
+  if (problems.length && email) {
     log.warn("job health check: problems found", { jobs: problems.map((p) => p.job) });
     try {
       const { sendTransactionalEmailServer } = await import("@/lib/email/send-server");

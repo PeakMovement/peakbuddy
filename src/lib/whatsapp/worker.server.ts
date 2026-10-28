@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { log } from "@/lib/log";
+import { sandboxState } from "@/lib/testlab/sandbox";
 import { toSast } from "./clinic-hours";
 import {
   decide,
@@ -173,6 +174,13 @@ export function whatsappConfigFromEnv(): {
   provider: WhatsAppProvider;
   secrets: ProviderSecrets;
 } | null {
+  const sb = sandboxState();
+  if (sb) {
+    // Test Lab: sends are captured, never delivered.
+    return (
+      (sb.whatsapp as { provider: WhatsAppProvider; secrets: ProviderSecrets } | undefined) ?? null
+    );
+  }
   const id = process.env.WHATSAPP_PROVIDER;
   if (id !== "meta" && id !== "twilio") return null;
   const signingSecret = id === "meta" ? process.env.META_APP_SECRET : process.env.TWILIO_AUTH_TOKEN;
@@ -244,7 +252,10 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
       .select("id, failure_reason")
       .eq("status", "failed")
       .limit(20);
-    for (const failed of (failedRows ?? []) as Array<{ id: string; failure_reason?: string | null }>) {
+    for (const failed of (failedRows ?? []) as Array<{
+      id: string;
+      failure_reason?: string | null;
+    }>) {
       if (!canRetry(failed.failure_reason)) continue;
       await admin
         .from("whatsapp_inbound")
@@ -292,7 +303,9 @@ export async function processPendingInbound(env: WorkerEnv, limit = 20): Promise
       !voiceStillRaw &&
       !runRedFlagRules({ text: row.body ?? "" }).triggered
     ) {
-      const saved = await saveStalePartial(admin, row, new Date(nowMs)).catch(() => "failed" as const);
+      const saved = await saveStalePartial(admin, row, new Date(nowMs)).catch(
+        () => "failed" as const,
+      );
       if (saved === "saved") staleSaved++;
       else staleUnsaved++;
       await admin
@@ -538,7 +551,11 @@ async function loadLinkedClient(admin: Admin, clientId: string): Promise<ClientR
   return loaded.client;
 }
 
-async function noteInboundHealth(admin: Admin, staleSaved: number, staleUnsaved: number): Promise<void> {
+async function noteInboundHealth(
+  admin: Admin,
+  staleSaved: number,
+  staleUnsaved: number,
+): Promise<void> {
   const { data } = await admin
     .from("whatsapp_inbound")
     .select("failure_reason")
@@ -631,7 +648,8 @@ async function saveDayCheckIn(
     .lt("created_at", dayEnd)
     .order("created_at", { ascending: true })
     .limit(1);
-  const current = (existing as DayCheckIn[] | null)?.[0] as (DayCheckIn & { id: string }) | undefined;
+  const current = (existing as DayCheckIn[] | null)?.[0] as
+    (DayCheckIn & { id: string }) | undefined;
   if (!current?.id) throw new Error("check-in insert failed: 23505");
   const merged = mergeDayCheckIn(current, {
     pain: incoming.pain,
@@ -1271,8 +1289,13 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     isPostOperative: postOp.isPostOperative,
     consecutiveMissedCheckins: postOp.consecutiveMissedCheckins,
   }).triggered;
-  const dataCopy =
-    Boolean(client && consent && patientFlag(BUDDY_FLAGS.dataExportSend) && isDataCopyRequest(typed) && !flaggedText);
+  const dataCopy = Boolean(
+    client &&
+    consent &&
+    patientFlag(BUDDY_FLAGS.dataExportSend) &&
+    isDataCopyRequest(typed) &&
+    !flaggedText,
+  );
   const sastDay = toSast(now).date;
   const aiSoFar =
     (conv.draft as { aiDay?: string; aiCount?: number } | null)?.aiDay === sastDay
@@ -1334,6 +1357,20 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   // An answer with a red flag in it gets Buddy's full safety reply, not just
   // "thanks": the answer is already saved, the thanks goes after.
   const answerOnly = questionStep && !redFlags.triggered ? questionStep : null;
+
+  // An open outcome score set (NPRS / PSFS, outcomes.ts) takes the message
+  // while idle. A red flag, a practitioner's question, or anything that isn't
+  // an answer drops it and the normal conversation carries on.
+  const ocDraft = (conv.draft as { outcome?: import("./outcomes").OutcomeDraft } | null)?.outcome;
+  let outcomeHandled: import("./outcomes").OutcomeStep | null = null;
+  if (client && consent && ocDraft && !answerOnly && !redFlags.triggered && state === "idle") {
+    const oc = await import("./outcomes");
+    if (now.getTime() - new Date(ocDraft.at).getTime() <= oc.OUTCOME_LAPSE_MS) {
+      const { previousActivities } = await import("./outcomes.server");
+      const prev = ocDraft.step === "nprs" ? await previousActivities(admin, client.id) : [];
+      outcomeHandled = oc.outcomeStep(ocDraft, message.text ?? "", row.reply_id, prev);
+    }
+  }
   let quotedText: string | null = null;
   let tone: "warm" | "concise" | "sa" = "warm";
   let memories: string[] = [];
@@ -1383,61 +1420,69 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     memories = memoryRows.map((m) => m.fact ?? "").filter(Boolean);
   }
   const decisionInput = {
-        message,
-        conversation: {
-          state,
-          draft: conv.draft ?? {},
-          checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
-        },
-        client: client ? { firstName: firstNameOf(client.full_name) } : null,
-        hasConsent: consent,
-        checkedInToday: today,
-        redFlags,
-        now,
-        hasWearable: clientHasWearable,
-        converse,
-        route,
-        progressText,
-        wearableOffered: Boolean(conv.wearable_offer_at),
-        assist,
-        consentUrl,
-        inviteWelcome: client ? inviteWelcome : undefined,
-        inviteInvalid: !client && inviteInvalid,
-        signup,
-        hasAppAccount: Boolean(client?.auth_user_id),
-        watchUrl,
-        appOfferDue: Boolean(client && !client.auth_user_id && !conv.app_offer_at),
-        voice: client ? await voiceStats(admin, client, now).catch(() => undefined) : undefined,
-        appointmentAt: client?.next_appointment ?? null,
-        aiConsent: aiAllowed,
-        tone,
-        quotedText,
-        memories,
-      };
+    message,
+    conversation: {
+      state,
+      draft: conv.draft ?? {},
+      checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
+    },
+    client: client ? { firstName: firstNameOf(client.full_name) } : null,
+    hasConsent: consent,
+    checkedInToday: today,
+    redFlags,
+    now,
+    hasWearable: clientHasWearable,
+    converse,
+    route,
+    progressText,
+    wearableOffered: Boolean(conv.wearable_offer_at),
+    assist,
+    consentUrl,
+    inviteWelcome: client ? inviteWelcome : undefined,
+    inviteInvalid: !client && inviteInvalid,
+    signup,
+    hasAppAccount: Boolean(client?.auth_user_id),
+    watchUrl,
+    appOfferDue: Boolean(client && !client.auth_user_id && !conv.app_offer_at),
+    voice: client ? await voiceStats(admin, client, now).catch(() => undefined) : undefined,
+    appointmentAt: client?.next_appointment ?? null,
+    aiConsent: aiAllowed,
+    tone,
+    quotedText,
+    memories,
+  };
   const reacted =
-    conversational === false &&
-    (row.reply_id === "react_yes" || row.reply_id === "react_no");
+    conversational === false && (row.reply_id === "react_yes" || row.reply_id === "react_no");
   const dialogueDecision =
     conversational && !answerOnly && !reacted ? runDialogue(decisionInput) : null;
-  const decision: Decision = answerOnly
+  const decision: Decision = outcomeHandled
     ? {
-        replies: answerOnly.replies,
+        replies: outcomeHandled.replies as Decision["replies"],
         next: {
           state,
-          draft: conv.draft ?? {},
+          draft: { ...(conv.draft ?? {}), outcome: outcomeHandled.next ?? undefined },
           checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
         },
       }
-    : reacted
+    : answerOnly
       ? {
-          replies: [],
+          replies: answerOnly.replies,
           next: {
             state,
             draft: conv.draft ?? {},
             checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
           },
         }
-      : (dialogueDecision ?? decide(decisionInput));
+      : reacted
+        ? {
+            replies: [],
+            next: {
+              state,
+              draft: conv.draft ?? {},
+              checkinStartedAt: conv.checkin_started_at ? new Date(conv.checkin_started_at) : null,
+            },
+          }
+        : (dialogueDecision ?? decide(decisionInput));
 
   // Unknown numbers are told once a day, not on every message.
   let replies = decision.replies;
@@ -1447,9 +1492,7 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     decision.createClient = undefined;
     signup = undefined;
     const safety = redFlags.triggered ? replies : [];
-    replies = clashWindow
-      ? [...safety, { kind: "text", body: PHONE_CLASH_PATIENT }]
-      : safety;
+    replies = clashWindow ? [...safety, { kind: "text", body: PHONE_CLASH_PATIENT }] : safety;
     decision.next = { state: "unmatched", draft: conv.draft ?? {}, checkinStartedAt: null };
     await notifyPhoneClash(admin, phoneClash).catch(() => undefined);
   }
@@ -1483,6 +1526,45 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   ) {
     const line = await scheduleConfirmIfDue(admin, client.id, state).catch(() => null);
     if (line) replies = [...replies, { kind: "text" as const, body: line }];
+  }
+  // An outcome set that this message wasn't part of is dropped.
+  if (ocDraft && !outcomeHandled && decision.next.draft) {
+    const { outcome: _dropped, ...rest } = decision.next.draft as Record<string, unknown>;
+    decision.next.draft = rest as typeof decision.next.draft;
+  }
+  if (outcomeHandled?.result && client) {
+    const { saveOutcome } = await import("./outcomes.server");
+    await saveOutcome(admin, client, outcomeHandled.result, now).catch(() => false);
+  }
+
+  // A finished check-in may get a short look back, once a week.
+  if (client && consent && !redFlags.triggered && decision.saveCheckin?.pain != null) {
+    const { weeklyProgressLine } = await import("./progress-note.server");
+    const line = await weeklyProgressLine(admin, client.id, decision.saveCheckin.pain, now).catch(
+      () => null,
+    );
+    if (line) replies = [...replies, { kind: "text" as const, body: line }];
+  }
+  // Outcome scores, at the end of a finished check-in when due (intake,
+  // every 2 weeks, discharge). Never next to a red flag.
+  if (
+    client &&
+    consent &&
+    !redFlags.triggered &&
+    !outcomeHandled &&
+    decision.saveCheckin &&
+    decision.next.state === "idle"
+  ) {
+    const { outcomeDue } = await import("./outcomes.server");
+    const timepoint = await outcomeDue(admin, client, now).catch(() => null);
+    if (timepoint) {
+      const { outcomeOffer } = await import("./outcomes");
+      replies = [...replies, outcomeOffer(timepoint) as (typeof replies)[number]];
+      decision.next.draft = {
+        ...(decision.next.draft ?? {}),
+        outcome: { step: "offer", timepoint, at: now.toISOString() },
+      } as typeof decision.next.draft;
+    }
   }
   // A message a practitioner asked Buddy to pass on while the window was shut.
   // Hold it until both current consents exist. Delivering it here is the send.
@@ -1677,6 +1759,22 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   }
 
   replies = withSafetyClaim(replies, redFlags, Boolean(redFlagAlertId));
+
+  // The patient's language (migration 0048). Translated just before sending,
+  // English kept under anything next to a red flag. AI consent only.
+  if (client && aiAllowed && replies.length) {
+    const lang = await import("./language.server");
+    const saved = await lang.loadLanguage(admin, client.id);
+    const pick = lang.chooseLanguage(saved, message.text);
+    if (pick.save && pick.save !== (saved ?? "en")) {
+      await lang.saveLanguage(admin, client.id, pick.save);
+    }
+    if (pick.lang !== "en") {
+      replies = await lang.translateReplies(replies, pick.lang, {
+        keepEnglish: redFlags.triggered,
+      });
+    }
+  }
 
   let sent = 0;
   for (const reply of replies) {
@@ -2028,6 +2126,23 @@ async function applyEffects(
         () => undefined,
         () => undefined,
       );
+    // Keep the file itself: WhatsApp media ids expire. It lands in the
+    // patient's reports, where the physio already looks (28 Oct 2026).
+    if (decision.saveExerciseMedia.mediaId) {
+      const { keepWhatsAppMedia } = await import("./media-keep.server");
+      await keepWhatsAppMedia(admin as never, env, {
+        client: {
+          id: client.id,
+          practitioner_id: client.practitioner_id,
+          practice_id: (client as { practice_id?: string | null }).practice_id ?? null,
+          full_name: client.full_name,
+        },
+        mediaId: decision.saveExerciseMedia.mediaId,
+        kind: decision.saveExerciseMedia.kind,
+        caption: decision.saveExerciseMedia.caption,
+        now,
+      }).catch(() => undefined);
+    }
   }
 
   if (decision.receptionErrand) {

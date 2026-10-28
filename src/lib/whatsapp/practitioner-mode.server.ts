@@ -92,7 +92,11 @@ export async function practitionerByPhone(
 ): Promise<Practitioner | null> {
   const key = toE164Digits(phone);
   if (!key) return null;
-  if (!cache || now - cache.at > CACHE_MS) {
+  // A Test Lab run keeps its own map, so it never replaces the live one.
+  const { sandboxState } = await import("@/lib/testlab/sandbox");
+  const sb = sandboxState();
+  let current = sb ? ((sb.practitionerCache as typeof cache) ?? null) : cache;
+  if (!current || now - current.at > CACHE_MS) {
     const admin = adminIn as unknown as Db;
     const map = new Map<string, Practitioner>();
     try {
@@ -137,9 +141,11 @@ export async function practitionerByPhone(
     } catch (e) {
       log.warn("practitioner lookup failed", { error: e instanceof Error ? e.message : "unknown" });
     }
-    cache = { at: now, map };
+    current = { at: now, map };
+    if (sb) sb.practitionerCache = current;
+    else cache = current;
   }
-  return cache.map.get(key) ?? null;
+  return current.map.get(key) ?? null;
 }
 
 /**
@@ -285,7 +291,7 @@ export const PRAC_MSG = {
     `• "Ask reception to book Sam for Thursday" and I'll pass it to reception\n` +
     `• "Who are the practitioners?" and I'll list them. You can message several clients at once, in your own words\n` +
     `• "What's open with reception?" to see what's still waiting. Just "reception" and I'll ask what to pass on\n\n` +
-    `Practice owners can also ask "practice overview", "any red flags?", "who's gone quiet?" or "how many clients are using Buddy?", and "archive everyone who hasn't responded in 60 days" (records are kept, "unarchive Sam" brings them back)`,
+    `Practice owners can also ask "practice overview", "any red flags?", "who's gone quiet?" or "how many clients are using Buddy?", and "archive everyone who hasn't responded in 60 days" (records are kept, "unarchive Sam" brings them back). The Buddy admin can also say "delete Sam Smith" to erase someone for good`,
   notFound: (name: string) =>
     `I couldn't find a patient matching that on your list, ${name}. Try their first and last name, for example "I've sent Sam Kruger his programme".`,
   which: "I found more than one patient with that name. Which one did you mean?",
@@ -330,7 +336,7 @@ export interface PractitionerDeps {
   ) => Promise<"sent" | "not_whatsapp" | "busy" | "window_closed" | "failed">;
   /**
    * Tool choice for the practitioner agent. Tests pass a mock. When omitted,
-   * Buddy calls Gemini through the Lovable gateway if LOVABLE_API_KEY is set,
+   * Buddy calls Claude, with Lovable's Gemini as the fallback (ai-chat.server),
    * and otherwise leaves the phrase matcher to answer.
    */
   understand?: (input: AgentTurnInput) => Promise<unknown>;
@@ -837,13 +843,7 @@ export async function handlePractitionerMessage(
 }
 
 type TellResult =
-  | "whatsapp"
-  | "template"
-  | "app"
-  | "not_registered"
-  | "needs_consent"
-  | "later"
-  | "failed";
+  "whatsapp" | "template" | "app" | "not_registered" | "needs_consent" | "later" | "failed";
 
 /** Programme notice for one patient. Used by the phrase matcher and the agent. */
 export async function notifyProgrammeSent(
@@ -1398,6 +1398,37 @@ async function handleStatusIntent(
   }
   if (intent.kind === "message_patient" || intent.kind === "message_reply") {
     await handleMessageIntent(adminIn, prac, intent, deps, mem);
+    return;
+  }
+  if (intent.kind === "grade_alert") {
+    const { applyGrade, GRADE_THANKS } = await import("./alert-grading.server");
+    const r = await applyGrade(adminIn as never, prac.userId, intent, deps.now);
+    await text1(
+      r === "saved"
+        ? GRADE_THANKS[intent.grade]
+        : r === "not_yours"
+          ? "That alert belongs to another practitioner, so I've left it."
+          : "I couldn't find that alert any more.",
+    );
+    return;
+  }
+  if (intent.kind === "weekly_summary") {
+    const { buildWeekText } = await import("./weekly-summary.server");
+    await text1(await buildWeekText(adminIn as never, prac.userId, deps.now));
+    return;
+  }
+  if (intent.kind === "daily_report") {
+    const { data: prof } = await (adminIn as unknown as Db)
+      .from("profiles")
+      .select("role")
+      .eq("id", prac.userId)
+      .maybeSingle();
+    if ((prof as { role?: string } | null)?.role !== "super_admin") {
+      await text1("Only the admin account gets the Buddy report.");
+      return;
+    }
+    const { buildDailyReport, formatDailyReport } = await import("./daily-report.server");
+    await text1(formatDailyReport(await buildDailyReport(adminIn as never, deps.now)));
     return;
   }
   if (intent.kind === "checkin_delivery") {

@@ -11,6 +11,16 @@ export async function sendTransactionalEmailServer(opts: {
   idempotencyKey?: string;
   templateData?: Record<string, unknown>;
 }): Promise<{ ok: true; queued: boolean } | { ok: false; error: string }> {
+  const { captureOutbound } = await import("@/lib/testlab/sandbox");
+  if (
+    captureOutbound({
+      kind: "email",
+      to: opts.recipientEmail,
+      summary: `Email template ${opts.templateName}`,
+    })
+  ) {
+    return { ok: true, queued: false };
+  }
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
   const logSend = async (status: "sent" | "suppressed" | "failed", errorMessage?: string) => {

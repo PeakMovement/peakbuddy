@@ -85,8 +85,7 @@ function isDeliverableUrl(url: string): boolean {
 }
 
 type DeliveryResult =
-  | { fired: true; status: number }
-  | { fired: false; reason: "invalid_url" | "fetch_error" };
+  { fired: true; status: number } | { fired: false; reason: "invalid_url" | "fetch_error" };
 
 async function deliver(url: string, body: unknown): Promise<DeliveryResult> {
   if (!isDeliverableUrl(url)) {
@@ -118,6 +117,16 @@ type AlertWebhookInput = z.infer<typeof alertSchema>;
  * callers (the triage red-flag safety net in triage-query.ts).
  */
 export async function fireAlertWebhookCore(data: AlertWebhookInput) {
+  const { captureOutbound } = await import("@/lib/testlab/sandbox");
+  if (
+    captureOutbound({
+      kind: "push",
+      to: "automation webhook",
+      summary: `Alert webhook: ${data.alertMessage}`,
+    })
+  ) {
+    return { fired: false, reason: undefined, results: {} as WebhookResults };
+  }
   const ts = new Date().toISOString();
   const [settings, central] = await Promise.all([
     loadWebhookSettings(data.practitionerId),

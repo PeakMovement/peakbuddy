@@ -92,10 +92,11 @@ interface FakeQuery extends PromiseLike<{ data: Row[]; error: null }> {
 }
 
 function fakeDb(tables: Record<string, Row[]>) {
+  const deletedUsers: string[] = [];
   const from = (table: string): FakeQuery => {
     const filters: Array<(r: Row) => boolean> = [];
     let patch: Row | null = null;
-    let removing = false;
+    let remove = false;
     const rows = () => (tables[table] ??= []).filter((r) => filters.every((f) => f(r)));
     const api: FakeQuery = {
       select: () => api,
@@ -112,7 +113,7 @@ function fakeDb(tables: Record<string, Row[]>) {
       limit: () => api,
       maybeSingle: () => Promise.resolve({ data: rows()[0] ?? null, error: null }),
       update: (p) => ((patch = p), api),
-      delete: () => ((removing = true), api),
+      delete: () => ((remove = true), api),
       insert: (r) => {
         const list = Array.isArray(r) ? r : [r];
         for (const row of list) (tables[table] ??= []).push(row);
@@ -124,13 +125,11 @@ function fakeDb(tables: Record<string, Row[]>) {
       },
       then: (res, rej) => {
         const hit = rows();
-        if (removing) {
+        if (remove) {
           const drop = new Set(hit);
           tables[table] = (tables[table] ?? []).filter((r) => !drop.has(r));
-          return Promise.resolve({ data: hit, error: null, count: hit.length }).then(res, rej);
-        }
-        if (patch) for (const r of hit) Object.assign(r, patch);
-        return Promise.resolve({ data: hit, error: null }).then(res, rej);
+        } else if (patch) for (const r of hit) Object.assign(r, patch);
+        return Promise.resolve({ data: hit, error: null, count: hit.length }).then(res, rej);
       },
     };
     return api;
@@ -138,10 +137,15 @@ function fakeDb(tables: Record<string, Row[]>) {
   return {
     from,
     t: tables,
+    deletedUsers,
     auth: {
       admin: {
         getUserById: async () => ({ data: { user: { email: "" } } }),
         listUsers: async () => ({ data: { users: [] } }),
+        deleteUser: async (id: string) => {
+          deletedUsers.push(id);
+          return { data: null, error: null };
+        },
       },
     },
   };
@@ -1333,7 +1337,13 @@ describe("terse, garbled and multi-ask messages", () => {
       understand: async () => ({ tool: "send_checkin", names: ["cayla"] }),
     });
     const memory: PracMemory = {};
-    await handlePractitionerMessage(asAdmin(db), JUSTIN, { text: "ping cayla", replyId: null }, deps, memory);
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "ping cayla", replyId: null },
+      deps,
+      memory,
+    );
     expect(sent).toHaveLength(0);
     await handlePractitionerMessage(
       asAdmin(db),
@@ -1354,7 +1364,13 @@ describe("terse, garbled and multi-ask messages", () => {
       understand: async () => ({ tool: "send_checkin", names: ["cayla"] }),
     });
     const memory: PracMemory = {};
-    await handlePractitionerMessage(asAdmin(db), JUSTIN, { text: "ping cayla", replyId: null }, deps, memory);
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "ping cayla", replyId: null },
+      deps,
+      memory,
+    );
     await handlePractitionerMessage(
       asAdmin(db),
       JUSTIN,
@@ -1706,5 +1722,95 @@ describe("client list, erase, and check-in wording", () => {
     expect(
       checkinReachWarning([{ name: "Michaela Geldhof", reach: "template" }], true),
     ).toContain("without this wording");
+  });
+});
+
+describe("deleting clients from WhatsApp (28 Oct, super admin)", () => {
+  it("reads back names and check-ins, deletes on Yes, and audits", async () => {
+    const { db, deps, replies } = harness({
+      understand: async (input) =>
+        input.message.startsWith("delete")
+          ? { tool: "delete_clients", names: ["steven"] }
+          : { tool: "confirm_pending" },
+    });
+    db.t.check_ins.push({ client_id: STEVEN, created_at: "2026-10-01T08:00:00Z" });
+    db.t.whatsapp_inbound = [{ client_id: STEVEN, from_phone: "27820000000" }];
+    const memory: PracMemory = {};
+    const say = (text: string, replyId: string | null = null) =>
+      handlePractitionerMessage(asAdmin(db), JUSTIN, { text, replyId }, deps, memory);
+    await say("delete steven jacobs");
+    const body = replyText(replies);
+    expect(body).toContain("Permanently delete this client?");
+    expect(body).toContain("• Steven Jacobs (2 check-ins)");
+    expect(body).toContain("can't be undone");
+    expect(replies.at(-1)?.buttons?.map((b) => b.title)).toEqual(["Yes, delete", "Cancel"]);
+    expect(db.t.clients.some((c) => c.id === STEVEN)).toBe(true);
+
+    await say("", "prac_ag_yes");
+    expect(replyText(replies)).toContain("Deleted Steven Jacobs.");
+    expect(db.t.clients.some((c) => c.id === STEVEN)).toBe(false);
+    expect(db.t.whatsapp_inbound).toHaveLength(0);
+    expect(db.deletedUsers).toEqual(["user-steven"]);
+    expect(db.t.client_admin_audit).toEqual([
+      expect.objectContaining({
+        client_id: STEVEN,
+        action: "erase",
+        channel: "whatsapp",
+        actor_id: "justin",
+      }),
+    ]);
+  });
+
+  it("Cancel leaves them alone", async () => {
+    const { db, deps, replies } = harness({
+      understand: async () => ({ tool: "delete_clients", names: ["vicki"] }),
+    });
+    const memory: PracMemory = {};
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "delete vicki", replyId: null },
+      deps,
+      memory,
+    );
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "", replyId: "prac_ag_no" },
+      deps,
+      memory,
+    );
+    expect(replyText(replies)).toBe("Okay, I won't.");
+    expect(db.t.clients.some((c) => c.id === VICKI)).toBe(true);
+  });
+
+  it("someone who isn't the Buddy admin can't delete", async () => {
+    const { db, deps, replies } = harness({
+      understand: async () => ({ tool: "delete_clients", names: ["cayla"] }),
+    });
+    await handlePractitionerMessage(
+      asAdmin(db),
+      ZOE,
+      { text: "delete cayla", replyId: null },
+      deps,
+      {},
+    );
+    expect(replyText(replies)).toContain("Only the Buddy admin can delete clients.");
+    expect(db.t.clients.some((c) => c.id === CAYLA)).toBe(true);
+  });
+
+  it("won't delete everyone in one go", async () => {
+    const { db, deps, replies } = harness({
+      understand: async () => ({ tool: "delete_clients", names: ["inactive"] }),
+    });
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "delete all the inactive ones", replyId: null },
+      deps,
+      {},
+    );
+    expect(replyText(replies)).toContain("Tell me who by name");
+    expect(db.t.clients).toHaveLength(5);
   });
 });

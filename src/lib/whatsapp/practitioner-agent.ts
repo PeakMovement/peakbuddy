@@ -50,6 +50,7 @@ export const AGENT_TOOLS = [
   "erase_clients",
   "list_clients",
   "unarchive_clients",
+  "delete_clients",
   "discharge_client",
   "reopen_episode",
   "prepare_data_copy",
@@ -142,9 +143,10 @@ const CARE_COPY = /^(?:please\s+)?prepare(?:\s+a)?\s+copy(?:\s+for\s+|\s+)(.+)$/
 export function carePhrase(
   text: string,
 ): { tool: "discharge_client" | "reopen_episode" | "prepare_data_copy"; name: string } | null {
-  const t = String(text ?? "").replace(/\s+/g, " ").trim();
-  const matched =
-    t.match(CARE_DISCHARGE) ?? t.match(CARE_REOPEN) ?? t.match(CARE_COPY);
+  const t = String(text ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const matched = t.match(CARE_DISCHARGE) ?? t.match(CARE_REOPEN) ?? t.match(CARE_COPY);
   const name = matched?.[1]?.replace(/[.?!]+$/, "").trim() ?? "";
   if (name.length < 2 || name.length > 80) return null;
   if (CARE_DISCHARGE.test(t)) return { tool: "discharge_client", name };
@@ -447,14 +449,14 @@ export function practitionerToolSchemas(heidiEnabled: boolean): unknown[] {
     {
       name: "archive_clients",
       description:
-        'Archive clients who have stopped responding (practice owner only). Records are kept; they come off lists and get no more reminders. Named clients, names ["quiet"] for the gone-quiet list (no check-in for 4 days), or names ["inactive"] for everyone with no check-in or message for idleDays days (default 60). "Delete" or "remove" without "permanently" means this. Put "except Yianna" in exclude. Every person with that name is excluded. A confirmation is shown first.',
+        'Archive clients who have stopped responding (practice owner only). Records are kept; they come off lists and get no more reminders. Named clients, names ["quiet"] for the gone-quiet list (no check-in for 4 days), or names ["inactive"] for everyone with no check-in or message for idleDays days (default 60). "Remove", "clear out" or "archive" old clients means this. Put "except Yianna" in exclude. Every person with that name is excluded. A confirmation is shown first.',
       properties: { names: strArray, exclude: strArray, idleDays: { type: "integer" } },
       required: [],
     },
     {
       name: "erase_clients",
       description:
-        'Permanently delete clients. Buddy admin only. WhatsApp messages go with the record. Named clients, or names ["quiet"] for the gone-quiet list. Put exclusions in exclude. A typed confirmation that lists the names is shown first. "Delete" without "permanently" is archive_clients, not this.',
+        'Permanently delete the gone-quiet list, or that list minus exclusions. Buddy admin only. names ["quiet"]. Put "except Yianna" in exclude. Every person with that name is excluded. A typed confirmation that lists the names is shown first. A single named delete ("delete Sam") is delete_clients, not this.',
       properties: { names: strArray, exclude: strArray },
       required: [],
     },
@@ -464,6 +466,13 @@ export function practitionerToolSchemas(heidiEnabled: boolean): unknown[] {
         'List the clients (not the practitioners). "all clients", "list clients", "who is all clients", "who are my clients". The count says whether it is this practitioner\'s clients or the whole practice.',
       properties: {},
       required: [],
+    },
+    {
+      name: "delete_clients",
+      description:
+        'Permanently delete named clients and everything Buddy holds on them (super admin only). Shows the names and check-in counts and waits for Yes. Cannot be undone. Names as spoken. Never "all" or "inactive".',
+      properties: { names: strArray },
+      required: ["names"],
     },
     {
       name: "unarchive_clients",
@@ -631,7 +640,7 @@ A wording they want included ("say you're with ${input.practiceName}", "mention 
 If something is waiting to be sent and they agree ("yes", "ye do it", "all", "👍"), call confirm_pending. If they decline, call cancel_pending.
 If you are unsure, call clarify with one short question and up to 3 button labels under 20 characters. No client facts in that question.
 Scheduled updates use schedule_updates. Reception errands use ask_reception. What you can do uses help.
-A case brief is case_brief. Who improved this week is who_improved. Booking or moving an appointment is book_reception. A goal they want stored is set_goal. An outcomes or retention scorecard is outcomes. Agreeing to remind the quiet patients already named is confirm_quiet_nudges. Deleting, removing, clearing out or archiving old or unresponsive clients is archive_clients: named clients, names ["quiet"] for who has gone quiet, or names ["inactive"] with idleDays when they give a period ("not responded in 3 months" is idleDays 90). "Permanently delete" or "erase" is erase_clients, not archive. "except Yianna" goes in exclude, never in names. Two people with that name are both excluded. Do not ask which one. Bringing someone back is unarchive_clients. "all clients", "list clients" and "who is all clients" are list_clients, not list_practitioners. Home programme reminder days are set_programme_reminder. days uses 0 for Sunday through 6 for Saturday. optedIn is true only when they say the patient already agreed. Do not message the patient from that tool.
+A case brief is case_brief. Who improved this week is who_improved. Booking or moving an appointment is book_reception. A goal they want stored is set_goal. An outcomes or retention scorecard is outcomes. Agreeing to remind the quiet patients already named is confirm_quiet_nudges. Deleting or erasing named clients ("delete Sam Smith", "erase her") is delete_clients. It waits for Yes and is never everyone at once. Permanently deleting the gone-quiet list, or "except Yianna", is erase_clients: names ["quiet"] and the exclusions in exclude. Every person with that name is excluded. Do not ask which one. Removing, clearing out or archiving old or unresponsive clients is archive_clients: named clients, names ["quiet"] for who has gone quiet, or names ["inactive"] with idleDays when they give a period ("not responded in 3 months" is idleDays 90). "except" on an archive also goes in exclude. Bringing someone back is unarchive_clients. "all clients", "list clients" and "who is all clients" are list_clients, not list_practitioners. Home programme reminder days are set_programme_reminder. days uses 0 for Sunday through 6 for Saturday. optedIn is true only when they say the patient already agreed. Do not message the patient from that tool.
 Stopping reminders after discharge is discharge_client. Opening the episode again is reopen_episode. A copy of the record for them to review, then a one-time link, is prepare_data_copy. Each needs a name and waits for confirmation. Do not invent clinical advice. Do not use these for everyone at once.
 "Why" or "why is she up" is explain_client for the last client. Answer only from stored scores. A question about the whole list ("who hasn't done exercises", "which ACL patients are improving") is caseload_query with the question in their words. "Summarise" is summarise_thread. "I'll take over with Lauren" or "pause buddy for Lauren" is pause_buddy. "Hand it back" or "resume buddy for Lauren" is resume_buddy. Do not invent a patient, a number, or a diagnosis.
 A weekday morning note asks whether they want a patient update or reception to check in with anyone. "Patient update" or agreeing to the update is client_status with names ["all"]. Naming patients for reception to check in with is ask_reception, task "Check in with" those names. "Reception check-in" with no names is clarify asking who, with no client facts. "Not today" is dismiss_morning. "Stop morning check-ins" is set_morning_checkin with enabled false. "Start morning check-ins" is set_morning_checkin with enabled true. "Update me every morning" is schedule_updates, not the morning note.

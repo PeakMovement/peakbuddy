@@ -19,9 +19,15 @@
  *
  * Pure helpers only. The worker and server functions do the writes.
  */
+import { appBaseUrl } from "@/lib/app-url";
 
 export const BUDDY_WHATSAPP_NUMBER = "27675724314";
-export const APP_ORIGIN = "https://peakbuddy.lovable.app";
+/**
+ * Where patient links point. BUDDY_APP_BASE_URL switches every WhatsApp link
+ * to the practice's own domain once it is connected (app-url.ts); until then
+ * the Lovable address keeps working.
+ */
+export const APP_ORIGIN = appBaseUrl();
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I
 

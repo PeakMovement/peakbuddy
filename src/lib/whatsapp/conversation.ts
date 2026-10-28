@@ -1,3 +1,4 @@
+import { appBaseUrl } from "@/lib/app-url";
 import type { OutboundMessage } from "./provider";
 import { extractDeterministic } from "./extraction";
 import { classifyIntent, CONTACT_ACKNOWLEDGEMENT, OPT_OUT_CONFIRMATION } from "./intent";
@@ -43,7 +44,22 @@ import {
   type AssistRoute,
 } from "./assistant";
 import { EXERCISE_MEDIA, LIBRARY_COMING_SOON } from "@/lib/feature-flags";
-import { appointmentAnswer, bookingAsk, bookingSent, bookingTask, programmeAnswer } from "@/lib/capabilities";
+import {
+  adherenceFromWords,
+  describeMulti,
+  isGreeting,
+  multiCount,
+  readMulti,
+  scaleFromWords,
+} from "./answer-words";
+import { explicitLanguage } from "./language.server";
+import {
+  appointmentAnswer,
+  bookingAsk,
+  bookingSent,
+  bookingTask,
+  programmeAnswer,
+} from "@/lib/capabilities";
 
 /**
  * The WhatsApp check-in conversation, as a pure function.
@@ -87,6 +103,8 @@ export type ConversationState =
   | "unmatched";
 
 export interface CheckinDraft {
+  /** An open outcome score set (outcomes.ts). */
+  outcome?: import("./outcomes").OutcomeDraft;
   /** An app-login email waiting for the patient's YES before anything is created. */
   pendingEmail?: string;
   pain?: number;
@@ -279,7 +297,10 @@ export interface Decision {
   /** Patient asked for, or declined, template outreach between sessions. */
   setOutreachOptIn?: boolean;
   /** Codes only. Never the patient's words. */
-  analytics?: { kind: "understood" | "fallback" | "saved" | "deferred" | "dropoff"; detail?: string };
+  analytics?: {
+    kind: "understood" | "fallback" | "saved" | "deferred" | "dropoff";
+    detail?: string;
+  };
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -315,7 +336,7 @@ const PRACTICE_PHONE = "067 369 0593";
  * from WhatsApp asks the patient to sign in first, then lands them on the
  * Wearables section, opened.
  */
-export const WEARABLE_CONNECT_URL = "https://peakbuddy.lovable.app/client/app/profile#wearables";
+export const WEARABLE_CONNECT_URL = `${appBaseUrl()}/client/app/profile#wearables`;
 
 /* ------------------------------------------------------------------ */
 /* Wording                                                             */
@@ -329,7 +350,7 @@ export const MSG = {
   consentIntro: (firstName: string) => {
     const v = currentConsent("whatsapp_checkins");
     const body = v.sections.map((s) => s.body).join("\n\n");
-    return `Hi ${firstName}, this is Buddy from Peak Movement.\n\n${body}\n\n${v.affirmation}\n\nFull details: https://peakbuddy.lovable.app/consent`;
+    return `Hi ${firstName}, this is Buddy from Peak Movement.\n\n${body}\n\n${v.affirmation}\n\nFull details: ${appBaseUrl()}/consent`;
   },
   consentThanks: "Thank you, that's recorded.",
   consentDeclined:
@@ -380,8 +401,7 @@ export const MSG = {
     "Great. Tap this link, sign in to Buddy if it asks, and choose your device under Wearables:\n\n" +
     WEARABLE_CONNECT_URL +
     "\n\nIt only takes a minute. Garmin, Oura and Polar are supported.",
-  appAlready:
-    "You already have a Buddy app login. Open the app and sign in with your email: https://peakbuddy.lovable.app/client/login",
+  appAlready: `You already have a Buddy app login. Open the app and sign in with your email: ${appBaseUrl()}/client/login`,
   wearableLinkDirect: (url: string) =>
     "Great. Tap this link and pick your device. You'll sign in with your Garmin, Oura or Polar account, not Buddy:\n\n" +
     url +
@@ -522,7 +542,10 @@ export function readScale(
     return Number.isInteger(n) && n >= 1 && n <= 5 ? n : null;
   }
   const m = msg.text.trim().match(/^([1-5])(?:\s*\/\s*5)?[.!]*$/);
-  return m ? Number(m[1]) : null;
+  if (m) return Number(m[1]);
+  // "slept well", "low", "pretty stressed" (answer-words.ts).
+  const kind = prefix === "wsleep_" ? "sleep" : prefix === "wenergy_" ? "energy" : "stress";
+  return scaleFromWords(msg.text, kind);
 }
 
 /* ------------------------------------------------------------------ */
@@ -618,8 +641,11 @@ function readAdherence(msg: InboundForDecision): "all" | "most" | "some" | "none
   if (id === IDS.adherence.most) return "most";
   if (id === IDS.adherence.some) return "some";
   if (id === IDS.adherence.none) return "none";
-  const key = msg.text.trim().toLowerCase().replace(/[.!]+$/g, "");
-  return ADHERENCE_TEXT[key] ?? null;
+  const key = msg.text
+    .trim()
+    .toLowerCase()
+    .replace(/[.!]+$/g, "");
+  return ADHERENCE_TEXT[key] ?? adherenceFromWords(msg.text);
 }
 
 function readGoal(text: string): string | null {
@@ -630,7 +656,11 @@ function readGoal(text: string): string | null {
 function readProgrammeOptIn(text: string): boolean | null {
   const t = text.trim().toLowerCase();
   if (/^stop programme reminders?$/.test(t)) return false;
-  if (/^(?:yes[, ]+)?(?:please )?remind me (?:about|of) (?:my )?(?:programme|program|exercises|home programme)$/.test(t)) {
+  if (
+    /^(?:yes[, ]+)?(?:please )?remind me (?:about|of) (?:my )?(?:programme|program|exercises|home programme)$/.test(
+      t,
+    )
+  ) {
     return true;
   }
   return null;
@@ -653,20 +683,86 @@ const WEARABLE_REQUEST =
   /^(watch|wearable|smartwatch|garmin|oura|polar)[.!]*$|\b(connect|link|add|sync|koppel)\b.{0,25}\b(watch|wearable|smartwatch|garmin|oura|polar|ring|horlosie)\b/i;
 
 /**
- * "remind me at 7am", "check in at 18:30", "change my check-in time to 6pm".
- * Returns "HH:MM" or null. Hours outside a day, or ambiguous text, give null.
+ * "remind me at 7am", "check in at 18:30", "change my check-in time to 6pm",
+ * "message me in the evenings around 8", "remind me at half past six",
+ * "around 9 at night", "send it at 19:30". Returns "HH:MM" or null.
+ *
+ * No am/pm and no part of the day: 1 to 6 means the evening (nobody asks for
+ * a 3am check-in), 7 to 11 the morning. Buddy always says the time back, so
+ * a wrong guess is one reply away from fixed.
  */
 export function readReminderTime(text: string): string | null {
-  const m = text.match(
-    /\b(?:remind|reminder|check[\s-]?in|message|text|herinner)\b.{0,30}?\b(?:at|to|for|om)\s*(\d{1,2})(?:[:h.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?/i,
+  const t = text.toLowerCase();
+  const verb =
+    /\b(?:remind|reminder|check[\s-]?ins?|message|text|ping|send|whatsapp|contact|herinner|stuur)\b/;
+  if (!verb.test(t)) return null;
+  const words: Record<string, number> = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+    eleven: 11,
+    twelve: 12,
+    een: 1,
+    twee: 2,
+    drie: 3,
+    vier: 4,
+    vyf: 5,
+    ses: 6,
+    sewe: 7,
+    agt: 8,
+    nege: 9,
+    tien: 10,
+    elf: 11,
+    twaalf: 12,
+  };
+  const num =
+    "(\\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|een|twee|drie|vier|vyf|ses|sewe|agt|nege|tien|elf|twaalf)";
+  const hourOf = (v: string) => (/^\d+$/.test(v) ? Number(v) : (words[v] ?? NaN));
+  let h: number | null = null;
+  let min = 0;
+  let ap = "";
+  const past = t.match(new RegExp(`\\b(half|quarter)\\s+(past|to|after)\\s+${num}\\b`));
+  const clock = t.match(
+    new RegExp(
+      `\\b(?:at|to|for|om|around|about|by|like|before|after|from|round)\\s*(?:about\\s+|around\\s+)?${num}(?:[:h.](\\d{2}))?\\s*(am|pm|a\\.m\\.|p\\.m\\.)?`,
+    ),
   );
-  if (!m) return null;
-  let h = Number(m[1]);
-  const min = m[2] ? Number(m[2]) : 0;
-  const ap = (m[3] ?? "").toLowerCase().replace(/\./g, "");
+  const bare = t.match(/\b(\d{1,2})(?:[:h.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)\b/);
+  if (past) {
+    h = hourOf(past[3]);
+    if (past[1] === "half") min = 30;
+    else if (past[2] === "to") {
+      h -= 1;
+      min = 45;
+    } else min = 15;
+  } else if (clock) {
+    h = hourOf(clock[1]);
+    min = clock[2] ? Number(clock[2]) : 0;
+    ap = (clock[3] ?? "").replace(/\./g, "");
+  } else if (bare) {
+    h = Number(bare[1]);
+    min = bare[2] ? Number(bare[2]) : 0;
+    ap = bare[3].replace(/\./g, "");
+  }
+  if (h == null || Number.isNaN(h)) return null;
+  const evening = /\b(evenings?|tonight|at night|night|afternoons?|after work|aand|middag)\b/.test(
+    t,
+  );
+  const morning = /\b(mornings?|before work|breakfast|oggend|môre)\b/.test(t) && !evening;
   if (ap === "pm" && h < 12) h += 12;
-  if (ap === "am" && h === 12) h = 0;
-  if (h > 23 || min > 59) return null;
+  else if (ap === "am" && h === 12) h = 0;
+  else if (!ap && h < 12) {
+    if (evening) h += 12;
+    else if (!morning && h >= 1 && h <= 6) h += 12;
+  }
+  if (h > 23 || min > 59 || h < 0) return null;
   return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
@@ -1177,11 +1273,7 @@ export function decide(ctx: DecisionContext): Decision {
     );
   }
 
-  if (
-    EXERCISE_MEDIA &&
-    (msg.mediaType === "image" || msg.mediaType === "video") &&
-    ctx.client
-  ) {
+  if (EXERCISE_MEDIA && (msg.mediaType === "image" || msg.mediaType === "video") && ctx.client) {
     return withSafety(
       {
         replies: [text(MSG.exerciseMediaSaved)],
@@ -1326,6 +1418,81 @@ export function decide(ctx: DecisionContext): Decision {
     draft: { ...draft, ...next },
     checkinStartedAt: conv.checkinStartedAt ?? ctx.now,
   });
+
+  const inCheckin =
+    state === "awaiting_pain" ||
+    state === "awaiting_sleep" ||
+    state === "awaiting_energy" ||
+    state === "awaiting_stress" ||
+    state === "awaiting_adherence";
+
+  // "Afrikaans asseblief" / "English please": say yes, carry on where we
+  // were. The worker saves the preference and translates (language.server).
+  const askedLang = msg.replyId ? null : explicitLanguage(raw);
+  if (askedLang) {
+    const names = { en: "English", af: "Afrikaans", xh: "isiXhosa", zu: "isiZulu" } as const;
+    const again = inCheckin ? pendingQuestionReply(state, draft) : null;
+    return withSafety(
+      {
+        replies: [
+          text(
+            askedLang === "en"
+              ? "Sure, back to English."
+              : `Sure, I'll reply in ${names[askedLang]} from now on. Say "English please" any time to switch back.`,
+          ),
+          ...(again ? [again] : []),
+        ],
+        next: conv,
+      },
+      ctx,
+    );
+  }
+
+  // "hi" in the middle of a check-in: carry on, without counting it as a miss.
+  if (inCheckin && !msg.replyId && isGreeting(raw)) {
+    const again = pendingQuestionReply(state, draft);
+    if (again) {
+      return withSafety(
+        { replies: [text("Hi! We're partway through today's check-in."), again], next: conv },
+        ctx,
+      );
+    }
+  }
+
+  // Several answers in one message: "pain 1, slept 4, energy ok, stress low,
+  // did all my exercises". Take them all and ask only what's left.
+  if (inCheckin && !msg.replyId && !draft.update) {
+    const multi = readMulti(raw);
+    const answers = multiCount(multi);
+    const hasPain = multi.pain !== undefined || draft.pain !== undefined;
+    if (answers >= 2 && hasPain) {
+      const merged: Partial<CheckinDraft> = {
+        pain: multi.pain ?? draft.pain,
+        sleep: multi.sleep ?? draft.sleep,
+        energy: multi.energy ?? draft.energy,
+        stress: multi.stress ?? draft.stress,
+        adherence: multi.adherence ?? draft.adherence,
+        misses: 0,
+      };
+      const order: Array<[keyof CheckinDraft, ConversationState, () => Reply]> = [
+        ["sleep", "awaiting_sleep", () => askSleep()],
+        ["energy", "awaiting_energy", () => askEnergy()],
+        ["stress", "awaiting_stress", () => askStress()],
+        ["adherence", "awaiting_adherence", () => askAdherence()],
+      ];
+      const missing = order.find(([k]) => merged[k] === undefined);
+      return withSafety(
+        {
+          replies: [
+            text(`Thanks, got ${describeMulti(multi)}.`),
+            missing ? missing[2]() : askNotes(),
+          ],
+          next: keep(merged, missing ? missing[1] : "awaiting_notes"),
+        },
+        ctx,
+      );
+    }
+  }
 
   switch (state) {
     case "awaiting_pain": {
@@ -1498,7 +1665,10 @@ export function decide(ctx: DecisionContext): Decision {
         if ((draft.misses ?? 0) >= 1) {
           return withSafety(
             {
-              replies: [text(MSG.skipQuestion), ctx.voice ? askNotes(afterEnergy(vc(ctx))) : askNotes()],
+              replies: [
+                text(MSG.skipQuestion),
+                ctx.voice ? askNotes(afterEnergy(vc(ctx))) : askNotes(),
+              ],
               next: keep({ notes, misses: 0 }, "awaiting_notes"),
             },
             ctx,
@@ -1783,7 +1953,10 @@ export function decide(ctx: DecisionContext): Decision {
         }
         case "appointment":
           return withSafety(
-            { replies: [text(appointmentAnswer(ctx.appointmentAt ?? null)), ...nudge], next: IDLE() },
+            {
+              replies: [text(appointmentAnswer(ctx.appointmentAt ?? null)), ...nudge],
+              next: IDLE(),
+            },
             ctx,
           );
         case "practice_info":

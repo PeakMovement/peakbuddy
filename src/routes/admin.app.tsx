@@ -11,6 +11,7 @@ import {
   Database,
   GraduationCap,
   MessageSquare,
+  FlaskConical,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { SetQuickCodePrompt } from "@/components/SetQuickCodePrompt";
@@ -25,6 +26,7 @@ const tabs: Tab[] = [
   { to: "/admin/app/practitioners", label: "Practitioners", Icon: Users },
   { to: "/admin/app/clients", label: "Clients", Icon: User },
   { to: "/admin/app/checkins", label: "Check-ins", Icon: MessageSquare },
+  { to: "/admin/app/test-lab", label: "Test Lab", Icon: FlaskConical },
   { to: "/admin/app/data-hub", label: "Data Hub", Icon: Database },
   { to: "/admin/app/yves-teach", label: "Teach Yves", Icon: GraduationCap },
   { to: "/admin/app/programs", label: "Programs", Icon: Sparkles },

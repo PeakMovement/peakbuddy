@@ -134,6 +134,16 @@ export async function sendAlertEmailCore(
       reason: "not_found" | "client_not_found" | "no_practitioner_email" | "send_failed";
     }
 > {
+  const { captureOutbound } = await import("@/lib/testlab/sandbox");
+  if (
+    captureOutbound({
+      kind: "email",
+      to: "practitioner",
+      summary: `Alert email for alert ${alertId}`,
+    })
+  ) {
+    return { ok: true };
+  }
   const { mintAlertActionToken } = await import("@/lib/alert-actions.server");
 
   const { data: alert } = await supabaseAdmin

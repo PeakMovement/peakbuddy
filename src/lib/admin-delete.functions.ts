@@ -18,27 +18,9 @@ export const adminDeleteClient = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertSuperAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    const { data: client, error: cErr } = await supabaseAdmin
-      .from("clients")
-      .select("id, auth_user_id, email, phone")
-      .eq("id", data.id)
-      .maybeSingle();
-    if (cErr) return { ok: false as const, error: cErr.message };
-    if (!client) return { ok: false as const, error: "Client not found." };
-
-    const { eraseClientRecord } = await import("@/lib/retention.server");
-    const erased = await eraseClientRecord(
-      supabaseAdmin,
-      {
-        id: client.id,
-        phone: client.phone,
-        auth_user_id: client.auth_user_id,
-        email: client.email,
-      },
-      { channel: "admin", actorId: context.userId },
-    );
-    if (!erased.ok) return { ok: false as const, error: erased.error };
+    const { eraseClient } = await import("@/lib/client-erase.server");
+    const result = await eraseClient(supabaseAdmin, data.id, context.userId, "admin");
+    if (!result.ok) return { ok: false as const, error: result.error };
     return { ok: true as const };
   });
 

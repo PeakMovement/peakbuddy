@@ -247,6 +247,33 @@ export type Database = {
           },
         ]
       }
+      client_admin_audit: {
+        Row: {
+          action: string
+          actor_id: string | null
+          channel: string
+          client_id: string | null
+          created_at: string
+          id: number
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          channel: string
+          client_id?: string | null
+          created_at?: string
+          id?: never
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          channel?: string
+          client_id?: string | null
+          created_at?: string
+          id?: never
+        }
+        Relationships: []
+      }
       client_baselines: {
         Row: {
           client_id: string
@@ -503,6 +530,7 @@ export type Database = {
           calendar_feed_token: string | null
           check_in_frequency: string
           created_at: string
+          discharged_at: string | null
           email: string | null
           first_login_at: string | null
           full_name: string
@@ -510,16 +538,20 @@ export type Database = {
           id: string
           library_intro_seen_at: string | null
           login_code: string
+          next_appointment: string | null
           notes: string | null
           onboarding_library_nudge_sent_at: string | null
           onboarding_source: string | null
+          outreach_opt_in: boolean
           passive_monitoring_enabled: boolean
           phone: string | null
+          phone_e164: string | null
           popia_accepted: boolean
           popia_accepted_at: string | null
           practice_id: string | null
           practitioner_id: string
           predictive_nudges_enabled: boolean
+          preferred_name: string | null
           primary_complaint: string | null
           program_decided_at: string | null
           program_personal_note: string | null
@@ -546,6 +578,7 @@ export type Database = {
           calendar_feed_token?: string | null
           check_in_frequency?: string
           created_at?: string
+          discharged_at?: string | null
           email?: string | null
           first_login_at?: string | null
           full_name: string
@@ -553,16 +586,20 @@ export type Database = {
           id?: string
           library_intro_seen_at?: string | null
           login_code: string
+          next_appointment?: string | null
           notes?: string | null
           onboarding_library_nudge_sent_at?: string | null
           onboarding_source?: string | null
+          outreach_opt_in?: boolean
           passive_monitoring_enabled?: boolean
           phone?: string | null
+          phone_e164?: string | null
           popia_accepted?: boolean
           popia_accepted_at?: string | null
           practice_id?: string | null
           practitioner_id: string
           predictive_nudges_enabled?: boolean
+          preferred_name?: string | null
           primary_complaint?: string | null
           program_decided_at?: string | null
           program_personal_note?: string | null
@@ -589,6 +626,7 @@ export type Database = {
           calendar_feed_token?: string | null
           check_in_frequency?: string
           created_at?: string
+          discharged_at?: string | null
           email?: string | null
           first_login_at?: string | null
           full_name?: string
@@ -596,16 +634,20 @@ export type Database = {
           id?: string
           library_intro_seen_at?: string | null
           login_code?: string
+          next_appointment?: string | null
           notes?: string | null
           onboarding_library_nudge_sent_at?: string | null
           onboarding_source?: string | null
+          outreach_opt_in?: boolean
           passive_monitoring_enabled?: boolean
           phone?: string | null
+          phone_e164?: string | null
           popia_accepted?: boolean
           popia_accepted_at?: string | null
           practice_id?: string | null
           practitioner_id?: string
           predictive_nudges_enabled?: boolean
+          preferred_name?: string | null
           primary_complaint?: string | null
           program_decided_at?: string | null
           program_personal_note?: string | null
@@ -730,6 +772,76 @@ export type Database = {
             columns: ["superseded_by"]
             isOneToOne: false
             referencedRelation: "consent_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_events: {
+        Row: {
+          client_id: string
+          created_at: string
+          detail: string | null
+          id: string
+          kind: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+          kind: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+          kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_export_links: {
+        Row: {
+          client_id: string
+          created_at: string
+          downloaded_at: string | null
+          expires_at: string
+          id: string
+          practitioner_id: string
+          token_hash: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          downloaded_at?: string | null
+          expires_at: string
+          id?: string
+          practitioner_id: string
+          token_hash: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          downloaded_at?: string | null
+          expires_at?: string
+          id?: string
+          practitioner_id?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_export_links_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
@@ -1011,6 +1123,38 @@ export type Database = {
         }
         Relationships: []
       }
+      outreach_sends: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          kind: string
+          sent_on: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          kind: string
+          sent_on: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          sent_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_sends_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patient_memory: {
         Row: {
           archived_at: string | null
@@ -1178,6 +1322,7 @@ export type Database = {
           ai_features_enabled: boolean
           alert_sensitivity: string
           auto_reward_enabled: boolean
+          buddy_tone: string
           contact_email: string | null
           contact_phone: string | null
           contact_webhook_enabled: boolean
@@ -1210,6 +1355,7 @@ export type Database = {
           ai_features_enabled?: boolean
           alert_sensitivity?: string
           auto_reward_enabled?: boolean
+          buddy_tone?: string
           contact_email?: string | null
           contact_phone?: string | null
           contact_webhook_enabled?: boolean
@@ -1242,6 +1388,7 @@ export type Database = {
           ai_features_enabled?: boolean
           alert_sensitivity?: string
           auto_reward_enabled?: boolean
+          buddy_tone?: string
           contact_email?: string | null
           contact_phone?: string | null
           contact_webhook_enabled?: boolean
@@ -1410,6 +1557,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      practitioner_memory: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          fact: string
+          id: string
+          practitioner_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          fact: string
+          id?: string
+          practitioner_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          fact?: string
+          id?: string
+          practitioner_id?: string
+        }
+        Relationships: []
       }
       practitioner_morning_checkins: {
         Row: {
@@ -2398,6 +2569,9 @@ export type Database = {
       whatsapp_conversations: {
         Row: {
           app_offer_at: string | null
+          buddy_pause_note: string | null
+          buddy_paused_at: string | null
+          buddy_paused_by: string | null
           checkin_started_at: string | null
           client_id: string | null
           created_at: string
@@ -2414,6 +2588,9 @@ export type Database = {
         }
         Insert: {
           app_offer_at?: string | null
+          buddy_pause_note?: string | null
+          buddy_paused_at?: string | null
+          buddy_paused_by?: string | null
           checkin_started_at?: string | null
           client_id?: string | null
           created_at?: string
@@ -2430,6 +2607,9 @@ export type Database = {
         }
         Update: {
           app_offer_at?: string | null
+          buddy_pause_note?: string | null
+          buddy_paused_at?: string | null
+          buddy_paused_by?: string | null
           checkin_started_at?: string | null
           client_id?: string | null
           created_at?: string
@@ -2467,6 +2647,7 @@ export type Database = {
           processed_at: string | null
           provider: string
           provider_message_id: string
+          quoted_message_id: string | null
           received_at: string
           reply_id: string | null
           reply_title: string | null
@@ -2486,6 +2667,7 @@ export type Database = {
           processed_at?: string | null
           provider: string
           provider_message_id: string
+          quoted_message_id?: string | null
           received_at?: string
           reply_id?: string | null
           reply_title?: string | null
@@ -2505,6 +2687,7 @@ export type Database = {
           processed_at?: string | null
           provider?: string
           provider_message_id?: string
+          quoted_message_id?: string | null
           received_at?: string
           reply_id?: string | null
           reply_title?: string | null

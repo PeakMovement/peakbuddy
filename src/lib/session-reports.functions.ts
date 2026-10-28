@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { aiChat, type Part } from "@/lib/ai-chat.server";
 
 export const REPORTS_BUCKET = "session-reports";
 
@@ -352,7 +353,7 @@ export const analyzeReports = createServerFn({ method: "POST" })
     ];
 
     const gk = process.env.GEMINI_API_KEY;
-    const lovKey = process.env.LOVABLE_API_KEY;
+    const lovKey = process.env.ANTHROPIC_API_KEY || process.env.LOVABLE_API_KEY;
     let text = "";
     let usedModel = "";
 
@@ -366,33 +367,38 @@ export const analyzeReports = createServerFn({ method: "POST" })
       return /abort|timeout|timed out/i.test(msg) ? "timed out" : msg.slice(0, 120);
     };
 
-    // 1) Lovable AI gateway FIRST — the proven-working path on this account
-    //    (same one Yves insight uses). Reports go as multimodal image_url parts.
+    // 1) Claude first, Lovable AI gateway as its fallback (28 Oct 2026). Reports
+    //    go as multimodal image_url parts; images and PDFs reach Claude.
     if (lovKey) {
       try {
-        const content: unknown[] = [
+        const content: Part[] = [
           { type: "text", text: (userParts[0] as { text: string }).text },
           ...inlineParts.map((p) => ({
             type: "image_url",
             image_url: { url: `data:${p.inlineData.mimeType};base64,${p.inlineData.data}` },
           })),
         ];
-        const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Lovable-API-Key": lovKey },
-          body: JSON.stringify({
+        const res = await aiChat(
+          {
             model: "google/gemini-3.1-pro-preview",
             messages: [
               { role: "system", content: analysisPrompt(data.depth ?? "full") },
               { role: "user", content },
             ],
-          }),
-          signal: AbortSignal.timeout(Math.max(1_000, Math.min(GATEWAY_TIMEOUT_MS, msLeft()))),
-        });
+          },
+          {
+            label: "session-reports",
+            signal: AbortSignal.timeout(Math.max(1_000, Math.min(GATEWAY_TIMEOUT_MS, msLeft()))),
+          },
+        );
         if (res.ok) {
-          const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+          const j = (await res.json()) as {
+            model?: string;
+            choices?: { message?: { content?: string } }[];
+          };
           text = j.choices?.[0]?.message?.content?.trim() ?? "";
-          if (text) usedModel = "gateway/gemini-3.1-pro-preview";
+          if (text)
+            usedModel = j.model?.startsWith("claude") ? j.model : "gateway/gemini-3.1-pro-preview";
           else failures.push("gateway: empty response");
         } else {
           failures.push(`gateway: HTTP ${res.status}`);

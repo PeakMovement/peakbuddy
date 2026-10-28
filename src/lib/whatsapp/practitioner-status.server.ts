@@ -17,6 +17,9 @@
  * update") opens the window and the tap brings the full update.
  */
 import { log } from "@/lib/log";
+import { isDailyReportAsk } from "./daily-report.server";
+import { isWeekAsk } from "./weekly-summary.server";
+import { readGradeButton } from "./alert-grading.server";
 import { withoutArchived } from "@/lib/client-archive.server";
 import { readPatientQuestion } from "./patient-question-text";
 import { readPatientMessage, type PatientMessageRequest } from "./patient-message-text";
@@ -98,6 +101,12 @@ export type PracIntent =
   | { kind: "admin"; topic: "overview" | "redflags" | "quiet" | "usage" }
   /** Super admin: did today's check-ins go out? */
   | { kind: "checkin_delivery" }
+  /** Super admin: the daily Buddy report, now. */
+  | { kind: "daily_report" }
+  /** The Monday summary of their own patients, now. */
+  | { kind: "weekly_summary" }
+  /** A tap grading a red flag (alert-grading.server.ts). */
+  | { kind: "grade_alert"; alertId: string; grade: "confirmed" | "false_alarm" | "already_aware" }
   | { kind: "reception"; task: string }
   /** Phrasing names reception and a task, but not clearly enough to send. */
   | { kind: "reception_confirm"; task: string }
@@ -307,6 +316,12 @@ export function practitionerIntent(text: string, replyId: string | null): PracIn
     return { kind: "checkin", clientId: null };
   if (!blocked && looseCheckin(text))
     return { kind: "checkin", clientId: null, confidence: "medium" };
+  const graded = readGradeButton(r);
+  if (graded) return { kind: "grade_alert", ...graded };
+  if (r === "prac_daily_report" || isDailyReportAsk(text) || isDailyReportAsk(normalized))
+    return { kind: "daily_report" };
+  if (r === "prac_weekly_summary" || isWeekAsk(text) || isWeekAsk(normalized))
+    return { kind: "weekly_summary" };
   if (
     r === "prac_checkin_delivery" ||
     isCheckinDeliveryAsk(text) ||
@@ -349,6 +364,10 @@ export interface ClientStatus {
   scheduledDays?: number[] | null;
   /** Set after a confirmed discharge. Open alerts still surface. */
   discharged?: boolean;
+  /** "NPRS 6 → 3, PSFS 3.0 → 6.7 (since 14 Oct)", when scores exist. */
+  outcomes?: string | null;
+  /** Quiet trend signal for the physio (trends.ts), when one is showing. */
+  signal?: string | null;
 }
 
 export type Bucket = "attention" | "quiet" | "well" | "inactive";
@@ -550,6 +569,8 @@ export function formatStatusOne(c: ClientStatus, now: Date): string {
     } else {
       lines.push("No check-ins in the past 7 days.");
     }
+    if (c.signal) lines.push(`Worth a look: ${c.signal}`);
+    if (c.outcomes) lines.push(`Outcome scores: ${c.outcomes}.`);
     const note = c.checkins.find((x) => x.notes && x.notes.trim())?.notes?.trim();
     if (note) lines.push(`Latest note: "${note.length > 160 ? `${note.slice(0, 157)}...` : note}"`);
   }
@@ -633,31 +654,33 @@ export async function loadStatuses(
   const ids = clients.map((c) => c.id);
   const since = new Date(now.getTime() - ACTIVE_DAYS * DAY).toISOString();
   const alertSince = new Date(now.getTime() - 14 * DAY).toISOString();
-  const [{ data: cis }, { data: alerts }, { data: convs }, { data: reminders }] = await Promise.all([
-    admin
-      .from("check_ins")
-      .select("client_id, pain_level, sleep_quality, energy_level, notes, created_at")
-      .in("client_id", ids)
-      .gte("created_at", since)
-      .order("created_at", { ascending: false })
-      .limit(5000),
-    admin
-      .from("alerts")
-      .select("client_id, alert_type, urgency, created_at, is_read, reviewed_at, message")
-      .in("client_id", ids)
-      .gte("created_at", alertSince)
-      .limit(2000),
-    admin
-      .from("whatsapp_conversations")
-      .select("client_id, opted_out_at, state")
-      .in("client_id", ids)
-      .limit(2000),
-    admin
-      .from("checkin_reminders")
-      .select("client_id, days_of_week, enabled")
-      .in("client_id", ids)
-      .limit(2000),
-  ]);
+  const [{ data: cis }, { data: alerts }, { data: convs }, { data: reminders }] = await Promise.all(
+    [
+      admin
+        .from("check_ins")
+        .select("client_id, pain_level, sleep_quality, energy_level, notes, created_at")
+        .in("client_id", ids)
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(5000),
+      admin
+        .from("alerts")
+        .select("client_id, alert_type, urgency, created_at, is_read, reviewed_at, message")
+        .in("client_id", ids)
+        .gte("created_at", alertSince)
+        .limit(2000),
+      admin
+        .from("whatsapp_conversations")
+        .select("client_id, opted_out_at, state")
+        .in("client_id", ids)
+        .limit(2000),
+      admin
+        .from("checkin_reminders")
+        .select("client_id, days_of_week, enabled")
+        .in("client_id", ids)
+        .limit(2000),
+    ],
+  );
   const scheduledByClient = new Map<string, number[]>();
   for (const r of (reminders ?? []) as Array<{
     client_id: string;
@@ -671,7 +694,10 @@ export async function loadStatuses(
   const discharged = new Set<string>();
   const episode = await admin.from("clients").select("id, discharged_at").in("id", ids).limit(2000);
   if (!episode.error) {
-    for (const row of (episode.data ?? []) as Array<{ id: string; discharged_at?: string | null }>) {
+    for (const row of (episode.data ?? []) as Array<{
+      id: string;
+      discharged_at?: string | null;
+    }>) {
       if (row.discharged_at) discharged.add(row.id);
     }
   }
@@ -715,6 +741,21 @@ export async function loadStatuses(
       at: a.created_at,
       kind: alertKind(a.alert_type, a.message),
     });
+  }
+  // Outcome scores and trend signals only for a short list (one client's
+  // status, a handful named): one read each, not for the whole caseload.
+  if (out.size <= 5) {
+    const { loadOutcomes } = await import("./outcomes.server");
+    const { outcomeSummary } = await import("./outcomes");
+    const { trendSignal } = await import("./trends");
+    for (const c of out.values()) {
+      c.outcomes = outcomeSummary(await loadOutcomes(adminIn, c.id));
+      c.signal =
+        trendSignal(
+          c.checkins.map((x) => ({ at: x.at, pain: x.pain, sleep: x.sleep, energy: x.energy })),
+          now,
+        )?.text ?? null;
+    }
   }
   return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -992,6 +1033,38 @@ export async function runPractitionerJobs(
     log.warn("morning check-in failed", {
       error: e instanceof Error ? e.message : "unknown",
     });
+  }
+
+  // 9. Ask the treating practitioner to grade a recent red flag (one tap).
+  try {
+    const { runGradeAsks } = await import("./alert-grading.server");
+    await runGradeAsks(adminIn as never, env, now);
+  } catch (e) {
+    log.warn("grade asks failed", { error: e instanceof Error ? e.message : "unknown" });
+  }
+
+  // 8. Monday summary for each practitioner, 07:45 SAST.
+  try {
+    const { runWeeklySummaries } = await import("./weekly-summary.server");
+    await runWeeklySummaries(adminIn as never, env, now);
+  } catch (e) {
+    log.warn("weekly summary failed", { error: e instanceof Error ? e.message : "unknown" });
+  }
+
+  // 7. Red flags nobody has opened after 2 hours go to the practice owner.
+  try {
+    const { runRedFlagEscalation } = await import("./escalation.server");
+    await runRedFlagEscalation(adminIn as never, env, now);
+  } catch (e) {
+    log.warn("red flag escalation failed", { error: e instanceof Error ? e.message : "unknown" });
+  }
+
+  // 6. The daily Buddy report to the admin, 19:30 SAST.
+  try {
+    const { runDailyReport } = await import("./daily-report.server");
+    await runDailyReport(adminIn as never, env, now);
+  } catch (e) {
+    log.warn("daily report failed", { error: e instanceof Error ? e.message : "unknown" });
   }
 
   // 5. Quiet patients. Off unless QUIET_PATIENT_NUDGE=1. The patient message
