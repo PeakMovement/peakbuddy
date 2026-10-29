@@ -135,6 +135,27 @@ export type Database = {
           },
         ]
       }
+      buddy_job_claims: {
+        Row: {
+          created_at: string
+          job: string
+          key: string
+          run_on: string
+        }
+        Insert: {
+          created_at?: string
+          job: string
+          key: string
+          run_on: string
+        }
+        Update: {
+          created_at?: string
+          job?: string
+          key?: string
+          run_on?: string
+        }
+        Relationships: []
+      }
       check_ins: {
         Row: {
           client_id: string
@@ -551,6 +572,7 @@ export type Database = {
           practice_id: string | null
           practitioner_id: string
           predictive_nudges_enabled: boolean
+          preferred_language: string | null
           preferred_name: string | null
           primary_complaint: string | null
           program_decided_at: string | null
@@ -599,6 +621,7 @@ export type Database = {
           practice_id?: string | null
           practitioner_id: string
           predictive_nudges_enabled?: boolean
+          preferred_language?: string | null
           preferred_name?: string | null
           primary_complaint?: string | null
           program_decided_at?: string | null
@@ -647,6 +670,7 @@ export type Database = {
           practice_id?: string | null
           practitioner_id?: string
           predictive_nudges_enabled?: boolean
+          preferred_language?: string | null
           preferred_name?: string | null
           primary_complaint?: string | null
           program_decided_at?: string | null
@@ -1122,6 +1146,50 @@ export type Database = {
           status?: number | null
         }
         Relationships: []
+      }
+      outcome_measures: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          items: Json
+          measure: string
+          practitioner_id: string | null
+          score: number
+          source: string
+          timepoint: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          items?: Json
+          measure: string
+          practitioner_id?: string | null
+          score: number
+          source?: string
+          timepoint: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          items?: Json
+          measure?: string
+          practitioner_id?: string | null
+          score?: number
+          source?: string
+          timepoint?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outcome_measures_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       outreach_sends: {
         Row: {
@@ -2319,6 +2387,39 @@ export type Database = {
           },
         ]
       }
+      testlab_feedback: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          id: number
+          note: string | null
+          resolved_at: string | null
+          scenario_id: string | null
+          transcript: Json
+          verdict: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          id?: never
+          note?: string | null
+          resolved_at?: string | null
+          scenario_id?: string | null
+          transcript?: Json
+          verdict: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          id?: never
+          note?: string | null
+          resolved_at?: string | null
+          scenario_id?: string | null
+          transcript?: Json
+          verdict?: string
+        }
+        Relationships: []
+      }
       training_sessions: {
         Row: {
           client_id: string
@@ -2560,6 +2661,50 @@ export type Database = {
           {
             foreignKeyName: "wearable_tokens_client_id_fkey"
             columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_contacts: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          opted_out: boolean
+          opted_out_at: string | null
+          phone: string
+          promoted_client_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          opted_out?: boolean
+          opted_out_at?: string | null
+          phone: string
+          promoted_client_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          opted_out?: boolean
+          opted_out_at?: string | null
+          phone?: string
+          promoted_client_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_contacts_promoted_client_id_fkey"
+            columns: ["promoted_client_id"]
             isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
