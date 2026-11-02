@@ -310,6 +310,10 @@ export const PRAC_MSG = {
     `Done, I've asked ${patient} to check in. I'll send you their answers when they reply.`,
   checkinBusy: (patient: string) =>
     `${patient} is in the middle of a check-in with me right now. I'll send you their answers when they finish.`,
+  consentResent: (patient: string) =>
+    `${patient} hadn't finished signing up, so I cleared that and sent a fresh consent link. Check-ins start once they sign.`,
+  consentWaiting: (patient: string) =>
+    `${patient} hadn't finished signing up, and WhatsApp won't let me message them until they write in. I've reset them, so they get a fresh consent link the moment they do.`,
   checkinApp: (patient: string) =>
     `${patient} uses the Buddy app, so I've sent them a notification to check in. I'll send you their answers when they do.`,
   checkinUnreachable: (patient: string) =>
@@ -333,7 +337,15 @@ export interface PractitionerDeps {
   /** Start a check-in for a patient (the worker's reminder path). */
   requestCheckin?: (
     clientId: string,
-  ) => Promise<"sent" | "not_whatsapp" | "busy" | "window_closed" | "failed">;
+  ) => Promise<
+    | "sent"
+    | "not_whatsapp"
+    | "busy"
+    | "window_closed"
+    | "consent_sent"
+    | "consent_waiting"
+    | "failed"
+  >;
   /**
    * Tool choice for the practitioner agent. Tests pass a mock. When omitted,
    * Buddy calls Claude, with Lovable's Gemini as the fallback (ai-chat.server),
@@ -1541,6 +1553,12 @@ async function handleStatusIntent(
   if (result === "sent" || result === "busy") {
     await st.recordCheckinRequest(adminIn, target.id, prac.userId, deps.now);
     await text1(result === "sent" ? PRAC_MSG.checkinAsked(name) : PRAC_MSG.checkinBusy(name));
+    return;
+  }
+  if (result === "consent_sent" || result === "consent_waiting") {
+    await text1(
+      result === "consent_sent" ? PRAC_MSG.consentResent(name) : PRAC_MSG.consentWaiting(name),
+    );
     return;
   }
   if (result === "failed") {

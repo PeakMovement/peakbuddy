@@ -745,7 +745,9 @@ export function checkinPreview(
   verbatim = false,
 ): string {
   if (verbatim) {
-    const text = String(note ?? "").replace(/\s+/g, " ").trim();
+    const text = String(note ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
     return text || practitionerCheckinText("<name>", practiceName, null);
   }
   return practitionerCheckinText("<name>", practiceName, extraCheckinNote(note, practiceName));
@@ -779,7 +781,7 @@ export function confirmOutbound(names: string[], preview: string, notes?: string
   return practitionerConfirmSend(joinNames(names), preview, notes);
 }
 
-export type CheckinReachKind = "open" | "template" | "busy" | "other";
+export type CheckinReachKind = "open" | "template" | "busy" | "restart" | "consent" | "other";
 
 /** What the admin should see before they confirm a check-in send. */
 export function checkinReachWarning(
@@ -794,6 +796,23 @@ export function checkinReachWarning(
     const be = busy.length === 1 ? "is" : "are";
     lines.push(
       `${who} ${be} already mid check-in, so I'll leave them to finish and won't message them now.`,
+    );
+  }
+  // Practitioner override (2 Nov 2026, Justin): a half-finished step never blocks them.
+  const restart = rows.filter((row) => row.reach === "restart");
+  if (restart.length) {
+    const who = joinNames(restart.map((row) => row.name));
+    const be = restart.length === 1 ? "is" : "are";
+    lines.push(
+      `${who} ${be} partway through something with me. I'll drop that and send this fresh.`,
+    );
+  }
+  const consent = rows.filter((row) => row.reach === "consent");
+  if (consent.length) {
+    const who = joinNames(consent.map((row) => row.name));
+    const has = consent.length === 1 ? "hasn't" : "haven't";
+    lines.push(
+      `${who} ${has} finished signing up, so instead of this I'll send a fresh consent link. No check-ins until they sign.`,
     );
   }
   if (template.length) {
@@ -829,7 +848,9 @@ export function exclusionNames(text: string): string[] {
 export function isClientListAsk(text: string): boolean {
   const n = normalizePractitionerText(text);
   if (!n || n.length > 80) return false;
-  if (/\b(delete|remove|archive|erase|wipe|message|check|practitioner|how|doing|quiet|flag)\b/.test(n))
+  if (
+    /\b(delete|remove|archive|erase|wipe|message|check|practitioner|how|doing|quiet|flag)\b/.test(n)
+  )
     return false;
   return (
     /^(?:who(?: is| are| s)?|list|show(?: me)?|give me|what are|name)\s+(?:me\s+)?(?:all\s+)?(?:of\s+(?:the|my|our)\s+)?(?:the\s+|my\s+|our\s+)?(?:all\s+)?clients$/.test(
@@ -934,7 +955,9 @@ export function formatClientList(input: {
   }
   const firsts = input.people.map((person) => person.name.split(/\s+/)[0]?.toLowerCase() ?? "");
   const duplicated = new Set(
-    firsts.filter((name, index) => firsts.indexOf(name) !== index || firsts.lastIndexOf(name) !== index),
+    firsts.filter(
+      (name, index) => firsts.indexOf(name) !== index || firsts.lastIndexOf(name) !== index,
+    ),
   );
   const practiceWide = input.scopeLabel.startsWith("whole practice");
   for (const person of input.people) {
@@ -1152,6 +1175,10 @@ const REACH_LINE: Record<string, (name: string) => string> = {
   unreachable: (name) =>
     `${name}: hasn't messaged in over a day and isn't on the app, so I couldn't reach them. A message from you may get them going.`,
   not_registered: (name) => `${name}: isn't on Buddy yet, so I couldn't message them.`,
+  consent_sent: (name) =>
+    `${name}: hadn't finished signing up, so I cleared that and sent a fresh consent link. Check-ins start once they sign.`,
+  consent_waiting: (name) =>
+    `${name}: hadn't finished signing up, and WhatsApp won't let me message them until they write in. I've reset them, so they get a fresh consent link the moment they do.`,
   needs_consent: (name) =>
     `${name}: hasn't signed the current consent form, so I won't message them until they have.`,
   failed: (name) => `${name}: something went wrong sending that. Please try again in a minute.`,

@@ -929,10 +929,13 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
             secrets: env.secrets,
             now,
             requestCheckin: (clientId) =>
-              sendWhatsAppReminder(admin, clientId, now, {
-                provider: env.provider,
-                secrets: env.secrets,
-              }),
+              sendWhatsAppReminder(
+                admin,
+                clientId,
+                now,
+                { provider: env.provider, secrets: env.secrets },
+                { override: true },
+              ),
             reply: async (m) => {
               let id: string | null = null;
               let ok = false;
@@ -1599,11 +1602,8 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
   // practitioner's own text, not an AI reply.
   const pendingCustom = (conv.draft as { pendingCustomCheckin?: string } | null)
     ?.pendingCustomCheckin;
-  const deliverCustom = Boolean(
-    client && pendingCustom && consent && !redFlags.triggered,
-  );
-  if (deliverCustom && pendingCustom)
-    replies = [{ kind: "text", body: pendingCustom }, ...replies];
+  const deliverCustom = Boolean(client && pendingCustom && consent && !redFlags.triggered);
+  if (deliverCustom && pendingCustom) replies = [{ kind: "text", body: pendingCustom }, ...replies];
   // A practitioner's question that waited for this patient's window. Only
   // once the conversation is idle (never mid check-in) and never next to a
   // red flag, so the next message can be read as its answer.
@@ -2965,6 +2965,8 @@ export type WhatsAppReminderResult =
   | "not_whatsapp" // not on WhatsApp, opted out, or no current consent
   | "busy" // already mid-conversation, left alone
   | "window_closed" // no message from them in 24h, so Meta won't allow it
+  | "consent_sent" // practitioner override: not signed up, fresh consent link sent
+  | "consent_waiting" // practitioner override: not signed up, window closed, reset for their next message
   | "failed";
 
 /**
@@ -2998,6 +3000,73 @@ async function scheduleConfirmIfDue(
   return scheduleConfirmText();
 }
 
+/** Practitioner override for a patient who never finished signing up. */
+async function overrideConsent(
+  admin: Admin,
+  clientId: string,
+  conv: { id: string; phone: string },
+  now: Date,
+  cfg: NonNullable<ReturnType<typeof whatsappConfigFromEnv>>,
+): Promise<WhatsAppReminderResult> {
+  await admin
+    .from("whatsapp_conversations")
+    .update({
+      state: "awaiting_consent",
+      client_id: clientId,
+      draft: {},
+      checkin_started_at: null,
+      updated_at: now.toISOString(),
+    })
+    .eq("id", conv.id);
+  const { data: last } = await admin
+    .from("whatsapp_inbound")
+    .select("received_at")
+    .in("from_phone", [`+${conv.phone}`, conv.phone])
+    .order("received_at", { ascending: false })
+    .limit(1);
+  const lastAt = (last as Array<{ received_at: string }> | null)?.[0]?.received_at;
+  const open = Boolean(lastAt && now.getTime() - new Date(lastAt).getTime() < SERVICE_WINDOW_MS);
+  if (!open) return "consent_waiting";
+  const url = await mintConsentLink(admin, clientId, conv.phone).catch(() => null);
+  if (!url) return "consent_waiting";
+  const { data: client } = await admin
+    .from("clients")
+    .select("full_name")
+    .eq("id", clientId)
+    .maybeSingle();
+  const firstName = firstNameOf(
+    (client as { full_name?: string | null } | null)?.full_name ?? null,
+  );
+  const body = ONBOARD_MSG.consentLink(firstName, url);
+  let id: string | null = null;
+  let ok = false;
+  try {
+    id =
+      (await cfg.provider.send({ kind: "text", to: conv.phone, body }, cfg.secrets))
+        .providerMessageId || null;
+    ok = true;
+  } catch {
+    /* logged below */
+  }
+  await admin
+    .from("whatsapp_outbound")
+    .insert({
+      phone: conv.phone,
+      client_id: clientId,
+      provider: cfg.provider.id,
+      provider_message_id: id,
+      kind: "text",
+      body: "[practitioner consent resend]",
+      sent_ok: ok,
+    })
+    .then(
+      () => undefined,
+      () => undefined,
+    );
+  log.info("practitioner override: consent link", { sent: ok });
+  return ok ? "consent_sent" : "failed";
+}
+
 /**
  * The daily nudge for a WhatsApp patient. Only inside Meta's 24 hour window:
  * outside it Buddy stays quiet until the patient next writes in (no paid
@@ -3008,6 +3077,12 @@ export async function sendWhatsAppReminder(
   clientId: string,
   now: Date = new Date(),
   cfg: ReturnType<typeof whatsappConfigFromEnv> = whatsappConfigFromEnv(),
+  /**
+   * A practitioner asked (2 Nov 2026, Justin): whatever step the patient is
+   * stuck on is dropped. Signed up: a fresh check-in. Not signed up: a fresh
+   * consent link instead, never a check-in.
+   */
+  opts: { override?: boolean } = {},
 ): Promise<WhatsAppReminderResult> {
   if (!cfg) return "not_whatsapp";
   const { data: convData } = await admin
@@ -3024,7 +3099,18 @@ export async function sendWhatsAppReminder(
   } | null;
   if (!conv || conv.opted_out_at || conv.state === "opted_out") return "not_whatsapp";
   if (await clientDischarged(admin, clientId)) return "not_whatsapp";
-  if (!(await hasCurrentConsent(admin, clientId))) return "not_whatsapp";
+  if (!(await hasCurrentConsent(admin, clientId))) {
+    if (!opts.override) return "not_whatsapp";
+    return overrideConsent(admin, clientId, conv, now, cfg);
+  }
+  if (opts.override && conv.state !== "idle") {
+    await admin
+      .from("whatsapp_conversations")
+      .update({ state: "idle", draft: {}, checkin_started_at: null, updated_at: now.toISOString() })
+      .eq("id", conv.id);
+    conv.state = "idle" as ConversationState;
+    conv.checkin_started_at = null;
+  }
   // Mid-conversation in the last half hour: they're busy with Buddy, leave
   // them be. A check-in left unfinished for longer gets a nudge to finish it
   // (same question again). Any other unfinished step is dropped and today's

@@ -26,6 +26,7 @@ import {
   checkinBody,
   checkinPreview,
   checkinReachWarning,
+  type CheckinReachKind,
   choiceBody,
   clarifyButtons,
   confirmOutbound,
@@ -276,7 +277,7 @@ async function replyText(ctx: AgentContext, body: string): Promise<void> {
 
 function rememberFocus(ctx: AgentContext, clients: ScopedClient[]): void {
   const list = clients
-    .slice(0, 10)
+    .slice(0, 50)
     .map((c) => ({
       id: c.id,
       name: String(c.full_name ?? "").trim() || "A client",
@@ -418,7 +419,10 @@ function eraseButtons(typed = false): Array<{ id: string; title: string }> {
   ];
 }
 
-function confirmButtons(action: string, preview?: string | null): Array<{ id: string; title: string }> {
+function confirmButtons(
+  action: string,
+  preview?: string | null,
+): Array<{ id: string; title: string }> {
   if (action === "archive") return archiveButtons();
   if (action === "erase") return eraseButtons(preview === "typed");
   return agentButtons();
@@ -497,12 +501,18 @@ async function quietClients(ctx: AgentContext): Promise<ScopedClient[]> {
     created_at: string | null;
     auth_user_id: string | null;
   }>;
-  const statuses = await st.loadStatuses(ctx.adminIn, rows.length ? rows : ctx.scopeClients.map((c) => ({
-    id: c.id,
-    full_name: c.full_name,
-    created_at: null,
-    auth_user_id: null,
-  })), ctx.deps.now);
+  const statuses = await st.loadStatuses(
+    ctx.adminIn,
+    rows.length
+      ? rows
+      : ctx.scopeClients.map((c) => ({
+          id: c.id,
+          full_name: c.full_name,
+          created_at: null,
+          auth_user_id: null,
+        })),
+    ctx.deps.now,
+  );
   const quiet = new Set(
     statuses.filter((s) => st.bucketOf(s, ctx.deps.now) === "quiet").map((s) => s.id),
   );
@@ -510,15 +520,10 @@ async function quietClients(ctx: AgentContext): Promise<ScopedClient[]> {
 }
 
 async function quietClientNames(ctx: AgentContext): Promise<string[]> {
-  return (await quietClients(ctx))
-    .map((c) => String(c.full_name ?? "").trim())
-    .filter(Boolean);
+  return (await quietClients(ctx)).map((c) => String(c.full_name ?? "").trim()).filter(Boolean);
 }
 
-async function practitionerLabels(
-  ctx: AgentContext,
-  ids: string[],
-): Promise<Map<string, string>> {
+async function practitionerLabels(ctx: AgentContext, ids: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (!ids.length) return out;
   const { data } = await ctx.admin
@@ -687,9 +692,10 @@ async function proposeCheckin(
 async function previewCheckinReach(
   ctx: AgentContext,
   clients: ScopedClient[],
-): Promise<Array<{ name: string; reach: "open" | "template" | "busy" | "other" }>> {
+): Promise<Array<{ name: string; reach: CheckinReachKind }>> {
   const { windowOpen } = await import("./practitioner-status.server");
-  const out: Array<{ name: string; reach: "open" | "template" | "busy" | "other" }> = [];
+  const { hasCurrentRequiredConsent } = await import("./onboarding.server");
+  const out: Array<{ name: string; reach: CheckinReachKind }> = [];
   for (const client of clients) {
     const name = String(client.full_name ?? "").trim() || "A client";
     const { data: convs } = await ctx.admin
@@ -705,7 +711,8 @@ async function previewCheckinReach(
       continue;
     }
     if (conv.state !== "idle") {
-      out.push({ name, reach: "busy" });
+      const signed = await hasCurrentRequiredConsent(ctx.adminIn as never, client.id);
+      out.push({ name, reach: signed ? "restart" : "consent" });
       continue;
     }
     const open = await windowOpen(ctx.adminIn, conv.phone, ctx.deps.now);
@@ -816,6 +823,8 @@ type Reach =
   | "template_queued"
   | "push"
   | "busy"
+  | "consent_sent"
+  | "consent_waiting"
   | "queued"
   | "unreachable"
   | "not_registered"
@@ -860,7 +869,16 @@ async function deliverCheckin(
   const onWhatsApp = Boolean(conv && !conv.opted_out_at && conv.state !== "opted_out");
 
   if (onWhatsApp && conv) {
-    if (conv.state !== "idle" && conv.state !== "opted_out") return "busy";
+    if (conv.state !== "idle" && conv.state !== "opted_out") {
+      // The practitioner overrides whatever step the patient was stuck on
+      // (2 Nov 2026, Justin). Signed up: drop the half-finished step and send.
+      // Not signed up yet: no check-in, a fresh consent link instead.
+      const { hasCurrentRequiredConsent } = await import("./onboarding.server");
+      if (!(await hasCurrentRequiredConsent(ctx.adminIn as never, client.id))) {
+        return resendConsent(ctx, client.id, firstOf(full), conv);
+      }
+      await resetConversation(ctx, conv.id);
+    }
     const { windowOpen, sendLogged } = await import("./practitioner-status.server");
     const env = { provider: ctx.deps.provider, secrets: ctx.deps.secrets };
     if (await windowOpen(ctx.adminIn, conv.phone, ctx.deps.now)) {
@@ -900,6 +918,60 @@ async function deliverCheckin(
   }
   if (clientRow?.auth_user_id) return pushCheckin(ctx, clientRow.auth_user_id, body);
   return onWhatsApp ? "failed" : "not_registered";
+}
+
+async function resetConversation(ctx: AgentContext, conversationId: string): Promise<void> {
+  await ctx.admin
+    .from("whatsapp_conversations")
+    .update({
+      state: "idle",
+      draft: {},
+      checkin_started_at: null,
+      updated_at: ctx.deps.now.toISOString(),
+    })
+    .eq("id", conversationId)
+    .then(
+      () => undefined,
+      () => undefined,
+    );
+  log.info("practitioner override: conversation reset");
+}
+
+async function resendConsent(
+  ctx: AgentContext,
+  clientId: string,
+  firstName: string,
+  conv: { id: string; phone: string },
+): Promise<Reach> {
+  await ctx.admin
+    .from("whatsapp_conversations")
+    .update({
+      state: "awaiting_consent",
+      client_id: clientId,
+      draft: {},
+      checkin_started_at: null,
+      updated_at: ctx.deps.now.toISOString(),
+    })
+    .eq("id", conv.id)
+    .then(
+      () => undefined,
+      () => undefined,
+    );
+  const { windowOpen, sendLogged } = await import("./practitioner-status.server");
+  if (!(await windowOpen(ctx.adminIn, conv.phone, ctx.deps.now))) return "consent_waiting";
+  const { mintConsentLink } = await import("./onboarding.server");
+  const { ONBOARD_MSG } = await import("./onboarding");
+  const url = await mintConsentLink(ctx.adminIn as never, clientId, conv.phone).catch(() => null);
+  if (!url) return "consent_waiting";
+  const env = { provider: ctx.deps.provider, secrets: ctx.deps.secrets };
+  const ok = await sendLogged(
+    ctx.adminIn,
+    env,
+    { kind: "text", to: conv.phone, body: ONBOARD_MSG.consentLink(firstName || "there", url) },
+    "[practitioner consent resend]",
+  );
+  log.info("practitioner override: consent link", { sent: ok });
+  return ok ? "consent_sent" : "failed";
 }
 
 /** Practitioner wording waits until the patient replies. Red flags are handled first, in the worker. */
@@ -1087,10 +1159,8 @@ async function finishChoice(ctx: AgentContext, ids: string[]): Promise<void> {
   await proposeCheckin(ctx, clients, pending.note);
 }
 
-const QUIET_WORDS =
-  /^(?:quiet|the quiet ones?|gone quiet|quiet clients?|quiet patients?)$/i;
-const IDLE_WORDS =
-  /^(?:all|everyone|everybody|inactive|old|idle|unresponsive|not responding)$/i;
+const QUIET_WORDS = /^(?:quiet|the quiet ones?|gone quiet|quiet clients?|quiet patients?)$/i;
+const IDLE_WORDS = /^(?:all|everyone|everybody|inactive|old|idle|unresponsive|not responding)$/i;
 
 async function archiveTool(ctx: AgentContext, decision: AgentDecision): Promise<void> {
   const ar = await import("@/lib/client-archive.server");
@@ -1255,7 +1325,10 @@ async function typedEraseTool(ctx: AgentContext, decision: AgentDecision): Promi
   }
   const concrete = names.filter((n) => !QUIET_WORDS.test(n.trim()) && !IDLE_WORDS.test(n.trim()));
   if (!concrete.length) {
-    await replyText(ctx, 'Who should I permanently delete? Name them, or say "the gone quiet clients".');
+    await replyText(
+      ctx,
+      'Who should I permanently delete? Name them, or say "the gone quiet clients".',
+    );
     return;
   }
   const clients = await prepareClients(ctx, "erase", concrete, null);
@@ -1294,11 +1367,10 @@ async function executeTypedErase(
   const { eraseClientRecord } = await import("@/lib/retention.server");
   const gone: string[] = [];
   for (const row of rows) {
-    const result = await eraseClientRecord(
-      ctx.adminIn,
-      row,
-      { channel: "whatsapp", actorId: actor },
-    );
+    const result = await eraseClientRecord(ctx.adminIn, row, {
+      channel: "whatsapp",
+      actorId: actor,
+    });
     if (result.ok) gone.push(String(row.full_name ?? "").trim() || "A client");
   }
   log.info("practitioner agent erase", { count: gone.length });
@@ -1337,10 +1409,7 @@ async function replyClientList(ctx: AgentContext): Promise<void> {
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
   if (ctx.scopeClients.length) rememberFocus(ctx, ctx.scopeClients);
-  await replyText(
-    ctx,
-    formatClientList({ scopeLabel: scopeLabel(ctx), people, current }),
-  );
+  await replyText(ctx, formatClientList({ scopeLabel: scopeLabel(ctx), people, current }));
 }
 
 function clientsFromFocus(ctx: AgentContext): ScopedClient[] {
@@ -1405,7 +1474,16 @@ async function handleDeleteRoster(ctx: AgentContext, text: string): Promise<bool
     return true;
   }
   if (ask.them) {
-    const base = clientsFromFocus(ctx);
+    // "Archive those" usually follows a gone quiet list Buddy sent: the
+    // morning update, the Monday summary or "who's gone quiet". Those come
+    // from jobs that don't leave a list in chat memory, so fall back to the
+    // gone quiet clients. Nothing happens until the Yes tap on the names.
+    let base = clientsFromFocus(ctx);
+    let why = reason;
+    if (!base.length) {
+      base = await quietClients(ctx);
+      why = "gone quiet, no check-in for 4 days or more";
+    }
     if (!base.length) {
       await replyText(
         ctx,
@@ -1413,7 +1491,7 @@ async function handleDeleteRoster(ctx: AgentContext, text: string): Promise<bool
       );
       return true;
     }
-    await proposeExcluded(ctx, "archive", base, ask.exclusions, reason, null);
+    await proposeExcluded(ctx, "archive", base, ask.exclusions, why, null);
     return true;
   }
   if (ask.all && ask.exclusions.length) {

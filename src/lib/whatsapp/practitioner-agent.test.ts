@@ -581,7 +581,9 @@ describe("Justin's 11 Oct chat", () => {
     );
     expect(sent).toHaveLength(0);
     expect(push).not.toHaveBeenCalled();
-    expect(replies[0].body).toContain(`I'll message Cayla Rosenblatt, Michaela Geldhof, Steven Jacobs and Vicki-Leigh Atkinson: "${PREVIEW}"`);
+    expect(replies[0].body).toContain(
+      `I'll message Cayla Rosenblatt, Michaela Geldhof, Steven Jacobs and Vicki-Leigh Atkinson: "${PREVIEW}"`,
+    );
     expect(replies[0].body).toContain(
       "Michaela Geldhof is outside the 24 hour window, so they'll only get the check-in template.",
     );
@@ -725,9 +727,9 @@ describe("Justin's 11 Oct chat", () => {
     expect(textSent(sent)).toBe(typed);
     expect(textSent(sent)).not.toContain("checking in on how you're doing");
     const queued = db.t.whatsapp_conversations.find((c) => c.id === "c-mich");
-    expect((queued?.draft as { pendingCustomCheckin?: string } | undefined)?.pendingCustomCheckin).toBe(
-      typed,
-    );
+    expect(
+      (queued?.draft as { pendingCustomCheckin?: string } | undefined)?.pendingCustomCheckin,
+    ).toBe(typed);
   });
 });
 
@@ -1661,7 +1663,7 @@ describe("client list, erase, and check-in wording", () => {
     expect(db.t.clients.some((c) => c.id === CAYLA)).toBe(true);
   });
 
-  it("says when a recipient is already mid check-in, before anything is sent", async () => {
+  it("overrides a half-finished check-in: says so, then resets and sends fresh", async () => {
     const { db, deps, replies, sent } = harness({
       understand: async () => ({ tool: "send_checkin", names: ["cayla"] }),
     });
@@ -1675,7 +1677,7 @@ describe("client list, erase, and check-in wording", () => {
       deps,
       memory,
     );
-    expect(replyText(replies)).toContain("already mid check-in");
+    expect(replyText(replies)).toContain("drop that and send this fresh");
     expect(sent).toHaveLength(0);
     await handlePractitionerMessage(
       asAdmin(db),
@@ -1684,8 +1686,55 @@ describe("client list, erase, and check-in wording", () => {
       deps,
       memory,
     );
-    expect(sent.filter((m) => m.kind === "text")).toHaveLength(0);
-    expect(replyText(replies)).toContain("left them to finish");
+    expect(db.t.whatsapp_conversations.find((c) => c.id === "c-cayla")?.state).toBe("idle");
+    expect(replyText(replies)).not.toContain("left them to finish");
+  });
+
+  it("sends a fresh consent link, never a check-in, to someone stuck signing up", async () => {
+    const { db, deps, replies, sent } = harness({
+      understand: async () => ({ tool: "send_checkin", names: ["cayla"] }),
+    });
+    const cayla = db.t.whatsapp_conversations.find((c) => c.id === "c-cayla");
+    if (cayla) cayla.state = "awaiting_name";
+    db.t.consent_records = db.t.consent_records.filter((r) => r.client_id !== CAYLA);
+    db.t.whatsapp_inbound = [{ from_phone: "+27821111111", received_at: new Date().toISOString() }];
+    db.t.consent_links = [];
+    const memory: PracMemory = {};
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "please check in with cayla", replyId: null },
+      deps,
+      memory,
+    );
+    expect(replyText(replies)).toContain("fresh consent link");
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "", replyId: "prac_ag_yes" },
+      deps,
+      memory,
+    );
+    expect(db.t.whatsapp_conversations.find((c) => c.id === "c-cayla")?.state).toBe(
+      "awaiting_consent",
+    );
+    const texts = sent.filter((m) => m.kind === "text").map((m) => String(m.body));
+    expect(texts.some((t) => /consent form/i.test(t))).toBe(true);
+    expect(texts.some((t) => /pain/i.test(t))).toBe(false);
+  });
+
+  it("archives the gone quiet clients when told to archive them with no list in memory", async () => {
+    const { db, deps, replies } = harness({});
+    const memory: PracMemory = {};
+    await handlePractitionerMessage(
+      asAdmin(db),
+      JUSTIN,
+      { text: "archive them", replyId: null },
+      deps,
+      memory,
+    );
+    expect(replyText(replies)).not.toContain("I don't have a list");
+    expect(replyText(replies)).toMatch(/archive/i);
   });
 
   it("parses exclusions and the typed erase line without asking which duplicate", () => {
@@ -1719,9 +1768,9 @@ describe("client list, erase, and check-in wording", () => {
         true,
       ),
     ).toContain("already mid check-in");
-    expect(
-      checkinReachWarning([{ name: "Michaela Geldhof", reach: "template" }], true),
-    ).toContain("without this wording");
+    expect(checkinReachWarning([{ name: "Michaela Geldhof", reach: "template" }], true)).toContain(
+      "without this wording",
+    );
   });
 });
 

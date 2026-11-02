@@ -587,6 +587,73 @@ export const SCENARIOS: Scenario[] = [
     ],
   },
   {
+    id: "archive-after-quiet-list",
+    area: "Admin",
+    title: '"Who\'s gone quiet?" then "archive them"',
+    why: "Archiving from a list Buddy just showed you. On 2 Nov this lost the list and nothing was archived.",
+    steps: [
+      { send: { from: "owner", text: "who's gone quiet?" } },
+      { send: { from: "owner", text: "archive them" } },
+      { tap: { from: "owner", title: /yes/i } },
+      { send: { from: "owner", text: "who's gone quiet?" } },
+    ],
+    checks: [
+      {
+        label: "Nomsa is archived",
+        pass: ({ state }) => Boolean(clientOf(state, "nomsa")?.archived_at),
+      },
+      {
+        label: "She's off the gone quiet list",
+        pass: ({ lines }) => /nobody has gone quiet/i.test(textTo(lines, "owner")),
+      },
+    ],
+  },
+  {
+    id: "override-mid-checkin",
+    area: "Practitioner",
+    title: "Asking for a check-in while the patient is halfway through one",
+    why: "The practitioner always wins. The half-finished check-in is dropped and a fresh one goes out.",
+    steps: [
+      { send: { from: "sam", text: "hi" } },
+      { send: { from: "physio", text: "send sam a check-in" } },
+    ],
+    checks: [
+      {
+        label: "Physio was told it went",
+        pass: ({ lines }) => /asked sam to check in/i.test(textTo(lines, "physio")),
+      },
+      {
+        label: "Sam got a fresh check-in",
+        pass: ({ lines }) => sentTo(lines, "sam").filter((l) => /pain/i.test(l.text)).length >= 2,
+      },
+    ],
+  },
+  {
+    id: "override-stuck-signup",
+    area: "Practitioner",
+    title: "Asking for a check-in from someone who never finished signing up",
+    why: "No check-in without consent, so Buddy resends the consent link instead and says so.",
+    steps: [
+      { send: { from: "alex", text: "hello" } },
+      { send: { from: "physio", text: "send alex a check-in" } },
+    ],
+    checks: [
+      {
+        label: "Alex got a fresh consent link",
+        pass: ({ lines }) =>
+          sentTo(lines, "alex").filter((l) => /consent/i.test(l.text)).length >= 2,
+      },
+      {
+        label: "No check-in question went to Alex",
+        pass: ({ lines }) => !/pain right now/i.test(textTo(lines, "alex")),
+      },
+      {
+        label: "Physio was told why",
+        pass: ({ lines }) => /signing up/i.test(textTo(lines, "physio")),
+      },
+    ],
+  },
+  {
     id: "physio-cannot-delete",
     area: "Admin",
     title: "A physio can't delete",
