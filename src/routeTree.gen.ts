@@ -70,6 +70,7 @@ import { Route as ApiPublicHooksJobHealthCheckRouteImport } from './routes/api/p
 import { Route as ApiPublicHooksNightlyPatternDetectionRouteImport } from './routes/api/public/hooks/nightly-pattern-detection'
 import { Route as ApiPublicHooksNightlyRiskAnalysisRouteImport } from './routes/api/public/hooks/nightly-risk-analysis'
 import { Route as ApiPublicHooksOnboardingLibraryNudgeRouteImport } from './routes/api/public/hooks/onboarding-library-nudge'
+import { Route as ApiPublicHooksWatchLinkRouteImport } from './routes/api/public/hooks/watch-link'
 import { Route as ApiPublicHooksWearablesSyncRouteImport } from './routes/api/public/hooks/wearables-sync'
 import { Route as ApiPublicHooksWeeklyPractitionerDigestRouteImport } from './routes/api/public/hooks/weekly-practitioner-digest'
 import { Route as ApiPublicHooksWhatsappDriveBackupRouteImport } from './routes/api/public/hooks/whatsapp-drive-backup'
@@ -402,6 +403,11 @@ const ApiPublicHooksOnboardingLibraryNudgeRoute =
     path: '/api/public/hooks/onboarding-library-nudge',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksWatchLinkRoute = ApiPublicHooksWatchLinkRouteImport.update({
+  id: '/api/public/hooks/watch-link',
+  path: '/api/public/hooks/watch-link',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHooksWearablesSyncRoute =
   ApiPublicHooksWearablesSyncRouteImport.update({
     id: '/api/public/hooks/wearables-sync',
@@ -547,6 +553,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
   '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
+  '/api/public/hooks/watch-link': typeof ApiPublicHooksWatchLinkRoute
   '/api/public/hooks/wearables-sync': typeof ApiPublicHooksWearablesSyncRoute
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   '/api/public/hooks/whatsapp-drive-backup': typeof ApiPublicHooksWhatsappDriveBackupRoute
@@ -623,6 +630,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
   '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
+  '/api/public/hooks/watch-link': typeof ApiPublicHooksWatchLinkRoute
   '/api/public/hooks/wearables-sync': typeof ApiPublicHooksWearablesSyncRoute
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   '/api/public/hooks/whatsapp-drive-backup': typeof ApiPublicHooksWhatsappDriveBackupRoute
@@ -701,6 +709,7 @@ export interface FileRoutesById {
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
   '/api/public/hooks/onboarding-library-nudge': typeof ApiPublicHooksOnboardingLibraryNudgeRoute
+  '/api/public/hooks/watch-link': typeof ApiPublicHooksWatchLinkRoute
   '/api/public/hooks/wearables-sync': typeof ApiPublicHooksWearablesSyncRoute
   '/api/public/hooks/weekly-practitioner-digest': typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   '/api/public/hooks/whatsapp-drive-backup': typeof ApiPublicHooksWhatsappDriveBackupRoute
@@ -780,6 +789,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
     | '/api/public/hooks/onboarding-library-nudge'
+    | '/api/public/hooks/watch-link'
     | '/api/public/hooks/wearables-sync'
     | '/api/public/hooks/weekly-practitioner-digest'
     | '/api/public/hooks/whatsapp-drive-backup'
@@ -856,6 +866,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
     | '/api/public/hooks/onboarding-library-nudge'
+    | '/api/public/hooks/watch-link'
     | '/api/public/hooks/wearables-sync'
     | '/api/public/hooks/weekly-practitioner-digest'
     | '/api/public/hooks/whatsapp-drive-backup'
@@ -933,6 +944,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
     | '/api/public/hooks/onboarding-library-nudge'
+    | '/api/public/hooks/watch-link'
     | '/api/public/hooks/wearables-sync'
     | '/api/public/hooks/weekly-practitioner-digest'
     | '/api/public/hooks/whatsapp-drive-backup'
@@ -983,6 +995,7 @@ export interface RootRouteChildren {
   ApiPublicHooksNightlyPatternDetectionRoute: typeof ApiPublicHooksNightlyPatternDetectionRoute
   ApiPublicHooksNightlyRiskAnalysisRoute: typeof ApiPublicHooksNightlyRiskAnalysisRoute
   ApiPublicHooksOnboardingLibraryNudgeRoute: typeof ApiPublicHooksOnboardingLibraryNudgeRoute
+  ApiPublicHooksWatchLinkRoute: typeof ApiPublicHooksWatchLinkRoute
   ApiPublicHooksWearablesSyncRoute: typeof ApiPublicHooksWearablesSyncRoute
   ApiPublicHooksWeeklyPractitionerDigestRoute: typeof ApiPublicHooksWeeklyPractitionerDigestRoute
   ApiPublicHooksWhatsappDriveBackupRoute: typeof ApiPublicHooksWhatsappDriveBackupRoute
@@ -1427,6 +1440,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksOnboardingLibraryNudgeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/watch-link': {
+      id: '/api/public/hooks/watch-link'
+      path: '/api/public/hooks/watch-link'
+      fullPath: '/api/public/hooks/watch-link'
+      preLoaderRoute: typeof ApiPublicHooksWatchLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/wearables-sync': {
       id: '/api/public/hooks/wearables-sync'
       path: '/api/public/hooks/wearables-sync'
@@ -1655,6 +1675,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiPublicHooksNightlyRiskAnalysisRoute,
   ApiPublicHooksOnboardingLibraryNudgeRoute:
     ApiPublicHooksOnboardingLibraryNudgeRoute,
+  ApiPublicHooksWatchLinkRoute: ApiPublicHooksWatchLinkRoute,
   ApiPublicHooksWearablesSyncRoute: ApiPublicHooksWearablesSyncRoute,
   ApiPublicHooksWeeklyPractitionerDigestRoute:
     ApiPublicHooksWeeklyPractitionerDigestRoute,

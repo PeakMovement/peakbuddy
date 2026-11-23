@@ -649,7 +649,8 @@ async function saveDayCheckIn(
     .order("created_at", { ascending: true })
     .limit(1);
   const current = (existing as DayCheckIn[] | null)?.[0] as
-    (DayCheckIn & { id: string }) | undefined;
+    | (DayCheckIn & { id: string })
+    | undefined;
   if (!current?.id) throw new Error("check-in insert failed: 23505");
   const merged = mergeDayCheckIn(current, {
     pain: incoming.pain,
@@ -1370,10 +1371,10 @@ async function processOne(env: WorkerEnv, row: InboundRow): Promise<string | nul
     consecutiveMissedCheckins: postOp.consecutiveMissedCheckins,
   });
 
-  // No app login means the app's Wearables page is behind a sign-in they
-  // can't pass, so watch links go to the public connect page instead.
+  // WhatsApp wearable invites always use /connect-watch, including when the
+  // client also has an app login. The in-app Wearables section is unchanged.
   let watchUrl: string | undefined;
-  if (client && !client.auth_user_id) {
+  if (client) {
     const { mintWatchToken, watchLinkUrl } = await import("@/lib/wearables/watch-link.server");
     const token = await mintWatchToken(client.id, now).catch(() => null);
     if (token) watchUrl = watchLinkUrl(APP_ORIGIN, token);

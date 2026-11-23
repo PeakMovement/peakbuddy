@@ -213,8 +213,8 @@ export interface DecisionContext {
   /** They have a Buddy app login already. */
   hasAppAccount?: boolean;
   /**
-   * A personal "connect your watch" page link, for patients with no app login
-   * (they can't get past the app's sign-in page). Absent: the app link.
+   * A personal /connect-watch link. WhatsApp wearable replies use this whether
+   * or not the client has an app login. Absent only when it could not be signed.
    */
   watchUrl?: string;
   /** Eligible for the one-time app offer (no app login, not offered before). */
@@ -331,13 +331,6 @@ export const IDS = {
 
 const PRACTICE_PHONE = "067 369 0593";
 
-/**
- * Where the app's own "Connect" button on the check-in screen goes. Opening it
- * from WhatsApp asks the patient to sign in first, then lands them on the
- * Wearables section, opened.
- */
-export const WEARABLE_CONNECT_URL = `${appBaseUrl()}/client/app/profile#wearables`;
-
 /* ------------------------------------------------------------------ */
 /* Wording                                                             */
 /* ------------------------------------------------------------------ */
@@ -397,10 +390,8 @@ export const MSG = {
     "Sorry, I can't listen to voice notes for you at the moment. Could you type that for me instead?",
   wearableOffer:
     "One more thing. Do you wear a smartwatch or ring, like a Garmin, Oura or Polar? If you connect it, your physiotherapist can see your sleep, heart rate and activity alongside your check-ins, without you having to type anything.",
-  wearableLink:
-    "Great. Tap this link, sign in to Buddy if it asks, and choose your device under Wearables:\n\n" +
-    WEARABLE_CONNECT_URL +
-    "\n\nIt only takes a minute. Garmin, Oura and Polar are supported.",
+  wearableLinkUnavailable:
+    "I can't send the connect link just now. Send the word WATCH again in a minute and I'll try once more.",
   appAlready: `You already have a Buddy app login. Open the app and sign in with your email: ${appBaseUrl()}/client/login`,
   wearableLinkDirect: (url: string) =>
     "Great. Tap this link and pick your device. You'll sign in with your Garmin, Oura or Polar account, not Buddy:\n\n" +
@@ -666,8 +657,12 @@ function readProgrammeOptIn(text: string): boolean | null {
   return null;
 }
 
-const wearableLinkReply = (ctx: DecisionContext): Reply =>
-  text(ctx.watchUrl ? MSG.wearableLinkDirect(ctx.watchUrl) : MSG.wearableLink);
+/** The connect-watch link, or a retry line. Never the app sign-in page. */
+export function wearableLinkBody(watchUrl?: string): string {
+  return watchUrl ? MSG.wearableLinkDirect(watchUrl) : MSG.wearableLinkUnavailable;
+}
+
+const wearableLinkReply = (ctx: DecisionContext): Reply => text(wearableLinkBody(ctx.watchUrl));
 
 const wearableOffer = (): Reply => ({
   kind: "buttons",

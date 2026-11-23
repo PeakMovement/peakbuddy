@@ -6,15 +6,16 @@ import {
   startWatchLinkConnect,
   syncAfterWatchConnect,
 } from "@/lib/wearables/watch-link.functions";
+import { getBuddyChatUrl } from "@/lib/whatsapp/onboarding.functions";
 import { GarminAttribution } from "@/components/wearables/GarminAttribution";
 
 /**
- * Connect a watch or ring without a Buddy app login.
+ * Connect a watch or ring from a WhatsApp link, with or without a Buddy login.
  *
- * Buddy sends WhatsApp-only patients a personal link here (?t=TOKEN). It runs
- * the same Garmin / Oura / Polar connect as the in-app Wearables panel, for
- * their profile, and the provider sends them back here (with ?status=) when
- * they're done. Mobile first: everyone arrives from WhatsApp on a phone.
+ * Buddy sends a personal link here (?t=TOKEN). It runs the same Garmin / Oura /
+ * Polar connect as the in-app Wearables panel, for their profile, and the
+ * provider sends them back here (with ?status=) when they're done. Mobile
+ * first: everyone arrives from WhatsApp on a phone.
  */
 
 type Provider = "garmin" | "oura" | "polar";
@@ -22,6 +23,7 @@ type Provider = "garmin" | "oura" | "polar";
 type Search = { t?: string; wearable?: Provider; status?: string };
 
 export const Route = createFileRoute("/connect-watch")({
+  loader: () => getBuddyChatUrl(),
   head: () => ({
     meta: [{ title: "Connect your watch | Buddy" }, { name: "robots", content: "noindex" }],
   }),
@@ -35,8 +37,6 @@ export const Route = createFileRoute("/connect-watch")({
   }),
   component: ConnectWatchPage,
 });
-
-const BUDDY_CHAT = "https://wa.me/27675724314";
 
 const DEVICES: { id: Provider; name: string; note: string }[] = [
   { id: "garmin", name: "Garmin", note: "Watches and fitness trackers" },
@@ -52,6 +52,7 @@ type Load =
   | { status: "ready"; firstName: string; connected: Provider[] };
 
 function ConnectWatchPage() {
+  const { whatsappUrl } = Route.useLoaderData();
   const { t, wearable, status } = Route.useSearch() as Search;
   const details = useServerFn(getWatchLinkDetails);
   const start = useServerFn(startWatchLinkConnect);
@@ -124,7 +125,7 @@ function ConnectWatchPage() {
           <Panel>
             This link isn't working or has expired. Send Buddy the word WATCH on WhatsApp and it
             will send you a fresh one.{" "}
-            <a href={BUDDY_CHAT} className="underline" style={{ color: "var(--blue-accent)" }}>
+            <a href={whatsappUrl} className="underline" style={{ color: "var(--blue-accent)" }}>
               Open WhatsApp
             </a>
           </Panel>
@@ -134,12 +135,14 @@ function ConnectWatchPage() {
           <>
             {wearable && status === "connected" && (
               <Panel tone="good">
-                <strong style={{ color: "var(--white)" }}>{NAME[wearable as Provider]} connected.</strong> Your
-                data will start showing for your physiotherapist shortly. You can head back to
+                <strong style={{ color: "var(--white)" }}>
+                  {NAME[wearable as Provider]} connected.
+                </strong>{" "}
+                Your data will start showing for your physiotherapist shortly. You can head back to
                 WhatsApp now.
                 <div className="mt-3">
                   <a
-                    href={BUDDY_CHAT}
+                    href={whatsappUrl}
                     className="inline-block rounded-lg px-4 py-2.5 text-sm font-semibold"
                     style={{ background: "#25D366", color: "#0b1a12" }}
                   >
@@ -150,12 +153,15 @@ function ConnectWatchPage() {
             )}
             {wearable && status === "consent" && (
               <Panel>
-                {NAME[wearable as Provider]} needs data sharing switched on. In the {NAME[wearable as Provider]} app, allow
-                sharing with Buddy, then tap {NAME[wearable as Provider]} below again.
+                {NAME[wearable as Provider]} needs data sharing switched on. In the{" "}
+                {NAME[wearable as Provider]} app, allow sharing with Buddy, then tap{" "}
+                {NAME[wearable as Provider]} below again.
               </Panel>
             )}
             {wearable && status === "error" && (
-              <Panel>That didn't go through. Please try {NAME[wearable as Provider]} again below.</Panel>
+              <Panel>
+                That didn't go through. Please try {NAME[wearable as Provider]} again below.
+              </Panel>
             )}
 
             <p className="mt-4 text-sm leading-relaxed" style={{ color: "var(--white-muted)" }}>

@@ -27,7 +27,17 @@ import {
   type BuddyTone,
 } from "./personality";
 import { contextFact } from "./proactive-context";
-import { IDS, MSG, STALE_CHECKIN_MS, safetyReply, type CheckinDraft, type ConversationState, type Decision, type DecisionContext } from "./conversation";
+import {
+  IDS,
+  MSG,
+  STALE_CHECKIN_MS,
+  safetyReply,
+  wearableLinkBody,
+  type CheckinDraft,
+  type ConversationState,
+  type Decision,
+  type DecisionContext,
+} from "./conversation";
 
 type Reply = Decision["replies"][number];
 const text = (body: string): Reply => ({ kind: "text", body });
@@ -602,7 +612,7 @@ function asideReplies(ctx: DecisionContext, raw: string, aside: ReturnType<typeo
   if (aside.kind === "booking") return null;
   if (aside.kind === "clinical") return ASSIST_MSG.clinical;
   if (aside.kind === "pause") return `${ASSIST_MSG.paused} ${held(ctx.conversation.draft)}`;
-  if (aside.kind === "wearable") return ctx.watchUrl ? MSG.wearableLinkDirect(ctx.watchUrl) : MSG.wearableLink;
+  if (aside.kind === "wearable") return wearableLinkBody(ctx.watchUrl);
   if (aside.kind === "help") return "I can log a check in, pass a note to your physio, or share the practice hours. Say what you need.";
   return null;
 }

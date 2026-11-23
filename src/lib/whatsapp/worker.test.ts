@@ -1059,6 +1059,32 @@ describe("WhatsApp worker, end to end against a fake database", () => {
     expect(db.tables.whatsapp_conversations[0].state).toBe("awaiting_email");
   });
 
+  it("sends a connect-watch link even when the client has an app login", async () => {
+    const prev = process.env.WATCH_LINK_SECRET;
+    process.env.WATCH_LINK_SECRET = "test-watch-secret";
+    const id = "11111111-2222-4333-8444-555555555555";
+    try {
+      const db = fakeDb({
+        clients: [{ ...CLIENT, id, auth_user_id: "user-1" }],
+        whatsapp_inbound: [inbound("WATCH")],
+        whatsapp_conversations: [
+          { id: "c1", phone: "27820000001", client_id: id, state: "idle", draft: {} },
+        ],
+        consent_records: CONSENTED().map((r) => ({ ...r, client_id: id })),
+        check_ins: [{ id: "x1", client_id: id, created_at: NOW().toISOString() }],
+      });
+      const { provider, sent } = fakeProvider();
+      await processPendingInbound({ admin: db.admin, provider, secrets: SECRETS, now: NOW });
+      const body = sent.map((m) => ("body" in m ? m.body : "")).join("\n");
+      expect(body).toContain("/connect-watch?t=");
+      expect(body).not.toContain("/client/app/profile");
+      expect(body).not.toContain("sign in to Buddy");
+    } finally {
+      if (prev === undefined) delete process.env.WATCH_LINK_SECRET;
+      else process.env.WATCH_LINK_SECRET = prev;
+    }
+  });
+
   it("a join link from someone already on Buddy is a hello, not a note", async () => {
     const db = fakeDb({
       clients: [CLIENT],

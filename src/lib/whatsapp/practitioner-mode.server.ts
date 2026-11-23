@@ -22,6 +22,7 @@ import { handleHeidiTurn, heidiConfig } from "./heidi.server";
 import { isAgentButton, isExactShortcut, joinNames } from "./practitioner-agent";
 import { MORNING_MSG, morningNameParts, morningPhrase } from "./morning-checkin";
 import type { AgentTurnInput } from "./practitioner-agent";
+import { buddyWhatsappChatUrl } from "./buddy-number";
 import { maskPhone, toE164Digits } from "./phone";
 import type { OutboundMessage, ProviderSecrets, WhatsAppProvider } from "./provider";
 import {
@@ -54,7 +55,11 @@ type Outgoing = OutboundMessage extends infer T
 
 const WINDOW_MS = 24 * 60 * 60 * 1000 - 2 * 60 * 1000;
 const CACHE_MS = 10 * 60 * 1000;
-export const JOIN_LINK = "https://wa.me/27675724314?text=JOIN-PEAK";
+
+/** wa.me join link on Buddy's current line. Not the Meta sender id. */
+export function joinLink(): string {
+  return buddyWhatsappChatUrl("JOIN-PEAK");
+}
 
 export interface Practitioner {
   userId: string;
@@ -301,7 +306,7 @@ export const PRAC_MSG = {
   toldTemplate: (patient: string) =>
     `Done. ${patient} hasn't messaged in the last day, so I sent the programme template.`,
   notRegistered: (patient: string) =>
-    `Sorry, ${patient} isn't registered on Buddy yet, so I can't let them know. If you'd like them to join, forward them this link:\n\n${JOIN_LINK}`,
+    `Sorry, ${patient} isn't registered on Buddy yet, so I can't let them know. If you'd like them to join, forward them this link:\n\n${joinLink()}`,
   needsConsent: (patient: string) =>
     `${patient} hasn't signed the current consent form, so I won't message them until they have.`,
   cantReachYet: (patient: string) =>
@@ -319,7 +324,7 @@ export const PRAC_MSG = {
   checkinUnreachable: (patient: string) =>
     `${patient} hasn't messaged me in over a day, so WhatsApp won't let me message them first. A quick message from you may get them going again.`,
   notRegisteredCheckin: (patient: string) =>
-    `${patient} isn't on Buddy yet, so I can't ask them to check in. If you'd like them to join, forward them this link:\n\n${JOIN_LINK}`,
+    `${patient} isn't on Buddy yet, so I can't ask them to check in. If you'd like them to join, forward them this link:\n\n${joinLink()}`,
   notFoundAny: (name: string) =>
     `I couldn't find a client matching that on your list, ${name}. Try their first and last name, for example "how is Sam Kruger doing".`,
   failed: (patient: string) =>

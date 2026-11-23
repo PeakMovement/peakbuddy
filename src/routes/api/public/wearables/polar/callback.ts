@@ -14,20 +14,23 @@ export const Route = createFileRoute("/api/public/wearables/polar/callback")({
         const code = url.searchParams.get("code");
         const state = url.searchParams.get("state"); // = our client_id
         const base = process.env.BUDDY_APP_BASE_URL ?? url.origin;
-        // Where to send the browser. Known once the state row is read: a patient
-        // without an app login goes to the public connect page, not a sign-in.
+        // Where to send the browser. A connect started on /connect-watch returns
+        // there. An in-app connect returns to the profile when they can sign in.
         let returnClientId: string | null = null;
         const back = async (status: string) => {
+          const { connectStartedOnWatchLink, wearableReturnUrl } =
+            await import("@/lib/wearables/watch-link.server");
+          const fromWatch = connectStartedOnWatchLink(state);
           let location = `${base}/client/app/profile?wearable=polar&status=${status}`;
-          if (returnClientId) {
+          if (returnClientId || fromWatch) {
             const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-            const { wearableReturnUrl } = await import("@/lib/wearables/watch-link.server");
             location = await wearableReturnUrl(
               supabaseAdmin,
               base,
               returnClientId,
               "polar",
               status,
+              fromWatch,
             );
           }
           return new Response(null, { status: 302, headers: { Location: location } });

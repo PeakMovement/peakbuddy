@@ -116,3 +116,9 @@ export const getPracticeWhatsAppLink = createServerFn({ method: "POST" })
       ? { ok: true as const, ...r }
       : { ok: false as const, error: "Could not create a link." };
   });
+
+/** Public. The wa.me URL for "Back to WhatsApp" on consent and connect-watch. */
+export const getBuddyChatUrl = createServerFn({ method: "GET" }).handler(async () => {
+  const { buddyWhatsappChatUrl } = await import("./buddy-number");
+  return { whatsappUrl: buddyWhatsappChatUrl() };
+});

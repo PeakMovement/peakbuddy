@@ -67,7 +67,7 @@ describe("join codes and links", () => {
 
   it("round trips: the prefilled message carries a code the parser finds", () => {
     const link = chatToBuddyLink("AB23CD", "client");
-    expect(link.startsWith("https://wa.me/27675724314?text=")).toBe(true);
+    expect(link.startsWith("https://wa.me/27715516294?text=")).toBe(true);
     const text = decodeURIComponent(link.split("text=")[1]);
     expect(parseJoinCode(text)).toBe("AB23CD");
     expect(consentPageUrl("tok_en")).toContain("/consent?t=tok_en");
@@ -139,11 +139,12 @@ describe("consent gate for existing profiles", () => {
   });
 });
 
-describe("watch link for WhatsApp-only patients", () => {
-  it("sends the no-login connect page when there is one, the app link otherwise", () => {
+describe("watch link on WhatsApp", () => {
+  it("sends the connect-watch page and never the app sign-in link", () => {
     const base = {
       client: { firstName: "Test" },
       hasConsent: true,
+      hasAppAccount: true,
       conversation: snap("awaiting_wearable"),
     };
     const direct = decide(
@@ -151,7 +152,9 @@ describe("watch link for WhatsApp-only patients", () => {
     );
     expect(bodies(direct)).toContain("/connect-watch?t=abc");
     expect(bodies(direct)).not.toContain("sign in to Buddy");
-    const app = decide(ctx("Yes", base));
-    expect(bodies(app)).toContain("/client/app/profile#wearables");
+    expect(bodies(direct)).not.toContain("/client/app/profile");
+    const missing = decide(ctx("Yes", base));
+    expect(bodies(missing)).not.toContain("/client/app/profile");
+    expect(bodies(missing)).not.toContain("sign in to Buddy");
   });
 });
