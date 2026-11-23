@@ -82,7 +82,7 @@ export async function recordJobRun(
   }
 }
 
-/** Records a delivery failure the daily health check will email about. */
+/** Records a delivery failure for background health reporting. */
 export async function noteRedFlagDeliveryProblem(detail: string): Promise<void> {
   await recordJobRun(RED_FLAG_NOTIFY_JOB, {
     ok: false,
@@ -235,7 +235,6 @@ export async function runJobHealthCheck(
   now: Date = new Date(),
   opts: { email?: boolean; prune?: boolean } = {},
 ): Promise<{ ok: boolean; problems: JobProblem[]; emailed: boolean }> {
-  const email = opts.email !== false;
   const prune = opts.prune !== false;
   const longest = Math.max(...EXPECTED_JOBS.map((j) => j.windowMs));
   const since = new Date(now.getTime() - longest - DAY).toISOString();
@@ -296,23 +295,9 @@ export async function runJobHealthCheck(
         () => undefined,
       );
 
-  let emailed = false;
-  if (problems.length && email) {
+  // Background health remains available to reports, but never sends warning emails.
+  if (problems.length) {
     log.warn("job health check: problems found", { jobs: problems.map((p) => p.job) });
-    try {
-      const { sendTransactionalEmailServer } = await import("@/lib/email/send-server");
-      const sent = await sendTransactionalEmailServer({
-        templateName: "job-health",
-        recipientEmail: process.env.JOB_HEALTH_EMAIL || "hello@peakmovement.co.za",
-        idempotencyKey: `job-health-${now.toISOString().slice(0, 10)}`,
-        templateData: { problems },
-      });
-      emailed = sent.ok;
-    } catch (e) {
-      log.warn("job health check: email failed", {
-        error: e instanceof Error ? e.message : "unknown",
-      });
-    }
   }
-  return { ok: problems.length === 0, problems, emailed };
+  return { ok: problems.length === 0, problems, emailed: false };
 }

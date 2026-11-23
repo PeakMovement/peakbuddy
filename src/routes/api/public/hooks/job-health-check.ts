@@ -5,7 +5,7 @@ import { log } from "@/lib/log";
 
 /**
  * Cron endpoint, daily 05:45 UTC (07:45 SAST). Checks every scheduled job ran
- * as expected and emails Peak Movement if not. See src/lib/job-runs.server.ts.
+ * as expected without sending warning emails. See src/lib/job-runs.server.ts.
  * The same daily run deletes WhatsApp rows that are no longer on a patient
  * record (the retention rule in src/lib/retention.server.ts).
  */

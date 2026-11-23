@@ -41,6 +41,24 @@ function cappedDb(rows: any[]) {
 }
 
 describe("daily job health check", () => {
+  it("does not email background-job warnings even when email is requested", async () => {
+    sent.length = 0;
+    const rows = [{
+      job: "whatsapp-drive-backup-weekly",
+      ran_at: ago(H),
+      ok: false,
+      status: 503,
+      detail: "drive connector not linked",
+    }];
+    for (const opts of [{}, { email: true }, { email: false }]) {
+      const result = await runJobHealthCheck(cappedDb(rows), NOW, opts);
+      expect(result.ok).toBe(false);
+      expect(result.problems.map((p) => p.job)).toContain("whatsapp-drive-backup-weekly");
+      expect(result.emailed).toBe(false);
+    }
+    expect(sent).toHaveLength(0);
+  });
+
   it("sees daily and weekly jobs even when minute ticks fill the first 1000 rows", async () => {
     const rows: any[] = [];
     // 9 days of every-minute and every-5-minute ticks: far more than 1000 rows.
