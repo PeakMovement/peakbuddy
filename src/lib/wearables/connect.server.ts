@@ -15,25 +15,29 @@ import {
   polarRedirectUri,
 } from "./tokens";
 import type { WearableProvider } from "./connect.functions";
+import { prefixWatchOAuthState } from "./watch-link.server";
 
 type Admin = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 
 /**
  * Start an OAuth connect for one profile and return the provider's authorize
- * URL. Shared by the in-app Wearables panel (signed-in patient) and the
- * WhatsApp "connect your watch" page (personal signed link, no login).
+ * URL. Shared by the in-app Wearables panel and the WhatsApp connect page.
+ * `returnTo: "watch"` marks the OAuth state so the callback returns to
+ * /connect-watch instead of the signed-in profile.
  */
 export async function beginWearableConnect(
   supabaseAdmin: Admin,
   clientId: string,
   provider: WearableProvider,
+  opts?: { returnTo?: "app" | "watch" },
 ): Promise<string> {
+  const returnTo = opts?.returnTo ?? "app";
   const data = { provider };
   // Oura + Polar: stash a random, single-use state server-side (10-min TTL)
   // instead of round-tripping the raw client_id, so the callback can't be
   // driven with an attacker-chosen client_id (OAuth CSRF / account linking).
   if (data.provider === "oura" || data.provider === "polar") {
-    const state = generateState();
+    const state = prefixWatchOAuthState(generateState(), returnTo);
     await supabaseAdmin
       .from("wearable_oauth_state")
       .delete()
@@ -68,7 +72,7 @@ export async function beginWearableConnect(
     // PKCE: stash the verifier server-side keyed by a random state (10-min TTL).
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = await generateCodeChallenge(codeVerifier);
-    const state = generateState();
+    const state = prefixWatchOAuthState(generateState(), returnTo);
     await supabaseAdmin.from("garmin_oauth_state").delete().eq("client_id", clientId);
     const { error } = await supabaseAdmin.from("garmin_oauth_state").insert({
       state,

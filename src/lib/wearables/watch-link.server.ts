@@ -1,10 +1,10 @@
 /**
- * "Connect your watch" links for patients who have no Buddy app login.
+ * "Connect your watch" links sent on WhatsApp.
  *
- * WhatsApp-only patients (onboarded through Buddy on WhatsApp) can't sign in
- * to the app, so the normal Wearables panel is out of reach. Buddy sends them
- * a personal link instead. The link opens /connect-watch, which starts the
- * same Garmin / Oura / Polar OAuth flow the app uses, for their profile.
+ * The link opens /connect-watch and starts the same Garmin / Oura / Polar
+ * OAuth flow the app uses, for that profile. It works whether or not the
+ * client also has a Buddy app login, so WhatsApp never asks them to sign in.
+ * The in-app Wearables section stays for people who are already in the app.
  *
  * Token: `<clientId>.<expiry seconds>.<signature>`, HMAC-SHA256 signed and
  * domain-separated ("buddy-watch-link-v1"), valid 7 days. Stateless, so no
@@ -85,12 +85,36 @@ export function watchLinkUrl(origin: string, token: string): string {
   return `${origin}/connect-watch?t=${encodeURIComponent(token)}`;
 }
 
+/** ISO expiry carried in a token, or null if the token is not shaped like one. */
+export function watchTokenExpiresAt(token: string): string | null {
+  const expRaw = token.split(".")[1] ?? "";
+  if (!/^\d{9,11}$/.test(expRaw)) return null;
+  return new Date(Number(expRaw) * 1000).toISOString();
+}
+
+const WATCH_OAUTH_PREFIX = "w.";
+
+/**
+ * OAuth `state` from /connect-watch is prefixed so the callback can return
+ * there. In-app connects keep a plain random state and return to the profile.
+ */
+export function prefixWatchOAuthState(state: string, returnTo: "app" | "watch" = "app"): string {
+  return returnTo === "watch" ? `${WATCH_OAUTH_PREFIX}${state}` : state;
+}
+
+export function connectStartedOnWatchLink(state: string | null | undefined): boolean {
+  return typeof state === "string" && state.startsWith(WATCH_OAUTH_PREFIX);
+}
+
 type Admin = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 
 /**
- * Where an OAuth callback sends the browser. Patients with an app login go
- * back to their profile as before. WhatsApp-only patients go to the public
- * connect page (with a fresh link), never to a sign-in page they can't pass.
+ * Where an OAuth callback sends the browser.
+ *
+ * A connect that started on /connect-watch always returns there, including
+ * when the client also has an app login. An in-app connect still returns to
+ * the profile Wearables section for a client who can sign in, and to the
+ * public page when they cannot.
  */
 export async function wearableReturnUrl(
   admin: Admin,
@@ -98,8 +122,18 @@ export async function wearableReturnUrl(
   clientId: string | null,
   provider: string,
   status: string,
+  fromWatchLink = false,
 ): Promise<string> {
   const appUrl = `${base}/client/app/profile?wearable=${provider}&status=${status}`;
+  const publicUrl = async (): Promise<string | null> => {
+    if (!clientId) return null;
+    const token = await mintWatchToken(clientId);
+    if (!token) return null;
+    return `${watchLinkUrl(base, token)}&wearable=${provider}&status=${status}`;
+  };
+  if (fromWatchLink) {
+    return (await publicUrl()) ?? `${base}/connect-watch?wearable=${provider}&status=${status}`;
+  }
   if (!clientId) return appUrl;
   try {
     const { data } = await admin
@@ -108,10 +142,7 @@ export async function wearableReturnUrl(
       .eq("id", clientId)
       .maybeSingle();
     if (data && !(data as { auth_user_id: string | null }).auth_user_id) {
-      const token = await mintWatchToken(clientId);
-      if (token) {
-        return `${watchLinkUrl(base, token)}&wearable=${provider}&status=${status}`;
-      }
+      return (await publicUrl()) ?? appUrl;
     }
   } catch {
     /* fall back to the app */

@@ -187,7 +187,10 @@ describe("menu choices", () => {
     expect(bodies(pick("menu_book"))[0]).toContain(PRACTICE_WHATSAPP_LINK);
     expect(bodies(pick("menu_info"))[0]).toMatch(/Strand Street/);
     expect(bodies(pick("menu_exercises"))[0]).toMatch(/Library/);
-    expect(bodies(pick("menu_watch"))[0]).toMatch(/Wearables/);
+    expect(bodies(pick("menu_watch"))[0]).not.toMatch(/profile#wearables/);
+    expect(
+      bodies(pick("menu_watch", { watchUrl: "https://example.test/connect-watch?t=abc" }))[0],
+    ).toContain("/connect-watch?t=abc");
     expect(bodies(pick("menu_progress", { progressText: "trend" }))).toEqual(["trend"]);
   });
   it("Ask a question takes the next message as the question for Justin", () => {

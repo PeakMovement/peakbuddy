@@ -1,7 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { getConsentLinkDetails, signConsentLink } from "@/lib/whatsapp/onboarding.functions";
+import {
+  getBuddyChatUrl,
+  getConsentLinkDetails,
+  signConsentLink,
+} from "@/lib/whatsapp/onboarding.functions";
 import { publicSiteOrigin } from "@/lib/app-url";
 import { currentConsent } from "@/lib/consent/wording";
 
@@ -29,6 +33,7 @@ const WHATSAPP_CHECKINS = currentConsent("whatsapp_checkins");
  */
 
 export const Route = createFileRoute("/consent")({
+  loader: () => getBuddyChatUrl(),
   head: () => {
     const site = publicSiteOrigin();
     return {
@@ -52,8 +57,6 @@ export const Route = createFileRoute("/consent")({
   component: ConsentPage,
 });
 
-const BUDDY_CHAT = "https://wa.me/27675724314";
-
 type LinkState =
   | { status: "loading" }
   | { status: "ready"; firstName: string; practiceName: string; aiConsent: boolean }
@@ -61,6 +64,7 @@ type LinkState =
   | { status: "signed"; firstName: string };
 
 function SignPanel({ token }: { token: string }) {
+  const { whatsappUrl } = Route.useLoaderData();
   const load = useServerFn(getConsentLinkDetails);
   const sign = useServerFn(signConsentLink);
   const [state, setState] = useState<LinkState>({ status: "loading" });
@@ -114,7 +118,7 @@ function SignPanel({ token }: { token: string }) {
           your first check-in.
         </p>
         <a
-          href={BUDDY_CHAT}
+          href={whatsappUrl}
           className="mt-4 inline-block rounded-lg px-4 py-2.5 text-sm font-semibold"
           style={{ background: "#25D366", color: "#0b1a12" }}
         >
@@ -136,7 +140,7 @@ function SignPanel({ token }: { token: string }) {
         style={{ ...box, color: "var(--white-muted)" }}
       >
         {why} Send Buddy a message on WhatsApp and it will send you a fresh link if one is needed.{" "}
-        <a href={BUDDY_CHAT} className="underline" style={{ color: "var(--blue-accent)" }}>
+        <a href={whatsappUrl} className="underline" style={{ color: "var(--blue-accent)" }}>
           Open WhatsApp
         </a>
       </div>

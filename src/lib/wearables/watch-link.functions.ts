@@ -4,8 +4,9 @@ import type { WearableProvider } from "./connect.functions";
 
 /**
  * PUBLIC on purpose: the /connect-watch page is opened from a WhatsApp link by
- * a patient with no Buddy login. The signed, expiring token in the link is the
- * only key, and it only ever reaches that one profile. See watch-link.server.ts.
+ * someone Buddy texted, with or without an app login. The signed, expiring
+ * token in the link is the only key, and it only ever reaches that one
+ * profile. See watch-link.server.ts.
  */
 
 const PROVIDERS = ["garmin", "oura", "polar"] as const;
@@ -41,7 +42,9 @@ export const startWatchLinkConnect = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { beginWearableConnect } = await import("./connect.server");
     try {
-      const authUrl = await beginWearableConnect(supabaseAdmin, clientId, data.provider);
+      const authUrl = await beginWearableConnect(supabaseAdmin, clientId, data.provider, {
+        returnTo: "watch",
+      });
       return { ok: true as const, authUrl };
     } catch {
       return { ok: false as const, error: "Couldn't start the connection. Please try again." };

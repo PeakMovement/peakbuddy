@@ -20,8 +20,9 @@
  * Pure helpers only. The worker and server functions do the writes.
  */
 import { appBaseUrl } from "@/lib/app-url";
+import { BUDDY_WHATSAPP_NUMBER, buddyWhatsappChatUrl } from "./buddy-number";
 
-export const BUDDY_WHATSAPP_NUMBER = "27675724314";
+export { BUDDY_WHATSAPP_NUMBER };
 /**
  * Where patient links point. BUDDY_APP_BASE_URL switches every WhatsApp link
  * to the practice's own domain once it is connected (app-url.ts); until then
@@ -57,13 +58,17 @@ export function stripJoinCode(text: string): string {
     .trim();
 }
 
-/** The wa.me link that opens a chat with Buddy, message pre-typed. */
+/**
+ * The wa.me link that opens a chat with Buddy, message pre-typed.
+ * Uses BUDDY_BACK_TO_WHATSAPP_NUMBER when set, otherwise the current Buddy line.
+ * This is not the Meta sender id.
+ */
 export function chatToBuddyLink(code: string, kind: "client" | "practice"): string {
   const text =
     kind === "client"
       ? `Hi Buddy, I'd like to start my check-ins (JOIN-${code})`
       : `Hi Buddy, I'm a patient and I'd like to join (JOIN-${code})`;
-  return `https://wa.me/${BUDDY_WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
+  return buddyWhatsappChatUrl(text);
 }
 
 export function consentPageUrl(token: string): string {

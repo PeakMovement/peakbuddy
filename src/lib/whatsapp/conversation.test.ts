@@ -10,8 +10,8 @@ import {
   type ConversationSnapshot,
   type DecisionContext,
   type InboundForDecision,
-  WEARABLE_CONNECT_URL,
   readReminderTime,
+  wearableLinkBody,
 } from "./conversation";
 import { runRedFlagRules } from "./red-flag-rules";
 import { OPT_OUT_CONFIRMATION, CONTACT_ACKNOWLEDGEMENT } from "./intent";
@@ -407,15 +407,31 @@ describe("wearable offer", () => {
       expect(d.next.state).toBe("idle");
     }
   });
-  it("Yes sends the same link the app's Connect button uses", () => {
+  it("Yes sends the connect-watch link, including when they have an app login", () => {
+    const url = "https://example.test/connect-watch?t=abc";
     const d = decide(
       ctx({
         message: msg("Yes, connect it", IDS.wearableYes),
         conversation: snap("awaiting_wearable", {}, NOW),
+        hasAppAccount: true,
+        watchUrl: url,
       }),
     );
-    expect(bodies(d)[0]).toContain(WEARABLE_CONNECT_URL);
+    expect(bodies(d)[0]).toContain(url);
+    expect(bodies(d)[0]).not.toContain("profile#wearables");
+    expect(bodies(d)[0]).not.toContain("sign in to Buddy");
     expect(d.next.state).toBe("idle");
+  });
+  it("does not fall back to the app sign-in page when no link was minted", () => {
+    const d = decide(
+      ctx({
+        message: msg("Yes, connect it", IDS.wearableYes),
+        conversation: snap("awaiting_wearable", {}, NOW),
+        hasAppAccount: true,
+      }),
+    );
+    expect(bodies(d)).toEqual([wearableLinkBody()]);
+    expect(bodies(d)[0]).not.toContain("profile");
   });
   it("Not now is accepted and tells them how to ask later", () => {
     const d = decide(
@@ -436,10 +452,12 @@ describe("wearable offer", () => {
     );
     expect(d.replies[0].kind).toBe("list");
   });
-  it("WATCH or 'connect my garmin' sends the link any time", () => {
+  it("WATCH or 'connect my garmin' sends the connect-watch link any time", () => {
+    const url = "https://example.test/connect-watch?t=abc";
     for (const t of ["WATCH", "can I connect my garmin?"]) {
-      const d = decide(ctx({ message: msg(t), checkedInToday: true }));
-      expect(bodies(d)[0]).toContain(WEARABLE_CONNECT_URL);
+      const d = decide(ctx({ message: msg(t), checkedInToday: true, watchUrl: url }));
+      expect(bodies(d)[0]).toContain(url);
+      expect(bodies(d)[0]).not.toContain("profile#wearables");
     }
   });
 });

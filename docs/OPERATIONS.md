@@ -56,6 +56,45 @@ Same auth. Wire these in Cloudflare/Lovable cron or extra Actions jobs if needed
 | `/api/public/hooks/wearables-sync`             | daily               |
 | `/api/public/hooks/whatsapp-worker`            | every minute. Also sends the practitioner morning check-in between 08:00 and 10:00 SAST on open weekdays |
 
+## Watch connect link (`POST /api/public/hooks/watch-link`)
+
+Mints a fresh 7-day `/connect-watch` link for an active client. Periskope (and any other WhatsApp agent that cannot sign the HMAC itself) calls this. WhatsApp wearable invites use the same page, including when the client already has a Buddy app login.
+
+The route does nothing unless `WATCH_LINK_API_SECRET` is set (plain **404**, no body). That secret only authorises this request. The link is still signed with `WATCH_LINK_SECRET`, or `ALERT_ACTION_SECRET`, or `META_APP_SECRET` if the first is unset. The token and the secret are not logged.
+
+| | |
+| --- | --- |
+| Method | `POST` |
+| URL | `$BUDDY_APP_BASE_URL/api/public/hooks/watch-link` |
+| Auth | `Authorization: Bearer $WATCH_LINK_API_SECRET` or header `x-watch-link-secret` |
+| Body | `{"phone":"+27..."}` |
+| Success | **200** `{"url":"https://…/connect-watch?t=…","expires_at":"2026-11-30T04:00:00.000Z"}` |
+| Unknown phone, or the number on more than one active profile | **404** `{"error":"not_found"}` |
+| Bad body or unusable phone | **400** `{"error":"bad_request"}` |
+| Wrong secret | **401** |
+| Secret unset | **404** (endpoint off) |
+| Too many requests for one number (30/minute) or failed auth (60/minute) | **429** `{"error":"too_many_requests"}` |
+| Lookup or signing unavailable | **503** `{"error":"unavailable"}` |
+
+The phone is normalised the same way WhatsApp matches a client (South African `0` rewritten to `27`). Archived clients are not a match. A number shared by two active profiles is `404`, so the wrong profile is never linked.
+
+```bash
+curl -fsS -X POST "$BUDDY_APP_BASE_URL/api/public/hooks/watch-link" \
+  -H "Authorization: Bearer $WATCH_LINK_API_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"+27000000000"}'
+```
+
+### Back to WhatsApp
+
+`BUDDY_BACK_TO_WHATSAPP_NUMBER` is digits only, country code, no plus. It is the wa.me line for links that open a chat with Buddy:
+
+- Back to WhatsApp and Open WhatsApp on `/connect-watch`
+- Back to WhatsApp and Open WhatsApp on `/consent`
+- Practitioner and patient invite links (`chatToBuddyLink`, the JOIN-PEAK forward)
+
+When the variable is unset, those links use `27715516294` (`https://wa.me/27715516294`). This is not the Meta sender. Outbound WhatsApp still uses `META_PHONE_NUMBER_ID` (or `TWILIO_WHATSAPP_FROM`). The practice number on `wa.me/27673690593` is the clinic line, not Buddy.
+
 ### Practitioner morning check-in
 
 No new cron URL. The existing minute job (`whatsapp-worker`, scheduled in `drizzle/migrations/0020_schedule_all_hooks.sql`) calls `runMorningCheckins` after the other practitioner jobs.
@@ -114,7 +153,7 @@ There is **no** in-repo deploy GitHub Action and no `wrangler deploy` in CI. Pub
 1. Open the **peakbuddy** project in [Lovable](https://lovable.dev).
 2. Ensure the workspace is on git `main` (or use **Sync / Pull** so it has the merged commit).
 3. Click **Publish** (or **Update** / **Ship** if the project is already live).
-4. Confirm Worker env still has `CRON_SECRET`, `GARMIN_CONSUMER_SECRET`, `OURA_CLIENT_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, and set `BUDDY_APP_BASE_URL` / `VITE_BUDDY_APP_BASE_URL` to `https://buddy.peakmovement.co.za`.
+4. Confirm Worker env still has `CRON_SECRET`, `GARMIN_CONSUMER_SECRET`, `OURA_CLIENT_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, and set `BUDDY_APP_BASE_URL` / `VITE_BUDDY_APP_BASE_URL` to `https://buddy.peakmovement.co.za`. Set `WATCH_LINK_API_SECRET` to turn on `POST /api/public/hooks/watch-link` (leave it unset and the route stays off). Optional: `BUDDY_BACK_TO_WHATSAPP_NUMBER` (digits only; default `27715516294`).
 5. Add that origin to Supabase Auth redirect URLs, OAuth apps, and `ALLOWED_ORIGINS`.
 
 Do not publish the Peak Movement **marketing** site from this repo.
