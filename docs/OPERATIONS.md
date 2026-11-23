@@ -95,6 +95,45 @@ curl -fsS -X POST "$BUDDY_APP_BASE_URL/api/public/hooks/watch-link" \
 
 When the variable is unset, those links use `27715516294` (`https://wa.me/27715516294`). This is not the Meta sender. Outbound WhatsApp still uses `META_PHONE_NUMBER_ID` (or `TWILIO_WHATSAPP_FROM`). The practice number on `wa.me/27673690593` is the clinic line, not Buddy.
 
+## Notion client upsert (`POST /api/public/hooks/client-upsert`)
+
+The external Buddy agent adds a person from the Notion client list as a Buddy contact. It finds an existing client by phone or inserts one. It does not send WhatsApp, email, or a consent link.
+
+The route does nothing unless `CLIENT_UPSERT_API_SECRET` is set (plain **404**, no body). That secret is only for this request. It is not `WATCH_LINK_API_SECRET`. The secret and the phone are not logged.
+
+Apply `drizzle/migrations/0052_client_notion_page.sql` before creating clients through this hook. Do not copy it into `supabase/migrations/`. Until that migration is applied, a create returns **503**. Returning an existing client does not need the new columns.
+
+| | |
+| --- | --- |
+| Method | `POST` |
+| URL | `$BUDDY_APP_BASE_URL/api/public/hooks/client-upsert` |
+| Auth | `Authorization: Bearer $CLIENT_UPSERT_API_SECRET` or header `x-client-upsert-secret` |
+| Body | `{"name":"…","phone":"+27…","practitioner":"Alex","notion_page_id":"…","source":"notion-buddy-clients"}` |
+| Optional | `"unarchive": true` — only then is an archived match restored |
+| Created | **200** `{"client_id":"…","created":true}` |
+| Already an active client with that phone | **200** `{"client_id":"…","created":false}` |
+| Unknown or shared practitioner first name | **400** `{"error":"unknown_practitioner"}` |
+| Bad body, unknown source, or unusable phone | **400** `{"error":"bad_request"}` |
+| Two active clients share the phone, two archived clients share it, or the Notion page is already stored on someone else | **409** `{"error":"duplicate"}` |
+| The only match is archived, and `unarchive` is not true | **409** `{"error":"archived"}` |
+| Wrong secret | **401** |
+| Secret unset | **404** (endpoint off) |
+| More than 30 requests a minute for this secret, or 60 failed auths a minute | **429** `{"error":"too_many_requests"}` |
+| Lookup or insert failed | **503** `{"error":"unavailable"}` |
+
+`phone` is normalised the same way WhatsApp matches a client (`082…`, `+27…`, and `27…` become `27` plus nine digits). Anything that is not a South African number is **400**. `source` must be exactly `notion-buddy-clients`. `practitioner` is a first name. Active means a practitioner, practice admin, or super admin who owns an approved practice or is an active member of one. Two people with that first name is `unknown_practitioner`.
+
+The practitioner first name is resolved before the phone lookup. A name that matches nobody, or two people, is `unknown_practitioner` and no client is returned or created. An active phone match is then returned as stored. Name, practitioner, and clinical fields are not overwritten. `created: false`. Archived clients stay archived unless `unarchive` is true, and then only `archived_at` and `archived_by` are cleared.
+
+A new row uses the same not-yet-consented flags as Add Client: `popia_accepted` false and `yves_ai_consent` false. No app login is created, because the list has no email. No welcome email and no WhatsApp message or template is sent. `notion_page_id` and `source` are stored. `onboarding_source` is set to the same source value.
+
+```bash
+curl -fsS -X POST "$BUDDY_APP_BASE_URL/api/public/hooks/client-upsert" \
+  -H "Authorization: Bearer $CLIENT_UPSERT_API_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Example Client","phone":"+27820000000","practitioner":"Alex","notion_page_id":"00000000-0000-4000-8000-000000000000","source":"notion-buddy-clients"}'
+```
+
 ### Practitioner morning check-in
 
 No new cron URL. The existing minute job (`whatsapp-worker`, scheduled in `drizzle/migrations/0020_schedule_all_hooks.sql`) calls `runMorningCheckins` after the other practitioner jobs.
@@ -153,7 +192,7 @@ There is **no** in-repo deploy GitHub Action and no `wrangler deploy` in CI. Pub
 1. Open the **peakbuddy** project in [Lovable](https://lovable.dev).
 2. Ensure the workspace is on git `main` (or use **Sync / Pull** so it has the merged commit).
 3. Click **Publish** (or **Update** / **Ship** if the project is already live).
-4. Confirm Worker env still has `CRON_SECRET`, `GARMIN_CONSUMER_SECRET`, `OURA_CLIENT_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, and set `BUDDY_APP_BASE_URL` / `VITE_BUDDY_APP_BASE_URL` to `https://buddy.peakmovement.co.za`. Set `WATCH_LINK_API_SECRET` to turn on `POST /api/public/hooks/watch-link` (leave it unset and the route stays off). Optional: `BUDDY_BACK_TO_WHATSAPP_NUMBER` (digits only; default `27715516294`).
+4. Confirm Worker env still has `CRON_SECRET`, `GARMIN_CONSUMER_SECRET`, `OURA_CLIENT_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, and set `BUDDY_APP_BASE_URL` / `VITE_BUDDY_APP_BASE_URL` to `https://buddy.peakmovement.co.za`. Set `WATCH_LINK_API_SECRET` to turn on `POST /api/public/hooks/watch-link` (leave it unset and the route stays off). Set `CLIENT_UPSERT_API_SECRET` only after `drizzle/migrations/0052_client_notion_page.sql` is applied; leave it unset and `POST /api/public/hooks/client-upsert` stays off. Optional: `BUDDY_BACK_TO_WHATSAPP_NUMBER` (digits only; default `27715516294`).
 5. Add that origin to Supabase Auth redirect URLs, OAuth apps, and `ALLOWED_ORIGINS`.
 
 Do not publish the Peak Movement **marketing** site from this repo.

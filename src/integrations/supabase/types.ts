@@ -563,6 +563,8 @@ export type Database = {
           notes: string | null
           onboarding_library_nudge_sent_at: string | null
           onboarding_source: string | null
+          notion_page_id: string | null
+          source: string | null
           outreach_opt_in: boolean
           passive_monitoring_enabled: boolean
           phone: string | null
@@ -612,6 +614,8 @@ export type Database = {
           notes?: string | null
           onboarding_library_nudge_sent_at?: string | null
           onboarding_source?: string | null
+          notion_page_id?: string | null
+          source?: string | null
           outreach_opt_in?: boolean
           passive_monitoring_enabled?: boolean
           phone?: string | null
@@ -661,6 +665,8 @@ export type Database = {
           notes?: string | null
           onboarding_library_nudge_sent_at?: string | null
           onboarding_source?: string | null
+          notion_page_id?: string | null
+          source?: string | null
           outreach_opt_in?: boolean
           passive_monitoring_enabled?: boolean
           phone?: string | null

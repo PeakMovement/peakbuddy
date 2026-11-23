@@ -66,6 +66,7 @@ import { Route as ApiPublicCalendarTokenRouteImport } from './routes/api/public/
 import { Route as ApiPublicDataExportTokenRouteImport } from './routes/api/public/data-export/$token'
 import { Route as ApiPublicGoogleCalendarCallbackRouteImport } from './routes/api/public/google-calendar/callback'
 import { Route as ApiPublicHooksCheckinRemindersRouteImport } from './routes/api/public/hooks/checkin-reminders'
+import { Route as ApiPublicHooksClientUpsertRouteImport } from './routes/api/public/hooks/client-upsert'
 import { Route as ApiPublicHooksJobHealthCheckRouteImport } from './routes/api/public/hooks/job-health-check'
 import { Route as ApiPublicHooksNightlyPatternDetectionRouteImport } from './routes/api/public/hooks/nightly-pattern-detection'
 import { Route as ApiPublicHooksNightlyRiskAnalysisRouteImport } from './routes/api/public/hooks/nightly-risk-analysis'
@@ -379,6 +380,12 @@ const ApiPublicHooksCheckinRemindersRoute =
     path: '/api/public/hooks/checkin-reminders',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksClientUpsertRoute =
+  ApiPublicHooksClientUpsertRouteImport.update({
+    id: '/api/public/hooks/client-upsert',
+    path: '/api/public/hooks/client-upsert',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksJobHealthCheckRoute =
   ApiPublicHooksJobHealthCheckRouteImport.update({
     id: '/api/public/hooks/job-health-check',
@@ -549,6 +556,7 @@ export interface FileRoutesByFullPath {
   '/api/public/data-export/$token': typeof ApiPublicDataExportTokenRoute
   '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
+  '/api/public/hooks/client-upsert': typeof ApiPublicHooksClientUpsertRoute
   '/api/public/hooks/job-health-check': typeof ApiPublicHooksJobHealthCheckRoute
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
@@ -626,6 +634,7 @@ export interface FileRoutesByTo {
   '/api/public/data-export/$token': typeof ApiPublicDataExportTokenRoute
   '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
+  '/api/public/hooks/client-upsert': typeof ApiPublicHooksClientUpsertRoute
   '/api/public/hooks/job-health-check': typeof ApiPublicHooksJobHealthCheckRoute
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
@@ -705,6 +714,7 @@ export interface FileRoutesById {
   '/api/public/data-export/$token': typeof ApiPublicDataExportTokenRoute
   '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
   '/api/public/hooks/checkin-reminders': typeof ApiPublicHooksCheckinRemindersRoute
+  '/api/public/hooks/client-upsert': typeof ApiPublicHooksClientUpsertRoute
   '/api/public/hooks/job-health-check': typeof ApiPublicHooksJobHealthCheckRoute
   '/api/public/hooks/nightly-pattern-detection': typeof ApiPublicHooksNightlyPatternDetectionRoute
   '/api/public/hooks/nightly-risk-analysis': typeof ApiPublicHooksNightlyRiskAnalysisRoute
@@ -785,6 +795,7 @@ export interface FileRouteTypes {
     | '/api/public/data-export/$token'
     | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
+    | '/api/public/hooks/client-upsert'
     | '/api/public/hooks/job-health-check'
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
@@ -862,6 +873,7 @@ export interface FileRouteTypes {
     | '/api/public/data-export/$token'
     | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
+    | '/api/public/hooks/client-upsert'
     | '/api/public/hooks/job-health-check'
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
@@ -940,6 +952,7 @@ export interface FileRouteTypes {
     | '/api/public/data-export/$token'
     | '/api/public/google-calendar/callback'
     | '/api/public/hooks/checkin-reminders'
+    | '/api/public/hooks/client-upsert'
     | '/api/public/hooks/job-health-check'
     | '/api/public/hooks/nightly-pattern-detection'
     | '/api/public/hooks/nightly-risk-analysis'
@@ -991,6 +1004,7 @@ export interface RootRouteChildren {
   ApiPublicDataExportTokenRoute: typeof ApiPublicDataExportTokenRoute
   ApiPublicGoogleCalendarCallbackRoute: typeof ApiPublicGoogleCalendarCallbackRoute
   ApiPublicHooksCheckinRemindersRoute: typeof ApiPublicHooksCheckinRemindersRoute
+  ApiPublicHooksClientUpsertRoute: typeof ApiPublicHooksClientUpsertRoute
   ApiPublicHooksJobHealthCheckRoute: typeof ApiPublicHooksJobHealthCheckRoute
   ApiPublicHooksNightlyPatternDetectionRoute: typeof ApiPublicHooksNightlyPatternDetectionRoute
   ApiPublicHooksNightlyRiskAnalysisRoute: typeof ApiPublicHooksNightlyRiskAnalysisRoute
@@ -1412,6 +1426,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksCheckinRemindersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/client-upsert': {
+      id: '/api/public/hooks/client-upsert'
+      path: '/api/public/hooks/client-upsert'
+      fullPath: '/api/public/hooks/client-upsert'
+      preLoaderRoute: typeof ApiPublicHooksClientUpsertRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/job-health-check': {
       id: '/api/public/hooks/job-health-check'
       path: '/api/public/hooks/job-health-check'
@@ -1668,6 +1689,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicDataExportTokenRoute: ApiPublicDataExportTokenRoute,
   ApiPublicGoogleCalendarCallbackRoute: ApiPublicGoogleCalendarCallbackRoute,
   ApiPublicHooksCheckinRemindersRoute: ApiPublicHooksCheckinRemindersRoute,
+  ApiPublicHooksClientUpsertRoute: ApiPublicHooksClientUpsertRoute,
   ApiPublicHooksJobHealthCheckRoute: ApiPublicHooksJobHealthCheckRoute,
   ApiPublicHooksNightlyPatternDetectionRoute:
     ApiPublicHooksNightlyPatternDetectionRoute,
