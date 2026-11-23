@@ -66,6 +66,8 @@ export interface Client {
   goal?: string | null;
   discharged_at?: string | null;
   phone_e164?: string | null;
+  notion_page_id?: string | null;
+  source?: string | null;
 }
 
 export interface CheckIn {
